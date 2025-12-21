@@ -12,7 +12,7 @@
  * - Success/failure states
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/index.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal, createEffect } from '../../primitives/signal.js';
 import { themeColor } from '../../core/theme.js';
@@ -380,36 +380,26 @@ const SPINNERS: Record<SpinnerStyle, { frames: string[]; interval: number }> = {
   // ==========================================================================
   pong: {
     frames: [
-      '▐⠂       ▌',
-      '▐⠈       ▌',
-      '▐ ⠂      ▌',
-      '▐ ⠠      ▌',
-      '▐  ⡀     ▌',
-      '▐  ⠠     ▌',
-      '▐   ⠂    ▌',
-      '▐   ⠈    ▌',
-      '▐    ⠂   ▌',
-      '▐    ⠠   ▌',
-      '▐     ⡀  ▌',
-      '▐     ⠠  ▌',
-      '▐      ⠂ ▌',
-      '▐      ⠈ ▌',
-      '▐       ⠂▌',
-      '▐       ⠠▌',
-      '▐       ⡀▌',
-      '▐      ⠠ ▌',
-      '▐      ⠂ ▌',
-      '▐     ⠈  ▌',
-      '▐     ⠂  ▌',
-      '▐    ⠠   ▌',
-      '▐    ⡀   ▌',
-      '▐   ⠠    ▌',
-      '▐   ⠂    ▌',
-      '▐  ⠈     ▌',
-      '▐  ⠂     ▌',
-      '▐ ⠠      ▌',
-      '▐ ⡀      ▌',
-      '▐⠠       ▌',
+      // Left to right
+      '▐⠂    ▌',
+      '▐⠈    ▌',
+      '▐ ⠂   ▌',
+      '▐ ⠠   ▌',
+      '▐  ⡀  ▌',
+      '▐  ⠠  ▌',
+      '▐   ⠂ ▌',
+      '▐   ⠈ ▌',
+      '▐    ⠂▌',
+      // Right to left
+      '▐    ⠠▌',
+      '▐    ⡀▌',
+      '▐   ⠠ ▌',
+      '▐   ⠂ ▌',
+      '▐  ⠈  ▌',
+      '▐  ⠂  ▌',
+      '▐ ⠠   ▌',
+      '▐ ⡀   ▌',
+      '▐⠠    ▌',
     ],
     interval: 80,
   },
