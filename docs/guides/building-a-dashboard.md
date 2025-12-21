@@ -12,7 +12,7 @@ We will build a **Server Monitor** dashboard that includes:
 
 ## 1. Project Setup
 
-First, ensure you have a project set up (see [Installation](../getting-started/installation.md)).
+First, ensure you have a project set up (see [Installation](/getting-started/installation.md)).
 
 ```typescript
 // index.ts

@@ -4,7 +4,7 @@ These are the fundamental building blocks of the Tuiuiu design system. They prov
 
 ## Box
 
-The core layout component. See [Layout System](../core/layout.md) for details.
+The core layout component. See [Layout System](/core/layout.md) for details.
 
 ```typescript
 Box({ borderStyle: 'single', color: 'cyan' },
@@ -14,7 +14,7 @@ Box({ borderStyle: 'single', color: 'cyan' },
 
 ## Text
 
-The core typography component. See [Typography](../components/typography.md) for details.
+The core typography component. See [Typography](/components/typography.md) for details.
 
 ```typescript
 Text({ color: 'green', bold: true }, 'Success')

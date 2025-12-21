@@ -34,6 +34,6 @@ render(Counter);
 
 ## Next Steps
 
-- [Installation](getting-started/installation.md)
-- [Quick Start](getting-started/quick-start.md)
-- [Explore Components](components/overview.md)
+- [Installation](/getting-started/installation.md)
+- [Quick Start](/getting-started/quick-start.md)
+- [Explore Components](/components/overview.md)
