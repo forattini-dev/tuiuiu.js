@@ -8,7 +8,7 @@
  * - Programmatic focus control
  * - Tab order management
  *
- * Inspired by: Ink (focus management), Textual (focus zones)
+ * 
  */
 
 import type { VNode } from '../utils/types.js';

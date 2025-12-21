@@ -1,8 +1,7 @@
 /**
- * Command Palette Component - Kyma-inspired quick navigation
+ * Command Palette Component
  *
  * A searchable command palette for quick navigation and actions.
- * Inspired by VS Code's Command Palette and Kyma's command/goto dialogs.
  *
  * Features:
  * - Fuzzy search
@@ -45,7 +44,7 @@
  * ```
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { stringWidth } from '../../utils/text-utils.js';
 
@@ -669,8 +668,7 @@ export interface GoToDialogProps {
 }
 
 /**
- * GoTo Dialog - Simple number input dialog
- * Inspired by Kyma's goto dialog for jumping to slides
+ * GoTo Dialog - Simple number input dialog for jumping to slides
  */
 export function GoToDialog(props: GoToDialogProps): VNode {
   const {

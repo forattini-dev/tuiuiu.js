@@ -8,7 +8,7 @@
  * - Double buffering for flicker-free rendering
  * - Buffer pooling for memory efficiency
  *
- * Inspired by: Zaz (delta rendering), Ratatui (buffer diffing)
+ * 
  */
 
 import { stringWidth } from '../utils/text-utils.js';

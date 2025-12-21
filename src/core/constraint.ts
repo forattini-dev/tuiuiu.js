@@ -10,7 +10,7 @@
  * - Common convenience constraints
  * - Efficient solving for typical UI patterns
  *
- * Inspired by: Apple AutoLayout, Cassowary algorithm
+ * 
  */
 
 // =============================================================================

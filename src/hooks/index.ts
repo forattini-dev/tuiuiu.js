@@ -58,7 +58,7 @@ export {
   createFocusManagerInstance,
 } from './focus-context.js';
 
-// Navigation (Kyma-inspired linked list navigation)
+// Navigation (linked list navigation)
 export {
   createLinkedNavigation,
   useNavigation,

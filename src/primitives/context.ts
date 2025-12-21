@@ -1,8 +1,6 @@
 /**
  * Context API - Share state between components without prop drilling
  *
- * Inspired by React's Context API, adapted for Tuiuiu's signal-based system.
- *
  * @example
  * // Create context
  * const ThemeContext = createContext<'dark' | 'light'>('dark');
@@ -17,7 +15,7 @@
  */
 
 import type { VNode } from '../utils/types.js';
-import { Box } from '../components/components.js';
+import { Box } from './nodes.js';
 
 /**
  * Context object returned by createContext

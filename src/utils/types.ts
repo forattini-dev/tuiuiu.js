@@ -7,9 +7,9 @@ export type ForegroundColorName =
   | 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' | 'grey'
   | 'blackBright' | 'redBright' | 'greenBright' | 'yellowBright' | 'blueBright' | 'magentaBright' | 'cyanBright' | 'whiteBright';
 
-/** Box style properties (flexbox-like, inspired by Yoga layout engine) */
+/** Box style properties (flexbox layout) */
 export interface BoxStyle {
-  // Display & Position (from Yoga)
+  // Display & Position
   display?: 'flex' | 'none';
   position?: 'relative' | 'absolute';
 
@@ -23,7 +23,7 @@ export interface BoxStyle {
   flexBasis?: number | 'auto' | 'content';
   flex?: number; // Shorthand for grow/shrink/basis
 
-  // Alignment (enhanced with Yoga values)
+  // Alignment
   justifyContent?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly';
   alignItems?: 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline';
   alignSelf?: 'auto' | 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline';
@@ -47,7 +47,7 @@ export interface BoxStyle {
   marginLeft?: number | 'auto';
   marginRight?: number | 'auto';
 
-  // Gap (from Yoga)
+  // Gap
   gap?: number;
   columnGap?: number;
   rowGap?: number;

@@ -564,7 +564,7 @@ export function sliceAnsi(text: string, start: number, end?: number): string {
  * Skip (remove) N visible characters from the start of ANSI string
  * Preserves ANSI escape codes and reapplies active styles
  *
- * Inspired by Kyma's skip.String() for smooth slide transitions
+ *
  *
  * @example
  * ```typescript

@@ -499,8 +499,7 @@ export interface HarmonicaSpringOptions {
 }
 
 /**
- * Create a Harmonica-style spring with frequency/damping model
- * Inspired by charmbracelet/harmonica used in Kyma
+ * Create a spring with frequency/damping model
  *
  * This model is more intuitive for UI animations:
  * - frequency: how "snappy" the spring is (7-15 for UI)
@@ -584,7 +583,7 @@ export function createHarmonicaSpring(options: HarmonicaSpringOptions = {}) {
 }
 
 // =============================================================================
-// Composite Transitions (Kyma-inspired)
+// Composite Transitions
 // =============================================================================
 
 export type CompositeDirection = 'left' | 'right' | 'up' | 'down';
@@ -621,8 +620,7 @@ export interface CompositeTransitionOptions {
  * Create a composite transition manager
  * Manages animations where both previous and next content are visible
  *
- * Inspired by Kyma's transition system where both slides are rendered
- * during animation for smooth wipe/swipe effects
+ * Both slides are rendered during animation for smooth wipe/swipe effects.
  *
  * @example
  * ```typescript
@@ -740,7 +738,7 @@ export interface SwipeOptions {
 }
 
 /**
- * Create a horizontal swipe transition (like Kyma's swipeLeft/swipeRight)
+ * Create a horizontal swipe transition
  *
  * @example
  * ```typescript
@@ -849,7 +847,7 @@ export function createSwipeTransition(options: SwipeOptions) {
 }
 
 /**
- * Create a vertical slide transition (like Kyma's slideUp/slideDown)
+ * Create a vertical slide transition
  */
 export function createSlideTransition(options: SwipeOptions) {
   const { width, height, gap = 0, animation = {} } = options;

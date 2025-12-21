@@ -9,7 +9,7 @@
  * - Pie/donut charts (ASCII art)
  * - Line charts (basic)
  *
- * Inspired by: Rich (panels), Textual (sparklines), CLI chart libraries
+ * 
  */
 
 // =============================================================================

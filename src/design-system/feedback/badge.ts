@@ -3,7 +3,7 @@
  */
 
 import type { VNode } from '../../utils/types.js';
-import { Text } from '../primitives/text.js';
+import { Text } from '../../primitives/nodes.js';
 
 /**
  * Badge - Small status indicator with label

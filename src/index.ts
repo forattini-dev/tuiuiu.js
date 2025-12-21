@@ -1,8 +1,8 @@
 /**
  * Tuiuiu - Zero-dependency Terminal UI library
  *
- * A minimal, reactive terminal UI framework inspired by React and Ink,
- * but with zero external dependencies.
+ * A minimal, reactive terminal UI framework with signal-based reactivity,
+ * flexbox layout, and zero external dependencies.
  *
  * @example
  * import { render, Box, Text, useState, useInput } from 'tuiuiu.js';
@@ -76,6 +76,8 @@ export {
   useFocus,
   useFocusManager,
   parseKeypress,
+  useTerminalSize,
+  useMouse,
 } from './hooks/index.js';
 
 export type {
@@ -87,11 +89,11 @@ export type {
 } from './hooks/index.js';
 
 // =============================================================================
-// Components - Box, Text, Select, Table, Modal, etc.
+// Primitives - Box, Text, Spacer, etc.
 // =============================================================================
 
 export {
-  // Basic
+  // Basic nodes
   Box,
   Text,
   Spacer,
@@ -102,94 +104,90 @@ export {
   Transform,
   Static,
   Divider,
-  Badge,
   Slot,
-  SPINNER_FRAMES,
-  // Basic versions (for simple use cases)
-  BasicSpinner,
-  BasicProgressBar,
-  BasicMarkdown,
-  // Advanced
-  createTextInput,
-  renderTextInput,
-  createSpinner,
-  renderSpinner,
-  Spinner,
-  createProgressBar,
-  renderProgressBar,
-  ProgressBar,
-  MultiProgressBar,
-  Table,
-  SimpleTable,
-  KeyValueTable,
-  createSelect,
-  renderSelect,
-  Select,
-  Confirm,
-  Checkbox,
-  CodeBlock,
-  InlineCode,
-  Markdown,
-  renderMarkdown,
-  SplitPanel,
-  ThreePanel,
-  createSplitPanel,
-  Modal,
-  ConfirmDialog,
-  Toast,
-  AlertBox,
-  createModal,
-  createConfirmDialog,
-} from './components/index.js';
+  // Canvas
+  Canvas,
+  createCanvas,
+  createBrailleBuffer,
+  setBrailleDot,
+  brailleBufferToString,
+  BLOCK_CHARS as CANVAS_BLOCK_CHARS,
+  LINE_CHARS,
+  createBlockBuffer,
+  setBlockPixel,
+  blockBufferToString,
+  bresenhamLine,
+  midpointCircle,
+  filledCircle,
+  midpointEllipse,
+  arcPoints,
+  bezierCurve,
+  quadraticBezier,
+  polygonPoints,
+  filledPolygon,
+  rectanglePoints,
+  filledRectangle,
+  drawSparkline,
+  drawBarChart,
+  drawScatterPlot,
+} from './primitives/index.js';
 
 export type {
-  // Basic
   TransformProps,
   StaticProps,
   DividerProps,
-  BasicSpinnerProps,
-  BasicProgressBarProps,
-  BadgeProps,
-  BasicMarkdownProps,
   SlotProps,
-  BoxProps,
-  TextProps,
-  SpacerProps,
-  NewlineProps,
+  CanvasMode,
+  CanvasColor,
+  CanvasOptions,
+  LineStyle as CanvasLineStyle,
+  FillStyle,
+  TextStyle as CanvasTextStyle,
+  CanvasState,
+  Point,
+} from './primitives/index.js';
+
+// Re-export types from utils for convenience
+export type {
   VNode,
   ReckNode,
-  // Advanced
-  TextInputState,
-  TextInputOptions,
-  TextInputProps,
-  SpinnerStyle,
-  SpinnerOptions,
-  ProgressBarStyle,
-  ProgressBarOptions,
-  TableBorderStyle,
-  TextAlign,
-  TableColumn,
-  TableOptions,
-  SelectItem,
-  SelectOptions,
-  Language,
-  CodeTheme,
-  CodeBlockOptions,
-  MarkdownOptions,
-  SplitPanelProps,
-  SplitPanelState,
-  ThreePanelProps,
-  DividerStyle,
-  ModalProps,
-  ModalState,
-  ModalSize,
-  ModalPosition,
-  ConfirmDialogProps,
-  ToastProps,
-  ToastType,
-  AlertBoxProps,
-  BorderStyle,
-} from './components/index.js';
+  BoxStyle as BoxProps,
+  TextStyle as TextProps,
+} from './utils/types.js';
+
+// Spacer/Newline props
+export interface SpacerProps {
+  x?: number;
+  y?: number;
+}
+
+export interface NewlineProps {
+  count?: number;
+}
+
+// =============================================================================
+// Atomic Design - Atoms (smallest functional units)
+// =============================================================================
+
+export * from './atoms/index.js';
+
+// =============================================================================
+// Atomic Design - Molecules (composed atoms)
+// =============================================================================
+
+export * from './molecules/index.js';
+
+// =============================================================================
+// Atomic Design - Organisms (complex self-contained units)
+// =============================================================================
+
+export * from './organisms/index.js';
+
+// =============================================================================
+// Atomic Design - Templates (page-level layouts)
+// =============================================================================
+
+export * from './templates/index.js';
 
 // =============================================================================
 // Design System - Layout Components
@@ -276,6 +274,36 @@ export type {
   Sprite,
   GradientStop,
 } from './design-system/media/index.js';
+
+// =============================================================================
+// Core - Global Tick System (synchronized animations)
+// =============================================================================
+
+export {
+  // Tick control
+  startTick,
+  stopTick,
+  pauseTick,
+  resumeTick,
+  resetTick,
+  setTickRate,
+  getTickRate,
+  // Tick state
+  getTick,
+  tick,
+  isTickRunning,
+  // Subscriptions
+  onTick,
+  // Manual control (for testing/storybook)
+  advanceTick,
+  setTickValue,
+  // Animation utilities
+  getFrame,
+  getFrameItem,
+  oscillate,
+  getElapsedSeconds,
+  everyNTicks,
+} from './core/index.js';
 
 // =============================================================================
 // Core - Theme, Animation, Capabilities
@@ -438,7 +466,7 @@ export {
   CalendarHeatmap,
   CorrelationMatrix,
   COLOR_SCALES,
-} from './components/data-viz/index.js';
+} from './molecules/data-viz/index.js';
 
 export type {
   // Sparkline
@@ -475,7 +503,7 @@ export type {
   ContributionGraphOptions,
   CalendarHeatmapOptions,
   CorrelationMatrixOptions,
-} from './components/data-viz/index.js';
+} from './molecules/data-viz/index.js';
 
 // =============================================================================
 // Design System - Forms (Advanced)

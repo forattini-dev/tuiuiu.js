@@ -1,5 +1,5 @@
 /**
- * Timer Component - Kyma-inspired presentation timer
+ * Timer Component - Presentation timer
  *
  * A flexible timer component for countdowns, stopwatches,
  * and presentation timing. Supports pause/resume and multiple formats.
@@ -29,7 +29,7 @@
  * ```
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 
 // =============================================================================
@@ -401,7 +401,7 @@ export function createTimer(options: CreateTimerOptions = {}): TimerState {
 }
 
 // =============================================================================
-// Multi-Timer (for per-slide timing like Kyma)
+// Multi-Timer (for per-slide timing)
 // =============================================================================
 
 export interface MultiTimerState {
@@ -428,7 +428,7 @@ export interface MultiTimerState {
 /**
  * Create a multi-timer manager
  *
- * Useful for tracking time per slide/page like Kyma does
+ * Useful for tracking time per slide/page
  *
  * @example
  * ```typescript

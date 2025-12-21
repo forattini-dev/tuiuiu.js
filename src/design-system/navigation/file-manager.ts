@@ -19,7 +19,7 @@
  * });
  */
 
-import { Box, Text, Each, Spacer, When } from '../primitives/index.js';
+import { Box, Text, Each, Spacer, When } from '../../primitives/nodes.js';
 import { VStack, HStack } from '../layout/stack.js';
 import type { VNode, BoxStyleProps, TextStyleProps } from '../../utils/types.js';
 import { createSignal, createEffect, type Signal } from '../../primitives/signal.js';

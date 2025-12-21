@@ -29,7 +29,7 @@
  * ```
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 
 /**

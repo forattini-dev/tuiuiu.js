@@ -8,7 +8,7 @@
  * - Enhanced modifier detection
  * - Input state machine for text editing
  *
- * Inspired by: Textual (input handling), Zaz (mouse support)
+ * 
  */
 
 // =============================================================================

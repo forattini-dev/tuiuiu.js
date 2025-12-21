@@ -12,7 +12,7 @@
  * - Success/failure states
  */
 
-import { Box, Text } from '../../primitives/index.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal, createEffect } from '../../primitives/signal.js';
 import { themeColor } from '../../core/theme.js';
@@ -643,6 +643,8 @@ export interface SpinnerOptions {
   speed?: number;
   /** Hint text (e.g., "esc to cancel") */
   hint?: string;
+  /** Minimum width for binary spinner (defaults to 6) */
+  minWidth?: number;
 }
 
 /**
@@ -655,10 +657,20 @@ export function createSpinner(options: SpinnerOptions = {}) {
     rotateText = true,
     textRotateInterval = 3000,
     speed = 1,
+    minWidth,
   } = options;
 
   const effectiveStyle = getEffectiveStyle(style);
-  const spinner = SPINNERS[effectiveStyle];
+  let spinner = SPINNERS[effectiveStyle];
+
+  // Dynamic frames for binary spinner if minWidth is specified
+  if (effectiveStyle === 'binary' && minWidth && minWidth > 0) {
+    const binaryFrames = Array.from({ length: 8 }, () => 
+      Array.from({ length: minWidth }, () => Math.random() > 0.5 ? '1' : '0').join('')
+    );
+    spinner = { ...spinner, frames: binaryFrames };
+  }
+
   const [frame, setFrame] = createSignal(0);
   const [textIndex, setTextIndex] = createSignal(0);
   const [startTime] = createSignal(Date.now());
@@ -726,8 +738,8 @@ export function renderSpinner(
     showProgress = false,
     progress = 0,
     color = themeColor('info'),
-    textColor = themeColor('text'),
-    infoColor = themeColor('textMuted'),
+    textColor = themeColor('foreground'),
+    infoColor = themeColor('mutedForeground'),
     hint = 'esc to interrupt',
   } = options;
 
@@ -781,7 +793,33 @@ export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode
   // For simple usage, create inline state
   const style = options.style || 'dots';
   const effectiveStyle = getEffectiveStyle(style);
-  const spinner = SPINNERS[effectiveStyle];
+  let spinner = SPINNERS[effectiveStyle];
+
+  // Dynamic frames for binary spinner if minWidth is specified
+  if (effectiveStyle === 'binary' && options.minWidth && options.minWidth > 0) {
+    // Generate deterministic pseudo-random frames based on time for standalone component
+    // to avoid jitter if re-rendered rapidly with different random seeds
+    // But since it's re-rendered on every frame, we want consistency.
+    // Actually, standalone Spinner usually relies on the caller to not re-create it constantly 
+    // OR it's stateless. If stateless, random frames will jitter.
+    // Let's use a simple deterministic generation based on the frame index.
+    
+    // We can't easily persist the frames here without state.
+    // But we can generate the *current* frame dynamically.
+    const frameIndex = Math.floor(Date.now() / spinner.interval);
+    
+    // Simple pseudo-random based on frame index
+    let seed = frameIndex;
+    const currentBinaryFrame = Array.from({ length: options.minWidth }, () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return (seed / 233280) > 0.5 ? '1' : '0';
+    }).join('');
+    
+    // Override just for this render
+    spinner = { ...spinner, frames: [currentBinaryFrame] }; 
+    // We only need 1 frame since we calculated the specific one
+  }
+
   const frameIndex = Math.floor(Date.now() / spinner.interval) % spinner.frames.length;
   const textIndex = Math.floor(Date.now() / 3000) % LOADING_TEXTS.length;
 

@@ -8,7 +8,8 @@
  * - Docs: Story documentation and API reference
  */
 
-import { Box, Text, Divider } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
+import { Divider } from '../../primitives/divider.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, ControlDefinition } from '../types.js';
 import type { Navigator, ViewMode } from '../core/navigator.js';

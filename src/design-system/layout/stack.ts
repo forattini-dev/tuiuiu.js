@@ -9,7 +9,7 @@
  * - Spacer: Flexible space that pushes siblings apart
  */
 
-import { Box } from '../../components/components.js';
+import { Box } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 
 // =============================================================================
@@ -380,4 +380,4 @@ export function Spacer(props: SpacerProps = {}): VNode {
 // DIVIDER - Re-export from primitives (canonical implementation)
 // =============================================================================
 
-export { Divider, type DividerProps } from '../primitives/divider.js';
+export { Divider, type DividerProps } from '../../primitives/divider.js';

@@ -8,7 +8,7 @@
  * - Animated transition (optional)
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 import { useInput } from '../../hooks/index.js';
@@ -133,7 +133,7 @@ export function Switch(props: SwitchProps): VNode {
     offLabel = 'OFF',
     showLabels = false,
     onColor = themeColor('success'),
-    offColor = themeColor('textMuted'),
+    offColor = themeColor('mutedForeground'),
     trackColor = themeColor('border'),
     size = 'normal',
     disabled = false,

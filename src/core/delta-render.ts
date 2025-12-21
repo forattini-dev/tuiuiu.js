@@ -7,7 +7,7 @@
  * - Dirty flag tracking to skip unchanged subtrees
  * - Content caching for static elements
  *
- * Inspired by: blessed (diff rendering), ratatui (buffer system),
+ * 
  * zaz (delta updates)
  */
 

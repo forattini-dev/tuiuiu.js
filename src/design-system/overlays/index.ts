@@ -21,7 +21,7 @@ export {
   type BorderStyle,
 } from './modal.js';
 
-// Command Palette (Kyma-inspired)
+// Command Palette
 export {
   CommandPalette,
   createCommandPalette,
@@ -34,7 +34,7 @@ export {
   type GoToDialogProps,
 } from './command-palette.js';
 
-// Overlay Stack Manager (Kyma-inspired)
+// Overlay Stack Manager
 export {
   createOverlayStack,
   OverlayContainer,

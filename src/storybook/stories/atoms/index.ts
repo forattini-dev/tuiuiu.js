@@ -11,7 +11,8 @@
  * - Spinner: Loading indicator
  */
 
-import { Box, Text, Spacer, Divider } from '../../../primitives/index.js';
+import { Box, Text, Spacer } from '../../../primitives/nodes.js';
+import { Divider } from '../../../primitives/divider.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 

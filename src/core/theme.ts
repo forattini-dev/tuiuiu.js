@@ -4,8 +4,8 @@
  * Provides dark/light themes with customizable colors, spacing, and styles.
  * Uses signals for reactive theme switching.
  *
- * Color system inspired by Tailwind CSS and shadcn/ui:
- * - Complete Tailwind color palette (22 colors × 11 shades)
+ * Color system includes:
+ * - Complete color palette (22 colors × 11 shades)
  * - Semantic colors with foreground variants
  * - Auto-theming support for components
  */
@@ -104,17 +104,6 @@ export interface ThemeColors {
   info: string;
   /** Info text color */
   infoForeground: string;
-
-  // ---------------------------------------------------------------------------
-  // Legacy Aliases (for backwards compatibility)
-  // ---------------------------------------------------------------------------
-
-  /** @deprecated Use 'card' instead */
-  surface: string;
-  /** @deprecated Use 'foreground' instead */
-  text: string;
-  /** @deprecated Use 'mutedForeground' instead */
-  textMuted: string;
 }
 
 export interface ThemeSpacing {
@@ -189,11 +178,6 @@ export const darkTheme: Theme = {
     errorForeground: '#ffffff',
     info: colors.cyan[500],
     infoForeground: '#ffffff',
-
-    // Legacy aliases
-    surface: colors.slate[900],
-    text: colors.slate[50],
-    textMuted: colors.slate[400],
   },
   spacing: {
     xs: 1,
@@ -247,11 +231,6 @@ export const lightTheme: Theme = {
     errorForeground: '#ffffff',
     info: colors.cyan[600],
     infoForeground: '#ffffff',
-
-    // Legacy aliases
-    surface: colors.slate[50],
-    text: colors.slate[950],
-    textMuted: colors.slate[500],
   },
   spacing: {
     xs: 1,
@@ -305,11 +284,6 @@ export const highContrastDarkTheme: Theme = {
     errorForeground: '#000000',
     info: colors.cyan[400],
     infoForeground: '#000000',
-
-    // Legacy aliases
-    surface: colors.neutral[950],
-    text: '#ffffff',
-    textMuted: colors.neutral[300],
   },
   spacing: {
     xs: 1,
@@ -363,11 +337,6 @@ export const monochromeTheme: Theme = {
     errorForeground: colors.neutral[900],
     info: colors.neutral[300],
     infoForeground: colors.neutral[900],
-
-    // Legacy aliases
-    surface: colors.neutral[800],
-    text: colors.neutral[50],
-    textMuted: colors.neutral[500],
   },
   spacing: {
     xs: 1,
@@ -559,12 +528,6 @@ export function resolveColor(colorInput: string): string {
     'info': theme.colors.info,
     'info-foreground': theme.colors.infoForeground,
     'infoForeground': theme.colors.infoForeground,
-
-    // Legacy aliases
-    'surface': theme.colors.surface,
-    'text': theme.colors.text,
-    'text-muted': theme.colors.textMuted,
-    'textMuted': theme.colors.textMuted,
   };
 
   if (colorInput in semanticMap) {

@@ -15,7 +15,7 @@
  * - Line wrapping
  */
 
-import { Box, Text, Newline } from '../../components/components.js';
+import { Box, Text, Newline } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { CodeBlock, InlineCode, type Language } from './code-block.js';
 

@@ -94,3 +94,8 @@ export {
 export type {
   UpdateBatcher,
 } from './batcher.js';
+
+// Node.js FS Storage for persistence
+export {
+  createNodeFsStorage
+} from './fs-storage.js';

@@ -13,7 +13,7 @@ import type { Effect } from '../primitives/signal.js';
 let appContext: AppContext | null = null;
 let focusManager: FocusManager | null = null;
 
-// EventEmitter for input events (Ink-inspired pattern)
+// EventEmitter for input events
 // More robust than array-based: proper on/off cleanup, no stale handlers
 const inputEventEmitter = new EventEmitter();
 inputEventEmitter.setMaxListeners(100); // Allow many input handlers
@@ -21,7 +21,7 @@ inputEventEmitter.setMaxListeners(100); // Allow many input handlers
 // =============================================================================
 // HOOK STATE PERSISTENCE
 // =============================================================================
-// React-like hook index system for persisting state across renders
+// Hook index system for persisting state across renders
 
 interface HookState {
   state: any[];        // useState values

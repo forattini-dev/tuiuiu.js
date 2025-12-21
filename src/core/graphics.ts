@@ -8,7 +8,7 @@
  * - Braille fallback (universal)
  * - Auto-detection with manual override
  *
- * Inspired by: Zaz (multi-protocol support)
+ * 
  */
 
 // =============================================================================

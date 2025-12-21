@@ -8,7 +8,8 @@
  * - Diff highlighting
  */
 
-import { Box, Text, Divider } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
+import { Divider } from '../../primitives/divider.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story } from '../types.js';
 import type { Comparatives, Variant, VariantGroup, LayoutMode } from '../core/comparatives.js';

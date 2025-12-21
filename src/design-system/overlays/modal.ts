@@ -32,7 +32,7 @@
  * ```
  */
 
-import { Box, Text, Newline } from '../../components/components.js';
+import { Box, Text, Newline } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { themeColor } from '../../core/theme.js';
 import { getChars, getRenderMode } from '../../core/capabilities.js';
@@ -388,7 +388,7 @@ export function Modal(props: ModalProps): VNode {
         { flexDirection: 'row' },
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
         Text({}, paddingStr),
-        Text({ color: themeColor('textMuted'), dim: true }, closeHint),
+        Text({ color: themeColor('mutedForeground'), dim: true }, closeHint),
         Text({}, ' '.repeat(hintPadding)),
         Text({}, paddingStr),
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
@@ -483,7 +483,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): VNode {
     confirmText = 'Confirm',
     cancelText = 'Cancel',
     confirmColor = themeColor('success'),
-    cancelColor = themeColor('textMuted'),
+    cancelColor = themeColor('mutedForeground'),
     selected = 0,
     type = 'info',
     onConfirm,
@@ -497,7 +497,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): VNode {
     danger: themeColor('error'),
   };
 
-  const inactiveColor = themeColor('textMuted');
+  const inactiveColor = themeColor('mutedForeground');
 
   const buttonRow = Box(
     { flexDirection: 'row', marginTop: 1 },
@@ -648,7 +648,7 @@ export function Toast(props: ToastProps): VNode {
       flexGrow: fullWidth ? 1 : 0,
     },
     showIcon ? Text({ color, bold: true }, `${icon} `) : Text({}, ''),
-    Box({ flexGrow: fullWidth ? 1 : 0 }, Text({ color: themeColor('text') }, message))
+    Box({ flexGrow: fullWidth ? 1 : 0 }, Text({ color: themeColor('foreground') }, message))
   );
 }
 

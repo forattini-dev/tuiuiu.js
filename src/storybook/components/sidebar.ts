@@ -8,7 +8,7 @@
  * - Search filtering
  */
 
-import { Box, Text, Spacer } from '../../components/components.js';
+import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, StoryCategory } from '../types.js';
 import type { Navigator, FocusArea } from '../core/navigator.js';
