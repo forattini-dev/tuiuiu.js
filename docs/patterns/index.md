@@ -348,5 +348,5 @@ function VimNav() {
 ## More Patterns
 
 See also:
-- [Programmatic Control Guide](/docs/guides/programmatic-control.md)
+- [Programmatic Control Guide](/guides/programmatic-control.md)
 - [Examples Directory](/examples/)
