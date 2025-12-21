@@ -440,12 +440,10 @@ function getModeColor(mode: ViewMode): string {
 function StatusBar(props: { viewMode: ViewMode; focusArea: FocusArea }): VNode {
   return Box(
     { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-    Text({ color: 'gray' }, '[Tab] Focus  '),
-    Text({ color: 'gray' }, '[P] Preview  '),
-    Text({ color: 'gray' }, '[G] Playground  '),
-    Text({ color: 'gray' }, '[C] Compare  '),
-    Text({ color: 'gray' }, '[D] Docs  '),
-    Text({ color: 'gray' }, '[Q] Quit')
+    Text({ color: 'gray' }, '[Esc] Back/Quit  '),
+    Text({ color: 'gray' }, '[Enter] Select  '),
+    Text({ color: 'gray' }, '[Tab] Cycle Focus  '),
+    Text({ color: 'gray' }, '[G] Playground')
   );
 }
 
@@ -611,7 +609,17 @@ function StorybookApp(): VNode {
     setKeystrokeCount((c) => c + 1);
 
     // Global shortcuts
-    if (key.escape || input === 'q') {
+    // ESC Logic: Go back to sidebar or exit
+    if (key.escape) {
+      if (focusArea() !== 'sidebar') {
+        setFocusArea('sidebar');
+      } else {
+        app.exit();
+      }
+      return;
+    }
+
+    if (input === 'q') {
       app.exit();
       return;
     }
@@ -625,6 +633,19 @@ function StorybookApp(): VNode {
     // Enter counts as a click/action
     if (key.return) {
       setClickCount((c) => c + 1);
+      
+      // Enter on Sidebar -> Enter Playground/Preview
+      if (focusArea() === 'sidebar') {
+        const hasControls = Object.keys(currentStory?.controls || {}).length > 0;
+        if (hasControls) {
+          setViewMode('playground');
+          setFocusArea('controls');
+        } else {
+          setViewMode('preview');
+          setFocusArea('preview');
+        }
+        return;
+      }
     }
 
     // Tab cycles focus
