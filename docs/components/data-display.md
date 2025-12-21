@@ -9,7 +9,7 @@ Compact inline charts for showing trends.
 ### Usage
 
 ```typescript
-import { Sparkline } from 'tuiuiu';
+import { Sparkline } from 'tuiuiu.js';
 
 // Basic
 Sparkline({
@@ -30,7 +30,7 @@ Sparkline({
 For streaming data, use `SparklineBuffer` to manage the rolling window.
 
 ```typescript
-import { createSparklineBuffer } from 'tuiuiu';
+import { createSparklineBuffer } from 'tuiuiu.js';
 
 const buffer = createSparklineBuffer({ maxPoints: 40 });
 
@@ -48,7 +48,7 @@ Horizontal or vertical bar charts.
 ### Usage
 
 ```typescript
-import { BarChart } from 'tuiuiu';
+import { BarChart } from 'tuiuiu.js';
 
 BarChart({
   data: [
@@ -63,7 +63,7 @@ BarChart({
 ### Stacked Bar Chart
 
 ```typescript
-import { StackedBarChart } from 'tuiuiu';
+import { StackedBarChart } from 'tuiuiu.js';
 
 StackedBarChart({
   data: [
@@ -85,7 +85,7 @@ Multi-series line charts with axes and legends. Supports Braille (high res) and 
 ### Usage
 
 ```typescript
-import { LineChart } from 'tuiuiu';
+import { LineChart } from 'tuiuiu.js';
 
 LineChart({
   width: 60,
@@ -113,7 +113,7 @@ Visual indicators for single values or progress.
 ### Usage
 
 ```typescript
-import { Gauge } from 'tuiuiu';
+import { Gauge } from 'tuiuiu.js';
 
 // Linear
 Gauge({

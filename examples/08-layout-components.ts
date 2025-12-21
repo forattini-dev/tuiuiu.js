@@ -110,9 +110,8 @@ function LayoutDemo() {
                 title: 'How do I install it?',
                 content: Box(
                   { padding: 1 },
-                  Text({}, 'npm install tuiuiu'),
-                  Text({ color: 'gray' }, 'or: pnpm add tuiuiu')
-                ),
+                  Text({}, 'npm install tuiuiu.js'),
+                  Text({ color: 'gray' }, 'or: pnpm add tuiuiu.js')                ),
               },
               {
                 id: 'faq3',

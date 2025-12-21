@@ -303,7 +303,7 @@ export function createPlayground(options: PlaygroundOptions = {}): Playground {
   };
 
   const generateImport = (componentName: string): string => {
-    return `import { ${componentName} } from 'tuiuiu';`;
+    return `import { ${componentName} } from 'tuiuiu.js';`;
   };
 
   // Format prop value for code generation

@@ -31,7 +31,7 @@ body:
       label: Example Usage
       render: typescript
       placeholder: |
-        import { Box, Text, NewComponent } from 'tuiuiu';
+        import { Box, Text, NewComponent } from 'tuiuiu.js';
 
         const App = () => Box({},
           NewComponent({ feature: true })

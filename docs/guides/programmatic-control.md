@@ -15,7 +15,7 @@ While Tuiuiu components are typically controlled through keyboard input, many ap
 The fundamental pattern is creating state and control methods **outside** the component:
 
 ```typescript
-import { createSignal } from 'tuiuiu';
+import { createSignal } from 'tuiuiu.js';
 
 // Create controller OUTSIDE component
 function createController() {
@@ -197,7 +197,7 @@ createEffect(() => {
 Optimize multiple state changes:
 
 ```typescript
-import { batch } from 'tuiuiu';
+import { batch } from 'tuiuiu.js';
 
 function createStore() {
   const [metrics, setMetrics] = createSignal({});

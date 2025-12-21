@@ -206,13 +206,13 @@ export * from './utils/index.js';
 
 Users can continue to:
 ```typescript
-import { Box, Text, createSignal, render } from 'tuiuiu';
+import { Box, Text, createSignal, render } from 'tuiuiu.js';
 ```
 
 Or use more specific imports:
 ```typescript
-import { Box, Text } from 'tuiuiu/design-system/primitives';
-import { createSignal } from 'tuiuiu/primitives';
+import { Box, Text } from 'tuiuiu.js/design-system/primitives';
+import { createSignal } from 'tuiuiu.js/primitives';
 ```
 
 ## Migration Steps

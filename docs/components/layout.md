@@ -10,7 +10,7 @@ Composable primitives for arranging content.
 Vertical stack with spacing.
 
 ```typescript
-import { VStack } from 'tuiuiu';
+import { VStack } from 'tuiuiu.js';
 
 VStack({ gap: 1 },
   Header(),
@@ -23,7 +23,7 @@ VStack({ gap: 1 },
 Horizontal stack with spacing and alignment.
 
 ```typescript
-import { HStack } from 'tuiuiu';
+import { HStack } from 'tuiuiu.js';
 
 HStack({ gap: 2, align: 'center' },
   Icon(),
@@ -36,7 +36,7 @@ HStack({ gap: 2, align: 'center' },
 Centers content horizontally and/or vertically.
 
 ```typescript
-import { Center } from 'tuiuiu';
+import { Center } from 'tuiuiu.js';
 
 Center({ width: 40, height: 10, children: Spinner() })
 ```
@@ -48,7 +48,7 @@ CSS Grid-like layout system.
 ### Usage
 
 ```typescript
-import { Grid } from 'tuiuiu';
+import { Grid } from 'tuiuiu.js';
 
 // Simple columns
 Grid({ columns: 3, gap: 1 },
@@ -70,7 +70,7 @@ Tabbed interface for switching views.
 ### Usage
 
 ```typescript
-import { Tabs } from 'tuiuiu';
+import { Tabs } from 'tuiuiu.js';
 
 Tabs({
   tabs: [
@@ -87,7 +87,7 @@ Tabs({
 Expandable sections.
 
 ```typescript
-import { Collapsible, Accordion } from 'tuiuiu';
+import { Collapsible, Accordion } from 'tuiuiu.js';
 
 // Single
 Collapsible({
@@ -109,7 +109,7 @@ Accordion({
 Scrollable container with scrollbar.
 
 ```typescript
-import { ScrollArea } from 'tuiuiu';
+import { ScrollArea } from 'tuiuiu.js';
 
 ScrollArea({
   height: 10,
@@ -125,7 +125,7 @@ High-level structures for full applications.
 Standard app layout with Header, Sidebar, Content, and Footer.
 
 ```typescript
-import { AppShell } from 'tuiuiu';
+import { AppShell } from 'tuiuiu.js';
 
 AppShell({
   header: MyHeader(),
@@ -139,7 +139,7 @@ AppShell({
 Single page layout with header/footer.
 
 ```typescript
-import { Page } from 'tuiuiu';
+import { Page } from 'tuiuiu.js';
 
 Page({
   title: 'Settings',

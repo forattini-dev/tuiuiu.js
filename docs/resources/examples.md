@@ -40,7 +40,7 @@ npx tsx examples/12-animation-system.ts
 A simple interactive counter.
 
 ```typescript
-import { render, createSignal, Box, Text } from 'tuiuiu';
+import { render, createSignal, Box, Text } from 'tuiuiu.js';
 
 function Counter() {
   const [count, setCount] = createSignal(0);
@@ -59,7 +59,7 @@ render(Counter());
 A list with input handling.
 
 ```typescript
-import { render, createSignal, useInput, Box, Text, TextInput } from 'tuiuiu';
+import { render, createSignal, useInput, Box, Text, TextInput } from 'tuiuiu.js';
 
 function TodoApp() {
   const [todos, setTodos] = createSignal<string[]>([]);
@@ -88,7 +88,7 @@ function TodoApp() {
 Using layouts and tables.
 
 ```typescript
-import { render, Box, Table, SplitPanel } from 'tuiuiu';
+import { render, Box, Table, SplitPanel } from 'tuiuiu.js';
 
 function Dashboard() {
   return SplitPanel({

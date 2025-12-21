@@ -9,7 +9,7 @@ A searchable command menu, similar to VS Code's command palette (Ctrl+Shift+P) o
 ### Usage
 
 ```typescript
-import { createCommandPalette, CommandPalette, useInput } from 'tuiuiu';
+import { createCommandPalette, CommandPalette, useInput } from 'tuiuiu.js';
 
 // 1. Create state
 const palette = createCommandPalette({
@@ -49,7 +49,7 @@ A manager for handling multiple overlapping overlays (modals, dialogs, etc.) wit
 ### Usage
 
 ```typescript
-import { createOverlayStack, OverlayContainer } from 'tuiuiu';
+import { createOverlayStack, OverlayContainer } from 'tuiuiu.js';
 
 // Create global stack
 const overlays = createOverlayStack();
@@ -70,7 +70,7 @@ OverlayContainer({ stack: overlays });
 A simple numeric input dialog, often used for jumping to a specific page or line.
 
 ```typescript
-import { GoToDialog } from 'tuiuiu';
+import { GoToDialog } from 'tuiuiu.js';
 
 GoToDialog({
   value: '10',

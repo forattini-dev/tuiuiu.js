@@ -17,7 +17,7 @@ By default, Tuiuiu automatically handles Tab/Shift+Tab to cycle through focusabl
 This behavior is enabled by default but can be disabled:
 
 ```typescript
-import { render } from 'tuiuiu';
+import { render } from 'tuiuiu.js';
 
 // Disable automatic Tab navigation
 render(App, { autoTabNavigation: false });
@@ -26,7 +26,7 @@ render(App, { autoTabNavigation: false });
 You can also toggle it at runtime:
 
 ```typescript
-import { useApp } from 'tuiuiu';
+import { useApp } from 'tuiuiu.js';
 
 function Settings() {
   const { setAutoTabNavigation, autoTabNavigation } = useApp();
@@ -41,7 +41,7 @@ function Settings() {
 ## Basic Usage
 
 ```typescript
-import { useFocus, useInput, Box, Text } from 'tuiuiu';
+import { useFocus, useInput, Box, Text } from 'tuiuiu.js';
 
 function Button({ label }: { label: string }) {
   const { isFocused } = useFocus();
@@ -132,7 +132,7 @@ interface FocusManagerControls {
 **Example:**
 
 ```typescript
-import { useFocusManager, useInput } from 'tuiuiu';
+import { useFocusManager, useInput } from 'tuiuiu.js';
 
 function CustomNavigation() {
   const { focusNext, focusPrevious, blur, getActiveId } = useFocusManager();
@@ -158,7 +158,7 @@ import {
   useFocusContext,
   useFocusContextRequired,
   hasFocusContext
-} from 'tuiuiu';
+} from 'tuiuiu.js';
 
 // Returns FocusManager or null
 const fm = useFocusContext();

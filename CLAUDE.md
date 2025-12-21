@@ -103,7 +103,7 @@ src/
 
 **1. Signals (Reactive Primitives)**
 ```typescript
-import { createSignal, createEffect, batch } from 'tuiuiu'
+import { createSignal, createEffect, batch } from 'tuiuiu.js'
 
 const [count, setCount] = createSignal(0)
 createEffect(() => console.log('Count:', count()))
@@ -112,7 +112,7 @@ setCount(c => c + 1)  // Triggers effect
 
 **2. Components (No JSX)**
 ```typescript
-import { Box, Text, When } from 'tuiuiu'
+import { Box, Text, When } from 'tuiuiu.js'
 
 // Components are functions that return VNodes
 Box({ flexDirection: 'column', padding: 1 },
@@ -123,7 +123,7 @@ Box({ flexDirection: 'column', padding: 1 },
 
 **3. Hooks**
 ```typescript
-import { useState, useEffect, useInput, useApp } from 'tuiuiu'
+import { useState, useEffect, useInput, useApp } from 'tuiuiu.js'
 
 function Counter() {
   const [count, setCount] = useState(0)
@@ -139,7 +139,7 @@ function Counter() {
 
 **4. Rendering**
 ```typescript
-import { render, renderOnce } from 'tuiuiu'
+import { render, renderOnce } from 'tuiuiu.js'
 
 // Interactive app
 const { waitUntilExit } = render(App)

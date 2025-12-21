@@ -428,7 +428,7 @@ export const commandStories: Story[] = [
           paddingX: 1,
         },
         Text({ color: 'cyan', bold: true }, '❯ '),
-        Text({ color: 'white' }, 'npm install tuiuiu'),
+        Text({ color: 'white' }, 'npm install tuiuiu.js'),
         Text({ color: 'cyan' }, '▋')
       )
     ),

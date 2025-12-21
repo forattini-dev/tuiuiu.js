@@ -1,5 +1,5 @@
 {
-  "name": "tuiuiu",
+  "name": "tuiuiu.js",
   "version": "0.1.0",
   "description": "Zero-dependency Terminal UI library with React-like experience for Node.js",
   "main": "./dist/index.js",
@@ -108,7 +108,8 @@
     "example:08": "tsx examples/08-layout-components.ts",
     "example:09": "tsx examples/09-visual-components.ts",
     "example:chat": "tsx examples/chat.ts",
-    "example:enhanced-chat": "tsx examples/enhanced-chat.ts"
+    "example:enhanced-chat": "tsx examples/enhanced-chat.ts",
+    "docs:record": "for f in docs/recordings/*.tape; do vhs \"$f\"; done"
   },
   "engines": {
     "node": ">=18"

@@ -9,7 +9,7 @@ The Context API provides a way to pass data through the component tree without h
 ## Basic Usage
 
 ```typescript
-import { createContext, useContext } from 'tuiuiu';
+import { createContext, useContext } from 'tuiuiu.js';
 
 // 1. Create a context with a default value
 const ThemeContext = createContext<'dark' | 'light'>('dark');
@@ -125,7 +125,7 @@ function App() {
 Context works seamlessly with Tuiuiu's signal system:
 
 ```typescript
-import { createSignal, createContext, useContext } from 'tuiuiu';
+import { createSignal, createContext, useContext } from 'tuiuiu.js';
 
 // Create a signal for reactive state
 const [count, setCount] = createSignal(0);
@@ -164,7 +164,7 @@ function Display() {
 Tuiuiu provides a built-in `FocusContext` for focus management:
 
 ```typescript
-import { FocusContext, useFocusContext, useFocusContextRequired } from 'tuiuiu';
+import { FocusContext, useFocusContext, useFocusContextRequired } from 'tuiuiu.js';
 
 // Get focus manager (returns null if not in provider)
 const fm = useFocusContext();

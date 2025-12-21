@@ -24,7 +24,7 @@ For data shared across the app (e.g., User Profile, Theme, App Config), create s
 
 ```typescript
 // store.ts
-import { createSignal } from 'tuiuiu';
+import { createSignal } from 'tuiuiu.js';
 
 // Create a singleton store
 export const [user, setUser] = createSignal({ name: 'Guest', loggedIn: false });
@@ -51,7 +51,7 @@ function Header() {
 If your state logic involves many different actions, a reducer pattern might be cleaner. Tuiuiu provides `createReducer` for this.
 
 ```typescript
-import { createReducer } from 'tuiuiu';
+import { createReducer } from 'tuiuiu.js';
 
 type State = { count: number; lastAction: string };
 type Action = { type: 'inc' } | { type: 'dec' } | { type: 'reset' };

@@ -92,7 +92,7 @@ Each directory MUST have an index.ts that exports all public APIs.
 
 #### Scenario: Main Index
 **Given** the `src/index.ts` file exists
-**When** a user imports from 'tuiuiu'
+**When** a user imports from 'tuiuiu.js'
 **Then** they MUST have access to all public APIs
 **And** backward compatibility MUST be maintained
 

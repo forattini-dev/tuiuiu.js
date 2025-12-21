@@ -9,7 +9,7 @@ Creates a linked-list navigation controller for a set of items.
 ### Usage
 
 ```typescript
-import { useNavigation, useInput } from 'tuiuiu';
+import { useNavigation, useInput } from 'tuiuiu.js';
 
 function Wizard() {
   const nav = useNavigation([
@@ -46,7 +46,7 @@ A specialized version of navigation that adds validation and completion tracking
 ### Usage
 
 ```typescript
-import { createWizard } from 'tuiuiu';
+import { createWizard } from 'tuiuiu.js';
 
 const wizard = createWizard([
   { 
@@ -73,7 +73,7 @@ Helper to paginate a flat array of items.
 ### Usage
 
 ```typescript
-import { createPagination } from 'tuiuiu';
+import { createPagination } from 'tuiuiu.js';
 
 const items = ['a', 'b', 'c', 'd', 'e'];
 const paged = createPagination(items, { perPage: 2 });

@@ -5,7 +5,7 @@ Access the global application context.
 ## Usage
 
 ```typescript
-import { useApp } from 'tuiuiu';
+import { useApp } from 'tuiuiu.js';
 
 function ExitButton() {
   const { exit } = useApp();

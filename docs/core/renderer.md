@@ -24,7 +24,7 @@ The `OutputBuffer` handles:
 In most cases, you don't interact with the renderer directly. You use the `render` function from the main package entry point.
 
 ```typescript
-import { render } from 'tuiuiu';
+import { render } from 'tuiuiu.js';
 
 render(<App />);
 ```

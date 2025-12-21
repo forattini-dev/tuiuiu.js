@@ -377,7 +377,15 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
         }
       }
 
-      tabNodes.push(tabContent);
+      // Wrap tab content with onClick handler
+      const clickableTab = Box(
+        {
+          onClick: isDisabled ? undefined : () => state.setActiveTab(tab.key),
+        },
+        tabContent
+      );
+
+      tabNodes.push(clickableTab);
 
       // Add separator between tabs (except for pills)
       if (i < currentTabs.length - 1 && style !== 'pills') {
@@ -522,7 +530,10 @@ export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
         : inactiveColor;
 
     return Box(
-      { flexDirection: 'row' },
+      {
+        flexDirection: 'row',
+        onClick: tab.disabled ? undefined : () => state.setActiveTab(tab.key),
+      },
       Text({ color: activeColor }, indicator + ' '),
       Text(
         { color, bold: isTabActive, dim: tab.disabled },

@@ -7,7 +7,7 @@ Here's how to build your first Tuiuiu application.
 Create a file named `index.ts` (or `.js`):
 
 ```typescript
-import { render, Box, Text } from 'tuiuiu';
+import { render, Box, Text } from 'tuiuiu.js';
 import { App } from './App'; // Your root component
 
 render(App);
@@ -16,7 +16,7 @@ render(App);
 ## 2. Create your App component
 
 ```typescript
-import { Box, Text } from 'tuiuiu';
+import { Box, Text } from 'tuiuiu.js';
 
 export function App() {
   return Box({},

@@ -29,7 +29,7 @@
  * ## 1. External State Controller
  *
  * ```typescript
- * import { createSignal } from 'tuiuiu';
+ * import { createSignal } from 'tuiuiu.js';
  *
  * // Create state outside component
  * function createController() {
@@ -98,7 +98,7 @@
  * ## 4. Batch Updates
  *
  * ```typescript
- * import { batch } from 'tuiuiu';
+ * import { batch } from 'tuiuiu.js';
  *
  * // Multiple state updates in single render
  * function processData(data) {

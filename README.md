@@ -24,11 +24,11 @@ Pure Node.js. No C++ bindings. No transpilation required.
 ## Quick Start
 
 ```bash
-npm install tuiuiu
+npm install tuiuiu.js
 ```
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu';
+import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
 
 function Counter() {
   const [count, setCount] = useState(0);
@@ -70,7 +70,7 @@ await waitUntilExit();
 Fine-grained reactivity without the VDOM overhead. Updates are precise and efficient.
 
 ```typescript
-import { createSignal, createEffect } from 'tuiuiu';
+import { createSignal, createEffect } from 'tuiuiu.js';
 
 const [count, setCount] = createSignal(0);
 const doubled = () => count() * 2;
@@ -101,7 +101,7 @@ Box({
 Interactive form components with full keyboard support and validation.
 
 ```typescript
-import { Select, TextInput, Box } from 'tuiuiu';
+import { Select, TextInput, Box } from 'tuiuiu.js';
 
 Box({ flexDirection: 'column', gap: 1 },
   TextInput({ 
@@ -122,7 +122,7 @@ Box({ flexDirection: 'column', gap: 1 },
 Render beautiful charts and graphs directly in the terminal.
 
 ```typescript
-import { BarChart, Sparkline } from 'tuiuiu';
+import { BarChart, Sparkline } from 'tuiuiu.js';
 
 BarChart({
   data: [

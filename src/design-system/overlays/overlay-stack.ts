@@ -14,7 +14,7 @@
  *
  * @example
  * ```typescript
- * import { createOverlayStack, OverlayContainer } from 'tuiuiu';
+ * import { createOverlayStack, OverlayContainer } from 'tuiuiu.js';
  *
  * const overlays = createOverlayStack();
  *

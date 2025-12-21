@@ -9,7 +9,7 @@ The main component for displaying ASCII art or pixel grids. It handles scaling, 
 ### Usage
 
 ```typescript
-import { Picture } from 'tuiuiu';
+import { Picture } from 'tuiuiu.js';
 
 const art = `
   /\_/\
@@ -50,7 +50,7 @@ Create colored pixel grids using palettes or raw colors.
 ### Usage
 
 ```typescript
-import { createPixelGrid, ColoredPicture } from 'tuiuiu';
+import { createPixelGrid, ColoredPicture } from 'tuiuiu.js';
 
 // Define palette
 const palette = {
@@ -75,7 +75,7 @@ ColoredPicture({ pixels: grid });
 A convenience component that wraps a `Picture` in a border with an optional title.
 
 ```typescript
-import { FramedPicture } from 'tuiuiu';
+import { FramedPicture } from 'tuiuiu.js';
 
 FramedPicture({
   source: logo,

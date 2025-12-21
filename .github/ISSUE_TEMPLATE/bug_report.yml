@@ -52,7 +52,7 @@ body:
       description: Minimal code to reproduce the issue
       render: typescript
       placeholder: |
-        import { render, Box, Text } from 'tuiuiu';
+        import { render, Box, Text } from 'tuiuiu.js';
 
         const App = () => Box({},
           Text({}, 'Hello')

@@ -80,6 +80,7 @@ export {
   highContrastDarkTheme,
   monochromeTheme,
   themes,
+  tw,
 } from './theme.js';
 
 export type {
@@ -88,6 +89,47 @@ export type {
   ThemeSpacing,
   BorderRadius,
 } from './theme.js';
+
+// Colors - Tailwind CSS palette
+export {
+  colors,
+  color,
+  parseColor,
+  getShades,
+  listColors,
+  listShades,
+  white,
+  black,
+  transparent,
+  slate,
+  gray,
+  zinc,
+  neutral,
+  stone,
+  red,
+  orange,
+  amber,
+  yellow,
+  lime,
+  green,
+  emerald,
+  teal,
+  cyan,
+  sky,
+  blue,
+  indigo,
+  violet,
+  purple,
+  fuchsia,
+  pink,
+  rose,
+} from './colors.js';
+
+export type {
+  ColorShade,
+  ColorPalette,
+  ColorName,
+} from './colors.js';
 
 // Animation system
 export {

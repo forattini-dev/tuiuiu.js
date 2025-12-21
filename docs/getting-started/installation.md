@@ -4,13 +4,13 @@ Install Tuiuiu via your package manager of choice.
 
 ```bash
 # npm
-npm install tuiuiu
+npm install tuiuiu.js
 
 # pnpm
-pnpm add tuiuiu
+pnpm add tuiuiu.js
 
 # yarn
-yarn add tuiuiu
+yarn add tuiuiu.js
 ```
 
 ## Requirements

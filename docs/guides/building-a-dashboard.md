@@ -16,7 +16,7 @@ First, ensure you have a project set up (see [Installation](/getting-started/ins
 
 ```typescript
 // index.ts
-import { render, AppShell, Text } from 'tuiuiu';
+import { render, AppShell, Text } from 'tuiuiu.js';
 
 function App() {
   return AppShell({
@@ -33,7 +33,7 @@ render(App());
 We'll use the `AppShell` component for the main structure and `SplitPanel` or `Grid` for the content.
 
 ```typescript
-import { AppShell, Header, Sidebar, VStack, Text } from 'tuiuiu';
+import { AppShell, Header, Sidebar, VStack, Text } from 'tuiuiu.js';
 
 function App() {
   return AppShell({
@@ -64,7 +64,7 @@ function App() {
 The dashboard view will use a **Grid** layout to organize widgets.
 
 ```typescript
-import { Grid, Box, Text, LineChart, Sparkline, Gauge } from 'tuiuiu';
+import { Grid, Box, Text, LineChart, Sparkline, Gauge } from 'tuiuiu.js';
 
 function DashboardView() {
   return Grid({
@@ -110,7 +110,7 @@ function StatCard(label: string, value: string, history: number[]) {
 To make it alive, we use **Signals**.
 
 ```typescript
-import { createSignal, useEffect } from 'tuiuiu';
+import { createSignal, useEffect } from 'tuiuiu.js';
 
 function LiveDashboard() {
   const [cpu, setCpu] = createSignal<number[]>([]);
@@ -138,7 +138,7 @@ function LiveDashboard() {
 For tabular data, we use the `Table` component.
 
 ```typescript
-import { Table } from 'tuiuiu';
+import { Table } from 'tuiuiu.js';
 
 function ProcessList() {
   const processes = [

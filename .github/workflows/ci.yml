@@ -128,7 +128,7 @@ jobs:
         run: |
           node -e "
             const pkg = require('./package.json');
-            pkg.name = '@forattini-dev/tuiuiu';
+            pkg.name = '@forattini-dev/tuiuiu.js';
             pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
@@ -152,19 +152,19 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "# NPM" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu@next" >> $GITHUB_STEP_SUMMARY
+          echo "npm install tuiuiu.js@next" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# PNPM" >> $GITHUB_STEP_SUMMARY
-          echo "pnpm add tuiuiu@next" >> $GITHUB_STEP_SUMMARY
+          echo "pnpm add tuiuiu.js@next" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Specific version" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install tuiuiu.js@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu?activeTab=versions)" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu)" >> $GITHUB_STEP_SUMMARY
+          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu.js?activeTab=versions)" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY
 
       - name: Skip Summary
         if: steps.check.outputs.skip == 'true'
@@ -224,7 +224,7 @@ jobs:
         run: |
           node -e "
             const pkg = require('./package.json');
-            pkg.name = '@forattini-dev/tuiuiu';
+            pkg.name = '@forattini-dev/tuiuiu.js';
             pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
@@ -309,13 +309,13 @@ jobs:
           echo "" >> CHANGELOG_BODY.md
           echo "\`\`\`bash" >> CHANGELOG_BODY.md
           echo "# NPM" >> CHANGELOG_BODY.md
-          echo "npm install tuiuiu@$CURRENT_TAG" >> CHANGELOG_BODY.md
+          echo "npm install tuiuiu.js@$CURRENT_TAG" >> CHANGELOG_BODY.md
           echo "" >> CHANGELOG_BODY.md
           echo "# PNPM" >> CHANGELOG_BODY.md
-          echo "pnpm add tuiuiu@$CURRENT_TAG" >> CHANGELOG_BODY.md
+          echo "pnpm add tuiuiu.js@$CURRENT_TAG" >> CHANGELOG_BODY.md
           echo "" >> CHANGELOG_BODY.md
           echo "# GitHub Packages" >> CHANGELOG_BODY.md
-          echo "npm install @forattini-dev/tuiuiu@$CURRENT_TAG --registry=https://npm.pkg.github.com" >> CHANGELOG_BODY.md
+          echo "npm install @forattini-dev/tuiuiu.js@$CURRENT_TAG --registry=https://npm.pkg.github.com" >> CHANGELOG_BODY.md
           echo "\`\`\`" >> CHANGELOG_BODY.md
 
       - name: Create GitHub Release
@@ -343,17 +343,17 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "# NPM (latest)" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu" >> $GITHUB_STEP_SUMMARY
+          echo "npm install tuiuiu.js" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# PNPM" >> $GITHUB_STEP_SUMMARY
-          echo "pnpm add tuiuiu" >> $GITHUB_STEP_SUMMARY
+          echo "pnpm add tuiuiu.js" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Specific version" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu@$VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "npm install tuiuiu.js@$VERSION" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
-          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu)" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu)" >> $GITHUB_STEP_SUMMARY
+          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY

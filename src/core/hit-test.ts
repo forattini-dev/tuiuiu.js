@@ -347,6 +347,13 @@ class HitTestRegistry {
   get count(): number {
     return this.elements.length;
   }
+
+  /**
+   * Get all registered element bounds (for debugging/testing)
+   */
+  getElements(): ElementBounds[] {
+    return [...this.elements];
+  }
 }
 
 // =============================================================================
