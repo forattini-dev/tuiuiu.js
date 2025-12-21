@@ -1,5 +1,5 @@
 /**
- * Overlay Stack Manager - Kyma-inspired overlay system
+ * Overlay Stack Manager
  *
  * Manages a stack of overlay components (modals, dialogs, menus)
  * with exclusive focus handling and proper z-ordering.
@@ -46,7 +46,7 @@
  * ```
  */
 
-import { Box } from '../../components/components.js';
+import { Box } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 

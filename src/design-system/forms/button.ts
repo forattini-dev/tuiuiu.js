@@ -10,7 +10,7 @@
  * - Focus/hover states
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { themeColor } from '../../core/theme.js';
 import { getChars, getRenderMode } from '../../core/capabilities.js';

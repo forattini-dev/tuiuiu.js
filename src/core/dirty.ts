@@ -2,7 +2,7 @@
  * Dirty Flag System
  *
  * Tracks which VNodes have changed and need re-rendering.
- * Inspired by blessed's dirty tracking for optimal render performance.
+
  *
  * Features:
  * - Mark individual nodes as dirty

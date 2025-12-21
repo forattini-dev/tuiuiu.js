@@ -34,7 +34,7 @@ export class Signal<T> {
 
   set value(newValue: T) {
     // Eager state optimization: skip update if value is the same
-    // Uses Object.is() like React for better semantics (handles NaN, -0)
+    // Uses Object.is() for better semantics (handles NaN, -0)
     if (!Object.is(this._value, newValue)) {
       this._value = newValue;
       this.notify();

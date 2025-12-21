@@ -8,7 +8,7 @@
  * - Alignment options
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 
 // =============================================================================

@@ -8,7 +8,7 @@
  * - Event pooling for performance
  * - TypeScript-first with full type safety
  *
- * Inspired by: Blessed (event bubbling), Textual (message passing)
+ * 
  */
 
 import type { VNode } from '../utils/types.js';
@@ -419,8 +419,6 @@ export interface ChangeEventData<T = unknown> {
 
 /**
  * Global event bus for cross-component communication
- *
- * Similar to Textual's message passing but simpler
  */
 class EventBus extends EventEmitter {
   private static instance: EventBus | null = null;

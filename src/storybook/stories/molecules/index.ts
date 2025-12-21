@@ -11,7 +11,8 @@
  * - Sparkline & Gauge: Simple data visualizations
  */
 
-import { Box, Text, When, Each, Fragment, Spacer, Divider } from '../../../primitives/index.js';
+import { Box, Text, When, Each, Fragment, Spacer } from '../../../primitives/nodes.js';
+import { Divider } from '../../../primitives/divider.js';
 import { 
   TextInput, 
   Checkbox, 

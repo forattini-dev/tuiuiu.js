@@ -9,7 +9,7 @@
  * - Keyboard navigation
  * - Infinite scroll pattern
  *
- * Inspired by: React Virtual, Textual (ScrollView), Ratatui (List)
+ * 
  */
 
 // =============================================================================

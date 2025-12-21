@@ -9,7 +9,7 @@ import { getHookState, getCurrentHookIndex, setHookState } from './context.js';
  * useState - Create reactive state
  *
  * Unlike createSignal, useState persists the same signal instance
- * across re-renders using a hook index system (like React).
+ * across re-renders using a hook index system.
  *
  * @example
  * const [count, setCount] = useState(0);

@@ -8,7 +8,7 @@
  * - Decorative elements
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import { colorize, stringWidth } from '../../utils/text-utils.js';
 import type { VNode } from '../../utils/types.js';
 
@@ -103,6 +103,44 @@ export function createPixelGridFromColors(
       fg: color || undefined,
     }))
   );
+}
+
+/**
+ * Parse BBCode colored ASCII art format to PixelGrid
+ *
+ * Input format: [color=#hex]char[/color][color=#hex]char[/color]...
+ *
+ * Useful for importing colored ASCII art from text-to-ASCII generators.
+ */
+export function parseColoredBBCode(bbcode: string): PixelGrid {
+  const lines = bbcode.split('\n');
+  const result: PixelGrid = [];
+
+  // Regex to match [color=#hex]char(s)[/color] pattern
+  const colorPattern = /\[color=(#[0-9a-fA-F]{6})\]([^[]*)\[\/color\]/g;
+
+  for (const line of lines) {
+    const pixelRow: Pixel[] = [];
+    let match: RegExpExecArray | null;
+
+    // Reset lastIndex for each line
+    colorPattern.lastIndex = 0;
+
+    while ((match = colorPattern.exec(line)) !== null) {
+      const [, color, chars] = match;
+      // Handle multi-character matches
+      for (const char of chars) {
+        pixelRow.push({ char, fg: color! });
+      }
+    }
+
+    // Only add non-empty lines
+    if (pixelRow.length > 0) {
+      result.push(pixelRow);
+    }
+  }
+
+  return result;
 }
 
 /**

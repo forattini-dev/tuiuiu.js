@@ -141,9 +141,9 @@ export {
   cancelAllAnimationFrames,
   createSpring,
   easingFunctions,
-  // Harmonica-style spring (frequency/damping model)
+  // Spring with frequency/damping model
   createHarmonicaSpring,
-  // Composite transitions (Kyma-inspired)
+  // Composite transitions
   createCompositeTransition,
   createSwipeTransition,
   createSlideTransition,
@@ -815,7 +815,7 @@ export type {
   RenderStats,
 } from './delta-render.js';
 
-// Error Boundary (Ink-style error display)
+// Error Boundary
 export {
   // Stack trace parsing
   parseStackLine,
@@ -840,3 +840,30 @@ export type {
   StackFrame,
   CodeExcerpt,
 } from './error-boundary.js';
+
+// Global Tick System (synchronized animations)
+export {
+  // Tick control
+  startTick,
+  stopTick,
+  pauseTick,
+  resumeTick,
+  resetTick,
+  setTickRate,
+  getTickRate,
+  // Tick state
+  getTick,
+  tick,
+  isTickRunning,
+  // Subscriptions
+  onTick,
+  // Manual control (for testing/storybook)
+  advanceTick,
+  setTickValue,
+  // Animation utilities
+  getFrame,
+  getFrameItem,
+  oscillate,
+  getElapsedSeconds,
+  everyNTicks,
+} from './tick.js';

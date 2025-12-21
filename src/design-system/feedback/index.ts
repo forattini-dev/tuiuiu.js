@@ -30,7 +30,7 @@ export {
   type BadgeProps,
 } from './badge.js';
 
-// Timer (Kyma-inspired)
+// Timer
 export {
   Timer,
   createTimer,

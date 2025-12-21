@@ -9,7 +9,7 @@
  * - Tooltips with positioning
  * - Focus trap integration
  *
- * Inspired by: Textual (Screen stack), Ratatui (Popup), Rich (Panels)
+ * 
  */
 
 // =============================================================================

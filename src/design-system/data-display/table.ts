@@ -15,7 +15,7 @@
  * - Cell colors and styles
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 
 export type TableBorderStyle = 'single' | 'double' | 'round' | 'bold' | 'ascii' | 'none';

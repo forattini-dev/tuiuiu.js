@@ -6,11 +6,11 @@
  * - Source code excerpt around the error location
  * - File path and line number
  *
- * Inspired by Ink's ErrorOverview component
+
  */
 
 import type { VNode } from '../utils/types.js';
-import { Box, Text } from '../design-system/primitives/index.js';
+import { Box, Text } from '../primitives/nodes.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 

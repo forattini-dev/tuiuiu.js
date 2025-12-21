@@ -2,7 +2,6 @@
  * Command Palette System
  *
  * Provides a fuzzy-searchable command palette for discovering and executing actions.
- * Inspired by VS Code, Textual, and other modern editor command palettes.
  */
 
 import { createSignal } from '../primitives/signal.js';

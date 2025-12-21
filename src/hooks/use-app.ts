@@ -126,7 +126,7 @@ export function initializeApp(
         return;
       }
 
-      // Automatic Tab navigation (Ink-inspired pattern)
+      // Automatic Tab navigation
       if (autoTabNavigation) {
         if (key.tab && !key.shift) {
           // Tab - focus next

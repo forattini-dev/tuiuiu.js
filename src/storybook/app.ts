@@ -1,17 +1,32 @@
 /**
  * Storybook App - Interactive component catalog
  *
- * Refactored version using modular story imports.
+ * Refactored version using modular story imports and reactive global store.
  */
 
-import { Box, Text, Divider } from '../components/components.js';
+import { Box, Text } from '../primitives/nodes.js';
+import { Divider } from '../primitives/divider.js';
 import { render } from '../app/render-loop.js';
-import { useState, useInput, useApp, useEffect } from '../hooks/index.js';
+import { useState, useInput, useApp, useEffect, useMouse } from '../hooks/index.js';
 import { createRef } from '../core/index.js';
+import { startTick, stopTick, getTick, isTickRunning, setTickRate } from '../core/tick.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
-import { COLORS } from './data/ascii-art.js';
+import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
+import { SplashScreen, createSplashScreen } from '../design-system/visual/splash-screen.js';
+import { createTextInput, renderTextInput } from '../design-system/forms/text-input.js';
+
+// Storybook Global State & Logger
+import { storybookStore, interceptConsole } from './store.js';
+import { LogViewer } from './components/log-viewer.js';
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
+// Patch console immediately to capture logs
+interceptConsole();
 
 // =============================================================================
 // Metrics Tracking
@@ -57,6 +72,7 @@ function StoryContent(props: { story: Story; values: Record<string, any>; frame?
   try {
     return story.render(values, frame);
   } catch (error: any) {
+    console.error('Render error:', error); // Captured by our interceptor!
     return Box(
       { flexDirection: 'column', padding: 1, borderStyle: 'single', borderColor: 'red' },
       Text({ color: 'red', bold: true }, 'Render Error'),
@@ -76,8 +92,10 @@ function Sidebar(props: {
   focusArea: FocusArea;
   onCategoryChange: (category: string) => void;
   onStorySelect: (index: number) => void;
+  onCategoryClick?: (index: number) => void;
+  onFocus?: () => void;
 }): VNode {
-  const { categories, currentCategory, stories, selectedIndex, focusArea } = props;
+  const { categories, currentCategory, stories, selectedIndex, focusArea, onCategoryClick, onFocus } = props;
   const isFocused = focusArea === 'sidebar';
 
   // Virtual scroll: show window around selected item
@@ -104,8 +122,6 @@ function Sidebar(props: {
   const hasMoreAbove = startIdx > 0;
   const hasMoreBelow = endIdx < totalStories;
 
-  // Fixed structure to avoid height changes causing render glitches
-  // Always show scroll indicators (empty if not needed) for consistent height
   const scrollUpText = hasMoreAbove ? `  ▲ ${startIdx} more` : '';
   const scrollDownText = hasMoreBelow ? `  ▼ ${totalStories - endIdx} more` : '';
 
@@ -121,21 +137,29 @@ function Sidebar(props: {
       { borderStyle: 'single', borderColor: isFocused ? 'cyan' : 'gray', paddingX: 1 },
       Text({ color: 'cyan', bold: true }, 'Stories')
     ),
-    // Categories (horizontal tabs)
+    // Categories (horizontal tabs) - clickable
     Box(
       { flexDirection: 'row', paddingX: 1, marginY: 1 },
       Text({ color: 'gray' }, '◀ ▶ '),
-      ...categories.map((cat) => {
+      ...categories.map((cat, catIdx) => {
         const isActive = cat === currentCategory;
         const count = getStoriesByCategory(cat).length;
         const shortName = cat.slice(0, 4);
-        return Text(
+        return Box(
           {
-            color: isActive ? 'cyan' : 'gray',
-            bold: isActive,
-            inverse: isActive,
+            onClick: () => {
+              onFocus?.();
+              onCategoryClick?.(catIdx);
+            },
           },
-          isActive ? `[${shortName}:${count}]` : ` ${shortName}:${count} `
+          Text(
+            {
+              color: isActive ? 'cyan' : 'gray',
+              bold: isActive,
+              inverse: isActive,
+            },
+            isActive ? `[${shortName}:${count}]` : ` ${shortName}:${count} `
+          )
         );
       })
     ),
@@ -145,19 +169,27 @@ function Sidebar(props: {
       { paddingX: 1, height: 1 },
       Text({ color: 'cyan', dim: true }, scrollUpText)
     ),
-    // Stories list (fixed height container)
+    // Stories list (fixed height container) - clickable items
     Box(
       { flexDirection: 'column', paddingX: 1, flexGrow: 1 },
       ...visibleStories.map((story, idx) => {
         const actualIdx = startIdx + idx;
         const isSelected = actualIdx === selectedIndex;
-        return Text(
+        return Box(
           {
-            color: isSelected ? 'white' : 'gray',
-            bold: isSelected,
-            inverse: isSelected && isFocused,
+            onClick: () => {
+              onFocus?.();
+              props.onStorySelect(actualIdx);
+            },
           },
-          isSelected ? ` ${story.name} ` : `  ${story.name}`
+          Text(
+            {
+              color: isSelected ? 'white' : 'gray',
+              bold: isSelected,
+              inverse: isSelected && isFocused,
+            },
+            isSelected ? ` ${story.name} ` : `  ${story.name}`
+          )
         );
       })
     ),
@@ -183,8 +215,14 @@ function ControlPanel(props: {
   focusedControlIndex: number;
   focusArea: FocusArea;
   onValueChange: (key: string, value: any) => void;
+  isEditingText: boolean;
+  editingTextValue: string;
+  onTextChange: (value: string) => void;
+  onFocus?: () => void;
+  onSelectControl?: (idx: number) => void;
+  onStartTextEdit?: (key: string, value: string) => void;
 }): VNode {
-  const { story, values, focusedControlIndex, focusArea } = props;
+  const { story, values, focusedControlIndex, focusArea, isEditingText, editingTextValue, onTextChange, onFocus, onSelectControl, onStartTextEdit } = props;
   const isFocused = focusArea === 'controls';
   const controls = Object.entries(story.controls || {});
 
@@ -211,17 +249,52 @@ function ControlPanel(props: {
       ...controls.map(([key, control], idx) => {
         const value = values[key] ?? control.defaultValue;
         const isActive = idx === focusedControlIndex && isFocused;
+        const isThisEditingText = isActive && isEditingText && control.type === 'text';
+
+        // Click handler for control interaction
+        const handleClick = () => {
+          onFocus?.();
+          onSelectControl?.(idx);
+
+          // Direct interaction based on control type
+          if (control.type === 'boolean') {
+            props.onValueChange(key, !value);
+          } else if (control.type === 'text') {
+            onStartTextEdit?.(key, value);
+          }
+        };
 
         return Box(
-          { flexDirection: 'column', marginBottom: 1 },
+          {
+            flexDirection: 'column',
+            marginBottom: 1,
+            onClick: handleClick,
+          },
           Box(
             {},
             Text({ color: isActive ? 'cyan' : 'gray' }, `${control.label}: `),
-            renderControlValue(value, control.type, isActive)
+            isThisEditingText
+              ? renderTextInputInline(editingTextValue, isActive, onTextChange)
+              : renderControlValue(value, control.type, isActive)
           )
         );
       })
     )
+  );
+}
+
+/**
+ * Render inline text input for editing
+ */
+function renderTextInputInline(value: string, isActive: boolean, onChange: (value: string) => void): VNode {
+  // Create inline text input with visible cursor
+  const cursorChar = '▎';
+  return Box(
+    { flexDirection: 'row' },
+    Text({ color: 'white' }, '"'),
+    Text({ color: 'cyan' }, value),
+    isActive ? Text({ color: 'cyan', bold: true }, cursorChar) : null,
+    Text({ color: 'white' }, '"')
   );
 }
 
@@ -389,7 +462,7 @@ function PreviewPanel(props: {
     )
   );
 
-  // View mode tabs (single Text element for stability)
+  // View mode tabs
   const modeText = isAnimated
     ? `[P][G][C][D] ${viewMode.toUpperCase()} Frame:${frame}`
     : `[P][G][C][D] ${viewMode.toUpperCase()}`;
@@ -400,7 +473,6 @@ function PreviewPanel(props: {
     )
   );
 
-  // Description (only in preview/playground mode)
   if ((viewMode === 'preview' || viewMode === 'playground') && story.description) {
     previewChildren.push(
       Box({ paddingX: 1 }, Text({ color: 'gray', dim: true }, story.description))
@@ -437,18 +509,31 @@ function getModeColor(mode: ViewMode): string {
 /**
  * Status bar component
  */
-function StatusBar(props: { viewMode: ViewMode; focusArea: FocusArea }): VNode {
+function StatusBar(props: { viewMode: ViewMode; focusArea: FocusArea; isEditingText?: boolean }): VNode {
+  const { isEditingText } = props;
+
+  if (isEditingText) {
+    return Box(
+      { borderStyle: 'single', borderColor: 'yellow', paddingX: 1 },
+      Text({ color: 'yellow', bold: true }, '✏️  EDITING TEXT  '),
+      Text({ color: 'gray' }, '[Enter] Save  '),
+      Text({ color: 'gray' }, '[Esc] Cancel  '),
+      Text({ color: 'gray' }, '[Backspace] Delete')
+    );
+  }
+
   return Box(
     { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
     Text({ color: 'gray' }, '[Esc] Back/Quit  '),
     Text({ color: 'gray' }, '[Enter] Select  '),
-    Text({ color: 'gray' }, '[Tab] Cycle Focus  '),
-    Text({ color: 'gray' }, '[G] Playground')
+    Text({ color: 'gray' }, '[Tab] Focus  '),
+    Text({ color: 'gray' }, '[F12] Logs  '),
+    Text({ color: 'cyan', dim: true }, '🖱️  Mouse enabled')
   );
 }
 
 /**
- * Format elapsed time as MM:SS
+ * Format elapsed time
  */
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -467,8 +552,6 @@ function Navbar(props: {
   elapsedSeconds: number;
 }): VNode {
   const { componentCount, clicks, keystrokes, fps, elapsedSeconds } = props;
-
-  // FPS color based on performance
   const fpsColor = fps >= 30 ? 'green' : fps >= 15 ? 'yellow' : 'red';
 
   return Box(
@@ -478,9 +561,7 @@ function Navbar(props: {
       borderStyle: 'single',
       borderColor: 'magenta',
     },
-    // Left side - Logo
     Text({ color: 'magenta', bold: true }, ' Tuiuiu.js '),
-    // Right side - Metrics (compact)
     Box(
       { flexDirection: 'row' },
       Text({ color: 'white', bold: true }, formatTime(elapsedSeconds)),
@@ -496,11 +577,46 @@ function Navbar(props: {
   );
 }
 
+// =============================================================================
+// Splash Screen
+// =============================================================================
+
+// Module-level splash state (created once when storybook starts)
+let splashState: ReturnType<typeof createSplashScreen> | null = null;
+
+function getSplashState(): ReturnType<typeof createSplashScreen> {
+  if (!splashState) {
+    splashState = createSplashScreen({
+      duration: 1500,
+      fadeInDuration: 300,
+    });
+  }
+  return splashState;
+}
+
 /**
  * Main Storybook App
  */
 function StorybookApp(): VNode {
   const app = useApp();
+
+  // Get or create splash state
+  const splash = getSplashState();
+
+  // Render splash screen if visible
+  if (splash.isVisible()) {
+    const splashNode = SplashScreen({
+      coloredArt: TUIUIU_BIRD_COLORED,
+      subtitle: 'Component Explorer',
+      version: '1.0.0',
+      loadingType: 'spinner',
+      spinnerStyle: 'dots',
+      loadingMessage: 'Loading stories...',
+      state: splash,
+    });
+    // Return splash or empty box (SplashScreen can return null when not visible)
+    return splashNode ?? Box({});
+  }
 
   // State
   const categories = getCategories();
@@ -511,9 +627,15 @@ function StorybookApp(): VNode {
   const [focusedControlIndex, setFocusedControlIndex] = useState(0);
   const [controlValues, setControlValues] = useState<Record<string, Record<string, any>>>({});
 
-  // Animation state
-  const [animationFrame, setAnimationFrame] = useState(0);
+  // Text editing state
+  const [isEditingText, setIsEditingText] = useState(false);
+  const [editingTextValue, setEditingTextValue] = useState('');
+
+  // Animation state - now uses global tick
   const [isPaused, setIsPaused] = useState(false);
+
+  // Get animation frame from global tick
+  const animationFrame = () => getTick();
 
   // Metrics state
   const [clickCount, setClickCount] = useState(0);
@@ -525,12 +647,10 @@ function StorybookApp(): VNode {
   const frameCountRef = createRef(0);
   const lastFpsTimeRef = createRef(Date.now());
 
-  // Timer effect - increment seconds and calc FPS
+  // Timer effect
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsedSeconds((s) => s + 1);
-
-      // Calculate FPS based on frames counted since last check
       const now = Date.now();
       const elapsed = now - lastFpsTimeRef.current;
       if (elapsed >= 1000) {
@@ -539,26 +659,21 @@ function StorybookApp(): VNode {
         lastFpsTimeRef.current = now;
       }
     }, 1000);
-
     return () => clearInterval(timer);
   });
 
-  // Track renders
   frameCountRef.current++;
 
   // Derived state
   const currentCategory = categories[currentCategoryIndex()] || 'Primitives';
   const stories = getStoriesByCategory(currentCategory);
   const currentStory = stories[selectedStoryIndex()] || stories[0];
-  const storyValues = currentStory ? (controlValues()[currentStory.name] || {}) : {};
-
+  
   // Initialize control values from defaults
   const getStoryValues = () => {
     if (!currentStory) return {};
     const stored = controlValues()[currentStory.name];
     if (stored) return stored;
-
-    // Initialize from defaults
     const defaults: Record<string, any> = {};
     for (const [key, control] of Object.entries(currentStory.controls || {})) {
       defaults[key] = control.defaultValue;
@@ -568,27 +683,29 @@ function StorybookApp(): VNode {
 
   const values = getStoryValues();
 
-  // Animation timer effect
+  // Global tick control for animations
   useEffect(() => {
-    // Re-derive story inside effect to ensure reactivity to selection changes
     const cat = categories[currentCategoryIndex()] || 'Primitives';
     const catStories = getStoriesByCategory(cat);
     const activeStory = catStories[selectedStoryIndex()] || catStories[0];
     const paused = isPaused();
 
-    if (!activeStory?.animation?.enabled || paused) {
+    // Stop tick if paused
+    if (paused && isTickRunning()) {
+      stopTick();
       return;
     }
 
-    const interval = activeStory.animation.interval ?? 100;
-    const timer = setInterval(() => {
-      setAnimationFrame((f) => f + 1);
-    }, interval);
-
-    return () => clearInterval(timer);
+    // Start tick if not paused and story has animation
+    if (!paused && activeStory?.animation?.enabled) {
+      const interval = activeStory.animation.interval ?? 100;
+      setTickRate(interval);
+      if (!isTickRunning()) {
+        startTick(interval);
+      }
+    }
   });
 
-  // Update control value
   const setControlValue = (key: string, value: any) => {
     if (!currentStory) return;
     setControlValues((cv) => ({
@@ -600,16 +717,65 @@ function StorybookApp(): VNode {
     }));
   };
 
-  // Control keys for navigation
   const controlKeys = currentStory ? Object.keys(currentStory.controls || {}) : [];
 
   // Input handling
   useInput((input, key) => {
-    // Track keystroke
     setKeystrokeCount((c) => c + 1);
 
+    // Toggle Console Logs
+    if (key.f12 || (key.ctrl && input === 'l')) {
+        storybookStore.dispatch({ type: 'TOGGLE_LOG' });
+        return;
+    }
+    // Clear logs
+    if (input === 'C') { // Shift+c
+        storybookStore.dispatch({ type: 'CLEAR_LOGS' });
+    }
+
+    // =========================================================================
+    // TEXT EDITING MODE
+    // =========================================================================
+    if (isEditingText()) {
+      // Escape - cancel editing
+      if (key.escape) {
+        setIsEditingText(false);
+        setEditingTextValue('');
+        return;
+      }
+
+      // Enter - save and exit editing
+      if (key.return) {
+        const currentKey = controlKeys[focusedControlIndex()];
+        if (currentKey) {
+          setControlValue(currentKey, editingTextValue());
+        }
+        setIsEditingText(false);
+        setEditingTextValue('');
+        return;
+      }
+
+      // Backspace - delete character
+      if (key.backspace) {
+        setEditingTextValue((v) => v.slice(0, -1));
+        return;
+      }
+
+      // Regular character input - append to value
+      if (input && input.length > 0 && !key.ctrl && !key.meta) {
+        setEditingTextValue((v) => v + input);
+        return;
+      }
+
+      // Consume all other keys while editing
+      return;
+    }
+
+    // =========================================================================
+    // NORMAL MODE
+    // =========================================================================
+
     // Global shortcuts
-    // ESC Logic: Go back to sidebar or exit
     if (key.escape) {
       if (focusArea() !== 'sidebar') {
         setFocusArea('sidebar');
@@ -624,17 +790,13 @@ function StorybookApp(): VNode {
       return;
     }
 
-    // View mode shortcuts
     if (input === 'p') { setViewMode('preview'); setClickCount((c) => c + 1); return; }
     if (input === 'g') { setViewMode('playground'); setFocusArea('controls'); setClickCount((c) => c + 1); return; }
     if (input === 'c') { setViewMode('comparatives'); setClickCount((c) => c + 1); return; }
     if (input === 'd') { setViewMode('docs'); setClickCount((c) => c + 1); return; }
 
-    // Enter counts as a click/action
     if (key.return) {
       setClickCount((c) => c + 1);
-      
-      // Enter on Sidebar -> Enter Playground/Preview
       if (focusArea() === 'sidebar') {
         const hasControls = Object.keys(currentStory?.controls || {}).length > 0;
         if (hasControls) {
@@ -646,9 +808,20 @@ function StorybookApp(): VNode {
         }
         return;
       }
+
+      // Enter on a text control - start editing
+      if (focusArea() === 'controls' && viewMode() === 'playground') {
+        const currentKey = controlKeys[focusedControlIndex()];
+        const currentControl = currentKey ? currentStory?.controls?.[currentKey] : null;
+        if (currentControl?.type === 'text') {
+          const currentValue = values[currentKey] ?? currentControl.defaultValue;
+          setEditingTextValue(currentValue);
+          setIsEditingText(true);
+          return;
+        }
+      }
     }
 
-    // Tab cycles focus
     if (key.tab) {
       setFocusArea((f) => {
         if (f === 'sidebar') return 'preview';
@@ -658,7 +831,6 @@ function StorybookApp(): VNode {
       return;
     }
 
-    // Navigation based on focus area
     if (focusArea() === 'sidebar') {
       if (key.upArrow) {
         setSelectedStoryIndex((i) => Math.max(0, i - 1));
@@ -684,7 +856,6 @@ function StorybookApp(): VNode {
         setFocusedControlIndex((i) => Math.min(controlKeys.length - 1, i + 1));
       }
 
-      // Edit current control
       const currentKey = controlKeys[focusedControlIndex()];
       const currentControl = currentKey ? currentStory?.controls?.[currentKey] : null;
 
@@ -720,14 +891,12 @@ function StorybookApp(): VNode {
           }
         }
 
-        // Space toggles boolean
         if (input === ' ' && currentControl.type === 'boolean') {
           setControlValue(currentKey, !currentValue);
         }
       }
     }
 
-    // Space pauses/resumes animation (when not editing controls)
     if (input === ' ' && focusArea() !== 'controls') {
       if (currentStory?.animation?.enabled && currentStory?.animation?.pausable) {
         setIsPaused((p) => !p);
@@ -735,7 +904,6 @@ function StorybookApp(): VNode {
     }
   });
 
-  // No stories case
   if (!currentStory) {
     return Box(
       { flexDirection: 'column', padding: 2 },
@@ -746,7 +914,6 @@ function StorybookApp(): VNode {
 
   return Box(
     { flexDirection: 'column', height: '100%' },
-    // Navbar with metrics
     Navbar({
       componentCount: allStories.length,
       clicks: clickCount(),
@@ -754,10 +921,8 @@ function StorybookApp(): VNode {
       fps: fps(),
       elapsedSeconds: elapsedSeconds(),
     }),
-    // Main content
     Box(
       { flexDirection: 'row', flexGrow: 1 },
-      // Sidebar
       Sidebar({
         categories,
         currentCategory,
@@ -766,8 +931,12 @@ function StorybookApp(): VNode {
         focusArea: focusArea(),
         onCategoryChange: () => {},
         onStorySelect: setSelectedStoryIndex,
+        onCategoryClick: (idx) => {
+          setCurrentCategoryIndex(idx);
+          setSelectedStoryIndex(0);
+        },
+        onFocus: () => setFocusArea('sidebar'),
       }),
-      // Preview
       PreviewPanel({
         story: currentStory,
         values,
@@ -776,7 +945,6 @@ function StorybookApp(): VNode {
         frame: animationFrame(),
         isPaused: isPaused(),
       }),
-      // Controls (in playground mode)
       viewMode() === 'playground' &&
         ControlPanel({
           story: currentStory,
@@ -784,10 +952,20 @@ function StorybookApp(): VNode {
           focusedControlIndex: focusedControlIndex(),
           focusArea: focusArea(),
           onValueChange: setControlValue,
+          isEditingText: isEditingText(),
+          editingTextValue: editingTextValue(),
+          onTextChange: setEditingTextValue,
+          onFocus: () => setFocusArea('controls'),
+          onSelectControl: setFocusedControlIndex,
+          onStartTextEdit: (key, value) => {
+            setEditingTextValue(value);
+            setIsEditingText(true);
+          },
         })
     ),
-    // Status bar
-    StatusBar({ viewMode: viewMode(), focusArea: focusArea() })
+    StatusBar({ viewMode: viewMode(), focusArea: focusArea(), isEditingText: isEditingText() }),
+    // LOG VIEWER OVERLAY
+    LogViewer()
   );
 }
 
@@ -795,8 +973,14 @@ function StorybookApp(): VNode {
  * Run the storybook
  */
 export async function runStorybook(): Promise<void> {
+  // Start global tick for animations
+  startTick(100);
+
   const { waitUntilExit } = render(() => StorybookApp());
   await waitUntilExit();
+
+  // Cleanup tick on exit
+  stopTick();
 }
 
 export { StorybookApp };

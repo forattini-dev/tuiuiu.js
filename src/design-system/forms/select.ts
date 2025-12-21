@@ -13,7 +13,7 @@
  * - Descriptions and hints
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 import { useInput, type Key } from '../../hooks/index.js';
@@ -417,7 +417,7 @@ export function renderSelect<T = any>(
     uncheckedIndicator = chars.checkbox.unchecked,
     activeColor = themeColor('info'),
     selectedColor = themeColor('success'),
-    disabledColor = themeColor('textMuted'),
+    disabledColor = themeColor('mutedForeground'),
     showCount = true,
     searchable = false,
     searchPlaceholder = 'Type to search...',
@@ -441,9 +441,9 @@ export function renderSelect<T = any>(
         { flexDirection: 'row', marginBottom: 1 },
         Text({ color: activeColor }, `${searchIcon} `),
         searchQuery
-          ? Text({ color: themeColor('text') }, searchQuery)
-          : Text({ color: themeColor('textMuted'), dim: true }, searchPlaceholder),
-        isSearching ? Text({ backgroundColor: themeColor('text'), color: themeColor('background') }, ' ') : Text({}, '')
+          ? Text({ color: themeColor('foreground') }, searchQuery)
+          : Text({ color: themeColor('mutedForeground'), dim: true }, searchPlaceholder),
+        isSearching ? Text({ backgroundColor: themeColor('foreground'), color: themeColor('background') }, ' ') : Text({}, '')
       )
     );
   }
@@ -482,7 +482,7 @@ export function renderSelect<T = any>(
     if (multiple) {
       parts.push(
         Text(
-          { color: isSelected ? selectedColor : themeColor('textMuted') },
+          { color: isSelected ? selectedColor : themeColor('mutedForeground') },
           isSelected ? checkedIndicator + ' ' : uncheckedIndicator + ' '
         )
       );
@@ -541,7 +541,7 @@ export function renderSelect<T = any>(
     rows.unshift(
       Box(
         { flexDirection: 'row' },
-        Text({ color: themeColor('textMuted'), dim: true }, `  ${arrowUp} more above`)
+        Text({ color: themeColor('mutedForeground'), dim: true }, `  ${arrowUp} more above`)
       )
     );
   }
@@ -549,7 +549,7 @@ export function renderSelect<T = any>(
     rows.push(
       Box(
         { flexDirection: 'row' },
-        Text({ color: themeColor('textMuted'), dim: true }, `  ${arrowDown} more below`)
+        Text({ color: themeColor('mutedForeground'), dim: true }, `  ${arrowDown} more below`)
       )
     );
   }
@@ -617,7 +617,7 @@ export function Confirm(options: {
     Box(
       { marginBottom: 1 },
       Text({ color: themeColor('warning') }, '? '),
-      Text({ color: themeColor('text'), bold: true }, message)
+      Text({ color: themeColor('foreground'), bold: true }, message)
     ),
     Select({
       items,

@@ -18,32 +18,6 @@ export {
 } from './core/index.js';
 
 // =============================================================================
-// Primitives - Basic building blocks
-// =============================================================================
-
-export {
-  normalizeChildren,
-  Box,
-  Text,
-  Spacer,
-  Newline,
-  Fragment,
-  Divider,
-  Slot,
-  When,
-  Each,
-  Transform,
-  Static,
-} from './primitives/index.js';
-
-export type {
-  DividerProps,
-  SlotProps,
-  TransformProps,
-  StaticProps,
-} from './primitives/index.js';
-
-// =============================================================================
 // Forms - User input components
 // =============================================================================
 

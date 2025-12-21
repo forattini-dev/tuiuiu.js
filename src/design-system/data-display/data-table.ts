@@ -10,7 +10,7 @@
  * - Virtual scrolling ready
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { createSignal, createMemo } from '../../primitives/signal.js';
 import { useInput } from '../../hooks/index.js';

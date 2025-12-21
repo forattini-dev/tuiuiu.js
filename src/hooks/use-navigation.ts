@@ -1,5 +1,5 @@
 /**
- * Linked Navigation - Kyma-inspired slide navigation
+ * Linked Navigation - Slide navigation system
  *
  * Provides a doubly-linked list navigation system for slides,
  * wizards, onboarding flows, and paginated content.
