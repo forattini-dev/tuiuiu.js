@@ -124,6 +124,8 @@ export interface ProgressBarOptions {
   indeterminate?: boolean;
   /** Indeterminate animation style */
   indeterminateStyle?: 'classic' | 'marquee' | 'fill-and-clear';
+  /** Step size for 'fill-and-clear' animation (default: 1) */
+  fillStep?: number;
   /** Border style */
   borderStyle?: 'none' | 'brackets' | 'pipes' | 'arrows';
 }
@@ -192,6 +194,7 @@ export function renderProgressBar(
     description,
     indeterminate = false,
     indeterminateStyle = 'classic',
+    fillStep = 1,
     borderStyle = 'none',
   } = options;
 
@@ -227,17 +230,29 @@ export function renderProgressBar(
                    
     } else if (indeterminateStyle === 'fill-and-clear') {
       // Cycle: 0 -> width (fill), width -> 2*width (clear)
-      const t = Math.floor(Date.now() / 50);
-      const cycle = t % (width * 2 + 10); // Add a small pause? Let's just do 2*width for now
+      // Use fillStep to control speed/granularity visually if we wanted blocky steps,
+      // but here it controls the speed of the fill relative to time.
+      // If fillStep is larger, we multiply the time factor.
       
-      if (cycle < width) {
+      const totalSteps = Math.ceil(width / fillStep);
+      const t = Math.floor(Date.now() / 50);
+      
+      // We want the cycle to go from 0 to width (fill) then width to 2*width (clear)
+      // But in steps of 'fillStep'.
+      
+      const rawCycle = t % ((totalSteps * 2) + 4); // +4 for pause
+      
+      // Map rawCycle (which is in steps) back to width
+      let effectiveCycle = rawCycle * fillStep;
+      
+      if (rawCycle < totalSteps) {
         // Filling phase
-        const filledLen = cycle;
+        const filledLen = Math.min(width, effectiveCycle);
         barContent = barStyle.filled.repeat(filledLen) + barStyle.empty.repeat(width - filledLen);
       } else {
         // Clearing phase
-        // cycle goes from width to 2*width
-        const emptyLeftLen = cycle - width;
+        // effectiveCycle goes from width to 2*width
+        const emptyLeftLen = Math.min(width, effectiveCycle - width);
         const filledLen = Math.max(0, width - emptyLeftLen);
         barContent = barStyle.empty.repeat(emptyLeftLen) + barStyle.filled.repeat(filledLen);
       }
