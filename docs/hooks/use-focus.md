@@ -4,7 +4,7 @@ Manage focus state for interactive components.
 
 ## Overview
 
-Tuiuiu provides a centralized focus management system with **automatic Tab navigation** (inspired by Ink). Components register themselves with the focus manager and can query their focus state.
+Tuiuiu provides a centralized focus management system with **automatic Tab navigation**. Components register themselves with the focus manager and can query their focus state.
 
 ## Automatic Tab Navigation
 

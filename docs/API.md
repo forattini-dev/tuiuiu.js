@@ -140,7 +140,7 @@ app.exit(1); // Exit with error code
 
 ### `useState<T>(initialValue: T): [Accessor<T>, Setter<T>]`
 
-React-like state hook (alias for createSignal).
+Component state hook (alias for createSignal).
 
 ```typescript
 const [visible, setVisible] = useState(true);
@@ -148,7 +148,7 @@ const [visible, setVisible] = useState(true);
 
 ### `useEffect(fn: () => void | (() => void)): void`
 
-React-like effect hook with cleanup support.
+Effect hook with cleanup support.
 
 ```typescript
 useEffect(() => {

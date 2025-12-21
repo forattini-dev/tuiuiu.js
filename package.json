@@ -50,10 +50,6 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
     },
-    "./components": {
-      "types": "./dist/components/index.d.ts",
-      "import": "./dist/components/index.js"
-    },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
       "import": "./dist/hooks/index.js"
@@ -73,6 +69,22 @@
     "./primitives": {
       "types": "./dist/primitives/index.d.ts",
       "import": "./dist/primitives/index.js"
+    },
+    "./atoms": {
+      "types": "./dist/atoms/index.d.ts",
+      "import": "./dist/atoms/index.js"
+    },
+    "./molecules": {
+      "types": "./dist/molecules/index.d.ts",
+      "import": "./dist/molecules/index.js"
+    },
+    "./organisms": {
+      "types": "./dist/organisms/index.d.ts",
+      "import": "./dist/organisms/index.js"
+    },
+    "./templates": {
+      "types": "./dist/templates/index.d.ts",
+      "import": "./dist/templates/index.js"
     },
     "./design-system": {
       "types": "./dist/design-system/index.d.ts",
@@ -109,6 +121,7 @@
     "example:09": "tsx examples/09-visual-components.ts",
     "example:chat": "tsx examples/chat.ts",
     "example:enhanced-chat": "tsx examples/enhanced-chat.ts",
+    "example:store": "tsx examples/07-redux-store.ts",
     "docs:record": "for f in docs/recordings/*.tape; do vhs \"$f\"; done"
   },
   "engines": {

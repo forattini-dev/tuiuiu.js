@@ -7,7 +7,7 @@ Set Padding 20
 # Set FontFamily "JetBrains Mono" # Removed to use system default for better compatibility
 
 Set PlaybackSpeed 0.75
-Set TypingSpeed 0.15s # Make typing a bit slower for better visualization
+Set TypingSpeed 0.05s # Make typing faster
 
 Type "pnpm run example:01"
 Enter

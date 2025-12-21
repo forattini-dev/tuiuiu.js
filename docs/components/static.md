@@ -11,7 +11,6 @@ The `Static` component renders its items once and "freezes" them in place. Stati
 - Progress history
 - Any content that should persist above interactive UI
 
-This is inspired by Ink's `<Static>` component.
 
 ## Basic Usage
 
