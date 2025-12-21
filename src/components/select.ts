@@ -335,8 +335,29 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     }
   };
 
-  // Register input handler
-  useInput(handleInput, { isActive });
+  // Select specific index (for mouse clicks)
+  const selectIndex = (index: number) => {
+    const filtered = getFilteredItems();
+    if (index < 0 || index >= filtered.length) return;
+    const item = filtered[index];
+    if (item?.disabled) return;
+
+    setCursorIndex(index);
+
+    // Toggle selection
+    if (multiple) {
+      setSelected((prev) => {
+        const newSelected = prev.includes(item.value)
+          ? prev.filter((v) => v !== item.value)
+          : [...prev, item.value];
+        onChange?.(newSelected);
+        return newSelected;
+      });
+    } else {
+      setSelected([item.value]);
+      onChange?.(item.value);
+    }
+  };
 
   return {
     cursorIndex,
@@ -351,6 +372,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     selectNone,
     moveUp,
     moveDown,
+    selectIndex,
   };
 }
 
@@ -470,7 +492,16 @@ export function renderSelect<T = any>(
       parts.push(Text({ color: 'gray', dim: true }, ` - ${item.description}`));
     }
 
-    rows.push(Box({ flexDirection: 'row' }, ...parts));
+    // Item row with onClick handler
+    rows.push(
+      Box(
+        {
+          flexDirection: 'row',
+          onClick: item.disabled ? undefined : () => state.selectIndex(actualIndex),
+        },
+        ...parts
+      )
+    );
   }
 
   // Scroll indicators
@@ -505,7 +536,16 @@ export function renderSelect<T = any>(
     );
   }
 
-  return Box({ flexDirection: 'column' }, ...rows);
+  // Handle mouse scroll events
+  const handleScroll = (event: { button: string }) => {
+    if (event.button === 'scroll-up') {
+      state.moveUp();
+    } else if (event.button === 'scroll-down') {
+      state.moveDown();
+    }
+  };
+
+  return Box({ flexDirection: 'column', onScroll: handleScroll }, ...rows);
 }
 
 /**

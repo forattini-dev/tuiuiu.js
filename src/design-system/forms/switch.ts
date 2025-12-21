@@ -233,7 +233,10 @@ export function Switch(props: SwitchProps): VNode {
   }
 
   return Box(
-    { flexDirection: 'row' },
+    {
+      flexDirection: 'row',
+      onClick: disabled ? undefined : () => state.toggle(),
+    },
     ...parts
   );
 }
