@@ -75,3 +75,6 @@ export type {
   PageInfo,
   PaginationState,
 } from './use-navigation.js';
+
+// Terminal hook
+export { useTerminalSize, type TerminalSize } from './use-terminal-size.js';

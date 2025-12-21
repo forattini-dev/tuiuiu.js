@@ -31,6 +31,10 @@ export interface BarChartOptions {
   orientation?: BarOrientation;
   /** Maximum bar length in characters (default: 40) */
   maxBarLength?: number;
+  /** Total chart width (overrides maxBarLength if set) */
+  width?: number;
+  /** Chart height (for vertical orientation) */
+  height?: number;
   /** Show value labels (default: true) */
   showValues?: boolean;
   /** Show percentage instead of raw values */
@@ -261,7 +265,9 @@ export function BarChart(options: BarChartOptions): VNode {
   const {
     data,
     orientation = 'horizontal',
-    maxBarLength = 40,
+    maxBarLength: explicitMaxBarLength = 40,
+    width,
+    height,
     showValues = true,
     showPercentage = false,
     barColor = 'cyan',
@@ -277,7 +283,7 @@ export function BarChart(options: BarChartOptions): VNode {
   if (orientation === 'vertical') {
     return VerticalBarChart({
       data,
-      maxBarLength,
+      maxBarLength: explicitMaxBarLength,
       showValues,
       showPercentage,
       barColor,
@@ -288,7 +294,7 @@ export function BarChart(options: BarChartOptions): VNode {
       gap,
       labelWidth,
       showBackground,
-      height: 10,
+      height: height ?? 10,
     });
   }
 
@@ -303,10 +309,28 @@ export function BarChart(options: BarChartOptions): VNode {
   const maxLabelLen =
     labelWidth ?? Math.max(...data.map((d) => d.label.length));
 
+  // Calculate value width if needed
+  let maxValueLen = 0;
+  if (showValues) {
+    const maxVal = Math.max(...data.map(d => d.value));
+    maxValueLen = showPercentage ? 6 : String(maxVal).length + 1; // +1 for padding
+  }
+
+  // Determine bar length
+  // If width is provided, calculate maxBarLength to fit
+  // Width = Label + Gap + Bar + Value
+  let maxBarLength = explicitMaxBarLength;
+  if (width) {
+    // Gap 1 between Label and Bar
+    // Gap 1 between Bar and Value (if values shown)
+    const gaps = showValues ? 2 : 1; 
+    maxBarLength = Math.max(1, width - maxLabelLen - gaps - maxValueLen);
+  }
+
   const bars = data.map((item, i) => {
     const norm = normalized[i] ?? 0;
     const bar = renderHorizontalBar(norm, maxBarLength, chars);
-    const emptyLen = maxBarLength - bar.length;
+    const emptyLen = Math.max(0, maxBarLength - bar.length);
 
     // Format value
     let valueStr = '';
@@ -332,7 +356,7 @@ export function BarChart(options: BarChartOptions): VNode {
     );
   });
 
-  return Box({ flexDirection: 'column' }, ...bars);
+  return Box({ flexDirection: 'column', width }, ...bars);
 }
 
 // =============================================================================
