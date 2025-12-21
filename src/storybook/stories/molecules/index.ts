@@ -11,7 +11,7 @@
  * - Sparkline & Gauge: Simple data visualizations
  */
 
-import { Box, Text, When, Each, Fragment, Spacer, Divider } from '../../../components/components.js';
+import { Box, Text, When, Each, Fragment, Spacer, Divider } from '../../../primitives/index.js';
 import { 
   TextInput, 
   Checkbox, 
@@ -382,6 +382,64 @@ export const progressBarStories: Story[] = [
         )
       )
     ),
+
+  story('ProgressBar - Indeterminate Styles')
+    .category('Molecules')
+    .description('Different indeterminate loading styles')
+    .controls({
+      style: defaultControls.select('Style', ['classic', 'marquee', 'fill-and-clear'], 'marquee'),
+      fillStep: defaultControls.range('Fill Step', 1, 1, 5),
+      width: defaultControls.range('Width', 30, 10, 50),
+    })
+    .animated(50)
+    .render((props, frame = 0) => {
+      // Simulate indeterminate animation logic for story preview
+      const { style, fillStep, width } = props;
+      let barContent = '';
+      
+      const t = Math.floor(Date.now() / 50); // Use real time or frame for consistency
+      
+      if (style === 'marquee') {
+        const blockWidth = Math.max(3, Math.floor(width * 0.25));
+        const totalWidth = width + blockWidth;
+        const pos = Math.floor(frame / 1.5) % totalWidth; // Slow down a bit
+        
+        const start = Math.max(0, pos - blockWidth);
+        const end = Math.min(width, pos);
+        const length = Math.max(0, end - start);
+        const emptyLeft = Math.max(0, start);
+        const emptyRight = Math.max(0, width - end);
+        
+        barContent = '░'.repeat(emptyLeft) + '█'.repeat(length) + '░'.repeat(emptyRight);
+      } else if (style === 'fill-and-clear') {
+        const totalSteps = Math.ceil(width / fillStep);
+        const rawCycle = Math.floor(frame) % ((totalSteps * 2) + 4);
+        const effectiveCycle = rawCycle * fillStep;
+        
+        if (rawCycle < totalSteps) {
+           const filledLen = Math.min(width, effectiveCycle);
+           barContent = '█'.repeat(filledLen) + '░'.repeat(width - filledLen);
+        } else {
+           const emptyLeftLen = Math.min(width, effectiveCycle - width);
+           const filledLen = Math.max(0, width - emptyLeftLen);
+           barContent = '░'.repeat(emptyLeftLen) + '█'.repeat(filledLen);
+        }
+      } else {
+        // Classic
+        const frames = ['[    ]', '[=   ]', '[==  ]', '[=== ]', '[ ===]', '[  ==]', '[   =]', '[    ]'];
+        barContent = frames[frame % frames.length].padEnd(width, ' ');
+      }
+
+      return Box(
+        { flexDirection: 'column', gap: 1 },
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'cyan' }, barContent),
+          Text({ color: 'gray' }, style)
+        ),
+        style === 'fill-and-clear' ? Text({ color: 'gray', dim: true }, `Step: ${fillStep}`) : null
+      );
+    }),
 
   story('ProgressBar - Thresholds')
     .category('Molecules')
