@@ -6,8 +6,25 @@ These are the fundamental building blocks of the Tuiuiu design system. They prov
 
 The core layout component. See [Layout System](/core/layout.md) for details.
 
+`Box` supports full mouse interaction (click, hover, scroll).
+
+### Interactive Props
+
+| Prop | Type | Description |
+| :--- | :--- | :--- |
+| `onClick` | `(e) => void` | Click (left) |
+| `onDoubleClick` | `(e) => void` | Double click |
+| `onContextMenu` | `(e) => void` | Right click |
+| `onMouseEnter` | `(e) => void` | Mouse enter |
+| `onMouseLeave` | `(e) => void` | Mouse leave |
+| `onScroll` | `(e) => void` | Scroll wheel |
+
 ```typescript
-Box({ borderStyle: 'single', color: 'cyan' },
+Box({ 
+  borderStyle: 'single', 
+  color: 'cyan',
+  onClick: () => console.log('Clicked!') 
+},
   Text({}, 'Content')
 )
 ```

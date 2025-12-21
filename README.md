@@ -140,6 +140,21 @@ Sparkline({
 });
 ```
 
+### 🖱️ Full Mouse Support
+Interact with components using standard mouse events (click, hover, scroll).
+
+```typescript
+Box({
+  borderStyle: 'round',
+  onClick: () => console.log('Clicked!'),
+  onMouseEnter: () => setHover(true),
+  onMouseLeave: () => setHover(false),
+  // Supports hovering, scrolling, right-click context menus, etc.
+}, 
+  Text({}, 'Hover or Click Me')
+)
+```
+
 ## Documentation
 
 Visit the [Documentation](docs/README.md) to explore the full API, guides, and examples.
