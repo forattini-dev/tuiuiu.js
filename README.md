@@ -217,20 +217,19 @@ import { BarChart, Gauge } from 'tuiuiu.js/design-system';
 Built-in state management for complex applications.
 
 ```typescript
-import { createStore, applyMiddleware } from 'tuiuiu.js';
+import { createStore } from 'tuiuiu.js';
 
-const store = createStore(
-  (state = { count: 0 }, action) => {
-    switch (action.type) {
-      case 'INCREMENT': return { count: state.count + 1 };
-      case 'DECREMENT': return { count: state.count - 1 };
-      default: return state;
-    }
-  },
-  applyMiddleware(loggerMiddleware)
-);
+const reducer = (state = { count: 0 }, action) => {
+  switch (action.type) {
+    case 'INCREMENT': return { count: state.count + 1 };
+    case 'DECREMENT': return { count: state.count - 1 };
+    default: return state;
+  }
+};
 
-store.subscribe(() => console.log(store.getState()));
+const store = createStore(reducer, { count: 0 });
+
+store.subscribe(() => console.log(store.state()));
 store.dispatch({ type: 'INCREMENT' });
 ```
 
@@ -313,7 +312,7 @@ pnpm example:chat  # Chat application
 | Examples | 20+ |
 | Border Styles | 9 |
 | Named Colors | 18 |
-| Tests | 200+ |
+| Tests | 3500+ |
 | Tree Shakeable | ✅ |
 
 ## Why "Tuiuiu"?
