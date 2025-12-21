@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, renderOnce } from '../../src/app/render-loop.js';
-import { Text, Box } from '../../src/design-system/primitives/index.js';
+import { Text, Box } from '../../src/primitives/index.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';

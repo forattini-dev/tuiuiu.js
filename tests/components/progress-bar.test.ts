@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { ProgressBar, createProgressBar, renderProgressBar, MultiProgressBar } from '../../src/components/progress-bar.js';
+import { ProgressBar, createProgressBar, renderProgressBar, MultiProgressBar } from '../../src/atoms/index.js';
 
 describe('ProgressBar', () => {
   describe('ProgressBar component', () => {

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Modal, ConfirmDialog } from '../../src/design-system/overlays/modal.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
 import {

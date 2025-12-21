@@ -10,7 +10,7 @@ import {
   createCommandPalette,
   type CommandItem,
 } from '../../src/design-system/overlays/command-palette.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
 import {

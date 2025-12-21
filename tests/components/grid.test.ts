@@ -20,8 +20,8 @@ import {
   repeat,
   minmax,
   gridAreasToTemplate,
-} from '../../src/components/grid.js';
-import { Text, Box } from '../../src/design-system/primitives/index.js';
+} from '../../src/organisms/grid.js';
+import { Text, Box } from '../../src/primitives/index.js';
 
 // =============================================================================
 // Track Parsing Tests

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Text, Box } from '../../src/components/components.js';
+import { Text, Box } from '../../src/primitives/index.js';
 import { Page, AppShell, StatusBar, Header, Container } from '../../src/design-system/layout/app.js';
 
 describe('App Layout Components', () => {

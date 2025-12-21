@@ -22,7 +22,7 @@ import {
   registerHitTestFromLayout,
 } from '../../src/core/hit-test.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 import type { VNode } from '../../src/utils/types.js';
 
 describe('Mouse Simulator', () => {

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Spinner, createSpinner, renderSpinner } from '../../src/components/spinner.js';
+import { Spinner, createSpinner, renderSpinner } from '../../src/atoms/index.js';
 
 describe('Spinner', () => {
   describe('Spinner component', () => {

@@ -12,7 +12,7 @@ import {
   batch,
 } from '../../src/primitives/signal.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 import {
   beginRender,
   endRender,

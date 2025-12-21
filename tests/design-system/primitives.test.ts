@@ -4,10 +4,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Text, Box } from '../../src/components/components.js';
-import { When, Each, Transform, Static } from '../../src/design-system/primitives/utilities.js';
-import { Divider } from '../../src/design-system/primitives/divider.js';
-import { Slot } from '../../src/design-system/primitives/slot.js';
+import { Text, Box } from '../../src/primitives/index.js';
+import { When, Each, Transform, Static } from '../../src/primitives/index.js';
+import { Divider } from '../../src/primitives/index.js';
+import { Slot } from '../../src/primitives/index.js';
 
 describe('Primitive Components', () => {
   describe('When', () => {

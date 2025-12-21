@@ -32,7 +32,7 @@ import {
   drawScatterPlot,
   type Point,
   type CanvasMode,
-} from '../../src/components/canvas.js';
+} from '../../src/primitives/canvas.js';
 
 describe('Canvas Widget', () => {
   describe('Braille Utilities', () => {
