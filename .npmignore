@@ -1,0 +1,73 @@
+# Source files (only dist/ should be published)
+src/
+*.ts
+!*.d.ts
+
+# Tests
+test/
+tests/
+**/*.test.ts
+**/*.spec.ts
+*.test.js
+*.spec.js
+coverage/
+.nyc_output/
+
+# Build tools
+tsconfig.json
+tsconfig.*.json
+vitest.config.ts
+
+# Documentation source
+docs/
+examples/
+benchmark/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# AI Assistant configs
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+VISION.md
+.agent/
+.claude/
+.gemini/
+
+# OpenSpec
+openspec/
+
+# Scripts
+scripts/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.tmp
+.cache/

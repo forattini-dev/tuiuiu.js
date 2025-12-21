@@ -1,0 +1,30 @@
+/* Hide Docsify navbar when on homepage */
+body.ready .app-nav {
+  display: none !important;
+}
+
+/* Hide reading time and word count that might leak */
+.markdown-section .reading-time,
+.content .reading-time {
+  display: none !important;
+}
+
+/* Cover Page - Hero Background */
+section.cover {
+  background: linear-gradient(135deg, #1a1d24 0%, #0a0d12 100%) !important;
+}
+
+section.cover.show {
+  background: linear-gradient(135deg, #1a1d24 0%, #0a0d12 100%) !important;
+}
+
+/* Fix sidebar toggle (hamburger menu) position */
+.sidebar-toggle {
+  position: fixed !important;
+  top: 1rem !important;
+  left: 1rem !important;
+  bottom: auto !important;
+  width: 40px !important;
+  height: 40px !important;
+  z-index: 999 !important;
+}
