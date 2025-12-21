@@ -122,11 +122,15 @@ function Dashboard() {
   const { columns } = useTerminalSize();
   
   // Calculate available width for chart
-  // Sidebar (20) + Dashboard Padding (2) + Row Gap (2)
+  // Sidebar (20) + Dashboard Padding (2) + Row Gap (2) = 24
   const availableWidth = Math.max(0, columns - 24);
-  // Chart is flex 2/3 of available width
-  const chartBoxWidth = Math.floor((availableWidth * 2) / 3);
-  const chartWidth = Math.max(10, chartBoxWidth - 2); // Minus borders/padding
+  
+  // Chart Box is flex 2 of 3 parts
+  const chartBoxOuterWidth = Math.floor((availableWidth * 2) / 3);
+  
+  // Chart Box has Border (2) and Padding (2) -> Total 4
+  // We add -1 safety margin for flex rounding differences
+  const chartWidth = Math.max(10, chartBoxOuterWidth - 5);
 
   return Box(
     { flexDirection: 'column', padding: 1, gap: 1 },
@@ -136,16 +140,16 @@ function Dashboard() {
       Box(
         { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'cyan', padding: 1 },
         Text({ bold: true, color: 'cyan' }, 'CPU Usage'),
-        Box({ flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
-          Gauge({ value: metrics.cpu, color: 'cyan', width: 20 })
-        )
+        Spacer(),
+        Gauge({ value: metrics.cpu, color: 'cyan', width: 20 }),
+        Spacer()
       ),
       Box(
         { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'yellow', padding: 1 },
         Text({ bold: true, color: 'yellow' }, 'Memory'),
-        Box({ flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
-          Gauge({ value: metrics.memory, color: 'yellow', width: 20 })
-        )
+        Spacer(),
+        Gauge({ value: metrics.memory, color: 'yellow', width: 20 }),
+        Spacer()
       ),
       Box(
         { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'green', padding: 1 },
