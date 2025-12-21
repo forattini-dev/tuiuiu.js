@@ -94,61 +94,72 @@ export function initializeApp(
 
   // Handle input
   const handleData = (data: Buffer) => {
-    const rawInput = data.toString();
+    let rawInput = data.toString();
 
-    // Check for mouse events FIRST
-    if (isMouseEvent(rawInput)) {
-      const mouseEvent = parseMouseEvent(rawInput);
-      if (mouseEvent) {
-        // Dispatch to hit-test registry
-        batch(() => {
-          getHitTestRegistry().handleMouseEvent(mouseEvent);
-        });
-      }
-      return;
-    }
-
-    const { input, key } = parseKeypress(data);
-
-    // Ctrl+C always exits
-    if (key.ctrl && input === 'c') {
-      exit();
-      return;
-    }
-
-    // Automatic Tab navigation (Ink-inspired pattern)
-    if (autoTabNavigation) {
-      if (key.tab && !key.shift) {
-        // Tab - focus next
-        batch(() => {
-          focusManager.focusNext();
-        });
-        return; // Don't propagate Tab to handlers
-      }
-
-      if (key.tab && key.shift) {
-        // Shift+Tab - focus previous
-        batch(() => {
-          focusManager.focusPrevious();
-        });
-        return; // Don't propagate Shift+Tab to handlers
-      }
-
-      if (key.escape) {
-        // Escape - blur focus (only if something is focused)
-        if (focusManager.getActiveId() !== undefined) {
+    // Loop through input to handle batched events (mouse + keys)
+    while (rawInput.length > 0) {
+      // Check for mouse events FIRST
+      if (isMouseEvent(rawInput)) {
+        const mouseResult = parseMouseEvent(rawInput);
+        if (mouseResult) {
+          // Dispatch to hit-test registry
           batch(() => {
-            focusManager.blur();
+            getHitTestRegistry().handleMouseEvent(mouseResult.event);
           });
-          return; // Don't propagate Escape to handlers when blurring
+          
+          // Consume and continue
+          rawInput = rawInput.slice(mouseResult.length);
+          continue;
         }
       }
-    }
 
-    // Emit input event to all handlers (wrapped in batch for single re-render)
-    batch(() => {
-      emitInput(input, key);
-    });
+      // Not a mouse event, parse as key
+      const { input, key, length } = parseKeypress(rawInput);
+      
+      // Consume processed part
+      const consumed = length > 0 ? length : 1; // Safety fallback
+      rawInput = rawInput.slice(consumed);
+
+      // Ctrl+C always exits
+      if (key.ctrl && input === 'c') {
+        exit();
+        return;
+      }
+
+      // Automatic Tab navigation (Ink-inspired pattern)
+      if (autoTabNavigation) {
+        if (key.tab && !key.shift) {
+          // Tab - focus next
+          batch(() => {
+            focusManager.focusNext();
+          });
+          continue; // Don't propagate Tab to handlers
+        }
+
+        if (key.tab && key.shift) {
+          // Shift+Tab - focus previous
+          batch(() => {
+            focusManager.focusPrevious();
+          });
+          continue; // Don't propagate Shift+Tab to handlers
+        }
+
+        if (key.escape) {
+          // Escape - blur focus (only if something is focused)
+          if (focusManager.getActiveId() !== undefined) {
+            batch(() => {
+              focusManager.blur();
+            });
+            continue; // Don't propagate Escape to handlers when blurring
+          }
+        }
+      }
+
+      // Emit input event to all handlers (wrapped in batch for single re-render)
+      batch(() => {
+        emitInput(input, key);
+      });
+    }
   };
 
   stdin.on('data', handleData);

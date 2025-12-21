@@ -98,12 +98,15 @@ function applyKeyName(key: Key, name: string): void {
  * Parse raw input data into key info
  * Supports multiple terminal types: xterm, gnome, rxvt, putty, cygwin
  */
-export function parseKeypress(data: Buffer | string): { input: string; key: Key } {
+export function parseKeypress(data: Buffer | string): { input: string; key: Key; length: number } {
   let str = data.toString();
 
   // Handle high-bit meta prefix (some terminals)
+  let prefixLen = 0;
   if (Buffer.isBuffer(data) && data[0] !== undefined && data[0] > 127 && data[1] === undefined) {
     str = '\x1b' + String.fromCharCode(data[0] - 128);
+    prefixLen = 0; // The buffer was consumed, but length refers to chars in string or buffer?
+    // Let's assume we return length of chars consumed from 'str'.
   }
 
   const key: Key = {
@@ -136,81 +139,70 @@ export function parseKeypress(data: Buffer | string): { input: string; key: Key 
   // Carriage return
   if (str === '\r') {
     key.return = true;
-    return { input, key };
+    return { input, key, length: 1 };
   }
 
   // Enter/newline
   if (str === '\n') {
     key.return = true;
-    return { input, key };
+    return { input, key, length: 1 };
   }
 
   // Tab
   if (str === '\t') {
     key.tab = true;
-    return { input, key };
+    return { input, key, length: 1 };
   }
 
   // Backspace - most terminals send \x7f (DEL) for backspace key
   // Some older terminals send \b (BS)
-  if (str === '\x7f' || str === '\x1b\x7f' || str === '\b' || str === '\x1b\b') {
+  if (str === '\x7f' || str === '\b') {
     key.backspace = true;
-    key.meta = str.charAt(0) === '\x1b';
-    return { input, key };
+    return { input, key, length: 1 };
+  }
+  
+  if (str === '\x1b\x7f' || str === '\x1b\b') {
+    key.backspace = true;
+    key.meta = true;
+    return { input, key, length: 2 };
   }
 
   // Escape
-  if (str === '\x1b' || str === '\x1b\x1b') {
+  if (str === '\x1b') {
     key.escape = true;
-    key.meta = str.length === 2;
-    return { input, key };
+    return { input, key, length: 1 };
+  }
+  
+  if (str === '\x1b\x1b') {
+    key.escape = true;
+    key.meta = true;
+    return { input, key, length: 2 };
   }
 
   // Space (with possible meta)
-  if (str === ' ' || str === '\x1b ') {
-    key.meta = str.length === 2;
+  if (str === ' ') {
     input = ' ';
-    return { input, key };
+    return { input, key, length: 1 };
+  }
+  
+  if (str === '\x1b ') {
+    key.meta = true;
+    input = ' ';
+    return { input, key, length: 2 };
   }
 
   // Ctrl+letter (0x01-0x1a)
-  if (str.length === 1 && str <= '\x1a') {
+  if (str.length >= 1 && str.charCodeAt(0) <= 26) {
     key.ctrl = true;
     input = String.fromCharCode(str.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
-    return { input, key };
-  }
-
-  // Number keys
-  if (str.length === 1 && str >= '0' && str <= '9') {
-    input = str;
-    return { input, key };
-  }
-
-  // Lowercase letter
-  if (str.length === 1 && str >= 'a' && str <= 'z') {
-    input = str;
-    return { input, key };
-  }
-
-  // Uppercase letter (shift)
-  if (str.length === 1 && str >= 'A' && str <= 'Z') {
-    key.shift = true;
-    input = str.toLowerCase();
-    return { input, key };
-  }
-
-  // Meta+character
-  const metaMatch = /^(?:\x1b)([a-zA-Z0-9])$/.exec(str);
-  if (metaMatch) {
-    key.meta = true;
-    key.shift = /^[A-Z]$/.test(metaMatch[1]!);
-    input = metaMatch[1]!.toLowerCase();
-    return { input, key };
+    return { input, key, length: 1 };
   }
 
   // Function keys and special keys with escape sequences
+  // Try to match escape sequences first before single chars
   const fnMatch = FN_KEY_RE.exec(str);
-  if (fnMatch) {
+  if (fnMatch && fnMatch.index === 0) {
+    // ... (keep existing)
     // Check for option key (double escape at start)
     const segs = [...str];
     if (segs[0] === '\x1b' && segs[1] === '\x1b') {
@@ -238,21 +230,61 @@ export function parseKeypress(data: Buffer | string): { input: string; key: Key 
     if (SHIFT_CODES.has(code)) key.shift = true;
     if (CTRL_CODES.has(code)) key.ctrl = true;
 
-    return { input, key };
+    return { input, key, length: fnMatch[0].length };
   }
 
-  // Regular character
-  if (str.length === 1 && str.charCodeAt(0) >= 32) {
-    input = str;
-    return { input, key };
+  // Meta+character
+  const metaMatch = /^(?:\x1b)([a-zA-Z0-9])/.exec(str);
+  if (metaMatch) {
+    key.meta = true;
+    key.shift = /^[A-Z]$/.test(metaMatch[1]!);
+    input = metaMatch[1]!.toLowerCase();
+    return { input, key, length: 2 };
   }
 
-  // Multi-character paste
-  if (str.length > 1 && !str.startsWith('\x1b')) {
-    input = str;
+  // Single Uppercase letter (shift)
+  // Only if length is 1, to preserve old behavior of prioritizing single key logic?
+  // No, if we have "A", length is 1.
+  // If we have "AB", length is 2.
+  // If we want to support "AB" as a paste, we should return "AB".
+  
+  // Consume chunk of regular text
+  // Match anything that is NOT a special char start
+  // Special start chars: \r, \n, \t, \b, \x7f, \x1b
+  // Also check for Ctrl chars (0x00-0x1a)
+  
+  // Regex: Read until control char
+  const textMatch = /^[^\x00-\x1f\x7f]+/.exec(str);
+  if (textMatch) {
+      const text = textMatch[0];
+      
+      // If exactly 1 char and uppercase, normalize it (legacy behavior)
+      if (text.length === 1 && text >= 'A' && text <= 'Z') {
+          key.shift = true;
+          input = text.toLowerCase();
+          return { input, key, length: 1 };
+      }
+      
+      input = text;
+      return { input, key, length: text.length };
   }
 
-  return { input, key };
+  // If we are here, we might have a single control char that wasn't handled above?
+  // e.g. Ctrl+A (\x01).
+  // \x01 was handled by `Ctrl+letter` block earlier?
+  // Let's check where I put `Ctrl+letter`.
+  
+  // I put it ABOVE `Function keys`.
+  // Wait, `Ctrl+letter` logic:
+  // if (str.length >= 1 && str.charCodeAt(0) <= 26)
+  
+  // This matches \r (13), \n (10), \t (9), \b (8), \x1b (27 - wait 27 is > 26).
+  // But \r, \n, \t, \b are handled EXPLICITLY at the top.
+  // So `Ctrl+letter` handles the REST of 0-26.
+  
+  // So `textMatch` handles 32+ (printable) and up.
+  
+  return { input, key, length: str.length }; // Fallback
 }
 
 /**
