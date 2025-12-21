@@ -8,29 +8,53 @@ The terminal must support mouse tracking (most modern terminals like xterm, iTer
 
 **Note:** When mouse tracking is enabled, selecting text in the terminal might require holding `Shift` (depending on the terminal emulator).
 
-## Usage
+## Component Events (Recommended)
+
+The easiest way to handle mouse interaction is by using event props directly on components like `Box` and `Text`.
+
+```typescript
+import { Box, Text } from 'tuiuiu';
+
+function Button() {
+  return Box({
+    borderStyle: 'round',
+    padding: 1,
+    // Handle click events directly on the component
+    onClick: () => console.log('Clicked!'),
+    onMouseEnter: () => console.log('Hovered'),
+    onMouseLeave: () => console.log('Left'),
+  },
+    Text({}, 'Click Me')
+  );
+}
+```
+
+## Supported Events
+
+All basic components (`Box`, `Text`, etc.) support the following events:
+
+| Event | Description |
+| :--- | :--- |
+| `onClick` | Left mouse button click |
+| `onDoubleClick` | Double click (left button) |
+| `onContextMenu` | Right mouse button click |
+| `onMouseDown` | Any mouse button pressed |
+| `onMouseUp` | Any mouse button released |
+| `onMouseMove` | Mouse moved over the component |
+| `onMouseEnter` | Mouse entered the component area |
+| `onMouseLeave` | Mouse left the component area |
+| `onScroll` | Scroll wheel usage |
+
+## Global Mouse Hook (`useMouse`)
+
+If you need global mouse coordinates or low-level access (e.g. for drag-and-drop across the screen), use the `useMouse` hook.
 
 ```typescript
 import { useMouse } from 'tuiuiu';
 
-function ClickableBox() {
-  const [active, setActive] = createSignal(false);
-
-  useMouse((event) => {
-    // Check if click is within bounds of our logic
-    // Note: To map coordinates to components, you currently need to know their position manually
-    // or use full-screen absolute positioning.
-    
-    if (event.action === 'click' && event.button === 'left') {
-      console.log(`Clicked at ${event.x}, ${event.y}`);
-      setActive(true);
-    }
-  });
-
-  return Box({ borderStyle: active() ? 'double' : 'single' },
-    Text({}, 'Click anywhere!')
-  );
-}
+useMouse((event) => {
+  console.log(`Global mouse event: ${event.action} at ${event.x}, ${event.y}`);
+});
 ```
 
 ## Mouse Event Object
@@ -52,8 +76,4 @@ function ClickableBox() {
 
 ## Double Click
 
-The `useMouse` hook automatically detects double-clicks and upgrades the `action` to `'double-click'`.
-
-## Limitations
-
-- **Hit Testing**: Currently, `tuiuiu` does not provide built-in hit testing for components (i.e., "did I click *this* box?"). You receive global coordinates and must calculate logic based on known layout positions. Future versions may add event bubbling.
+The system automatically detects double-clicks and triggers `onDoubleClick` or sets `action: 'double-click'`.
