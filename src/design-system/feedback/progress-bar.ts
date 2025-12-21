@@ -12,7 +12,7 @@
  * - Label and description
  */
 
-import { Box, Text } from '../../components/components.js';
+import { Box, Text } from '../../primitives/index.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 import { themeColor } from '../../core/theme.js';
@@ -122,6 +122,8 @@ export interface ProgressBarOptions {
   description?: string;
   /** Indeterminate mode (unknown progress) */
   indeterminate?: boolean;
+  /** Indeterminate animation style */
+  indeterminateStyle?: 'classic' | 'marquee' | 'fill-and-clear';
   /** Border style */
   borderStyle?: 'none' | 'brackets' | 'pipes' | 'arrows';
 }
@@ -189,6 +191,7 @@ export function renderProgressBar(
     label,
     description,
     indeterminate = false,
+    indeterminateStyle = 'classic',
     borderStyle = 'none',
   } = options;
 
@@ -200,9 +203,50 @@ export function renderProgressBar(
   let barContent: string;
 
   if (indeterminate) {
-    const frames = getIndeterminateFrames();
-    const frame = Math.floor(Date.now() / 100) % frames.length;
-    barContent = frames[frame];
+    if (indeterminateStyle === 'marquee') {
+      const blockWidth = Math.max(3, Math.floor(width * 0.25));
+      const totalWidth = width + blockWidth;
+      // Use a slower speed for marquee so it's readable
+      const pos = Math.floor(Date.now() / 80) % totalWidth;
+      
+      const start = Math.max(0, pos - blockWidth);
+      const end = Math.min(width, pos);
+      const length = Math.max(0, end - start);
+      
+      const emptyLeft = Math.max(0, start);
+      const emptyRight = Math.max(0, width - end);
+      
+      // If pos is very small (entering) or very large (leaving), we might need adjustments
+      // But standard logic:
+      // [   ###      ]
+      // start=3, end=6, len=3. emptyLeft=3, emptyRight=width-6.
+      
+      barContent = barStyle.empty.repeat(emptyLeft) + 
+                   barStyle.filled.repeat(length) + 
+                   barStyle.empty.repeat(emptyRight);
+                   
+    } else if (indeterminateStyle === 'fill-and-clear') {
+      // Cycle: 0 -> width (fill), width -> 2*width (clear)
+      const t = Math.floor(Date.now() / 50);
+      const cycle = t % (width * 2 + 10); // Add a small pause? Let's just do 2*width for now
+      
+      if (cycle < width) {
+        // Filling phase
+        const filledLen = cycle;
+        barContent = barStyle.filled.repeat(filledLen) + barStyle.empty.repeat(width - filledLen);
+      } else {
+        // Clearing phase
+        // cycle goes from width to 2*width
+        const emptyLeftLen = cycle - width;
+        const filledLen = Math.max(0, width - emptyLeftLen);
+        barContent = barStyle.empty.repeat(emptyLeftLen) + barStyle.filled.repeat(filledLen);
+      }
+    } else {
+      // Classic
+      const frames = getIndeterminateFrames();
+      const frame = Math.floor(Date.now() / 100) % frames.length;
+      barContent = frames[frame];
+    }
   } else {
     const filledWidth = Math.floor(progress * width);
     const partialWidth = (progress * width) - filledWidth;
@@ -240,14 +284,38 @@ export function renderProgressBar(
   } else {
     // Simple two-color bar
     const filledLen = barContent.replace(new RegExp(`[${barStyle.empty}]`, 'g'), '').length;
-    const filledPart = barContent.slice(0, filledLen);
-    const emptyPart = barContent.slice(filledLen);
+    
+    // For fill-and-clear, we need to handle "empty at start" correctly for coloring
+    // The previous logic assumed filled is always at the start.
+    // Let's rebuild the colored bar more robustly for all cases.
+    
+    if (indeterminate && indeterminateStyle === 'fill-and-clear') {
+        // We have to iterate to color correctly because we might have [empty, filled]
+        // Actually, barContent is composed of filled and empty chars.
+        // We can just map over chars.
+        const segments: VNode[] = [];
+        for (const char of barContent) {
+            const isFilled = char !== barStyle.empty;
+            segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+        }
+        coloredBar = Box({ flexDirection: 'row' }, ...segments);
+    } else if (indeterminate && indeterminateStyle === 'marquee') {
+         const segments: VNode[] = [];
+        for (const char of barContent) {
+            const isFilled = char !== barStyle.empty;
+            segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+        }
+        coloredBar = Box({ flexDirection: 'row' }, ...segments);
+    } else {
+        const filledPart = barContent.slice(0, filledLen);
+        const emptyPart = barContent.slice(filledLen);
 
-    coloredBar = Box(
-      { flexDirection: 'row' },
-      Text({ color: indeterminate ? color : color }, filledPart),
-      Text({ color: emptyColor, dim: true }, emptyPart)
-    );
+        coloredBar = Box(
+        { flexDirection: 'row' },
+        Text({ color: indeterminate ? color : color }, filledPart),
+        Text({ color: emptyColor, dim: true }, emptyPart)
+        );
+    }
   }
 
   // Build border
@@ -319,6 +387,7 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
     emptyColor = themeColor('textMuted'),
     label,
     indeterminate = false,
+    indeterminateStyle = 'classic',
     borderStyle = 'brackets',
   } = options;
 
@@ -329,9 +398,37 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
   let barContent: string;
 
   if (indeterminate) {
-    const frames = getIndeterminateFrames();
-    const frame = Math.floor(Date.now() / 100) % frames.length;
-    barContent = frames[frame];
+    if (indeterminateStyle === 'marquee') {
+       const blockWidth = Math.max(3, Math.floor(width * 0.25));
+       const totalWidth = width + blockWidth;
+       const pos = Math.floor(Date.now() / 80) % totalWidth;
+       
+       const start = Math.max(0, pos - blockWidth);
+       const end = Math.min(width, pos);
+       const length = Math.max(0, end - start);
+       
+       const emptyLeft = Math.max(0, start);
+       const emptyRight = Math.max(0, width - end);
+       
+       barContent = barStyle.empty.repeat(emptyLeft) + 
+                    barStyle.filled.repeat(length) + 
+                    barStyle.empty.repeat(emptyRight);
+    } else if (indeterminateStyle === 'fill-and-clear') {
+       const t = Math.floor(Date.now() / 50);
+       const cycle = t % (width * 2);
+       if (cycle < width) {
+         const filledLen = cycle;
+         barContent = barStyle.filled.repeat(filledLen) + barStyle.empty.repeat(width - filledLen);
+       } else {
+         const emptyLeftLen = cycle - width;
+         const filledLen = Math.max(0, width - emptyLeftLen);
+         barContent = barStyle.empty.repeat(emptyLeftLen) + barStyle.filled.repeat(filledLen);
+       }
+    } else {
+        const frames = getIndeterminateFrames();
+        const frame = Math.floor(Date.now() / 100) % frames.length;
+        barContent = frames[frame];
+    }
   } else {
     const filledWidth = Math.floor(progress * width);
 
@@ -366,16 +463,43 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
       break;
   }
 
-  const filledLen = Math.floor(progress * width);
-  const filledPart = barContent.slice(0, filledLen);
-  const emptyPart = barContent.slice(filledLen);
+  // Handle coloring logic reuse
+  let coloredBar: VNode;
+  
+  if (indeterminate && (indeterminateStyle === 'marquee' || indeterminateStyle === 'fill-and-clear')) {
+    const segments: VNode[] = [];
+    for (const char of barContent) {
+        const isFilled = char !== barStyle.empty;
+        segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+    }
+    coloredBar = Box({ flexDirection: 'row' }, ...segments);
+  } else {
+    // Standard left-to-right fill (works for classic indeterminate too as it's just frames)
+    // Note: Classic indeterminate frames don't use empty char usually, they are pre-composed strings
+    // But for renderProgressBar it does. 
+    // Here in simple ProgressBar, classic indeterminate frames are strings like "[=   ]"
+    // The coloring logic below might be too simple for classic frames if they don't use barStyle.empty
+    // But let's keep it close to original for non-new styles.
+    
+    if (indeterminate && indeterminateStyle === 'classic') {
+         coloredBar = Text({ color }, barContent);
+    } else {
+         const filledLen = barContent.replace(new RegExp(`[${barStyle.empty}]`, 'g'), '').length;
+         const filledPart = barContent.slice(0, filledLen);
+         const emptyPart = barContent.slice(filledLen);
+         coloredBar = Box(
+            { flexDirection: 'row' },
+            Text({ color }, filledPart),
+            Text({ color: emptyColor, dim: true }, emptyPart)
+         );
+    }
+  }
 
   return Box(
     { flexDirection: 'row', gap: 1 },
     label ? Text({ color: themeColor('text') }, `${label} `) : Text({}, ''),
     Text({}, leftBorder),
-    Text({ color }, filledPart),
-    Text({ color: emptyColor, dim: true }, emptyPart),
+    coloredBar,
     Text({}, rightBorder),
     showPercentage && !indeterminate
       ? Text({ color: themeColor('text') }, ` ${(progress * 100).toFixed(0)}%`)
