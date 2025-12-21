@@ -1,0 +1,78 @@
+# Refatoração Arquitetural e Unificação de Primitivas
+
+## Metadados
+- **Autor:** Gemini (Agent)
+- **Data:** 2025-12-20
+- **Status:** Proposta
+- **Tipo:** Refatoração / Débito Técnico
+- **Impacto:** Alto (Breaking Changes internas, possível impacto na API pública)
+
+## 1. Problema
+
+A análise atual do projeto revelou uma arquitetura "Split Brain" (Cérebro Dividido), onde existem duas fontes de verdade competindo pela definição de componentes fundamentais e widgets:
+
+1.  **Legado (`src/components/components.ts`):** Um "God Object" que mistura definições de primitivas de baixo nível (`Box`, `Text`) com implementações simplificadas de componentes complexos (`Markdown`, `ProgressBar`).
+2.  **Moderno (`src/design-system/`):** Uma implementação estruturada e rica, mas que, ironicamente, importa suas primitivas (`Box`, `Text`) do arquivo legado.
+
+Isso causa:
+- **Dependências Circulares/Invertidas:** O sistema novo depende do velho.
+- **Duplicação de Código:** Múltiplas implementações de `ProgressBar`, `Spinner`, etc.
+- **Inconsistência de API:** Props diferentes para componentes com o mesmo nome.
+- **Dificuldade de Manutenção:** Alterações em primitivas no Design System não se propagam corretamente se a implementação real vier de `components.ts`.
+
+## 2. Objetivos
+
+1.  **Unificar Primitivas:** Estabelecer uma "Single Source of Truth" para `Box`, `Text`, `Spacer` e `VNode`.
+2.  **Desacoplar Camadas:** Garantir que `src/design-system` não dependa de `src/components`.
+3.  **Eliminar Código Morto:** Remover arquivos duplicados e não utilizados.
+4.  **Melhorar Coesão:** Quebrar o arquivo `components.ts` em unidades menores e lógicas.
+
+## 3. Solução Proposta
+
+### 3.1. Nova Estrutura de Diretórios (Parcial)
+
+```
+src/
+├── core/           # Lógica pura (Renderer, Layout engine, Signals)
+├── primitives/     # [NOVO] Primitivas fundamentais (Box, Text, Fragment)
+├── components/     # [LEGADO/COMPAT] Re-exports para compatibilidade ou componentes compostos de alto nível
+├── design-system/  # Componentes de UI ricos e temas
+└── index.ts        # Entry point unificado
+```
+
+### 3.2. Plano de Migração
+
+#### Fase 1: Fundação (Primitives)
+1.  Criar `src/primitives/index.ts`.
+2.  Mover as definições de `Box`, `Text`, `Spacer`, `Fragment`, `Newline` de `components.ts` para `primitives`.
+3.  Mover definições de tipos (`VNode`, etc.) se necessário, ou garantir que `primitives` importe de `utils/types`.
+
+#### Fase 2: Desacoplamento (Refatoração de Imports)
+1.  Atualizar **todos** os arquivos em `src/design-system` para importar `Box` e `Text` de `src/primitives` (ou `../primitives`) em vez de `src/components/components.ts`.
+2.  Atualizar `src/core` se houver dependências.
+
+#### Fase 3: Limpeza (Dead Code)
+1.  Identificar e remover arquivos redundantes em `src/components/` que já existem no Design System:
+    - `src/components/progress-bar.ts`
+    - `src/components/spinner.ts`
+    - `src/components/markdown.ts`
+    - `src/components/code-block.ts` (verificar se existe equivalente)
+2.  Atualizar `src/components/components.ts` para ser apenas um arquivo de re-export (facade) ou conter apenas utilitários que não cabem no Design System, importando as bases de `primitives`.
+
+#### Fase 4: Unificação da API Pública
+1.  Revisar `src/index.ts`.
+2.  Exportar `Box` e `Text` diretamente de `src/primitives`.
+3.  Exportar componentes ricos de `src/design-system`.
+4.  Marcar as versões antigas como `@deprecated` se mantidas por compatibilidade.
+
+## 4. Riscos e Mitigação
+
+- **Quebra de API:** Mudanças nos imports internos podem afetar consumidores se eles importarem de caminhos profundos (ex: `tuiuiu/dist/components/components.js`).
+    - *Mitigação:* Manter `components.ts` como um arquivo que re-exporta de `primitives` e `design-system` durante a transição.
+- **Regressão Visual:** Ao trocar a implementação base de `Box`, bugs sutis de layout podem surgir.
+    - *Mitigação:* Rodar a suíte de testes visuais e criar snapshots antes/depois.
+
+## 5. Próximos Passos (Imediato)
+
+1.  Aprovar esta spec.
+2.  Executar Fase 1: Extrair Primitivas.
