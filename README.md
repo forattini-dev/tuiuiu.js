@@ -19,7 +19,7 @@ Build beautiful, reactive terminal apps with a familiar component API.
 
 [📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook)
 
-<img src="docs/assets/demo-dashboard.gif" alt="Tuiuiu Demo" width="600">
+<img src="docs/assets/demo-hero.gif" alt="Tuiuiu Demo" width="700">
 
 </div>
 
@@ -67,6 +67,41 @@ await waitUntilExit();
 | **Templates** | AppShell, Page, Header, StatusBar, VStack, HStack, Center, FullScreen |
 | **Data Viz** | BarChart, LineChart, Sparkline, Heatmap, Gauge, BigText, Digits |
 | **DevTools** | Layout Inspector, Event Logger, Performance Metrics, Component Storybook |
+
+## Gallery
+
+<table>
+<tr>
+<td align="center" width="50%">
+<strong>📊 Real-time Dashboard</strong><br>
+<img src="docs/assets/demo-dashboard.gif" alt="Dashboard" width="100%">
+</td>
+<td align="center" width="50%">
+<strong>📝 Interactive Forms</strong><br>
+<img src="docs/assets/demo-forms.gif" alt="Forms" width="100%">
+</td>
+</tr>
+<tr>
+<td align="center">
+<strong>📈 Data Visualization</strong><br>
+<img src="docs/assets/demo-charts.gif" alt="Charts" width="100%">
+</td>
+<td align="center">
+<strong>💬 Chat Application</strong><br>
+<img src="docs/assets/demo-chat.gif" alt="Chat" width="100%">
+</td>
+</tr>
+<tr>
+<td align="center">
+<strong>🎨 Component Storybook</strong><br>
+<img src="docs/assets/demo-storybook.gif" alt="Storybook" width="100%">
+</td>
+<td align="center">
+<strong>⏳ Spinners & Progress</strong><br>
+<img src="docs/assets/demo-spinners.gif" alt="Spinners" width="100%">
+</td>
+</tr>
+</table>
 
 ## Highlights
 

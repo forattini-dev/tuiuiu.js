@@ -105,6 +105,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "docs": "serve docs -p 3000",
+    "docs:gifs": "bash scripts/generate-gifs.sh",
     "lint": "echo \"No linting configured for this project.\" && exit 0",
     "prepublishOnly": "pnpm run build",
     "storybook": "tsx src/storybook/cli.ts",
