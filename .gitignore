@@ -42,9 +42,11 @@ test-*.*js
 repositories/
 local_cache/
 
-# Agents (optional - keep if working locally, commit for shared instructions)
-# .agent/
-# .claude/
-# .gemini/
-# openspec/
+# AI Agent configs (local only - not shared in repo)
+.agent/
+.claude/
+.gemini/
+openspec/
+AGENTS.md
+CLAUDE.md
 .app-data/
