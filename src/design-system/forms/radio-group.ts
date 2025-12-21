@@ -202,7 +202,11 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
           : 'white';
 
     return Box(
-      { flexDirection: 'row', gap: 1 },
+      {
+        flexDirection: 'row',
+        gap: 1,
+        onClick: opt.disabled ? undefined : () => state.select(opt.value),
+      },
       Text({ color: isSelected ? selectedColor : 'gray' }, radio),
       Text({ color: labelColor, dim: opt.disabled }, opt.label),
       opt.description
@@ -249,7 +253,7 @@ export function InlineRadio(props: InlineRadioProps): VNode {
   const labelColor = disabled ? 'gray' : selected ? color : 'white';
 
   return Box(
-    { flexDirection: 'row', gap: 1 },
+    { flexDirection: 'row', gap: 1, onClick: disabled ? undefined : onClick },
     Text({ color: selected ? color : 'gray' }, radio),
     Text({ color: labelColor, dim: disabled }, label)
   );

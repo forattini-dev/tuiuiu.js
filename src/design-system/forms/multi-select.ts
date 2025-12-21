@@ -77,6 +77,7 @@ export interface MultiSelectState<T = string> {
   moveUp: () => void;
   moveDown: () => void;
   toggleCurrent: () => void;
+  toggleIndex: (index: number) => void;
   selectAll: () => void;
   deselectAll: () => void;
   setSearch: (query: string) => void;
@@ -214,9 +215,19 @@ export function createMultiSelect<T = string>(
   };
 
   const toggleCurrent = () => {
+    toggleIndex(cursorIndex());
+  };
+
+  const toggleIndex = (index: number) => {
     const filtered = filteredItems();
-    const item = filtered[cursorIndex()];
-    if (!item || item.disabled) return;
+    if (index < 0 || index >= filtered.length) return;
+    const item = filtered[index];
+    if (item.disabled) return;
+
+    // Update cursor if different
+    if (index !== cursorIndex()) {
+      setCursorIndex(index);
+    }
 
     setSelected((prev) => {
       if (prev.includes(item.value)) {
@@ -281,6 +292,7 @@ export function createMultiSelect<T = string>(
     moveUp,
     moveDown,
     toggleCurrent,
+    toggleIndex,
     selectAll,
     deselectAll,
     setSearch,
@@ -418,7 +430,11 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
           : 'white';
 
     return Box(
-      { flexDirection: 'row', gap: 1 },
+      {
+        flexDirection: 'row',
+        gap: 1,
+        onClick: item.disabled ? undefined : () => state.toggleIndex(globalIndex),
+      },
       Text({ color: isCurrentCursor ? activeColor : 'gray' }, cursorChar),
       Text({ color: isItemSelected ? selectedColor : 'gray' }, checkbox),
       Text({ color: labelColor, dim: item.disabled }, item.label),
