@@ -253,7 +253,7 @@ export function InlineRadio(props: InlineRadioProps): VNode {
   const labelColor = disabled ? 'gray' : selected ? color : 'white';
 
   return Box(
-    { flexDirection: 'row', gap: 1, onClick: disabled ? undefined : onClick },
+    { flexDirection: 'row', gap: 1, onClick: disabled ? undefined : props.onClick },
     Text({ color: selected ? color : 'gray' }, radio),
     Text({ color: labelColor, dim: disabled }, label)
   );

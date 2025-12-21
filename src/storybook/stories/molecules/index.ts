@@ -110,58 +110,66 @@ export const utilityStories: Story[] = [
 export const textInputStories: Story[] = [
   story('TextInput - Basic')
     .category('Molecules')
-    .description('Basic text input field display')
+    .description('Basic text input field')
     .controls({
-      value: defaultControls.text('Value', 'Hello, World!'),
+      initialValue: defaultControls.text('Initial Value', 'Hello, World!'),
+      placeholder: defaultControls.text('Placeholder', 'Enter text...'),
     })
     .render((props) =>
-      Box(
-        { borderStyle: 'single', borderColor: 'cyan', paddingX: 1 },
-        Text({}, props.value),
-        Text({ color: 'cyan' }, '▋')
-      )
-    ),
-
-  story('TextInput - Empty')
-    .category('Molecules')
-    .description('Empty text input with placeholder')
-    .render(() =>
-      Box(
-        { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-        Text({ color: 'gray', dim: true }, 'Enter text...'),
-        Text({ color: 'cyan' }, '▋')
-      )
+      TextInput({
+        initialValue: props.initialValue,
+        placeholder: props.placeholder,
+        onChange: (val: string) => console.log('Input changed:', val),
+        onSubmit: (val: string) => console.log('Input submitted:', val),
+      })
     ),
 
   story('TextInput - Password')
     .category('Molecules')
     .description('Password input with masked characters')
     .controls({
-      length: defaultControls.range('Password Length', 8, 4, 16),
+      initialValue: defaultControls.text('Initial Value', 'secret'),
+      maskChar: defaultControls.text('Mask Char', '*'),
     })
     .render((props) =>
-      Box(
-        { borderStyle: 'single', borderColor: 'cyan', paddingX: 1 },
-        Text({}, '*'.repeat(props.length)),
-        Text({ color: 'cyan' }, '▋')
-      )
+      TextInput({
+        initialValue: props.initialValue,
+        password: true,
+        maskChar: props.maskChar,
+        onChange: (val: string) => console.log('Password changed:', val),
+      })
+    ),
+
+  story('TextInput - Multi-line')
+    .category('Molecules')
+    .description('Multi-line text input (Shift+Enter for newline)')
+    .controls({
+      initialValue: defaultControls.text('Initial Value', 'Line 1\nLine 2'),
+    })
+    .render((props) =>
+      TextInput({
+        initialValue: props.initialValue,
+        multiline: true,
+        onChange: (val: string) => console.log('Multi-line changed:', val),
+      })
     ),
 
   story('TextInput - With Label')
     .category('Molecules')
-    .description('TextInput with label')
+    .description('TextInput with label and full-width')
     .controls({
       label: defaultControls.text('Label', 'Username:'),
+      initialValue: defaultControls.text('Initial Value', 'john_doe'),
     })
     .render((props) =>
       Box(
         { flexDirection: 'row', gap: 1 },
         Text({ color: 'cyan' }, props.label),
-        Box(
-          { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-          Text({}, 'john_doe'),
-          Text({ color: 'cyan' }, '▋')
-        )
+        TextInput({
+          initialValue: props.initialValue,
+          fullWidth: true,
+          onChange: (val: string) => console.log('Input changed:', val),
+        })
       )
     ),
 ];
@@ -178,8 +186,11 @@ export const checkboxStories: Story[] = [
     })
     .render((props) =>
       Checkbox({
-        items: [{ label: props.label, value: 'accept', description: 'Click to toggle' }],
+        items: [{ label: props.label, value: 'accept', description: 'Click me!' }],
         onChange: (val) => console.log('Checkbox changed:', val),
+        showCount: false,
+        searchable: false,
+        cursorIndicator: ' ', // Hide cursor for simple checkbox feel
       })
     ),
 
@@ -196,6 +207,8 @@ export const checkboxStories: Story[] = [
         ],
         initialValue: ['1', '3'],
         onChange: (vals) => console.log('Selected:', vals),
+        showCount: true,
+        searchable: false,
       })
     ),
 ];

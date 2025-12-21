@@ -463,3 +463,11 @@ export function renderTextInput(
 }
 
 export type { TextInputOptions as TextInputProps };
+
+/**
+ * Simple standalone TextInput component
+ */
+export function TextInput(options: TextInputOptions): VNode {
+  const state = createTextInput(options);
+  return renderTextInput(state, options);
+}

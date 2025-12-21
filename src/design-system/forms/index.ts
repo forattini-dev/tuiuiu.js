@@ -18,6 +18,7 @@ export {
 export {
   createTextInput,
   renderTextInput,
+  TextInput,
   type TextInputState,
   type TextInputOptions,
   type TextInputProps,

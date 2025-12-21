@@ -94,6 +94,7 @@ export type {
 export {
   createTextInput,
   renderTextInput,
+  TextInput, // Export the component
   createSelect,
   renderSelect,
   Select,
