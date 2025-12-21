@@ -12,6 +12,14 @@
  */
 
 import { Box, Text, When, Each, Fragment, Spacer, Divider } from '../../../components/components.js';
+import { 
+  TextInput, 
+  Checkbox, 
+  Select, 
+  RadioGroup, 
+  ToggleGroup 
+} from '../../../design-system/forms/index.js';
+import { ProgressBar } from '../../../design-system/feedback/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 
@@ -164,68 +172,32 @@ export const textInputStories: Story[] = [
 export const checkboxStories: Story[] = [
   story('Checkbox - Basic')
     .category('Molecules')
-    .description('Basic checkbox toggle')
+    .description('Basic interactive checkbox')
     .controls({
-      checked: defaultControls.boolean('Checked', false),
       label: defaultControls.text('Label', 'Accept terms'),
     })
     .render((props) =>
-      Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: props.checked ? 'green' : 'gray' }, props.checked ? '[x]' : '[ ]'),
-        Text({}, props.label)
-      )
-    ),
-
-  story('Checkbox - Custom Icons')
-    .category('Molecules')
-    .description('Checkbox with custom icons')
-    .controls({
-      checked: defaultControls.boolean('Checked', true),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: props.checked ? 'green' : 'gray' }, props.checked ? '✓' : '○'),
-          Text({}, 'Check style')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: props.checked ? 'cyan' : 'gray' }, props.checked ? '◉' : '○'),
-          Text({}, 'Radio style')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: props.checked ? 'yellow' : 'gray' }, props.checked ? '★' : '☆'),
-          Text({}, 'Star style')
-        )
-      )
+      Checkbox({
+        items: [{ label: props.label, value: 'accept', description: 'Click to toggle' }],
+        onChange: (val) => console.log('Checkbox changed:', val),
+      })
     ),
 
   story('Checkbox - List')
     .category('Molecules')
     .description('Multiple checkboxes in a list')
-    .render(() => {
-      const items = [
-        { label: 'Option 1', checked: true },
-        { label: 'Option 2', checked: false },
-        { label: 'Option 3', checked: true },
-        { label: 'Option 4', checked: false },
-      ];
-
-      return Box(
-        { flexDirection: 'column' },
-        ...items.map((item, idx) =>
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: item.checked ? 'green' : 'gray' }, item.checked ? '[x]' : '[ ]'),
-            Text({ color: idx === 1 ? 'cyan' : 'white' }, item.label)
-          )
-        )
-      );
-    }),
+    .render(() => 
+      Checkbox({
+        items: [
+          { label: 'Option 1', value: '1' },
+          { label: 'Option 2', value: '2' },
+          { label: 'Option 3', value: '3', disabled: true },
+          { label: 'Option 4', value: '4' },
+        ],
+        initialValue: ['1', '3'],
+        onChange: (vals) => console.log('Selected:', vals),
+      })
+    ),
 ];
 
 /**
@@ -235,60 +207,35 @@ export const radioStories: Story[] = [
   story('RadioGroup - Basic')
     .category('Molecules')
     .description('Basic radio button group')
-    .controls({
-      selected: defaultControls.select('Selected', ['1', '2', '3'], '1'),
-    })
-    .render((props) => {
-      const options = [
-        { value: '1', label: 'Option 1' },
-        { value: '2', label: 'Option 2' },
-        { value: '3', label: 'Option 3' },
-      ];
-
-      return Box(
-        { flexDirection: 'column' },
-        ...options.map((opt) =>
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text(
-              { color: props.selected === opt.value ? 'cyan' : 'gray' },
-              props.selected === opt.value ? '(●)' : '( )'
-            ),
-            Text(
-              { color: props.selected === opt.value ? 'white' : 'gray' },
-              opt.label
-            )
-          )
-        )
-      );
-    }),
+    .render(() => 
+      RadioGroup({
+        options: [
+          { value: '1', label: 'Option 1' },
+          { value: '2', label: 'Option 2' },
+          { value: '3', label: 'Option 3' },
+        ],
+        initialValue: '1',
+        onChange: (val) => console.log('Radio changed:', val),
+      })
+    ),
 
   story('RadioGroup - Horizontal')
     .category('Molecules')
     .description('Radio buttons in horizontal layout')
-    .controls({
-      selected: defaultControls.select('Selected', ['xs', 'sm', 'md', 'lg', 'xl'], 'md'),
-    })
-    .render((props) => {
-      const sizes = ['xs', 'sm', 'md', 'lg', 'xl'];
-
-      return Box(
-        { flexDirection: 'row', gap: 2 },
-        ...sizes.map((size) =>
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text(
-              { color: props.selected === size ? 'cyan' : 'gray' },
-              props.selected === size ? '●' : '○'
-            ),
-            Text(
-              { color: props.selected === size ? 'white' : 'gray' },
-              size.toUpperCase()
-            )
-          )
-        )
-      );
-    }),
+    .render(() => 
+      RadioGroup({
+        direction: 'horizontal',
+        gap: 2,
+        options: [
+          { value: 'xs', label: 'XS' },
+          { value: 'sm', label: 'SM' },
+          { value: 'md', label: 'MD' },
+          { value: 'lg', label: 'LG' },
+          { value: 'xl', label: 'XL' },
+        ],
+        initialValue: 'md',
+      })
+    ),
 ];
 
 /**
@@ -297,70 +244,50 @@ export const radioStories: Story[] = [
 export const selectStories: Story[] = [
   story('Select - Basic')
     .category('Molecules')
-    .description('Basic dropdown selection display')
-    .controls({
-      selectedIndex: defaultControls.range('Selected', 0, 0, 3),
-    })
-    .render((props) => {
-      const items = ['Option 1', 'Option 2', 'Option 3', 'Option 4'];
-      return Box(
-        { flexDirection: 'column', borderStyle: 'single', borderColor: 'cyan', padding: 1 },
-        ...items.map((item, idx) =>
-          Box(
-            { paddingX: 1 },
-            Text(
-              {
-                color: idx === props.selectedIndex ? 'cyan' : 'gray',
-                inverse: idx === props.selectedIndex,
-              },
-              idx === props.selectedIndex ? `> ${item}` : `  ${item}`
-            )
-          )
-        )
-      );
-    }),
+    .description('Basic dropdown selection')
+    .render(() => 
+      Select({
+        items: [
+          { label: 'Option 1', value: '1' },
+          { label: 'Option 2', value: '2' },
+          { label: 'Option 3', value: '3' },
+          { label: 'Option 4', value: '4' },
+        ],
+        searchable: true,
+      })
+    ),
 
   story('Select - With Categories')
     .category('Molecules')
     .description('Select with grouped options')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', borderStyle: 'single', borderColor: 'gray', padding: 1 },
-        Text({ color: 'gray', dim: true }, 'Fruits'),
-        Box({ paddingX: 2 }, Text({ color: 'cyan', inverse: true }, '> Apple')),
-        Box({ paddingX: 2 }, Text({ color: 'gray' }, '  Banana')),
-        Text({ color: 'gray', dim: true }, 'Vegetables'),
-        Box({ paddingX: 2 }, Text({ color: 'gray' }, '  Carrot')),
-        Box({ paddingX: 2 }, Text({ color: 'gray' }, '  Broccoli'))
-      )
+    .render(() => 
+      Select({
+        items: [
+          { label: 'Apple', value: 'apple', group: 'Fruits' },
+          { label: 'Banana', value: 'banana', group: 'Fruits' },
+          { label: 'Carrot', value: 'carrot', group: 'Vegetables' },
+          { label: 'Broccoli', value: 'broccoli', group: 'Vegetables' },
+        ],
+        initialValue: 'apple',
+      })
     ),
 
   story('Select - Multi-Select')
     .category('Molecules')
     .description('Select multiple items')
-    .render(() => {
-      const items = [
-        { label: 'JavaScript', selected: true },
-        { label: 'TypeScript', selected: true },
-        { label: 'Python', selected: false },
-        { label: 'Rust', selected: false },
-        { label: 'Go', selected: true },
-      ];
-
-      return Box(
-        { flexDirection: 'column', borderStyle: 'single', borderColor: 'cyan', padding: 1 },
-        Text({ color: 'gray', dim: true }, 'Selected: 3'),
-        ...items.map((item) =>
-          Box(
-            { paddingX: 1 },
-            Text(
-              { color: item.selected ? 'green' : 'gray' },
-              item.selected ? `[x] ${item.label}` : `[ ] ${item.label}`
-            )
-          )
-        )
-      );
-    }),
+    .render(() => 
+      Select({
+        multiple: true,
+        items: [
+          { label: 'JavaScript', value: 'js' },
+          { label: 'TypeScript', value: 'ts' },
+          { label: 'Python', value: 'py' },
+          { label: 'Rust', value: 'rs' },
+          { label: 'Go', value: 'go' },
+        ],
+        initialValue: ['js', 'ts', 'go'],
+      })
+    ),
 ];
 
 /**
