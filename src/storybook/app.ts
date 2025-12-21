@@ -7,6 +7,7 @@
 import { Box, Text, Divider } from '../components/components.js';
 import { render } from '../app/render-loop.js';
 import { useState, useInput, useApp, useEffect } from '../hooks/index.js';
+import { createRef } from '../core/index.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
@@ -519,33 +520,33 @@ function StorybookApp(): VNode {
   // Metrics state
   const [clickCount, setClickCount] = useState(0);
   const [keystrokeCount, setKeystrokeCount] = useState(0);
-  const [fps, setFps] = useState(30);
-  const [lastFrameTime, setLastFrameTime] = useState(Date.now());
-  const [frameCount, setFrameCount] = useState(0);
+  const [fps, setFps] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Timer effect - increment every second
+  // Refs for perf tracking
+  const frameCountRef = createRef(0);
+  const lastFpsTimeRef = createRef(Date.now());
+
+  // Timer effect - increment seconds and calc FPS
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsedSeconds((s) => s + 1);
+
+      // Calculate FPS based on frames counted since last check
+      const now = Date.now();
+      const elapsed = now - lastFpsTimeRef.current;
+      if (elapsed >= 1000) {
+        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
+        frameCountRef.current = 0;
+        lastFpsTimeRef.current = now;
+      }
     }, 1000);
 
     return () => clearInterval(timer);
   });
 
-  // FPS calculation effect
-  useEffect(() => {
-    const now = Date.now();
-    setFrameCount((c) => c + 1);
-
-    // Update FPS every second
-    const elapsed = now - lastFrameTime();
-    if (elapsed >= 1000) {
-      setFps(Math.round((frameCount() * 1000) / elapsed));
-      setLastFrameTime(now);
-      setFrameCount(0);
-    }
-  });
+  // Track renders
+  frameCountRef.current++;
 
   // Derived state
   const currentCategory = categories[currentCategoryIndex()] || 'Primitives';
@@ -571,11 +572,17 @@ function StorybookApp(): VNode {
 
   // Animation timer effect
   useEffect(() => {
-    if (!currentStory?.animation?.enabled || isPaused()) {
+    // Re-derive story inside effect to ensure reactivity to selection changes
+    const cat = categories[currentCategoryIndex()] || 'Primitives';
+    const catStories = getStoriesByCategory(cat);
+    const activeStory = catStories[selectedStoryIndex()] || catStories[0];
+    const paused = isPaused();
+
+    if (!activeStory?.animation?.enabled || paused) {
       return;
     }
 
-    const interval = currentStory.animation.interval ?? 100;
+    const interval = activeStory.animation.interval ?? 100;
     const timer = setInterval(() => {
       setAnimationFrame((f) => f + 1);
     }, interval);
