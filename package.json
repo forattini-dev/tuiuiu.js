@@ -1,0 +1,128 @@
+{
+  "name": "tuiuiu",
+  "version": "0.1.0",
+  "description": "Zero-dependency Terminal UI library with React-like experience for Node.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "sideEffects": false,
+  "keywords": [
+    "terminal",
+    "tui",
+    "cli",
+    "ui",
+    "react-like",
+    "signals",
+    "zero-dependency",
+    "flexbox",
+    "layout",
+    "components",
+    "hooks",
+    "reactive",
+    "interactive",
+    "console",
+    "ansi",
+    "terminal-ui",
+    "nodejs"
+  ],
+  "author": "Tetis <contact@tetis.io>",
+  "license": "MIT",
+  "homepage": "https://github.com/forattini-dev/tuiuiu.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/forattini-dev/tuiuiu.js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/forattini-dev/tuiuiu.js/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    },
+    "./storybook": {
+      "types": "./dist/storybook/index.d.ts",
+      "import": "./dist/storybook/index.js"
+    },
+    "./app": {
+      "types": "./dist/app/index.d.ts",
+      "import": "./dist/app/index.js"
+    },
+    "./primitives": {
+      "types": "./dist/primitives/index.d.ts",
+      "import": "./dist/primitives/index.js"
+    },
+    "./design-system": {
+      "types": "./dist/design-system/index.d.ts",
+      "import": "./dist/design-system/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "tuiuiu": "./dist/storybook/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "docs": "serve docs -p 3000",
+    "lint": "echo \"No linting configured for this project.\" && exit 0",
+    "prepublishOnly": "pnpm run build",
+    "storybook": "tsx src/storybook/cli.ts",
+    "example": "tsx",
+    "example:list": "ls -1 examples/*.ts | sed 's|examples/||' | sed 's|.ts$||'",
+    "example:01": "tsx examples/01-basic-counter.ts",
+    "example:02": "tsx examples/02-async-loading.ts",
+    "example:03": "tsx examples/03-global-state.ts",
+    "example:04": "tsx examples/04-forms.ts",
+    "example:05": "tsx examples/05-multi-component.ts",
+    "example:06": "tsx examples/06-dashboard.ts",
+    "example:07": "tsx examples/07-advanced-forms.ts",
+    "example:08": "tsx examples/08-layout-components.ts",
+    "example:09": "tsx examples/09-visual-components.ts",
+    "example:chat": "tsx examples/chat.ts",
+    "example:enhanced-chat": "tsx examples/enhanced-chat.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "@vitest/coverage-v8": "^3.2.4",
+    "happy-dom": "^20.0.11",
+    "serve": "^14.2.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
