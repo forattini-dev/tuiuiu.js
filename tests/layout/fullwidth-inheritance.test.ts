@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 import { createTextInput, renderTextInput } from '../../src/design-system/forms/text-input.js';
 import { Select } from '../../src/design-system/forms/select.js';
 import { Toast, AlertBox } from '../../src/design-system/overlays/modal.js';

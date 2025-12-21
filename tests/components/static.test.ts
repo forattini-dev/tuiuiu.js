@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Static } from '../../src/design-system/primitives/utilities.js';
-import { Text } from '../../src/design-system/primitives/text.js';
-import { Box } from '../../src/design-system/primitives/box.js';
-import { Fragment } from '../../src/design-system/primitives/spacer.js';
+import { Static } from '../../src/primitives/index.js';
+import { Text } from '../../src/primitives/index.js';
+import { Box } from '../../src/primitives/index.js';
+import { Fragment } from '../../src/primitives/index.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
 
 describe('Static Component', () => {

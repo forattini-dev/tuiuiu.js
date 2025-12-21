@@ -9,7 +9,7 @@ import {
   getVisibleWidth,
   measureText,
 } from '../../src/design-system/core/layout.js';
-import { Box, Text } from '../../src/components/components.js';
+import { Box, Text } from '../../src/primitives/index.js';
 
 describe('Core Layout Engine', () => {
   beforeEach(() => {

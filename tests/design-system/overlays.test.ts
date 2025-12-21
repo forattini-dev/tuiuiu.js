@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Text, Box } from '../../src/components/components.js';
+import { Text, Box } from '../../src/primitives/index.js';
 import { Modal, Toast, AlertBox, ConfirmDialog, createModal, createConfirmDialog } from '../../src/design-system/overlays/modal.js';
 
 describe('Overlay Components', () => {

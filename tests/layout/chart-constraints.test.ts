@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BarChart, BarData } from '../../src/components/data-viz/bar-chart.js';
+import { BarChart, BarData } from '../../src/molecules/data-viz/bar-chart.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
 import { stringWidth } from '../../src/utils/text-utils.js';
 

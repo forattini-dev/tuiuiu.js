@@ -30,7 +30,7 @@ import {
   Badge,
   Tag,
 } from '../../src/design-system/visual/tooltip.js';
-import { Text, Box } from '../../src/components/components.js';
+import { Text, Box } from '../../src/primitives/index.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 
 describe('Visual Components', () => {

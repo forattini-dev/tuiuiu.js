@@ -46,9 +46,9 @@ describe('Theme System', () => {
       expect(darkTheme.colors.primary).toBeDefined();
       expect(darkTheme.colors.secondary).toBeDefined();
       expect(darkTheme.colors.background).toBeDefined();
-      expect(darkTheme.colors.surface).toBeDefined();
-      expect(darkTheme.colors.text).toBeDefined();
-      expect(darkTheme.colors.textMuted).toBeDefined();
+      expect(darkTheme.colors.foreground).toBeDefined();
+      expect(darkTheme.colors.mutedForeground).toBeDefined();
+      expect(darkTheme.colors.card).toBeDefined();
       expect(darkTheme.colors.border).toBeDefined();
       expect(darkTheme.colors.success).toBeDefined();
       expect(darkTheme.colors.warning).toBeDefined();
@@ -59,13 +59,13 @@ describe('Theme System', () => {
     it('should have light theme', () => {
       expect(lightTheme.name).toBe('light');
       expect(lightTheme.colors.background).toBe('#ffffff');
-      expect(lightTheme.colors.text).toBe('#020617'); // slate-950
+      expect(lightTheme.colors.foreground).toBe('#020617'); // slate-950
     });
 
     it('should have high contrast dark theme', () => {
       expect(highContrastDarkTheme.name).toBe('high-contrast-dark');
       expect(highContrastDarkTheme.colors.background).toBe('#000000');
-      expect(highContrastDarkTheme.colors.text).toBe('#ffffff');
+      expect(highContrastDarkTheme.colors.foreground).toBe('#ffffff');
       expect(highContrastDarkTheme.borderRadius).toBe('sm');
     });
 
@@ -287,11 +287,10 @@ describe('Theme System', () => {
     });
 
     it('should resolve muted colors', () => {
-      // 'muted' now maps to the muted background color
+      // 'muted' maps to the muted background color
       expect(resolveColor('muted')).toBe(darkTheme.colors.muted);
-      // 'muted-foreground' and 'text-muted' map to the muted text color
+      // 'muted-foreground' and 'mutedForeground' map to the muted text color
       expect(resolveColor('muted-foreground')).toBe(darkTheme.colors.mutedForeground);
-      expect(resolveColor('text-muted')).toBe(darkTheme.colors.textMuted);
       expect(resolveColor('mutedForeground')).toBe(darkTheme.colors.mutedForeground);
     });
 

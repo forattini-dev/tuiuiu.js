@@ -17,7 +17,7 @@ import {
   renderBrailleSparkline,
   BLOCK_CHARS,
   ASCII_CHARS,
-} from '../../src/components/data-viz/sparkline.js';
+} from '../../src/molecules/data-viz/sparkline.js';
 
 // BarChart
 import {
@@ -27,7 +27,7 @@ import {
   renderBarChartStrings,
   HORIZONTAL_BLOCKS,
   VERTICAL_BLOCKS,
-} from '../../src/components/data-viz/bar-chart.js';
+} from '../../src/molecules/data-viz/bar-chart.js';
 
 // LineChart
 import {
@@ -37,7 +37,7 @@ import {
   renderMultiSeriesChart,
   BrailleCanvas,
   AsciiCanvas,
-} from '../../src/components/data-viz/line-chart.js';
+} from '../../src/molecules/data-viz/line-chart.js';
 
 // Gauge
 import {
@@ -50,7 +50,7 @@ import {
   renderLinearGaugeString,
   DEFAULT_ZONES,
   getZoneColor,
-} from '../../src/components/data-viz/gauge.js';
+} from '../../src/molecules/data-viz/gauge.js';
 
 // Heatmap
 import {
@@ -60,7 +60,7 @@ import {
   CalendarHeatmap,
   CorrelationMatrix,
   COLOR_SCALES,
-} from '../../src/components/data-viz/heatmap.js';
+} from '../../src/molecules/data-viz/heatmap.js';
 
 describe('Data Visualization Components', () => {
   beforeEach(() => {
