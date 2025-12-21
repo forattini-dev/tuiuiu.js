@@ -80,13 +80,13 @@ let mouseTrackingRefCount = 0;
  *   +32 = motion (drag)
  *   64 = scroll up, 65 = scroll down
  */
-const SGR_MOUSE_RE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
+const SGR_MOUSE_RE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
 
 /**
  * X10 mouse event format: \x1b[M<button><x><y>
  * Coordinates are encoded as character codes starting at 33 (!)
  */
-const X10_MOUSE_RE = /^\x1b\[M([\x00-\xff])([\x00-\xff])([\x00-\xff])$/;
+const X10_MOUSE_RE = /^\x1b\[M([\x00-\xff])([\x00-\xff])([\x00-\xff])/;
 
 /**
  * Parse SGR mouse event
@@ -174,20 +174,27 @@ function parseX10Mouse(match: RegExpMatchArray): MouseEvent | null {
   return { x, y, button, action, modifiers };
 }
 
+export interface MouseEventResult {
+  event: MouseEvent;
+  length: number;
+}
+
 /**
  * Parse raw input and extract mouse event if present
  */
-export function parseMouseEvent(data: string): MouseEvent | null {
+export function parseMouseEvent(data: string): MouseEventResult | null {
   // Try SGR format first (more precise)
   const sgrMatch = SGR_MOUSE_RE.exec(data);
   if (sgrMatch) {
-    return parseSGRMouse(sgrMatch);
+    const event = parseSGRMouse(sgrMatch);
+    return event ? { event, length: sgrMatch[0].length } : null;
   }
 
   // Fall back to X10 format
   const x10Match = X10_MOUSE_RE.exec(data);
   if (x10Match) {
-    return parseX10Mouse(x10Match);
+    const event = parseX10Mouse(x10Match);
+    return event ? { event, length: x10Match[0].length } : null;
   }
 
   return null;
@@ -330,12 +337,12 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
     // First render - create wrapper and register
     const inputWrapper: InputHandler = (input, _key) => {
       // Check if this is a mouse event
-      const mouseEvent = parseMouseEvent(input);
-      if (mouseEvent) {
+      const result = parseMouseEvent(input);
+      if (result) {
         const data = getStoredHookData();
         if (data && data.registered) {
           // Detect double-clicks
-          const processedEvent = detectDoubleClick(mouseEvent);
+          const processedEvent = detectDoubleClick(result.event);
           data.handler(processedEvent);
         }
       }

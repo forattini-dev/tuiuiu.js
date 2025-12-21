@@ -314,9 +314,9 @@ class HitTestRegistry {
     enableMouseTracking();
 
     this.inputHandler = (data: string) => {
-      const mouseEvent = parseMouseEvent(data);
-      if (mouseEvent) {
-        this.handleMouseEvent(mouseEvent);
+      const result = parseMouseEvent(data);
+      if (result) {
+        this.handleMouseEvent(result.event);
       }
     };
 
