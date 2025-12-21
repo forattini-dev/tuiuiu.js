@@ -187,7 +187,7 @@ export function LinearGauge(options: GaugeOptions): VNode {
     value,
     min = 0,
     max = 100,
-    width = 30,
+    width: totalWidth = 30, // Treat as total width goal
     showValue = true,
     formatValue,
     valuePosition = 'right',
@@ -202,7 +202,28 @@ export function LinearGauge(options: GaugeOptions): VNode {
   const chars = getGaugeChars();
   const normalized = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
   const percentage = normalized * 100;
-  const filledLength = normalized * width;
+
+  // Format value to determine width
+  const valueStr = formatValue
+    ? formatValue(value)
+    : `${Math.round(percentage)}%`;
+  
+  // Calculate peripheral widths
+  let extrasWidth = 0;
+  
+  if (label) extrasWidth += label.length + 1; // + margin
+  if (showMinMax) {
+    extrasWidth += String(min).length + 1;
+    extrasWidth += String(max).length + 1;
+  }
+  if (showValue && (valuePosition === 'left' || valuePosition === 'right')) {
+    extrasWidth += valueStr.length + 1; // + margin
+  }
+
+  // Calculate bar width
+  const barWidth = Math.max(1, totalWidth - extrasWidth);
+
+  const filledLength = normalized * barWidth;
   const fullBlocks = Math.floor(filledLength);
   const partialFraction = filledLength - fullBlocks;
 
@@ -230,17 +251,12 @@ export function LinearGauge(options: GaugeOptions): VNode {
 
   // Empty portion
   const filledLen = fullBlocks + (partialFraction > 0 ? 1 : 0);
-  const emptyLen = Math.max(0, width - filledLen);
+  const emptyLen = Math.max(0, barWidth - filledLen);
   if (emptyLen > 0) {
     barParts.push(
       Text({ color: backgroundColor, dim: true }, chars.empty.repeat(emptyLen))
     );
   }
-
-  // Format value
-  const valueStr = formatValue
-    ? formatValue(value)
-    : `${Math.round(percentage)}%`;
 
   // Build layout based on value position
   const parts: (VNode | null)[] = [];
@@ -287,7 +303,7 @@ export function LinearGauge(options: GaugeOptions): VNode {
       { flexDirection: 'column' },
       mainRow,
       Box(
-        { flexDirection: 'row', justifyContent: 'center', width },
+        { flexDirection: 'row', justifyContent: 'center', width: totalWidth },
         Text({ color: barColor }, valueStr)
       )
     );
