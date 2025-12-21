@@ -4,7 +4,7 @@
  */
 
 import { createSignal, createEffect, batch, createMemo } from '../src/core/signal.js'
-import { Box, Text } from '../src/components/components.js'
+import { Box, Text } from '../src/primitives/index.js'
 import { renderToString } from '../src/core/renderer.js'
 
 console.log('=== Tuiuiu Verification ===\n')

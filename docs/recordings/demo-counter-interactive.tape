@@ -11,7 +11,7 @@ Set Padding 20
 # Set FontFamily "JetBrains Mono" # Removed to use system default for better compatibility
 
 Set PlaybackSpeed 0.75
-Set TypingSpeed 0.15s
+Set TypingSpeed 0.05s
 
 # Start the counter example
 Type "pnpm run example:01"

@@ -4,7 +4,7 @@ Share state between components without prop drilling.
 
 ## Overview
 
-The Context API provides a way to pass data through the component tree without having to pass props manually at every level. This is inspired by React's Context API but adapted for Tuiuiu's signal-based system.
+The Context API provides a way to pass data through the component tree without having to pass props manually at every level, adapted for Tuiuiu's signal-based system.
 
 ## Basic Usage
 

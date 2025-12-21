@@ -5,7 +5,7 @@ Tuiuiu uses **Signals** for state management. Signals are a reactive primitive t
 ## Why Signals?
 
 - **Fine-grained Reactivity**: Only the parts of the UI that depend on a signal will re-render.
-- **No Dependency Arrays**: Unlike React's `useEffect` or `useMemo`, you don't need to manually list dependencies.
+- **No Dependency Arrays**: You don't need to manually list dependencies — they're tracked automatically.
 - **Performance**: Signals are extremely fast and efficient.
 
 ## Basic Usage

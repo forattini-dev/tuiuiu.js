@@ -123,5 +123,5 @@ import { Badge, Tag } from 'tuiuiu.js';
 
 Badge({ text: 'NEW', color: 'green', variant: 'solid' })
 
-Tag({ label: 'React', color: 'cyan', removable: true })
+Tag({ label: 'TypeScript', color: 'cyan', removable: true })
 ```

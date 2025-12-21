@@ -120,6 +120,6 @@ function UserList() {
 
 ## 6. Avoiding "Prop Drilling" (Context)
 
-While global signals work well, sometimes you want to provide state only to a specific subtree of components. Tuiuiu does not have a formal React `Context` API yet, but you can achieve this using Higher-Order Components or simple module scoping within a feature folder.
+While global signals work well, sometimes you want to provide state only to a specific subtree of components. You can achieve this using the Context API, Higher-Order Components, or simple module scoping within a feature folder.
 
 *Tip: Since Tuiuiu functions run once to generate the VNode tree (and effects run subsequently), you can pass signals down as props easily without performance penalty.*

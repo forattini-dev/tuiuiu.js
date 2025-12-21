@@ -11,7 +11,7 @@
  * Run with: pnpm tsx examples/realtime-dashboard.ts
  */
 
-import { Box, Text, Spacer, Divider } from '../src/components/components.js';
+import { Box, Text, Spacer, Divider } from '../src/primitives/index.js';
 import { render } from '../src/app/render-loop.js';
 import { createSignal, createEffect } from '../src/primitives/signal.js';
 import { useState, useInput, useApp } from '../src/hooks/index.js';
