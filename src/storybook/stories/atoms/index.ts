@@ -11,7 +11,7 @@
  * - Spinner: Loading indicator
  */
 
-import { Box, Text, Spacer, Divider } from '../../../components/components.js';
+import { Box, Text, Spacer, Divider } from '../../../primitives/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 
@@ -53,10 +53,8 @@ const spinnerFrames = {
 
   // Pong animation
   pong: [
-    '▐⠂       ▌', '▐⠈       ▌', '▐ ⠂      ▌', '▐ ⠠      ▌',
-    '▐  ⡀     ▌', '▐  ⠠     ▌', '▐   ⠂    ▌', '▐   ⠈    ▌',
-    '▐    ⠂   ▌', '▐    ⠠   ▌', '▐     ⡀  ▌', '▐     ⠠  ▌',
-    '▐      ⠂ ▌', '▐      ⠈ ▌', '▐       ⠂▌', '▐       ⠠▌',
+    '▐⠂    ▌', '▐⠈    ▌', '▐ ⠂   ▌', '▐ ⠠   ▌', '▐  ⡀  ▌', '▐  ⠠  ▌', '▐   ⠂ ▌', '▐   ⠈ ▌', '▐    ⠂▌',
+    '▐    ⠠▌', '▐    ⡀▌', '▐   ⠠ ▌', '▐   ⠂ ▌', '▐  ⠈  ▌', '▐  ⠂  ▌', '▐ ⠠   ▌', '▐ ⡀   ▌', '▐⠠    ▌',
   ],
 
   // Growing/shrinking
@@ -729,6 +727,30 @@ export const spinnerStories: Story[] = [
         Text({ color: 'green', dim: true }, 'Decoding...')
       )
     ),
+
+  story('Spinner - Binary Config')
+    .category('Atoms')
+    .description('Binary spinner with configurable width')
+    .controls({
+      minWidth: defaultControls.range('Width', 12, 4, 32),
+    })
+    .animated(100)
+    .render((props, frame = 0) => {
+      // Simulate the dynamic generation logic for the story
+      const width = props.minWidth;
+      const seed = frame;
+      let s = seed;
+      const binaryStr = Array.from({ length: width }, () => {
+          s = (s * 9301 + 49297) % 233280;
+          return (s / 233280) > 0.5 ? '1' : '0';
+      }).join('');
+      
+      return Box(
+        { flexDirection: 'row', gap: 2 },
+        Text({ color: 'green' }, binaryStr),
+        Text({ color: 'green', dim: true }, `Decoding (${width} bits)...`)
+      );
+    }),
 
   story('Spinner - Star')
     .category('Atoms')
