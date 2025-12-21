@@ -17,7 +17,7 @@
 Building terminal apps should be as easy as building web apps. Tuiuiu provides a familiar DX for React developers while optimized for the constraints of the terminal.
 
 ```typescript
-import { render, Box, Text, createSignal } from 'tuiuiu';
+import { render, Box, Text, createSignal } from 'tuiuiu.js';
 
 function Counter() {
   const [count, setCount] = createSignal(0);

@@ -16,8 +16,8 @@ This is inspired by Ink's `<Static>` component.
 ## Basic Usage
 
 ```typescript
-import { Static, Text, Box } from 'tuiuiu';
-import { createSignal } from 'tuiuiu';
+import { Static, Text, Box } from 'tuiuiu.js';
+import { createSignal } from 'tuiuiu.js';
 
 const [logs, setLogs] = createSignal<string[]>([]);
 

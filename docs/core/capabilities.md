@@ -14,7 +14,7 @@ Tuiuiu automatically detects:
 You can force a specific rendering mode if auto-detection fails or for testing.
 
 ```typescript
-import { setRenderMode } from 'tuiuiu';
+import { setRenderMode } from 'tuiuiu.js';
 
 // Force ASCII mode (useful for CI/CD logs)
 setRenderMode('ascii');
@@ -31,7 +31,7 @@ setRenderMode('auto');
 To ensure your app looks good everywhere, avoid hardcoding symbols. Use the `char` helper or `getChars()` to get the correct symbol for the current environment.
 
 ```typescript
-import { char, getChars } from 'tuiuiu';
+import { char, getChars } from 'tuiuiu.js';
 
 // Automatic fallback: '✔' (unicode) or '[x]' (ascii)
 const check = getChars().checkbox.checked;

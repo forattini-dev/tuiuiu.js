@@ -19,7 +19,7 @@ Renders large text using block characters or other fonts.
 ### Usage
 
 ```typescript
-import { BigText } from 'tuiuiu';
+import { BigText } from 'tuiuiu.js';
 
 // Basic
 BigText({
@@ -49,7 +49,7 @@ Displays numbers in an LCD-style format.
 ### Usage
 
 ```typescript
-import { Digits, Clock } from 'tuiuiu';
+import { Digits, Clock } from 'tuiuiu.js';
 
 // Number
 Digits({
@@ -72,7 +72,7 @@ Shows a popup hint relative to a target element.
 ### Usage
 
 ```typescript
-import { Tooltip, WithTooltip } from 'tuiuiu';
+import { Tooltip, WithTooltip } from 'tuiuiu.js';
 
 // Direct usage
 Tooltip({
@@ -103,7 +103,7 @@ Callout box for alerts, warnings, or tips.
 ### Usage
 
 ```typescript
-import { InfoBox } from 'tuiuiu';
+import { InfoBox } from 'tuiuiu.js';
 
 InfoBox({
   type: 'warning',
@@ -119,7 +119,7 @@ Small indicators for status or categories.
 ### Usage
 
 ```typescript
-import { Badge, Tag } from 'tuiuiu';
+import { Badge, Tag } from 'tuiuiu.js';
 
 Badge({ text: 'NEW', color: 'green', variant: 'solid' })
 

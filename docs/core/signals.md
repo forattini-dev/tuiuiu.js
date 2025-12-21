@@ -15,7 +15,7 @@ Tuiuiu uses **Signals** for state management. Signals are a reactive primitive t
 Creates a reactive value. Returns a getter and a setter.
 
 ```typescript
-import { createSignal } from 'tuiuiu';
+import { createSignal } from 'tuiuiu.js';
 
 // Create a signal with initial value 0
 const [count, setCount] = createSignal(0);
@@ -35,7 +35,7 @@ setCount(prev => prev + 1);
 Runs a side effect whenever dependent signals change.
 
 ```typescript
-import { createEffect, createSignal } from 'tuiuiu';
+import { createEffect, createSignal } from 'tuiuiu.js';
 
 const [name, setName] = createSignal("Alice");
 
@@ -52,7 +52,7 @@ setName("Bob"); // Logs: "Hello, Bob!"
 Creates a derived signal that only updates when its dependencies change. Useful for expensive calculations.
 
 ```typescript
-import { createMemo, createSignal } from 'tuiuiu';
+import { createMemo, createSignal } from 'tuiuiu.js';
 
 const [count, setCount] = createSignal(0);
 
@@ -75,7 +75,7 @@ console.log(doubleCount()); // Logs: "Calculating...", then 2
 Batches multiple updates into a single re-render.
 
 ```typescript
-import { batch } from 'tuiuiu';
+import { batch } from 'tuiuiu.js';
 
 batch(() => {
   setName("Alice");
@@ -88,7 +88,7 @@ batch(() => {
 Reads a signal without creating a dependency.
 
 ```typescript
-import { untrack } from 'tuiuiu';
+import { untrack } from 'tuiuiu.js';
 
 createEffect(() => {
   console.log(name()); // Tracks `name`

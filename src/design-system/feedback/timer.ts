@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { Timer, createTimer } from 'tuiuiu';
+ * import { Timer, createTimer } from 'tuiuiu.js';
  *
  * // Create timer state
  * const timer = createTimer({

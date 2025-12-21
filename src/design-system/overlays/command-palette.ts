@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { CommandPalette, createCommandPalette } from 'tuiuiu';
+ * import { CommandPalette, createCommandPalette } from 'tuiuiu.js';
  *
  * const palette = createCommandPalette({
  *   items: [
@@ -105,6 +105,8 @@ export interface CommandPaletteProps {
   selectedBg?: string;
   /** No results message */
   noResultsMessage?: string;
+  /** Callback for item click */
+  onItemClick?: (item: CommandItem, index: number) => void;
 }
 
 export interface CommandPaletteState {
@@ -302,6 +304,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
     highlightColor = 'yellow',
     selectedBg = 'blue',
     noResultsMessage = 'No results found',
+    onItemClick,
   } = props;
 
   const chars = borderStyle !== 'none' ? BORDER_CHARS[borderStyle] : null;
@@ -413,7 +416,10 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
 
       rows.push(
         Box(
-          { flexDirection: 'row' },
+          {
+            flexDirection: 'row',
+            onClick: item.disabled ? undefined : () => onItemClick?.(item, i),
+          },
           chars ? Text({ color: borderColor }, chars.vertical) : null,
           Text({ backgroundColor: isSelected ? selectedBg : undefined }, ' '),
           Text({ color: isSelected ? 'white' : 'cyan' }, icon),

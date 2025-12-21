@@ -5,7 +5,7 @@
  * but with zero external dependencies.
  *
  * @example
- * import { render, Box, Text, useState, useInput } from 'tuiuiu';
+ * import { render, Box, Text, useState, useInput } from 'tuiuiu.js';
  *
  * function App() {
  *   const [count, setCount] = useState(0);
@@ -299,6 +299,39 @@ export {
   highContrastDarkTheme,
   monochromeTheme,
   themes,
+  tw,
+  // Colors - Tailwind CSS palette
+  colors,
+  color,
+  parseColor,
+  getShades,
+  listColors,
+  listShades,
+  white,
+  black,
+  transparent,
+  slate,
+  gray,
+  zinc,
+  neutral,
+  stone,
+  red,
+  orange,
+  amber,
+  yellow,
+  lime,
+  green,
+  emerald,
+  teal,
+  cyan,
+  sky,
+  blue,
+  indigo,
+  violet,
+  purple,
+  fuchsia,
+  pink,
+  rose,
   // Animation system
   useAnimation,
   useTransition,
@@ -336,6 +369,10 @@ export type {
   ThemeColors,
   ThemeSpacing,
   BorderRadius,
+  // Colors (Tailwind palette)
+  ColorShade,
+  ColorPalette as TailwindPalette,
+  ColorName,
   // Animation
   AnimationOptions,
   AnimationControls,

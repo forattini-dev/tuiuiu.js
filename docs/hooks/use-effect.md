@@ -7,7 +7,7 @@ Run side effects in response to signal changes.
 This hook wraps the core `createEffect` primitive but ensures it integrates correctly with the component lifecycle (auto-cleanup on unmount).
 
 ```typescript
-import { useEffect, createSignal } from 'tuiuiu';
+import { useEffect, createSignal } from 'tuiuiu.js';
 
 function Timer() {
   const [count, setCount] = createSignal(0);

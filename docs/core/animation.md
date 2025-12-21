@@ -23,7 +23,7 @@ The animation system provides:
 The core animation primitive. Runs a frame-based animation at ~60fps.
 
 ```typescript
-import { useAnimation } from 'tuiuiu';
+import { useAnimation } from 'tuiuiu.js';
 
 const anim = useAnimation({
   duration: 500,        // milliseconds
@@ -79,7 +79,7 @@ useAnimation({
 Manages enter/exit animations for showing and hiding components.
 
 ```typescript
-import { useTransition, Box, Text, When } from 'tuiuiu';
+import { useTransition, Box, Text, When } from 'tuiuiu.js';
 
 function Modal({ visible }) {
   const { state, progress, shouldRender } = useTransition({
@@ -136,7 +136,7 @@ For natural, physics-based motion instead of duration-based easing.
 Traditional stiffness/damping/mass model:
 
 ```typescript
-import { createSpring } from 'tuiuiu';
+import { createSpring } from 'tuiuiu.js';
 
 const spring = createSpring({
   stiffness: 180,   // Higher = faster oscillation
@@ -161,7 +161,7 @@ spring.setTarget(150);      // Change target mid-animation
 More intuitive frequency/damping model (inspired by Charm's Harmonica):
 
 ```typescript
-import { createHarmonicaSpring } from 'tuiuiu';
+import { createHarmonicaSpring } from 'tuiuiu.js';
 
 const spring = createHarmonicaSpring({
   fps: 60,          // Target frame rate
@@ -196,7 +196,7 @@ For wizard-style navigation where **both previous and next content are visible**
 The base primitive for composite transitions:
 
 ```typescript
-import { createCompositeTransition } from 'tuiuiu';
+import { createCompositeTransition } from 'tuiuiu.js';
 
 const transition = createCompositeTransition({
   duration: 300,
@@ -227,7 +227,7 @@ transition.getState(); // Get current state
 Pre-built horizontal swipe (like mobile apps):
 
 ```typescript
-import { createSwipeTransition } from 'tuiuiu';
+import { createSwipeTransition } from 'tuiuiu.js';
 
 const swipe = createSwipeTransition({
   width: 80,   // Terminal width
@@ -259,7 +259,7 @@ swipe.reverse();      // Reverse direction
 Pre-built vertical slide:
 
 ```typescript
-import { createSlideTransition } from 'tuiuiu';
+import { createSlideTransition } from 'tuiuiu.js';
 
 const slide = createSlideTransition({
   width: 80,
@@ -284,7 +284,7 @@ const output = slide.render();
 ### lerp (Linear Interpolation)
 
 ```typescript
-import { lerp } from 'tuiuiu';
+import { lerp } from 'tuiuiu.js';
 
 // Interpolate between two numbers
 const value = lerp(0, 100, 0.5);  // 50
@@ -293,7 +293,7 @@ const value = lerp(0, 100, 0.5);  // 50
 ### lerpColor
 
 ```typescript
-import { lerpColor } from 'tuiuiu';
+import { lerpColor } from 'tuiuiu.js';
 
 // Interpolate between two hex colors
 const color = lerpColor('#ff0000', '#0000ff', 0.5);  // '#800080'
@@ -304,7 +304,7 @@ const color = lerpColor('#ff0000', '#0000ff', 0.5);  // '#800080'
 Terminal-compatible requestAnimationFrame (~60fps):
 
 ```typescript
-import { requestAnimationFrame, cancelAllAnimationFrames } from 'tuiuiu';
+import { requestAnimationFrame, cancelAllAnimationFrames } from 'tuiuiu.js';
 
 const cancel = requestAnimationFrame(() => {
   console.log('Next frame');

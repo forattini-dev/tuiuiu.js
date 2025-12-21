@@ -7,7 +7,7 @@ Handle keyboard input for a component.
 The handler receives two arguments: the raw input string and a structured `Key` object.
 
 ```typescript
-import { useInput } from 'tuiuiu';
+import { useInput } from 'tuiuiu.js';
 
 function Game() {
   useInput((input, key) => {

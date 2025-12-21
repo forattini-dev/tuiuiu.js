@@ -13,7 +13,7 @@ The terminal must support mouse tracking (most modern terminals like xterm, iTer
 The easiest way to handle mouse interaction is by using event props directly on components like `Box` and `Text`.
 
 ```typescript
-import { Box, Text } from 'tuiuiu';
+import { Box, Text } from 'tuiuiu.js';
 
 function Button() {
   return Box({
@@ -50,7 +50,7 @@ All basic components (`Box`, `Text`, etc.) support the following events:
 If you need global mouse coordinates or low-level access (e.g. for drag-and-drop across the screen), use the `useMouse` hook.
 
 ```typescript
-import { useMouse } from 'tuiuiu';
+import { useMouse } from 'tuiuiu.js';
 
 useMouse((event) => {
   console.log(`Global mouse event: ${event.action} at ${event.x}, ${event.y}`);

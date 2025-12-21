@@ -17,7 +17,7 @@ These are the building blocks of any Tuiuiu application.
 All components are exported as functions that return Virtual Nodes (VNodes).
 
 ```typescript
-import { Box, Text, Button } from 'tuiuiu';
+import { Box, Text, Button } from 'tuiuiu.js';
 
 function App() {
   return Box({ flexDirection: 'column' },

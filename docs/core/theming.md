@@ -9,7 +9,7 @@ Tuiuiu includes a robust theming system powered by **Signals**, allowing for ins
 Access current theme values in your components.
 
 ```typescript
-import { useTheme } from 'tuiuiu';
+import { useTheme } from 'tuiuiu.js';
 
 function MyComponent() {
   const theme = useTheme();
@@ -25,7 +25,7 @@ function MyComponent() {
 Switch themes dynamically.
 
 ```typescript
-import { setTheme, themes } from 'tuiuiu';
+import { setTheme, themes } from 'tuiuiu.js';
 
 // Switch to light theme
 setTheme(themes.light);
@@ -48,7 +48,7 @@ Tuiuiu comes with several preset themes:
 You can extend an existing theme or create a new one from scratch.
 
 ```typescript
-import { createTheme, themes, setTheme } from 'tuiuiu';
+import { createTheme, themes, setTheme } from 'tuiuiu.js';
 
 const draculaTheme = createTheme(themes.dark, {
   name: 'dracula',
@@ -80,7 +80,7 @@ Each theme defines:
 You can automatically detect and use the system's preferred color scheme (where supported by the terminal).
 
 ```typescript
-import { useSystemTheme } from 'tuiuiu';
+import { useSystemTheme } from 'tuiuiu.js';
 
 useSystemTheme();
 ```

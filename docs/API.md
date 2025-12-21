@@ -935,7 +935,7 @@ Statistical correlation matrix.
 ### Built-in Themes
 
 ```typescript
-import { darkTheme, lightTheme, highContrastDarkTheme, monochromeTheme } from 'tuiuiu';
+import { darkTheme, lightTheme, highContrastDarkTheme, monochromeTheme } from 'tuiuiu.js';
 
 setTheme(darkTheme);
 setTheme(lightTheme);
@@ -1115,7 +1115,7 @@ onResize((width, height) => {
 ### Text Utilities
 
 ```typescript
-import { stripAnsi, stringWidth, wrapText, truncateText } from 'tuiuiu';
+import { stripAnsi, stringWidth, wrapText, truncateText } from 'tuiuiu.js';
 
 // Strip ANSI codes
 stripAnsi('\x1b[31mRed\x1b[0m'); // 'Red'
@@ -1134,7 +1134,7 @@ truncateText('Long text', 10, { position: 'middle' }); // 'Lon...ext'
 ### Cursor Control
 
 ```typescript
-import { showCursor, hideCursor, cursor } from 'tuiuiu';
+import { showCursor, hideCursor, cursor } from 'tuiuiu.js';
 
 hideCursor();
 // ... render UI
@@ -1150,7 +1150,7 @@ cursor.clear();
 ### Color Utilities
 
 ```typescript
-import { colorize, colorToAnsi, style } from 'tuiuiu';
+import { colorize, colorToAnsi, style } from 'tuiuiu.js';
 
 // Apply color
 colorize('Hello', 'red');
@@ -1167,7 +1167,7 @@ style('Bold red', { bold: true, color: 'red' });
 ### Hyperlinks
 
 ```typescript
-import { hyperlink } from 'tuiuiu';
+import { hyperlink } from 'tuiuiu.js';
 
 // Create clickable link (if terminal supports)
 const link = hyperlink('Click here', 'https://example.com');
@@ -1222,7 +1222,7 @@ type BorderStyle = 'single' | 'double' | 'round' | 'bold' | 'singleDouble' | 'do
 import {
   render, Box, Text, useState, useInput, useApp,
   Tabs, DataTable, Badge, Sparkline, setTheme, darkTheme
-} from 'tuiuiu';
+} from 'tuiuiu.js';
 
 setTheme(darkTheme);
 

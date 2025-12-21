@@ -59,7 +59,7 @@ describe('Theme System', () => {
     it('should have light theme', () => {
       expect(lightTheme.name).toBe('light');
       expect(lightTheme.colors.background).toBe('#ffffff');
-      expect(lightTheme.colors.text).toBe('#0f172a');
+      expect(lightTheme.colors.text).toBe('#020617'); // slate-950
     });
 
     it('should have high contrast dark theme', () => {
@@ -286,15 +286,30 @@ describe('Theme System', () => {
       expect(resolveColor('danger')).toBe(darkTheme.colors.error);
     });
 
-    it('should resolve muted as textMuted', () => {
-      expect(resolveColor('muted')).toBe(darkTheme.colors.textMuted);
+    it('should resolve muted colors', () => {
+      // 'muted' now maps to the muted background color
+      expect(resolveColor('muted')).toBe(darkTheme.colors.muted);
+      // 'muted-foreground' and 'text-muted' map to the muted text color
+      expect(resolveColor('muted-foreground')).toBe(darkTheme.colors.mutedForeground);
       expect(resolveColor('text-muted')).toBe(darkTheme.colors.textMuted);
+      expect(resolveColor('mutedForeground')).toBe(darkTheme.colors.mutedForeground);
+    });
+
+    it('should resolve Tailwind colors', () => {
+      // Tailwind color names resolve to shade 500
+      expect(resolveColor('cyan')).toBe('#06b6d4'); // cyan-500
+      expect(resolveColor('blue')).toBe('#3b82f6'); // blue-500
+      expect(resolveColor('red')).toBe('#ef4444');  // red-500
+      // Tailwind color-shade format
+      expect(resolveColor('blue-500')).toBe('#3b82f6');
+      expect(resolveColor('gray-100')).toBe('#f3f4f6');
+      expect(resolveColor('slate-900')).toBe('#0f172a');
     });
 
     it('should pass through unknown colors', () => {
       expect(resolveColor('#ff0000')).toBe('#ff0000');
-      expect(resolveColor('cyan')).toBe('cyan');
       expect(resolveColor('rgb(255, 0, 0)')).toBe('rgb(255, 0, 0)');
+      expect(resolveColor('unknowncolor')).toBe('unknowncolor');
     });
 
     it('should reflect theme changes', () => {

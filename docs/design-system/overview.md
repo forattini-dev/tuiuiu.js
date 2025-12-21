@@ -32,7 +32,7 @@ You can import components directly from the main package or from specific catego
 
 ```typescript
 // Recommended
-import { Box, Text, Button } from 'tuiuiu';
+import { Box, Text, Button } from 'tuiuiu.js';
 
 // Alternative (if deep imports are needed)
 import { Box } from 'tuiuiu/design-system/primitives';

@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { createLinkedNavigation, useNavigation } from 'tuiuiu';
+ * import { createLinkedNavigation, useNavigation } from 'tuiuiu.js';
  *
  * // Create navigation from items
  * const nav = createLinkedNavigation([
