@@ -381,6 +381,7 @@ export function BarChart(options: BarChartOptions): VNode {
 export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
   const {
     data,
+    width,
     height = 10,
     showValues = true,
     barColor = 'cyan',
@@ -399,6 +400,19 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
   const blockChars = isAscii ? '_.oO@' : VERTICAL_BLOCKS;
   const { normalized } = normalizeValues(data, min, max);
 
+  // Calculate column width
+  let colWidth = 3;
+  if (width) {
+    const totalGap = gap * (data.length - 1);
+    const available = Math.max(0, width - totalGap);
+    colWidth = Math.floor(available / data.length);
+  } else {
+    colWidth = Math.max(...data.map(d => d.label.length), 3);
+  }
+  
+  // Ensure minimum width
+  colWidth = Math.max(1, colWidth);
+
   // Build rows from top to bottom
   const rows: VNode[] = [];
 
@@ -406,10 +420,14 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
   if (showValues) {
     const values = data.map((item, i) => {
       const valueStr = String(item.value);
-      const colWidth = Math.max(item.label.length, 3);
+      // Truncate or pad value to fit column
+      const displayValue = valueStr.length > colWidth 
+        ? valueStr.slice(0, colWidth) 
+        : valueStr;
+        
       return Box(
         { width: colWidth, justifyContent: 'center' },
-        Text({ color: valueColor }, valueStr.slice(0, colWidth))
+        Text({ color: valueColor }, displayValue)
       );
     });
     rows.push(Box({ flexDirection: 'row', gap }, ...values));
@@ -422,14 +440,13 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
     const barCells = data.map((item, i) => {
       const norm = normalized[i] ?? 0;
       const itemColor = item.color ?? barColor;
-      const colWidth = Math.max(item.label.length, 3);
 
       if (norm >= threshold) {
         // Full block
         const char = blockChars[blockChars.length - 1]!;
         return Box(
           { width: colWidth, justifyContent: 'center' },
-          Text({ color: itemColor }, char)
+          Text({ color: itemColor }, char.repeat(colWidth))
         );
       } else if (norm > threshold - 1 / height) {
         // Partial block
@@ -441,11 +458,11 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
         const char = blockChars[charIndex] || ' ';
         return Box(
           { width: colWidth, justifyContent: 'center' },
-          Text({ color: itemColor }, char)
+          Text({ color: itemColor }, char.repeat(colWidth))
         );
       } else {
         // Empty
-        return Box({ width: colWidth, justifyContent: 'center' }, Text({}, ' '));
+        return Box({ width: colWidth }, Text({}, ' '.repeat(colWidth)));
       }
     });
 
@@ -454,7 +471,6 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
 
   // Label row (bottom)
   const labels = data.map((item) => {
-    const colWidth = Math.max(item.label.length, 3);
     return Box(
       { width: colWidth, justifyContent: 'center' },
       Text({ color: labelColor }, item.label.slice(0, colWidth))
@@ -462,7 +478,7 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
   });
   rows.push(Box({ flexDirection: 'row', gap }, ...labels));
 
-  return Box({ flexDirection: 'column' }, ...rows);
+  return Box({ flexDirection: 'column', width }, ...rows);
 }
 
 // =============================================================================

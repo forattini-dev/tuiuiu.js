@@ -47,7 +47,7 @@ function Sidebar({ activeItem, onSelect }: { activeItem: string, onSelect: (id: 
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'users', label: 'Users', icon: '👥' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'settings', label: 'Settings', icon: '⚙️ ' },
     { id: 'logs', label: 'Logs', icon: '📋' },
     { id: 'help', label: 'Help', icon: '❓' },
   ];
@@ -55,7 +55,7 @@ function Sidebar({ activeItem, onSelect }: { activeItem: string, onSelect: (id: 
   return Box(
     { 
       flexDirection: 'column', 
-      width: 20, 
+      width: 18, 
       borderStyle: 'single', 
       borderRight: true, 
       borderTop: false, 
@@ -121,74 +121,97 @@ function Footer() {
 function Dashboard() {
   const { columns } = useTerminalSize();
   
-  // Calculate available width for chart
-  // Sidebar (20) + Dashboard Padding (2) + Row Gap (2) = 24
-  const availableWidth = Math.max(0, columns - 24);
-  
-  // Chart Box is flex 2 of 3 parts
-  const chartBoxOuterWidth = Math.floor((availableWidth * 2) / 3);
-  
-  // Chart Box has Border (2) and Padding (2) -> Total 4
-  // We add -1 safety margin for flex rounding differences
-  const chartWidth = Math.max(10, chartBoxOuterWidth - 5);
+  // Sidebar (18) + Dashboard Padding (2) + Border/Gap safety
+  const availableWidth = Math.max(0, columns - 22);
+  const fullWidth = Math.max(10, availableWidth - 2); // Minus border
+  const col3Width = Math.floor(availableWidth / 3) - 2; // 3 columns minus gaps/borders
 
   return Box(
-    { flexDirection: 'column', padding: 1, gap: 1 },
-    // Top Row: Metrics
+    { flexDirection: 'column', paddingX: 1, paddingY: 0, gap: 1 },
+    
+    // Row 1: Key Metrics
     Box(
-      { flexDirection: 'row', gap: 2, height: 10 },
+      { flexDirection: 'row', gap: 1, height: 5 },
       Box(
-        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'cyan', padding: 1 },
-        Text({ bold: true, color: 'cyan' }, 'CPU Usage'),
-        Spacer(),
-        Gauge({ value: metrics.cpu, color: 'cyan', width: 20 }),
-        Spacer()
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'cyan', paddingX: 1, paddingY: 0 },
+        Text({ bold: true, color: 'cyan' }, 'CPU'),
+        Gauge({ value: metrics.cpu, color: 'cyan', width: col3Width - 2 })
       ),
       Box(
-        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'yellow', padding: 1 },
-        Text({ bold: true, color: 'yellow' }, 'Memory'),
-        Spacer(),
-        Gauge({ value: metrics.memory, color: 'yellow', width: 20 }),
-        Spacer()
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'yellow', paddingX: 1, paddingY: 0 },
+        Text({ bold: true, color: 'yellow' }, 'Mem'),
+        Gauge({ value: metrics.memory, color: 'yellow', width: col3Width - 2 })
       ),
       Box(
-        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'green', padding: 1 },
-        Text({ bold: true, color: 'green' }, 'Network In'),
-        Sparkline({ data: metrics.network, color: 'green', width: 20 })
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'round', borderColor: 'green', paddingX: 1, paddingY: 0 },
+        Text({ bold: true, color: 'green' }, 'Net'),
+        Sparkline({ data: metrics.network, color: 'green', width: col3Width - 2 })
+      )
+    ),
+
+    // Row 2: Vertical Analysis
+    Box(
+      { flexDirection: 'row', gap: 1, height: 8 },
+      Box(
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'single', borderColor: 'blue', paddingX: 1 },
+        Text({ bold: true }, 'Load Distribution'),
+        BarChart({ 
+          orientation: 'vertical',
+          data: [5, 12, 8, 15, 10, 7].map((v, i) => ({ label: `S${i}`, value: v })),
+          color: 'blue',
+          height: 4,
+          width: col3Width - 4, // Pass calculated width minus borders/padding
+        })
+      ),
+      Box(
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'single', borderColor: 'red', paddingX: 1 },
+        Text({ bold: true }, 'Error Rates'),
+        BarChart({ 
+          orientation: 'vertical',
+          data: [2, 5, 1, 0, 3, 2].map((v, i) => ({ label: `E${i}`, value: v, color: v > 3 ? 'red' : 'green' })),
+          height: 4,
+          width: col3Width - 4,
+        })
+      ),
+      Box(
+        { flexDirection: 'column', flexGrow: 1, borderStyle: 'single', borderColor: 'magenta', paddingX: 1 },
+        Text({ bold: true }, 'Latency (ms)'),
+        BarChart({ 
+          orientation: 'vertical',
+          data: [45, 60, 55, 120, 80, 50].map((v, i) => ({ label: `T${i}`, value: v })),
+          color: 'magenta',
+          height: 4,
+          width: col3Width - 4,
+        })
       )
     ),
     
-    // Bottom Row: Charts & Logs
+    // Row 3: Traffic History (Full Width)
     Box(
-      { flexDirection: 'row', gap: 2, flexGrow: 1 },
-      // Main Chart
-      Box(
-        { flexDirection: 'column', flexGrow: 2, borderStyle: 'single', borderColor: 'gray', padding: 1 },
-        Text({ bold: true }, 'Request Traffic (24h)'),
-        Spacer({ size: 1 }),
-        BarChart({ 
-          data: metrics.requests.map((v, i) => ({ label: `${i}h`, value: v })),
-          color: 'blue',
-          width: chartWidth,
-          height: 10
-        })
-      ),
-      // Recent Logs
-      Box(
-        { flexDirection: 'column', flexGrow: 1, borderStyle: 'single', borderColor: 'gray', padding: 1 },
-        Text({ bold: true }, 'Recent Activity'),
-        Spacer({ size: 1 }),
-        ...recentLogs.map(log => 
-          Box(
-            { flexDirection: 'row', marginBottom: 0 },
-            Text({ color: 'gray', dim: true }, `[${log.time}] `),
-            Text({ 
-              color: log.level === 'INFO' ? 'blue' : 
-                     log.level === 'WARN' ? 'yellow' :
-                     log.level === 'ERROR' ? 'red' : 'green' 
-            }, `${log.level.padEnd(7)}`),
-            Text({}, log.message)
-          )
+      { flexDirection: 'column', borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
+      Text({ bold: true }, 'Traffic History (24h)'),
+      BarChart({ 
+        data: metrics.requests.map((v, i) => ({ label: `${i}h`, value: v })),
+        color: 'blue',
+        width: fullWidth,
+        height: 10
+      })
+    ),
+
+    // Row 4: Recent Activity (Full Width)
+    Box(
+      { flexDirection: 'column', flexGrow: 1, borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
+      Text({ bold: true }, 'Activity Log'),
+      ...recentLogs.map(log => 
+        Box(
+          { flexDirection: 'row', marginBottom: 0 },
+          Text({ color: 'gray', dim: true }, `[${log.time}] `),
+          Text({ 
+            color: log.level === 'INFO' ? 'blue' : 
+                   log.level === 'WARN' ? 'yellow' :
+                   log.level === 'ERROR' ? 'red' : 'green' 
+          }, `${log.level.padEnd(7)}`),
+          Text({}, log.message)
         )
       )
     )
