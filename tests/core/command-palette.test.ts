@@ -284,7 +284,7 @@ describe('CommandRegistry', () => {
       const id = registry.register({
         label: 'Test',
         action: async () => {
-          await new Promise(r => setTimeout(r, 10));
+          await Promise.resolve();
           resolved = true;
         },
       });

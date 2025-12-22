@@ -393,7 +393,7 @@ describe('KeyBindingRegistry', () => {
     it('should handle async actions', async () => {
       let resolved = false;
       const action = async () => {
-        await new Promise(r => setTimeout(r, 10));
+        await Promise.resolve();
         resolved = true;
       };
       registry.register({ key: 'ctrl+k', action });
