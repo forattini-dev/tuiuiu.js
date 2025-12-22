@@ -31,6 +31,7 @@ import {
   themeColor,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader as SharedHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
 // Types
 interface PingStats {
@@ -136,6 +137,7 @@ async function pingLoop() {
 
       setStatus(`${formatDuration(elapsed)}`);
       clearOldKeyPresses();
+      trackFrame();
     } catch {
       setStats(current => ({
         ...current,
@@ -206,26 +208,13 @@ function pingOnce(host: string, isWindows: boolean): Promise<number> {
   });
 }
 
-// Header component
-function TuiuiuHeader() {
-  const theme = useTheme();
-  const width = process.stdout.columns || 80;
+// Header component using shared TuiuiuHeader
+function PingHeader() {
   const resolved = hostInfo() && hostInfo() !== target ? ` (${hostInfo()})` : '';
-  const title = ` 🐦 ping ${target}${resolved} `;
-  const themeLabel = ` [${theme.name}] `;
-  const statusText = ` ${status()} `;
-  const padding = Math.max(0, width - title.length - themeLabel.length - statusText.length);
-
-  const headerBg = themeColor('primary');
-  const headerFg = themeColor('primaryForeground');
-
-  return Box(
-    { flexDirection: 'row', backgroundColor: headerBg },
-    Text({ color: headerFg, bold: true }, title),
-    Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(padding)),
-    Text({ color: themeColor('warning'), bold: true }, themeLabel),
-    Text({ color: themeColor('accent') }, statusText)
-  );
+  return SharedHeader({
+    title: `ping ${target}${resolved}`,
+    status: status(),
+  });
 }
 
 // Big latency display with gauge
@@ -458,7 +447,7 @@ function App() {
 
   return Box(
     { flexDirection: 'column' },
-    TuiuiuHeader(),
+    PingHeader(),
     // Top row: Latency gauge, Stats, Packets
     Box(
       { flexDirection: 'row', marginTop: 1, paddingX: 1 },
@@ -477,6 +466,7 @@ function App() {
 
 // Start the app
 async function main() {
+  resetFps();
   setStatus('connecting...');
 
   // Start the UI (disable autoTabNavigation so Tab can cycle themes)

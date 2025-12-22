@@ -18,7 +18,7 @@ import {
   Box,
   Text,
   createSignal,
-  createEffect,
+  useEffect,
   batch,
   useInput,
   useApp,
@@ -41,6 +41,7 @@ import {
 } from '../src/utils/system-data.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader, startFpsTracking, stopFpsTracking } from './_shared/tuiuiu-header.js';
 
 // =============================================================================
 // Types
@@ -207,25 +208,11 @@ function ProcessHeader(width: number): VNode {
   );
 }
 
-function TuiuiuHeader(width: number): VNode {
-  const theme = useTheme();
-  const title = ' 🐦 Tuiuiu htop ';
-  const subtitle = ' Real-time System Monitor ';
-  const themeLabel = ` [${theme.name}] `;
-  const padding = Math.max(0, width - title.length - subtitle.length - themeLabel.length);
-
-  // Use theme colors for header
-  const headerBg = themeColor('primary');
-  const headerFg = themeColor('primaryForeground');
-  const accentColor = themeColor('accent');
-
-  return Box(
-    { flexDirection: 'row', backgroundColor: headerBg },
-    Text({ color: headerFg, bold: true }, title),
-    Text({ color: accentColor }, subtitle),
-    Text({ color: themeColor('warning'), bold: true }, themeLabel),
-    Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(padding))
-  );
+function HtopHeader(): VNode {
+  return TuiuiuHeader({
+    title: 'htop',
+    subtitle: 'Real-time System Monitor',
+  });
 }
 
 function StatusBar(props: { tasks: SystemInfo['tasks']; width: number }): VNode {
@@ -280,26 +267,33 @@ function HtopApp(): VNode {
 
   const { exit } = useApp();
 
-  // Load initial data
+  // Load initial data (reuse process list to avoid double I/O)
   batch(() => {
     setCpuUsage(getCpuUsage()); // 1st read - stores baseline, returns 0%
     setMemInfo(getMemoryInfo());
-    setProcesses(getProcessList());
-    setSystemInfo(getSystemInfo());
+    const procs = getProcessList();
+    setProcesses(procs);
+    setSystemInfo(getSystemInfo(procs));
   });
 
-  // Start update loop with quick initial update for CPU
-  createEffect(() => {
-    // Fast updates (200ms) for responsive CPU readings
+  // Start FPS tracking (runs at 100ms intervals independently)
+  useEffect(() => {
+    startFpsTracking(100);
+    return () => stopFpsTracking();
+  });
+
+  // Data update loop (1s interval for heavy I/O operations)
+  useEffect(() => {
     const interval = setInterval(() => {
       batch(() => {
+        clearOldKeyPresses();
         setCpuUsage(getCpuUsage());
         setMemInfo(getMemoryInfo());
-        setProcesses(getProcessList());
-        setSystemInfo(getSystemInfo());
-        clearOldKeyPresses();
+        const procs = getProcessList();
+        setProcesses(procs);
+        setSystemInfo(getSystemInfo(procs));
       });
-    }, 200);
+    }, 1000);
 
     return () => clearInterval(interval);
   });
@@ -432,7 +426,7 @@ function HtopApp(): VNode {
     { flexDirection: 'column', width, height },
 
     // Tuiuiu header
-    TuiuiuHeader(width),
+    HtopHeader(),
     Box({ height: 1 }), // spacer line below header
 
     // CPU bars (2 columns) with gap-1 after

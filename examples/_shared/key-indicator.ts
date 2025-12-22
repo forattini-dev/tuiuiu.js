@@ -101,53 +101,63 @@ interface KeyIndicatorProps {
 /**
  * KeyIndicator component - shows recent key presses
  *
- * Place at the bottom of your app layout.
+ * Full-width bar at the bottom with theme-responsive colors.
  */
 export function KeyIndicator({ width }: KeyIndicatorProps = {}): VNode {
   const keys = keyPresses();
+  const termWidth = width ?? process.stdout.columns ?? 80;
+
+  // Background color from theme
+  const bgColor = themeColor('muted');
+  const fgColor = themeColor('mutedForeground');
 
   if (keys.length === 0) {
+    // Empty state - still show the bar for consistency
+    const emptyText = ' Keys: (none) ';
+    const padding = Math.max(0, termWidth - emptyText.length);
+
     return Box(
       {
         flexDirection: 'row',
-        justifyContent: 'center',
-        width: width ?? '100%',
-        height: 1,
+        width: termWidth,
+        backgroundColor: bgColor,
       },
-      Text({ color: themeColor('mutedForeground'), dim: true }, ''),
+      Text({ color: fgColor, dim: true }, emptyText),
+      Text({ color: fgColor, backgroundColor: bgColor }, ' '.repeat(padding)),
     );
   }
 
   const now = Date.now();
 
+  // Build key display string
+  const keyDisplays = keys.map(({ key, timestamp }) => {
+    const age = now - timestamp;
+    const isFading = age > KEY_DISPLAY_TIME * 0.6;
+    return { key, isFading };
+  });
+
+  // Calculate spacing
+  const keysLabel = ' Keys: ';
+  const keyStrings = keyDisplays.map(k => `[${k.key}]`).join(' ');
+  const usedWidth = keysLabel.length + keyStrings.length + 1;
+  const padding = Math.max(0, termWidth - usedWidth);
+
   return Box(
     {
       flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: width ?? '100%',
-      height: 1,
-      gap: 1,
+      width: termWidth,
+      backgroundColor: bgColor,
     },
-    Text({ color: themeColor('mutedForeground'), dim: true }, 'Keys: '),
-    ...keys.map(({ key, timestamp }) => {
-      const age = now - timestamp;
-      const isFading = age > KEY_DISPLAY_TIME * 0.6;
-
-      return Box(
-        {
-          paddingLeft: 1,
-          paddingRight: 1,
-          borderStyle: 'round',
-          borderColor: isFading ? themeColor('border') : themeColor('primary'),
-        },
-        Text({
-          color: isFading ? themeColor('mutedForeground') : themeColor('accent'),
-          dim: isFading,
-          bold: !isFading,
-        }, key),
-      );
-    }),
+    Text({ color: fgColor, dim: true }, keysLabel),
+    ...keyDisplays.flatMap(({ key, isFading }, i) => [
+      Text({
+        color: isFading ? fgColor : themeColor('accent'),
+        bold: !isFading,
+        dim: isFading,
+      }, `[${key}]`),
+      i < keyDisplays.length - 1 ? Text({ color: fgColor }, ' ') : null,
+    ]).filter(Boolean),
+    Text({ color: fgColor, backgroundColor: bgColor }, ' '.repeat(padding + 1)),
   );
 }
 

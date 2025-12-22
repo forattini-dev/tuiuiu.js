@@ -9,27 +9,38 @@ Set Width 1100
 Set Height 700
 Set Padding 15
 Set PlaybackSpeed 0.5
-Set TypingSpeed 0.03s
+Set TypingSpeed 0.005s
 
-# Run htop example
+# Run htop example (fast typing)
 Type "pnpm tsx examples/app-htop.ts"
 Enter
 
 # Let it initialize and show processes
-Sleep 3s
+Sleep 5s
 
-# Cycle through themes with Tab
+# Cycle through all 11 themes with Tab (0.5s each)
 Tab
-Sleep 1.5s
+Sleep 500ms
 Tab
-Sleep 1.5s
+Sleep 500ms
 Tab
-Sleep 1.5s
+Sleep 500ms
 Tab
-Sleep 1.5s
-
-# Let it run showing live updates
-Sleep 2s
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
 
 # Exit
 Ctrl+C

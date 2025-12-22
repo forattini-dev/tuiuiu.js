@@ -1,5 +1,5 @@
-# Tuiuiu Storybook Demo
-# Shows the component explorer with splash screen
+# Tuiuiu Storybook - Component Explorer
+# Interactive component documentation
 
 Output docs/assets/demo-storybook.gif
 
@@ -9,16 +9,16 @@ Set Width 1600
 Set Height 800
 Set Padding 15
 Set PlaybackSpeed 0.5
-Set TypingSpeed 0.03s
+Set TypingSpeed 0.005s
 
-# Start storybook
+# Run storybook (fast typing)
 Type "pnpm storybook"
 Enter
 
-# Wait for splash screen
+# Let it initialize
 Sleep 3s
 
-# Navigate through categories
+# Navigate categories
 Sleep 1s
 Down
 Sleep 500ms
@@ -26,23 +26,21 @@ Down
 Sleep 500ms
 Down
 Sleep 500ms
-
-# Select a story
 Enter
 Sleep 1s
 
-# Navigate stories
+# Explore component
 Down
 Sleep 500ms
 Down
 Sleep 500ms
-
-# Show some interaction
 Enter
 Sleep 2s
 
-# Exit
+# Go back
 Escape
 Sleep 500ms
+
+# Exit
 Ctrl+C
 Sleep 300ms

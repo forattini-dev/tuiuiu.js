@@ -1,5 +1,5 @@
-# Tuiuiu Forms Demo
-# Interactive form components: inputs, selects, buttons
+# Tuiuiu forms - Form Wizard Demo
+# Multi-step form with validation
 
 Output docs/assets/demo-forms.gif
 
@@ -9,27 +9,28 @@ Set Width 900
 Set Height 550
 Set Padding 15
 Set PlaybackSpeed 0.6
-Set TypingSpeed 0.04s
+Set TypingSpeed 0.005s
 
-# Run forms example
+# Run forms example (fast command typing)
 Type "pnpm tsx examples/app-forms.ts"
 Enter
 
+# Let it initialize
 Sleep 1.5s
 
-# Type in text input
+# Fill out form (slower typing for readability)
+Set TypingSpeed 0.03s
 Type "John Doe"
 Sleep 500ms
 Tab
 Sleep 300ms
 
-# Navigate to select
 Type "john@example.com"
 Sleep 500ms
 Tab
 Sleep 300ms
 
-# Interact with select
+# Select role
 Down
 Sleep 300ms
 Down
@@ -37,9 +38,11 @@ Sleep 300ms
 Enter
 Sleep 500ms
 
-# Navigate more
+# Skip to skills
 Tab
 Sleep 300ms
+
+# Toggle some skills
 Space
 Sleep 500ms
 

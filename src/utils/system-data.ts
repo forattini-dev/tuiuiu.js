@@ -405,7 +405,13 @@ export function getProcessList(): ProcessInfo[] {
 // System Info
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function getSystemInfo(): SystemInfo {
+/**
+ * Get system info (hostname, uptime, load average, task counts)
+ *
+ * @param processes - Optional pre-fetched process list to avoid double I/O.
+ *                    If not provided, will call getProcessList() internally.
+ */
+export function getSystemInfo(processes?: ProcessInfo[]): SystemInfo {
   // Hostname
   const hostname = readFile('/etc/hostname')?.trim() || 'unknown';
 
@@ -422,14 +428,14 @@ export function getSystemInfo(): SystemInfo {
     parseFloat(loadParts[2]) || 0,
   ];
 
-  // Task counts from processes
-  const processes = getProcessList();
+  // Task counts from processes (reuse if provided, otherwise fetch)
+  const procs = processes ?? getProcessList();
   const tasks = {
-    total: processes.length,
-    running: processes.filter(p => p.state === 'R').length,
-    sleeping: processes.filter(p => p.state === 'S' || p.state === 'D').length,
-    stopped: processes.filter(p => p.state === 'T').length,
-    zombie: processes.filter(p => p.state === 'Z').length,
+    total: procs.length,
+    running: procs.filter(p => p.state === 'R').length,
+    sleeping: procs.filter(p => p.state === 'S' || p.state === 'D').length,
+    stopped: procs.filter(p => p.state === 'T').length,
+    zombie: procs.filter(p => p.state === 'Z').length,
   };
 
   return {

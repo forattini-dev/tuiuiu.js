@@ -19,6 +19,7 @@ import {
   type VNode,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
 function Counter(): VNode {
   const [count, setCount] = useState(0);
@@ -40,16 +41,27 @@ function Counter(): VNode {
     }
   }));
 
+  // Track frames for FPS
+  trackFrame();
+
   return Box(
-    { flexDirection: 'column', padding: 1 },
-    Text({ color: 'cyan', bold: true }, '🔢 Counter Example'),
-    Text({}),
+    { flexDirection: 'column' },
+    // Header
+    TuiuiuHeader({
+      title: 'counter',
+      emoji: '🔢',
+      subtitle: 'Basic Example',
+    }),
+    // Content
     Box(
-      { borderStyle: 'round', borderColor: 'blue', padding: 1 },
-      Text({ color: 'yellow', bold: true }, `Count: ${count()}`)
+      { flexDirection: 'column', padding: 1 },
+      Box(
+        { borderStyle: 'round', borderColor: 'blue', padding: 1 },
+        Text({ color: 'yellow', bold: true }, `Count: ${count()}`)
+      ),
+      Text({}),
+      Text({ color: 'gray', dim: true }, '↑/k: increment  ↓/j: decrement  r: reset  ESC: quit')
     ),
-    Text({}),
-    Text({ color: 'gray', dim: true }, '↑/k: increment  ↓/j: decrement  r: reset  ESC: quit'),
     KeyIndicator()
   );
 }

@@ -28,6 +28,7 @@ import {
   type SelectItem,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
 // Form field definitions
 const roleOptions: SelectItem<string>[] = [
@@ -279,33 +280,44 @@ function FormsDemo(): VNode {
   const termHeight = process.stdout.rows || 24;
   const boxWidth = Math.min(60, termWidth - 4);
 
+  // Track frames for FPS
+  trackFrame();
+
   return Box(
     {
       flexDirection: 'column',
       width: termWidth,
       height: termHeight,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
+    // Header at top
+    TuiuiuHeader({
+      title: 'forms',
+      emoji: '📝',
+      subtitle: 'Wizard Demo',
+    }),
+    // Centered form content
     Box(
       {
         flexDirection: 'column',
-        width: boxWidth,
-        borderStyle: 'round',
-        borderColor: 'cyan',
-        padding: 2,
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
       },
-      // Title
       Box(
-        { marginBottom: 1 },
-        Text({ color: 'cyan', bold: true }, '📝 Forms Wizard')
-      ),
-      // Progress steps
-      renderProgress(),
-      // Gap between progress and content
-      Box({ height: 1 }),
-      // Current field
-      renderActiveField()
+        {
+          flexDirection: 'column',
+          width: boxWidth,
+          borderStyle: 'round',
+          borderColor: 'cyan',
+          padding: 2,
+        },
+        // Progress steps
+        renderProgress(),
+        // Gap between progress and content
+        Box({ height: 1 }),
+        // Current field
+        renderActiveField()
+      )
     ),
     // Key indicator at bottom
     KeyIndicator()

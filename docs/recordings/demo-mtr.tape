@@ -1,5 +1,5 @@
-# Tuiuiu mtr - Network Traceroute Diagnostic
-# Real-time traceroute with latency statistics and graph
+# Tuiuiu mtr - Network Traceroute Tool
+# Real-time network diagnostics with hop selection and theme cycling
 
 Output docs/assets/demo-mtr.gif
 
@@ -9,40 +9,48 @@ Set Width 1100
 Set Height 700
 Set Padding 15
 Set PlaybackSpeed 0.5
-Set TypingSpeed 0.03s
+Set TypingSpeed 0.005s
 
-# Run mtr example targeting google.com
+# Run mtr example (fast typing)
 Type "pnpm tsx examples/app-mtr.ts google.com"
 Enter
 
-# Wait for route discovery
-Sleep 4s
+# Let it discover route and collect data
+Sleep 5s
 
-# Navigate through hops with arrow keys
+# Navigate hops
 Down
-Sleep 800ms
+Sleep 300ms
 Down
-Sleep 800ms
+Sleep 300ms
 Down
-Sleep 800ms
-
-# Let it collect data
-Sleep 2s
-
-# Cycle through themes
-Tab
-Sleep 1.5s
-Tab
-Sleep 1.5s
-
-# Navigate back up
+Sleep 300ms
 Up
-Sleep 800ms
-Up
-Sleep 800ms
+Sleep 300ms
 
-# Show more data collection
-Sleep 2s
+# Cycle through all 11 themes with Tab (0.5s each)
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
+Tab
+Sleep 500ms
 
 # Exit
 Ctrl+C

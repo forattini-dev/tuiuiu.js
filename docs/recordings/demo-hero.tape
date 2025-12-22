@@ -1,5 +1,5 @@
-# Tuiuiu Hero Demo
-# Quick showcase of multiple features for README
+# Tuiuiu Storybook - Component Explorer (Hero)
+# Browse and preview all components
 
 Output docs/assets/demo-hero.gif
 
@@ -9,16 +9,16 @@ Set Width 1600
 Set Height 800
 Set Padding 20
 Set PlaybackSpeed 0.4
-Set TypingSpeed 0.02s
+Set TypingSpeed 0.005s
 
-# Show the storybook (best showcase)
+# Run storybook (fast typing)
 Type "pnpm storybook"
 Enter
 
-# Splash screen
-Sleep 3.5s
+# Let it initialize
+Sleep 3s
 
-# Navigate categories
+# Navigate sidebar
 Down
 Sleep 400ms
 Down
@@ -26,7 +26,7 @@ Sleep 400ms
 Enter
 Sleep 800ms
 
-# Browse stories
+# Explore components
 Down
 Sleep 300ms
 Down
@@ -34,9 +34,11 @@ Sleep 300ms
 Enter
 Sleep 1s
 
-# Show another category
+# Go back
 Escape
 Sleep 300ms
+
+# Navigate more
 Down
 Sleep 300ms
 Down
@@ -46,7 +48,6 @@ Sleep 300ms
 Enter
 Sleep 800ms
 
-# Select a component
 Down
 Sleep 300ms
 Enter

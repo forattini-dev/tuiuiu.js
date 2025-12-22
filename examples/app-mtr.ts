@@ -9,6 +9,7 @@
  */
 
 import { spawn } from 'child_process';
+import dns from 'node:dns';
 import {
   render,
   Box,
@@ -18,12 +19,14 @@ import {
   useInput,
   useApp,
   LineChart,
+  Sparkline,
   setTheme,
   useTheme,
   getNextTheme,
   themeColor,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader as SharedHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
 // Types
 interface HopStats {
@@ -81,6 +84,64 @@ function pad(value: number | string, width: number, decimals = 1): string {
   return str.padStart(width);
 }
 
+// DNS reverse lookup cache
+const hostnameCache = new Map<string, string>();
+
+// Resolve IP to hostname using DNS reverse lookup
+async function resolveHostname(ip: string): Promise<string> {
+  // Check cache first
+  if (hostnameCache.has(ip)) {
+    return hostnameCache.get(ip)!;
+  }
+
+  // Skip special cases
+  if (ip === '*' || ip === '???' || !ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    return ip;
+  }
+
+  try {
+    const hostnames = await dns.promises.reverse(ip);
+    const hostname = hostnames[0] || ip;
+    // Shorten hostname (remove domain suffix for readability)
+    const shortName = hostname.split('.')[0] || hostname;
+    hostnameCache.set(ip, shortName);
+    return shortName;
+  } catch {
+    // DNS lookup failed, use IP
+    hostnameCache.set(ip, ip);
+    return ip;
+  }
+}
+
+// Resolve all hostnames for discovered hops
+async function resolveAllHostnames(hopsList: HopStats[]): Promise<void> {
+  const updates = await Promise.all(
+    hopsList.map(async (hop) => {
+      if (hop.ip !== '*' && hop.host === hop.ip) {
+        const hostname = await resolveHostname(hop.ip);
+        return { hop: hop.hop, hostname };
+      }
+      return null;
+    })
+  );
+
+  // Update hops with resolved hostnames
+  const currentHops = hops();
+  let changed = false;
+  for (const update of updates) {
+    if (update) {
+      const hop = currentHops.find(h => h.hop === update.hop);
+      if (hop && hop.host !== update.hostname) {
+        hop.host = update.hostname;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    setHops([...currentHops]);
+  }
+}
+
 // Discover route using traceroute
 async function discoverRoute(): Promise<HopStats[]> {
   return new Promise((resolve) => {
@@ -90,8 +151,8 @@ async function discoverRoute(): Promise<HopStats[]> {
     const isWindows = process.platform === 'win32';
     const cmd = isWindows ? 'tracert' : 'traceroute';
     const args = isWindows
-      ? ['-d', '-h', '30', target]
-      : ['-n', '-m', '30', '-q', '1', '-w', '2', target];
+      ? ['-d', '-h', '20', target]
+      : ['-n', '-m', '20', '-q', '1', '-w', '2', target];
 
     const proc = spawn(cmd, args);
     let buffer = '';
@@ -272,54 +333,51 @@ async function pingLoop() {
     await Promise.all(promises);
     setStatus(`Pinging ${currentHops.length} hops to ${target}`);
     clearOldKeyPresses();
+    trackFrame();
 
     // Small delay between rounds
     await new Promise(r => setTimeout(r, 100));
   }
 }
 
-// Header component (same style as htop)
-function TuiuiuHeader() {
-  const theme = useTheme();
-  const width = process.stdout.columns || 80;
-  const title = ' 🐦 Tuiuiu mtr ';
-  const subtitle = ` Network Diagnostics → ${target} `;
-  const themeLabel = ` [${theme.name}] `;
-  const statusText = ` ${status()} `;
-  const padding = Math.max(0, width - title.length - subtitle.length - themeLabel.length - statusText.length);
-
-  const headerBg = themeColor('primary');
-  const headerFg = themeColor('primaryForeground');
-
-  return Box(
-    { flexDirection: 'row', backgroundColor: headerBg },
-    Text({ color: headerFg, bold: true }, title),
-    Text({ color: themeColor('accent') }, subtitle),
-    Text({ color: themeColor('warning'), bold: true }, themeLabel),
-    Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(padding)),
-    Text({ color: themeColor('secondary') }, statusText)
-  );
+// Header component using shared TuiuiuHeader
+function MtrHeader() {
+  return SharedHeader({
+    title: 'mtr',
+    subtitle: `Network Diagnostics → ${target}`,
+    status: status(),
+  });
 }
 
 // Table header
 function TableHeader() {
-  return Box(
-    { flexDirection: 'row', paddingX: 1, marginTop: 1, backgroundColor: themeColor('secondary') },
-    Text({ color: themeColor('secondaryForeground'), bold: true },
-      `${'#'.padStart(3)} ${'Host'.padEnd(24)} ${'Loss'.padStart(5)} ${'Snt'.padStart(4)} ${'Last'.padStart(6)} ${'Avg'.padStart(6)} ${'Best'.padStart(6)} ${'Wrst'.padStart(6)} ${'StDv'.padStart(5)}`
-    )
+  const headerText = `  ${'#'.padStart(2)} ${'Host'.padEnd(24)} ${'Loss'.padStart(5)} ${'Snt'.padStart(4)} ${'Last'.padStart(6)} ${'Avg'.padStart(6)} ${'Best'.padStart(6)} ${'Wrst'.padStart(6)} ${'StDv'.padStart(5)}  Hist`;
+  return Text(
+    { color: themeColor('mutedForeground'), bold: true, dim: true },
+    headerText
   );
 }
 
 // Single hop row
 function HopRow({ hop, index }: { hop: HopStats; index: number }) {
   const isSelected = selectedHop() === index;
-  const hostDisplay = hop.host.length > 22
-    ? hop.host.substring(0, 19) + '...'
-    : hop.host.padEnd(24);
+  // Always 24 chars: truncate to 21 + '...' or pad
+  const hostDisplay = (hop.host.length > 24
+    ? hop.host.substring(0, 21) + '...'
+    : hop.host).padEnd(24);
 
   const bgColor = isSelected ? themeColor('primary') : undefined;
   const selectedFg = isSelected ? themeColor('primaryForeground') : undefined;
+
+  // Get last 15 samples for mini sparkline
+  const sparkData = hop.history.slice(-15);
+  const sparkColor = isSelected
+    ? themeColor('primaryForeground')
+    : hop.avg < 50
+      ? themeColor('success')
+      : hop.avg < 100
+        ? themeColor('warning')
+        : themeColor('error');
 
   return Box(
     {
@@ -335,7 +393,16 @@ function HopRow({ hop, index }: { hop: HopStats; index: number }) {
     Text({ color: selectedFg ?? getLatencyColor(hop.avg) }, (hop.avg >= 0 ? pad(hop.avg, 6) : '     -') + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.best) }, (hop.best >= 0 ? pad(hop.best, 6) : '     -') + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.worst) }, (hop.worst >= 0 ? pad(hop.worst, 6) : '     -') + ' '),
-    Text({ color: selectedFg ?? themeColor('mutedForeground') }, pad(hop.stdev, 5))
+    Text({ color: selectedFg ?? themeColor('mutedForeground') }, pad(hop.stdev, 5) + '  '),
+    // Mini sparkline showing latency trend
+    sparkData.length > 0
+      ? Sparkline({
+          data: sparkData,
+          width: 15,
+          color: sparkColor,
+          min: 0,
+        })
+      : Text({ color: themeColor('mutedForeground'), dim: true }, '···············')
   );
 }
 
@@ -456,11 +523,11 @@ function App() {
 
   return Box(
     { flexDirection: 'column' },
-    TuiuiuHeader(),
+    MtrHeader(),
     TableHeader(),
     Box(
       { flexDirection: 'column' },
-      ...hops().map((hop, index) => HopRow({ hop, index }))
+      ...hops().slice(0, 20).map((hop, index) => HopRow({ hop, index }))
     ),
     LatencyGraph(),
     Footer(),
@@ -470,10 +537,18 @@ function App() {
 
 // Start the app
 async function main() {
+  // Reset FPS counter
+  resetFps();
+
   // First, discover the route
   const discoveredHops = await discoverRoute();
   setHops(discoveredHops);
-  setStatus(`Route discovered: ${discoveredHops.length} hops`);
+  setStatus(`Route discovered: ${discoveredHops.length} hops - resolving hostnames...`);
+
+  // Resolve hostnames in background (don't block UI)
+  resolveAllHostnames(discoveredHops).then(() => {
+    setStatus(`Route ready: ${discoveredHops.length} hops`);
+  });
 
   // Start the UI (disable autoTabNavigation so Tab can cycle themes)
   const { waitUntilExit } = render(App, { autoTabNavigation: false });

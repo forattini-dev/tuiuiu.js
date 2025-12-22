@@ -18,6 +18,7 @@ import { useState, useInput, useApp } from '../src/hooks/index.js';
 import { createSpinner, renderSpinner } from '../src/components/spinner.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
 // ============================================================================
 // Chart Helpers
@@ -210,22 +211,18 @@ function createMetricsStore() {
 // Components
 // ============================================================================
 
-function Header(props: { uptime: number }): VNode {
+function DashboardHeader(props: { uptime: number }): VNode {
   const hours = Math.floor(props.uptime / 3600);
   const minutes = Math.floor((props.uptime % 3600) / 60);
   const seconds = props.uptime % 60;
   const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  return Box(
-    { borderStyle: 'double', borderColor: 'cyan', paddingX: 1, marginBottom: 1 },
-    Text({ color: 'cyan', bold: true }, '🖥️  Real-time Dashboard'),
-    Spacer({}),
-    Text({ color: 'gray' }, `Uptime: ${uptimeStr}`),
-    Text({ color: 'gray' }, ' | '),
-    Text({ color: 'green' }, '● Live'),
-    Text({ color: 'gray' }, ' | '),
-    Text({ color: 'gray', dim: true }, 'Press Q to quit')
-  );
+  return TuiuiuHeader({
+    title: 'dashboard',
+    emoji: '🖥️',
+    subtitle: 'Real-time Metrics',
+    status: `Uptime: ${uptimeStr} | ● Live`,
+  });
 }
 
 function MetricCard(props: {
@@ -454,22 +451,16 @@ function StatusBar(props: { connections: number; fps: number }): VNode {
 function DashboardApp(): VNode {
   const app = useApp();
   const metrics = createMetricsStore();
-  const [renderCount, setRenderCount] = useState(0);
-  const [lastRenderTime, setLastRenderTime] = useState(Date.now());
-  const [fps, setFps] = useState(0);
+
+  // Reset FPS on start
+  resetFps();
 
   // Start metrics collection
   metrics.start();
 
-  // Track FPS
+  // Track frames for FPS
   createEffect(() => {
-    const now = Date.now();
-    const elapsed = now - lastRenderTime();
-    if (elapsed > 0) {
-      setFps(Math.round(1000 / elapsed));
-    }
-    setLastRenderTime(now);
-    setRenderCount((c) => c + 1);
+    trackFrame();
     clearOldKeyPresses();
   });
 
@@ -483,7 +474,7 @@ function DashboardApp(): VNode {
 
   return Box(
     { flexDirection: 'column', padding: 1 },
-    Header({ uptime: metrics.uptimeSeconds() }),
+    DashboardHeader({ uptime: metrics.uptimeSeconds() }),
 
     // Row 1: CPU, Memory, Network
     Box(

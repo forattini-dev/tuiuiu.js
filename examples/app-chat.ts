@@ -26,6 +26,7 @@ import {
   type VNode,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 import { createTextInput, renderTextInput } from '../src/components/text-input.js';
 import { createSpinner, renderSpinner, type SpinnerStyle } from '../src/components/spinner.js';
 import { ProgressBar } from '../src/components/progress-bar.js';
@@ -460,15 +461,17 @@ Feel free to ask me anything!`;
     }
   }));
 
+  // Track frames for FPS
+  trackFrame();
+
   return Box(
     { flexDirection: 'column', padding: 1 },
     // Header
-    Box(
-      { flexDirection: 'row', marginBottom: 1 },
-      Text({ color: 'magenta', bold: true }, '🚀 Reck Chat'),
-      Spacer(),
-      Text({ color: 'gray', dim: true }, 'v1.0.0')
-    ),
+    TuiuiuHeader({
+      title: 'chat',
+      emoji: '🚀',
+      subtitle: 'Interactive Chat Demo',
+    }),
 
     // Help panel (collapsible)
     When(showHelp(), HelpPanel()),
