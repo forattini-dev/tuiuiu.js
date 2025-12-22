@@ -18,6 +18,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -273,6 +274,12 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
               ? 'white'
               : inactiveColor;
           const bgColor = isTabActive ? activeColor : undefined;
+          // Use contrast color when tab is active with background
+          const textColor = isTabActive
+            ? getContrastColor(activeColor as string)
+            : isDisabled
+              ? 'gray'
+              : 'white';
 
           if (isAscii) {
             const wrapper = isTabActive ? '[' + tab.label + ']' : ' ' + tab.label + ' ';
@@ -290,7 +297,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
               },
               Text(
                 {
-                  color: isTabActive ? 'black' : isDisabled ? 'gray' : 'white',
+                  color: textColor,
                   backgroundColor: bgColor,
                   dim: isDisabled,
                 },
@@ -303,7 +310,12 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
 
         case 'pills': {
           const pillBg = isTabActive ? activeColor : undefined;
-          const pillColor = isTabActive ? 'black' : isDisabled ? 'gray' : 'white';
+          // Use contrast color when pill is active with background
+          const pillColor = isTabActive
+            ? getContrastColor(activeColor as string)
+            : isDisabled
+              ? 'gray'
+              : 'white';
 
           if (isAscii) {
             const wrapper = isTabActive
