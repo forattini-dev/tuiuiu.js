@@ -165,16 +165,11 @@ function StreamingIndicator(props: {
 
   if (!isActive) return Box({});
 
-  const spinner = createSpinner({ style, text: 'Generating response...' });
-
   return Box(
     { flexDirection: 'column', marginY: 1 },
-    renderSpinner(spinner, {
+    Spinner({
       style,
-      showTime: true,
-      showTokens: true,
-      tokens: Math.floor(progress * 10),
-      hint: 'esc to cancel',
+      isActive: true,
     }),
     ProgressBar({
       value: progress,
@@ -492,13 +487,12 @@ Feel free to ask me anything!`;
     // Input
     When(
       !isStreaming(),
-      renderTextInput(textInput, {
+      TextInput(textInput, {
         placeholder: 'Type your message... (/ for commands)',
         borderStyle: 'round',
         focusedBorderColor: 'cyan',
         prompt: '❯',
         promptColor: 'cyan',
-        isActive: true,
       })
     ),
 
