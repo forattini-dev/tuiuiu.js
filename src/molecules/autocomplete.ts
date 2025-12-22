@@ -17,6 +17,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -419,7 +420,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
       : Box(
           { flexDirection: 'row' },
           Text({}, beforeCursor),
-          Text({ backgroundColor: activeColor, color: 'black' }, cursorChar),
+          Text({ backgroundColor: activeColor, color: getContrastColor(activeColor as string) }, cursorChar),
           Text({}, afterCursor)
         )
   );
