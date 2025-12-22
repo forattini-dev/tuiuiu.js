@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.6
 Set TypingSpeed 0.04s
 
 # Run forms example
-Type "pnpm example:04"
+Type "pnpm tsx examples/app-forms.ts"
 Enter
 
 Sleep 1.5s

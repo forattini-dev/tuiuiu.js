@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.5
 Set TypingSpeed 0.03s
 
 # Run mtr example targeting google.com
-Type "pnpm example examples/mtr.ts google.com"
+Type "pnpm tsx examples/app-mtr.ts google.com"
 Enter
 
 # Wait for route discovery

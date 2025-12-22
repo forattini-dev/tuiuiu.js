@@ -9,7 +9,7 @@ Set Padding 20
 Set PlaybackSpeed 0.75
 Set TypingSpeed 0.05s # Make typing faster
 
-Type "pnpm run example:01"
+Type "pnpm tsx examples/app-counter.ts"
 Enter
 
 Sleep 1s

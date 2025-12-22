@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.5
 Set TypingSpeed 0.03s
 
 # Run htop example
-Type "pnpm example examples/htop.ts"
+Type "pnpm tsx examples/app-htop.ts"
 Enter
 
 # Let it initialize and show processes

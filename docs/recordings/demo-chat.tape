@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.6
 Set TypingSpeed 0.05s
 
 # Run chat example
-Type "pnpm example:chat"
+Type "pnpm tsx examples/app-chat.ts"
 Enter
 
 Sleep 1.5s

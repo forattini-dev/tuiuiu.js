@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.5
 Set TypingSpeed 0.03s
 
 # Run dashboard example
-Type "pnpm example:06"
+Type "pnpm tsx examples/app-dashboard.ts"
 Enter
 
 # Let the dashboard run and show live updates

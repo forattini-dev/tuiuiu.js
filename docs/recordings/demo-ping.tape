@@ -12,7 +12,7 @@ Set PlaybackSpeed 0.5
 Set TypingSpeed 0.03s
 
 # Run ping example targeting google.com
-Type "pnpm example examples/ping.ts google.com"
+Type "pnpm tsx examples/app-ping.ts google.com"
 Enter
 
 # Let it collect initial data and show the UI
