@@ -18,7 +18,7 @@ import {
   type CommandItem,
   type CommandPaletteProps,
   type CommandPaletteState,
-} from '../../../src/design-system/overlays/command-palette.js';
+} from '../../../src/organisms/command-palette.js';
 import {
   keys,
   createInputHarness,

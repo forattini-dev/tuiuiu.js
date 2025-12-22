@@ -1,6 +1,6 @@
-# Redux-like Store
+# Centralized Store
 
-Tuiuiu includes a built-in Redux-compatible state management solution for complex applications.
+Tuiuiu includes a built-in Flux-compatible state management solution for complex applications.
 
 ## Basic Usage
 

@@ -35,6 +35,8 @@ const input = createTextInput({
 renderTextInput(input);
 ```
 
+?> **Testing Tip:** When unit testing `TextInput` logic without rendering, you must manually register the input handler: `addInputHandler(input.handleInput)`.
+
 ## Select
 
 A dropdown-like selection component.

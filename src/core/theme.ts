@@ -348,6 +348,272 @@ export const monochromeTheme: Theme = {
   borderRadius: 'none',
 };
 
+/**
+ * Monokai theme - Classic code editor theme
+ */
+export const monokaiTheme: Theme = {
+  name: 'monokai',
+  colors: {
+    background: '#272822',
+    foreground: '#F8F8F2',
+    card: '#3E3D32',
+    cardForeground: '#F8F8F2',
+    popover: '#3E3D32',
+    popoverForeground: '#F8F8F2',
+    primary: '#A6E22E',
+    primaryForeground: '#272822',
+    secondary: '#49483E',
+    secondaryForeground: '#F8F8F2',
+    muted: '#49483E',
+    mutedForeground: '#75715E',
+    accent: '#66D9EF',
+    accentForeground: '#272822',
+    destructive: '#F92672',
+    destructiveForeground: '#F8F8F2',
+    border: '#49483E',
+    input: '#3E3D32',
+    ring: '#A6E22E',
+    success: '#A6E22E',
+    successForeground: '#272822',
+    warning: '#E6DB74',
+    warningForeground: '#272822',
+    error: '#F92672',
+    errorForeground: '#F8F8F2',
+    info: '#66D9EF',
+    infoForeground: '#272822',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Dracula theme - Popular dark theme
+ */
+export const draculaTheme: Theme = {
+  name: 'dracula',
+  colors: {
+    background: '#282A36',
+    foreground: '#F8F8F2',
+    card: '#44475A',
+    cardForeground: '#F8F8F2',
+    popover: '#44475A',
+    popoverForeground: '#F8F8F2',
+    primary: '#BD93F9',
+    primaryForeground: '#282A36',
+    secondary: '#44475A',
+    secondaryForeground: '#F8F8F2',
+    muted: '#44475A',
+    mutedForeground: '#6272A4',
+    accent: '#8BE9FD',
+    accentForeground: '#282A36',
+    destructive: '#FF5555',
+    destructiveForeground: '#F8F8F2',
+    border: '#6272A4',
+    input: '#44475A',
+    ring: '#BD93F9',
+    success: '#50FA7B',
+    successForeground: '#282A36',
+    warning: '#F1FA8C',
+    warningForeground: '#282A36',
+    error: '#FF5555',
+    errorForeground: '#F8F8F2',
+    info: '#8BE9FD',
+    infoForeground: '#282A36',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Nord theme - Arctic, bluish theme
+ */
+export const nordTheme: Theme = {
+  name: 'nord',
+  colors: {
+    background: '#2E3440',
+    foreground: '#ECEFF4',
+    card: '#3B4252',
+    cardForeground: '#ECEFF4',
+    popover: '#3B4252',
+    popoverForeground: '#ECEFF4',
+    primary: '#88C0D0',
+    primaryForeground: '#2E3440',
+    secondary: '#434C5E',
+    secondaryForeground: '#ECEFF4',
+    muted: '#4C566A',
+    mutedForeground: '#D8DEE9',
+    accent: '#81A1C1',
+    accentForeground: '#2E3440',
+    destructive: '#BF616A',
+    destructiveForeground: '#ECEFF4',
+    border: '#4C566A',
+    input: '#3B4252',
+    ring: '#88C0D0',
+    success: '#A3BE8C',
+    successForeground: '#2E3440',
+    warning: '#EBCB8B',
+    warningForeground: '#2E3440',
+    error: '#BF616A',
+    errorForeground: '#ECEFF4',
+    info: '#81A1C1',
+    infoForeground: '#2E3440',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Solarized Dark theme
+ */
+export const solarizedDarkTheme: Theme = {
+  name: 'solarized-dark',
+  colors: {
+    background: '#002B36',
+    foreground: '#839496',
+    card: '#073642',
+    cardForeground: '#839496',
+    popover: '#073642',
+    popoverForeground: '#839496',
+    primary: '#268BD2',
+    primaryForeground: '#FDF6E3',
+    secondary: '#073642',
+    secondaryForeground: '#839496',
+    muted: '#073642',
+    mutedForeground: '#657B83',
+    accent: '#2AA198',
+    accentForeground: '#FDF6E3',
+    destructive: '#DC322F',
+    destructiveForeground: '#FDF6E3',
+    border: '#586E75',
+    input: '#073642',
+    ring: '#268BD2',
+    success: '#859900',
+    successForeground: '#FDF6E3',
+    warning: '#B58900',
+    warningForeground: '#FDF6E3',
+    error: '#DC322F',
+    errorForeground: '#FDF6E3',
+    info: '#2AA198',
+    infoForeground: '#FDF6E3',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Gruvbox Dark theme - Warm retro theme
+ */
+export const gruvboxTheme: Theme = {
+  name: 'gruvbox',
+  colors: {
+    background: '#282828',
+    foreground: '#EBDBB2',
+    card: '#3C3836',
+    cardForeground: '#EBDBB2',
+    popover: '#3C3836',
+    popoverForeground: '#EBDBB2',
+    primary: '#B8BB26',
+    primaryForeground: '#282828',
+    secondary: '#504945',
+    secondaryForeground: '#EBDBB2',
+    muted: '#504945',
+    mutedForeground: '#928374',
+    accent: '#83A598',
+    accentForeground: '#282828',
+    destructive: '#FB4934',
+    destructiveForeground: '#EBDBB2',
+    border: '#665C54',
+    input: '#3C3836',
+    ring: '#B8BB26',
+    success: '#B8BB26',
+    successForeground: '#282828',
+    warning: '#FABD2F',
+    warningForeground: '#282828',
+    error: '#FB4934',
+    errorForeground: '#EBDBB2',
+    info: '#83A598',
+    infoForeground: '#282828',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Tokyo Night theme - Modern VSCode theme
+ */
+export const tokyoNightTheme: Theme = {
+  name: 'tokyo-night',
+  colors: {
+    background: '#1A1B26',
+    foreground: '#A9B1D6',
+    card: '#24283B',
+    cardForeground: '#A9B1D6',
+    popover: '#24283B',
+    popoverForeground: '#A9B1D6',
+    primary: '#7AA2F7',
+    primaryForeground: '#1A1B26',
+    secondary: '#414868',
+    secondaryForeground: '#A9B1D6',
+    muted: '#414868',
+    mutedForeground: '#565F89',
+    accent: '#BB9AF7',
+    accentForeground: '#1A1B26',
+    destructive: '#F7768E',
+    destructiveForeground: '#A9B1D6',
+    border: '#414868',
+    input: '#24283B',
+    ring: '#7AA2F7',
+    success: '#9ECE6A',
+    successForeground: '#1A1B26',
+    warning: '#E0AF68',
+    warningForeground: '#1A1B26',
+    error: '#F7768E',
+    errorForeground: '#A9B1D6',
+    info: '#7DCFFF',
+    infoForeground: '#1A1B26',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'md',
+};
+
+/**
+ * Catppuccin Mocha theme - Soothing pastel theme
+ */
+export const catppuccinTheme: Theme = {
+  name: 'catppuccin',
+  colors: {
+    background: '#1E1E2E',
+    foreground: '#CDD6F4',
+    card: '#313244',
+    cardForeground: '#CDD6F4',
+    popover: '#313244',
+    popoverForeground: '#CDD6F4',
+    primary: '#CBA6F7',
+    primaryForeground: '#1E1E2E',
+    secondary: '#45475A',
+    secondaryForeground: '#CDD6F4',
+    muted: '#45475A',
+    mutedForeground: '#6C7086',
+    accent: '#89DCEB',
+    accentForeground: '#1E1E2E',
+    destructive: '#F38BA8',
+    destructiveForeground: '#CDD6F4',
+    border: '#6C7086',
+    input: '#313244',
+    ring: '#CBA6F7',
+    success: '#A6E3A1',
+    successForeground: '#1E1E2E',
+    warning: '#F9E2AF',
+    warningForeground: '#1E1E2E',
+    error: '#F38BA8',
+    errorForeground: '#CDD6F4',
+    info: '#89DCEB',
+    infoForeground: '#1E1E2E',
+  },
+  spacing: { xs: 1, sm: 2, md: 4, lg: 8, xl: 16 },
+  borderRadius: 'lg',
+};
+
 // =============================================================================
 // Theme Context (Signal-based)
 // =============================================================================
@@ -427,10 +693,120 @@ export function themeColor(key: keyof ThemeColors): string {
 }
 
 /**
+ * Semantic color keys that have foreground variants
+ */
+export type SemanticColorKey =
+  | 'primary'
+  | 'secondary'
+  | 'muted'
+  | 'accent'
+  | 'destructive'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'info'
+  | 'card'
+  | 'popover';
+
+/**
+ * Get a color pair (background + foreground) for semantic colors.
+ * Use this for buttons, badges, navbars, and any filled components.
+ *
+ * @example
+ * const { bg, fg } = themeColorPair('primary');
+ * Box({ backgroundColor: bg },
+ *   Text({ color: fg }, 'Button')
+ * )
+ *
+ * @example
+ * // Destructuring in component
+ * const colors = themeColorPair('success');
+ * Badge({ backgroundColor: colors.bg, color: colors.fg }, 'OK')
+ */
+export function themeColorPair(key: SemanticColorKey): { bg: string; fg: string } {
+  const theme = currentTheme();
+  const fgKey = `${key}Foreground` as keyof ThemeColors;
+  return {
+    bg: theme.colors[key],
+    fg: theme.colors[fgKey],
+  };
+}
+
+/**
  * Get a spacing value from the current theme
  */
 export function themeSpacing(key: keyof ThemeSpacing): number {
   return currentTheme().spacing[key];
+}
+
+/**
+ * Calculate relative luminance of a color (WCAG formula).
+ * Returns value between 0 (black) and 1 (white).
+ */
+function getLuminance(hex: string): number {
+  // Normalize hex
+  let color = hex.startsWith('#') ? hex.slice(1) : hex;
+  if (color.length === 3) {
+    color = color[0]! + color[0] + color[1]! + color[1] + color[2]! + color[2];
+  }
+
+  const r = parseInt(color.slice(0, 2), 16) / 255;
+  const g = parseInt(color.slice(2, 4), 16) / 255;
+  const b = parseInt(color.slice(4, 6), 16) / 255;
+
+  // sRGB to linear
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+/**
+ * Get the best contrasting text color (white or black) for a given background.
+ * Uses WCAG luminance formula for accessibility.
+ *
+ * @example
+ * getContrastColor('#3b82f6')  // 'white' (blue is dark)
+ * getContrastColor('#fbbf24')  // 'black' (amber is light)
+ * getContrastColor('cyan')     // 'black' (cyan is light)
+ *
+ * @example
+ * // With custom component
+ * const bg = '#ff6b6b';
+ * Box({ backgroundColor: bg },
+ *   Text({ color: getContrastColor(bg) }, 'Hello')
+ * )
+ */
+export function getContrastColor(color: string): 'white' | 'black' {
+  // Resolve color if it's a theme/tailwind reference
+  const resolved = resolveColor(color);
+
+  // Handle named colors (basic ANSI)
+  const namedColorLuminance: Record<string, number> = {
+    black: 0,
+    red: 0.2,
+    green: 0.35,
+    yellow: 0.9,
+    blue: 0.15,
+    magenta: 0.25,
+    cyan: 0.6,
+    white: 1,
+    gray: 0.5,
+    grey: 0.5,
+  };
+
+  if (resolved in namedColorLuminance) {
+    return namedColorLuminance[resolved]! > 0.5 ? 'black' : 'white';
+  }
+
+  // For hex colors, calculate luminance
+  if (resolved.startsWith('#')) {
+    const luminance = getLuminance(resolved);
+    // WCAG recommends 0.179 as threshold, we use 0.5 for terminal readability
+    return luminance > 0.4 ? 'black' : 'white';
+  }
+
+  // Default to white for unknown colors (assume dark)
+  return 'white';
 }
 
 /**
@@ -614,7 +990,24 @@ export const themes = {
   light: lightTheme,
   highContrastDark: highContrastDarkTheme,
   monochrome: monochromeTheme,
+  monokai: monokaiTheme,
+  dracula: draculaTheme,
+  nord: nordTheme,
+  solarizedDark: solarizedDarkTheme,
+  gruvbox: gruvboxTheme,
+  tokyoNight: tokyoNightTheme,
+  catppuccin: catppuccinTheme,
 };
+
+/** All theme names for cycling */
+export const themeNames = Object.keys(themes) as (keyof typeof themes)[];
+
+/** Get next theme in cycle */
+export function getNextTheme(current: Theme): Theme {
+  const currentIndex = themeNames.findIndex(name => themes[name].name === current.name);
+  const nextIndex = (currentIndex + 1) % themeNames.length;
+  return themes[themeNames[nextIndex]!]!;
+}
 
 // =============================================================================
 // Tailwind-style Helpers

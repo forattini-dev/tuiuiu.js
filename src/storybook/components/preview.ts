@@ -13,6 +13,7 @@ import { Divider } from '../../primitives/divider.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, ControlDefinition } from '../types.js';
 import type { Navigator, ViewMode } from '../core/navigator.js';
+import { themeColor } from '../../core/theme.js';
 
 export interface PreviewProps {
   navigator: Navigator;
@@ -37,10 +38,10 @@ function StoryContent(props: {
         flexDirection: 'column',
         padding: 1,
         borderStyle: 'single',
-        borderColor: 'red',
+        borderColor: themeColor('error'),
       },
-      Text({ color: 'red', bold: true }, 'Render Error'),
-      Text({ color: 'red' }, error.message || String(error))
+      Text({ color: themeColor('error'), bold: true }, 'Render Error'),
+      Text({ color: themeColor('error') }, error.message || String(error))
     );
   }
 }
@@ -55,11 +56,11 @@ function StoryHeader(props: { story: Story }): VNode {
     { flexDirection: 'column', marginBottom: 1 },
     Box(
       {},
-      Text({ color: 'gray' }, `${story.category} / `),
-      Text({ color: 'cyan', bold: true }, story.name)
+      Text({ color: themeColor('mutedForeground') }, `${story.category} / `),
+      Text({ color: themeColor('primary'), bold: true }, story.name)
     ),
     story.description &&
-      Text({ color: 'gray', dim: true }, story.description)
+      Text({ color: themeColor('mutedForeground'), dim: true }, story.description)
   );
 }
 
@@ -74,20 +75,20 @@ function ControlsInfo(props: {
   const entries = Object.entries(controls);
 
   if (entries.length === 0) {
-    return Text({ color: 'gray', dim: true }, 'No controls defined');
+    return Text({ color: themeColor('mutedForeground'), dim: true }, 'No controls defined');
   }
 
   return Box(
     { flexDirection: 'column' },
     Box(
       { marginBottom: 1 },
-      Text({ color: 'white', bold: true }, 'Controls')
+      Text({ color: themeColor('foreground'), bold: true }, 'Controls')
     ),
     ...entries.map(([key, control]) =>
       Box(
         {},
-        Text({ color: 'gray' }, `${control.label}: `),
-        Text({ color: 'cyan' }, formatValue(values[key], control.type))
+        Text({ color: themeColor('mutedForeground') }, `${control.label}: `),
+        Text({ color: themeColor('primary') }, formatValue(values[key], control.type))
       )
     )
   );
@@ -121,8 +122,8 @@ function PreviewMode(props: PreviewProps): VNode {
   if (!story) {
     return Box(
       { padding: 2, flexDirection: 'column' },
-      Text({ color: 'gray', dim: true }, 'No story selected'),
-      Text({ color: 'gray', dim: true }, 'Select a story from the sidebar')
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected'),
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'Select a story from the sidebar')
     );
   }
 
@@ -137,7 +138,7 @@ function PreviewMode(props: PreviewProps): VNode {
         marginTop: 1,
         padding: 1,
         borderStyle: 'round',
-        borderColor: isFocused ? 'cyan' : 'gray',
+        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
       },
       StoryContent({ story, controlValues })
     ),
@@ -156,7 +157,7 @@ function PlaygroundMode(props: PreviewProps): VNode {
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: 'gray', dim: true }, 'No story selected')
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
     );
   }
 
@@ -165,8 +166,8 @@ function PlaygroundMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: 'yellow', bold: true }, 'Playground: '),
-      Text({ color: 'white' }, story.name)
+      Text({ color: themeColor('warning'), bold: true }, 'Playground: '),
+      Text({ color: themeColor('foreground') }, story.name)
     ),
     // Two columns: preview and controls
     Box(
@@ -176,7 +177,7 @@ function PlaygroundMode(props: PreviewProps): VNode {
         {
           flexGrow: 1,
           borderStyle: 'single',
-          borderColor: isFocused ? 'cyan' : 'gray',
+          borderColor: isFocused ? themeColor('primary') : themeColor('border'),
           padding: 1,
         },
         StoryContent({ story, controlValues })
@@ -185,7 +186,7 @@ function PlaygroundMode(props: PreviewProps): VNode {
     // Hint
     Box(
       { marginTop: 1 },
-      Text({ color: 'gray', dim: true }, 'Tab to switch to controls panel')
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'Tab to switch to controls panel')
     )
   );
 }
@@ -200,7 +201,7 @@ function ComparativesMode(props: PreviewProps): VNode {
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: 'gray', dim: true }, 'No story selected')
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
     );
   }
 
@@ -230,8 +231,8 @@ function ComparativesMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: 'green', bold: true }, 'Comparatives: '),
-      Text({ color: 'white' }, story.name)
+      Text({ color: themeColor('success'), bold: true }, 'Comparatives: '),
+      Text({ color: themeColor('foreground') }, story.name)
     ),
     // Grid of variants
     Box(
@@ -241,12 +242,12 @@ function ComparativesMode(props: PreviewProps): VNode {
           {
             flexDirection: 'column',
             borderStyle: 'single',
-            borderColor: 'gray',
+            borderColor: themeColor('border'),
             padding: 1,
           },
           Box(
             { marginBottom: 1 },
-            Text({ color: 'cyan', bold: true }, variant.label)
+            Text({ color: themeColor('primary'), bold: true }, variant.label)
           ),
           StoryContent({ story, controlValues: variant.values })
         )
@@ -255,7 +256,7 @@ function ComparativesMode(props: PreviewProps): VNode {
     // Hint
     Box(
       { marginTop: 1 },
-      Text({ color: 'gray', dim: true }, `Showing ${displayVariants.length} variants`)
+      Text({ color: themeColor('mutedForeground'), dim: true }, `Showing ${displayVariants.length} variants`)
     )
   );
 }
@@ -270,7 +271,7 @@ function DocsMode(props: PreviewProps): VNode {
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: 'gray', dim: true }, 'No story selected')
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
     );
   }
 
@@ -281,20 +282,20 @@ function DocsMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: 'magenta', bold: true }, 'Documentation: '),
-      Text({ color: 'white' }, story.name)
+      Text({ color: themeColor('accent'), bold: true }, 'Documentation: '),
+      Text({ color: themeColor('foreground') }, story.name)
     ),
     Divider({}),
     // Description
     Box(
       { marginTop: 1, marginBottom: 1 },
-      Text({ color: 'white' }, story.description || 'No description provided.')
+      Text({ color: themeColor('foreground') }, story.description || 'No description provided.')
     ),
     // Category
     Box(
       {},
-      Text({ color: 'gray' }, 'Category: '),
-      Text({ color: 'cyan' }, story.category)
+      Text({ color: themeColor('mutedForeground') }, 'Category: '),
+      Text({ color: themeColor('primary') }, story.category)
     ),
     // Controls API
     controls.length > 0 &&
@@ -302,18 +303,18 @@ function DocsMode(props: PreviewProps): VNode {
         { flexDirection: 'column', marginTop: 1 },
         Box(
           { marginBottom: 1 },
-          Text({ color: 'white', bold: true }, 'Props/Controls')
+          Text({ color: themeColor('foreground'), bold: true }, 'Props/Controls')
         ),
         ...controls.map(([key, control]) =>
           Box(
             { flexDirection: 'column', marginBottom: 1 },
             Box(
               {},
-              Text({ color: 'cyan' }, key),
-              Text({ color: 'gray' }, `: ${control.type}`)
+              Text({ color: themeColor('primary') }, key),
+              Text({ color: themeColor('mutedForeground') }, `: ${control.type}`)
             ),
-            Text({ color: 'gray', dim: true }, `  ${control.label}`),
-            Text({ color: 'gray', dim: true }, `  Default: ${formatValue(control.defaultValue, control.type)}`)
+            Text({ color: themeColor('mutedForeground'), dim: true }, `  ${control.label}`),
+            Text({ color: themeColor('mutedForeground'), dim: true }, `  Default: ${formatValue(control.defaultValue, control.type)}`)
           )
         )
       ),
@@ -322,12 +323,12 @@ function DocsMode(props: PreviewProps): VNode {
       { marginTop: 1, flexDirection: 'column' },
       Box(
         { marginBottom: 1 },
-        Text({ color: 'white', bold: true }, 'Preview')
+        Text({ color: themeColor('foreground'), bold: true }, 'Preview')
       ),
       Box(
         {
           borderStyle: 'round',
-          borderColor: 'gray',
+          borderColor: themeColor('border'),
           padding: 1,
         },
         StoryContent({ story, controlValues })
@@ -348,16 +349,16 @@ export function Preview(props: PreviewProps): VNode {
       flexDirection: 'column',
       flexGrow: 1,
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
     },
     // Mode indicator
     Box(
       {
         borderStyle: 'single',
-        borderColor: isFocused ? 'cyan' : 'gray',
+        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
         paddingX: 1,
       },
-      Text({ color: 'gray' }, 'Mode: '),
+      Text({ color: themeColor('mutedForeground') }, 'Mode: '),
       Text({ color: getModeColor(state.viewMode), bold: true }, state.viewMode.toUpperCase())
     ),
     // Content based on mode
@@ -374,15 +375,15 @@ export function Preview(props: PreviewProps): VNode {
 function getModeColor(mode: ViewMode): string {
   switch (mode) {
     case 'preview':
-      return 'cyan';
+      return themeColor('primary');
     case 'playground':
-      return 'yellow';
+      return themeColor('warning');
     case 'comparatives':
-      return 'green';
+      return themeColor('success');
     case 'docs':
-      return 'magenta';
+      return themeColor('accent');
     default:
-      return 'white';
+      return themeColor('foreground');
   }
 }
 
@@ -426,7 +427,7 @@ export function ModeSwitcher(props: {
         {},
         Text(
           {
-            color: currentMode === mode ? getModeColor(mode) : 'gray',
+            color: currentMode === mode ? getModeColor(mode) : themeColor('mutedForeground'),
             bold: currentMode === mode,
           },
           `[${key.toUpperCase()}] ${label}`

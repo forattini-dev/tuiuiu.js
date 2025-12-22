@@ -14,6 +14,7 @@
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
 import { story, defaultControls } from '../../core/registry.js';
+import { themeColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
 // Spinner frame definitions - All available spinner types

@@ -8,6 +8,7 @@
 
 import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import { storybookStore, type LogEntry } from '../store.js';
+import { themeColor } from '../../core/theme.js';
 
 /** Height of log viewer in lines (including border) */
 const LOG_VIEWER_HEIGHT = 6;
@@ -25,10 +26,10 @@ export function LogViewer() {
   // Styles based on log level
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'error': return 'red';
-      case 'warn': return 'yellow';
-      case 'debug': return 'gray';
-      default: return 'white';
+      case 'error': return themeColor('error');
+      case 'warn': return themeColor('warning');
+      case 'debug': return themeColor('mutedForeground');
+      default: return themeColor('foreground');
     }
   };
 
@@ -43,17 +44,17 @@ export function LogViewer() {
       right: 0,
       height: LOG_VIEWER_HEIGHT,
       borderStyle: 'single',
-      borderColor: 'gray',
-      backgroundColor: 'black',
+      borderColor: themeColor('border'),
+      backgroundColor: themeColor('background'),
       flexDirection: 'column'
     },
     // Header
     Box(
-      { flexDirection: 'row', borderBottom: true, borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-      Text({ bold: true, color: 'cyan' }, 'Console'),
+      { flexDirection: 'row', borderBottom: true, borderStyle: 'single', borderColor: themeColor('border'), paddingX: 1 },
+      Text({ bold: true, color: themeColor('primary') }, 'Console'),
       Spacer(),
-      Text({ color: 'gray', dim: true }, `${state.logs.length} logs`),
-      Text({ color: 'gray', dim: true }, ' | F12 close | C clear')
+      Text({ color: themeColor('mutedForeground'), dim: true }, `${state.logs.length} logs`),
+      Text({ color: themeColor('mutedForeground'), dim: true }, ' | F12 close | C clear')
     ),
     // Logs Content
     Box(
@@ -61,9 +62,9 @@ export function LogViewer() {
       ...visibleLogs.map((log) =>
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'gray', dim: true }, new Date(log.timestamp).toLocaleTimeString().split(' ')[0]),
+          Text({ color: themeColor('mutedForeground'), dim: true }, new Date(log.timestamp).toLocaleTimeString().split(' ')[0]),
           Text({ color: getLevelColor(log.level), bold: log.level === 'error' }, `[${log.level.toUpperCase().padEnd(5)}]`),
-          Text({ color: 'white' }, log.message.join(' '))
+          Text({ color: themeColor('foreground') }, log.message.join(' '))
         )
       )
     )

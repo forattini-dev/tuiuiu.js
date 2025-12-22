@@ -163,7 +163,7 @@
       nameLink: '#/',
       repo: '', // Add repo URL later
       loadSidebar: true,
-      loadNavbar: true,
+      loadNavbar: false,
       coverpage: true,
       subMaxLevel: 3,
       auto2top: true,
@@ -171,11 +171,13 @@
       topMargin: 60,
 
       // Better anchor handling
-      relativePath: true,
+      relativePath: false,
       routerMode: 'hash',
 
-      // Merge navbar with cover
-      mergeNavbar: true,
+      // Redirect all sidebar requests to root
+      alias: {
+        '/.*/_sidebar.md': '/_sidebar.md'
+      },
 
       // Not found page
       notFoundPage: true,
@@ -295,7 +297,6 @@
   <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-tsx.min.js"></script>
 
   <!-- Mermaid for Diagrams -->
   <script type="module">

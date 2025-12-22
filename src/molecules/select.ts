@@ -349,10 +349,8 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     }
   };
 
-  // Register input handler
-  // Note: We always register and check isActive dynamically in handleInput
+  // handleInput is exposed to be registered during render phase
   // This allows isActive to be a reactive getter function
-  useInput(handleInput);
 
   // Select specific index (for mouse clicks)
   const selectIndex = (index: number) => {
@@ -399,6 +397,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     moveUp,
     moveDown,
     selectIndex,
+    handleInput, // Expose handler to be registered during render
   };
 }
 
@@ -426,6 +425,9 @@ export function renderSelect<T = any>(
     searchPlaceholder = 'Type to search...',
     fullWidth = false,
   } = options;
+
+  // Register input handler during render phase
+  useInput(state.handleInput);
 
   const { items: visibleItems, startIndex } = state.getVisibleItems();
   const filtered = state.getFilteredItems();

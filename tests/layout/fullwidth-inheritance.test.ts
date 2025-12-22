@@ -9,13 +9,13 @@ import { describe, it, expect } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/index.js';
-import { createTextInput, renderTextInput } from '../../src/design-system/forms/text-input.js';
-import { Select } from '../../src/design-system/forms/select.js';
-import { Toast, AlertBox } from '../../src/design-system/overlays/modal.js';
-import { Autocomplete } from '../../src/design-system/forms/autocomplete.js';
-import { RadioGroup } from '../../src/design-system/forms/radio-group.js';
+import { createTextInput, renderTextInput } from '../../src/atoms/text-input.js';
+import { Select } from '../../src/molecules/select.js';
+import { Toast, AlertBox } from '../../src/organisms/modal.js';
+import { Autocomplete } from '../../src/molecules/autocomplete.js';
+import { RadioGroup } from '../../src/molecules/radio-group.js';
 import { HStack, VStack } from '../../src/design-system/layout/stack.js';
-import { SplitPanel } from '../../src/design-system/layout/split-panel.js';
+import { SplitPanel } from '../../src/organisms/split-panel.js';
 
 describe('Width Inheritance', () => {
   describe('flexGrow in row layout', () => {

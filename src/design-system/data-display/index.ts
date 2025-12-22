@@ -1,6 +1,13 @@
 /**
  * Design System Data Display - Data presentation components
+ *
+ * Re-exports from canonical sources (molecules/organisms)
+ * to maintain consistent API while avoiding code duplication.
  */
+
+// =============================================================================
+// Re-exports from Molecules
+// =============================================================================
 
 // Table
 export {
@@ -11,7 +18,7 @@ export {
   type TextAlign,
   type TableColumn,
   type TableOptions,
-} from './table.js';
+} from '../../molecules/table.js';
 
 // Code Block
 export {
@@ -20,14 +27,14 @@ export {
   type Language,
   type CodeTheme,
   type CodeBlockOptions,
-} from './code-block.js';
+} from '../../molecules/code-block.js';
 
-// Markdown (advanced)
+// Markdown
 export {
   Markdown,
   renderMarkdown,
   type MarkdownOptions,
-} from './markdown.js';
+} from '../../molecules/markdown.js';
 
 // Tree
 export {
@@ -41,7 +48,7 @@ export {
   type FlattenedNode,
   type DirectoryNode,
   type DirectoryTreeOptions,
-} from './tree.js';
+} from '../../molecules/tree.js';
 
 // Calendar
 export {
@@ -58,7 +65,11 @@ export {
   type MiniCalendarOptions,
   type DatePickerOptions,
   type DatePickerState,
-} from './calendar.js';
+} from '../../molecules/calendar.js';
+
+// =============================================================================
+// Re-exports from Organisms
+// =============================================================================
 
 // DataTable (interactive)
 export {
@@ -74,4 +85,4 @@ export {
   type VirtualDataTableOptions,
   type EditableColumn,
   type EditableDataTableOptions,
-} from './data-table.js';
+} from '../../organisms/data-table.js';

@@ -7,12 +7,10 @@
 Build beautiful, reactive terminal apps with a familiar component API.
 
 ```typescript
-import { render, Box, Text, useState, useInput } from 'tuiuiu.js';
+import { Box, Text } from 'tuiuiu.js';
 
-const { waitUntilExit } = render(() =>
-  Box({ padding: 1, borderStyle: 'round', borderColor: 'cyan' },
-    Text({ bold: true }, '🐦 Hello, Tuiuiu!')
-  )
+Box({},
+  Text({}, 'Hello, Tuiuiu!')
 );
 ```
 

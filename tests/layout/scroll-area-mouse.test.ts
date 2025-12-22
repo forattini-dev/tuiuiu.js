@@ -10,7 +10,7 @@ import {
   VirtualList,
   createScrollArea,
   createVirtualList,
-} from '../../src/design-system/layout/scroll-area.js';
+} from '../../src/organisms/scroll-area.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';

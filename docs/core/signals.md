@@ -1,6 +1,8 @@
 # Signals & State
 
-Tuiuiu uses **Signals** for state management. Signals are a reactive primitive that automatically tracks dependencies and triggers updates when values change. This is similar to SolidJS or Preact Signals.
+Tuiuiu uses **Signals** for state management. Signals are a reactive primitive that automatically tracks dependencies and triggers updates when values change. This provides fine-grained reactivity.
+
+## createSignal
 
 ## Why Signals?
 

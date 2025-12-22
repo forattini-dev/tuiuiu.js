@@ -4,9 +4,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Table, SimpleTable, KeyValueTable } from '../../src/design-system/data-display/table.js';
-import { CodeBlock, InlineCode } from '../../src/design-system/data-display/code-block.js';
-import { Markdown, renderMarkdown } from '../../src/design-system/data-display/markdown.js';
+import { Table, SimpleTable, KeyValueTable } from '../../src/molecules/table.js';
+import { CodeBlock, InlineCode } from '../../src/molecules/code-block.js';
+import { Markdown, renderMarkdown } from '../../src/molecules/markdown.js';
 
 describe('Data Display Components', () => {
   describe('Table', () => {

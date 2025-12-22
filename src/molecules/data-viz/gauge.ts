@@ -53,8 +53,8 @@ export interface GaugeOptions {
   color?: ColorValue;
   /** Background color */
   backgroundColor?: ColorValue;
-  /** Color zones (override single color) */
-  zones?: GaugeZone[];
+  /** Color zones (override single color). Pass `true` for default zones */
+  zones?: GaugeZone[] | boolean;
   /** Label */
   label?: string;
   /** Label color */
@@ -118,6 +118,19 @@ const DEFAULT_ZONES: GaugeZone[] = [
   { start: 60, end: 85, color: 'yellow' },
   { start: 85, end: 100, color: 'red' },
 ];
+
+/**
+ * Resolve zones option: true → DEFAULT_ZONES, array → array, undefined → undefined
+ */
+function resolveZones(zones: GaugeZone[] | boolean | undefined): GaugeZone[] | undefined {
+  if (zones === true) {
+    return DEFAULT_ZONES;
+  }
+  if (Array.isArray(zones)) {
+    return zones;
+  }
+  return undefined;
+}
 
 /**
  * Get color for value based on zones
@@ -228,8 +241,9 @@ export function LinearGauge(options: GaugeOptions): VNode {
   const partialFraction = filledLength - fullBlocks;
 
   // Determine color based on zones
-  const barColor = zones
-    ? getZoneColor(percentage, zones, color)
+  const resolvedZones = resolveZones(zones);
+  const barColor = resolvedZones
+    ? getZoneColor(percentage, resolvedZones, color)
     : color;
 
   // Build bar segments
@@ -362,13 +376,14 @@ export function MeterGauge(options: MeterOptions): VNode {
   const filled = segmentChar ?? chars.meterFilled;
   const empty = emptyChar ?? chars.meterEmpty;
 
+  const resolvedZones = resolveZones(zones);
   const segmentNodes: VNode[] = [];
 
   for (let i = 0; i < segments; i++) {
     const segmentPercentage = ((i + 0.5) / segments) * 100;
     const isFilled = i < filledSegments;
-    const segmentColor = zones
-      ? getZoneColor(segmentPercentage, zones, color)
+    const segmentColor = resolvedZones
+      ? getZoneColor(segmentPercentage, resolvedZones, color)
       : color;
 
     segmentNodes.push(
@@ -484,7 +499,8 @@ export function ArcGauge(options: GaugeOptions): VNode {
   const percentage = normalized * 100;
 
   const arcLines = renderArcGaugeLines(value, { width, min, max });
-  const barColor = zones ? getZoneColor(percentage, zones, color) : color;
+  const resolvedZones = resolveZones(zones);
+  const barColor = resolvedZones ? getZoneColor(percentage, resolvedZones, color) : color;
 
   const valueStr = formatValue
     ? formatValue(value)
@@ -543,9 +559,10 @@ export function DialGauge(options: GaugeOptions): VNode {
     labelColor = 'white',
   } = options;
 
+  const resolvedZones = resolveZones(zones) ?? DEFAULT_ZONES;
   const normalized = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
   const percentage = normalized * 100;
-  const barColor = getZoneColor(percentage, zones, color);
+  const barColor = getZoneColor(percentage, resolvedZones, color);
   const isAscii = getRenderMode() === 'ascii';
 
   // Build dial segments
@@ -567,7 +584,7 @@ export function DialGauge(options: GaugeOptions): VNode {
       dialLine += pointerChar;
     } else {
       const segPct = (i / segments) * 100;
-      const segColor = getZoneColor(segPct, zones, color);
+      const segColor = getZoneColor(segPct, resolvedZones, color);
       dialLine += segmentChars;
     }
   }
@@ -588,7 +605,7 @@ export function DialGauge(options: GaugeOptions): VNode {
   const dialParts: VNode[] = [];
   for (let i = 0; i < segments; i++) {
     const segPct = (i / segments) * 100;
-    const segColor = getZoneColor(segPct, zones, color);
+    const segColor = getZoneColor(segPct, resolvedZones, color);
     const char = i === pointerPos ? pointerChar : segmentChars;
     dialParts.push(Text({ color: i === pointerPos ? barColor : segColor }, char));
   }

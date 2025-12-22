@@ -10,14 +10,21 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createSelect, type SelectItem } from '../../src/design-system/forms/select.js';
-import { emitInput, clearInputHandlers } from '../../src/hooks/context.js';
+import { createSelect, type SelectItem, type SelectOptions } from '../../src/molecules/select.js';
+import { emitInput, clearInputHandlers, addInputHandler } from '../../src/hooks/context.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
   emitInput(input, key);
+}
+
+// Helper to create select and register handler (since useInput moved to renderSelect)
+function createTestSelect<T = any>(options: SelectOptions<T>) {
+  const sel = createSelect(options);
+  addInputHandler(sel.handleInput);
+  return sel;
 }
 
 // Confirm items - simulating the Yes/No structure
@@ -41,7 +48,7 @@ describe('Confirm Keyboard Interactions', () => {
 
   describe('Arrow Navigation', () => {
     it('should switch to No with down arrow (default Yes)', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
       });
@@ -51,7 +58,7 @@ describe('Confirm Keyboard Interactions', () => {
     });
 
     it('should switch to Yes with up arrow (from No)', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: false,
       });
@@ -63,7 +70,7 @@ describe('Confirm Keyboard Interactions', () => {
     });
 
     it('should not go above Yes', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
       });
@@ -73,7 +80,7 @@ describe('Confirm Keyboard Interactions', () => {
     });
 
     it('should not go below No', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
       });
@@ -84,7 +91,7 @@ describe('Confirm Keyboard Interactions', () => {
     });
 
     it('should navigate with j/k vim keys', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
       });
@@ -103,7 +110,7 @@ describe('Confirm Keyboard Interactions', () => {
   describe('Selection', () => {
     it('should select Yes and call onSubmit with true', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         onSubmit,
       });
@@ -115,7 +122,7 @@ describe('Confirm Keyboard Interactions', () => {
 
     it('should select No and call onSubmit with false', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         onSubmit,
       });
@@ -127,7 +134,7 @@ describe('Confirm Keyboard Interactions', () => {
 
     it('should submit on Enter without explicit Space selection', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         initialValue: false,
         onSubmit,
@@ -144,7 +151,7 @@ describe('Confirm Keyboard Interactions', () => {
   describe('Escape (Cancel)', () => {
     it('should call onCancel when pressing Escape', () => {
       const onCancel = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         onCancel,
       });
@@ -154,7 +161,7 @@ describe('Confirm Keyboard Interactions', () => {
 
     it('should not modify selection when cancelling', () => {
       const onCancel = vi.fn();
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
         onCancel,
@@ -171,14 +178,14 @@ describe('Confirm Keyboard Interactions', () => {
 
   describe('States', () => {
     it('should default to first option (Yes)', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
       });
       expect(sel.cursorIndex()).toBe(0);
     });
 
     it('should respect initial value of true (Yes)', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: true,
       });
@@ -186,7 +193,7 @@ describe('Confirm Keyboard Interactions', () => {
     });
 
     it('should respect initial value of false (No)', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         initialValue: false,
       });
@@ -195,7 +202,7 @@ describe('Confirm Keyboard Interactions', () => {
 
     it('should ignore input when inactive', () => {
       const onSubmit = vi.fn();
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: confirmItems,
         isActive: false,
         onSubmit,
@@ -214,7 +221,7 @@ describe('Confirm Keyboard Interactions', () => {
   describe('Callbacks', () => {
     it('should call onChange when selection changes', () => {
       const onChange = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         onChange,
       });
@@ -224,7 +231,7 @@ describe('Confirm Keyboard Interactions', () => {
 
     it('should call onChange when switching selection', () => {
       const onChange = vi.fn();
-      createSelect({
+      createTestSelect({
         items: confirmItems,
         initialValue: true,
         onChange,

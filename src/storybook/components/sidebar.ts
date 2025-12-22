@@ -12,6 +12,7 @@ import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, StoryCategory } from '../types.js';
 import type { Navigator, FocusArea } from '../core/navigator.js';
+import { themeColor } from '../../core/theme.js';
 
 export interface SidebarProps {
   navigator: Navigator;
@@ -34,12 +35,12 @@ function CategoryHeader(props: {
     { paddingX: 1 },
     Text(
       {
-        color: isSelected ? 'cyan' : 'white',
+        color: isSelected ? themeColor('primary') : themeColor('foreground'),
         bold: isSelected,
       },
       `${icon} ${category.name}`
     ),
-    Text({ color: 'gray', dim: true }, ` (${category.stories.length})`)
+    Text({ color: themeColor('mutedForeground'), dim: true }, ` (${category.stories.length})`)
   );
 }
 
@@ -59,7 +60,7 @@ function StoryItem(props: {
     { paddingX: 1 },
     Text(
       {
-        color: isSelected ? 'cyan' : 'gray',
+        color: isSelected ? themeColor('primary') : themeColor('mutedForeground'),
         bold: isSelected,
       },
       `${padding}${prefix} ${story.name}`
@@ -76,14 +77,14 @@ function SearchBar(props: { query: string; isFocused: boolean }): VNode {
   return Box(
     {
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
       paddingX: 1,
       marginBottom: 1,
     },
-    Text({ color: 'gray' }, '/ '),
+    Text({ color: themeColor('mutedForeground') }, '/ '),
     query
-      ? Text({ color: 'white' }, query)
-      : Text({ color: 'gray', dim: true }, 'Search...')
+      ? Text({ color: themeColor('foreground') }, query)
+      : Text({ color: themeColor('mutedForeground'), dim: true }, 'Search...')
   );
 }
 
@@ -148,7 +149,7 @@ export function Sidebar(props: SidebarProps): VNode {
         items.push(
           Box(
             { paddingX: 1 },
-            Text({ color: 'gray', dim: true }, `    ▲ ${startIdx} more`)
+            Text({ color: themeColor('mutedForeground'), dim: true }, `    ▲ ${startIdx} more`)
           )
         );
       }
@@ -175,7 +176,7 @@ export function Sidebar(props: SidebarProps): VNode {
         items.push(
           Box(
             { paddingX: 1 },
-            Text({ color: 'gray', dim: true }, `    ▼ ${totalStories - endIdx} more`)
+            Text({ color: themeColor('mutedForeground'), dim: true }, `    ▼ ${totalStories - endIdx} more`)
           )
         );
       }
@@ -189,7 +190,7 @@ export function Sidebar(props: SidebarProps): VNode {
     items.push(
       Box(
         { padding: 1 },
-        Text({ color: 'gray', dim: true }, 'No stories found')
+        Text({ color: themeColor('mutedForeground'), dim: true }, 'No stories found')
       )
     );
   }
@@ -199,16 +200,16 @@ export function Sidebar(props: SidebarProps): VNode {
       flexDirection: 'column',
       width,
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
     },
     // Header
     Box(
       {
         borderStyle: 'single',
-        borderColor: isFocused ? 'cyan' : 'gray',
+        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
         paddingX: 1,
       },
-      Text({ color: isFocused ? 'cyan' : 'white', bold: true }, 'Stories')
+      Text({ color: isFocused ? themeColor('primary') : themeColor('foreground'), bold: true }, 'Stories')
     ),
     // Content
     Box({ flexDirection: 'column', padding: 1 }, ...items),
@@ -216,11 +217,11 @@ export function Sidebar(props: SidebarProps): VNode {
     Box(
       {
         borderStyle: 'single',
-        borderColor: 'gray',
+        borderColor: themeColor('border'),
         paddingX: 1,
       },
       Text(
-        { color: 'gray', dim: true },
+        { color: themeColor('mutedForeground'), dim: true },
         `${state.categories.length} categories`
       )
     )
@@ -240,7 +241,7 @@ export function CompactSidebar(props: SidebarProps): VNode {
       flexDirection: 'column',
       width,
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
     },
     // Categories
     ...categories.map((category, idx) => {
@@ -252,11 +253,11 @@ export function CompactSidebar(props: SidebarProps): VNode {
       return Box(
         {
           paddingX: 1,
-          backgroundColor: isSelected ? 'blue' : undefined,
+          backgroundColor: isSelected ? themeColor('info') : undefined,
         },
         Text(
           {
-            color: isSelected ? 'white' : 'gray',
+            color: isSelected ? themeColor('foreground') : themeColor('mutedForeground'),
             bold: isSelected,
           },
           category.name
@@ -282,18 +283,18 @@ export function SidebarHelp(): VNode {
     {
       flexDirection: 'column',
       borderStyle: 'single',
-      borderColor: 'gray',
+      borderColor: themeColor('border'),
       padding: 1,
     },
     Box(
       { marginBottom: 1 },
-      Text({ color: 'white', bold: true }, 'Navigation')
+      Text({ color: themeColor('foreground'), bold: true }, 'Navigation')
     ),
     ...shortcuts.map(({ key, desc }) =>
       Box(
         {},
-        Text({ color: 'cyan' }, `[${key}]`),
-        Text({ color: 'gray' }, ` ${desc}`)
+        Text({ color: themeColor('primary') }, `[${key}]`),
+        Text({ color: themeColor('mutedForeground') }, ` ${desc}`)
       )
     )
   );

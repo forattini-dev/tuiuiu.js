@@ -70,16 +70,30 @@ export {
   popTheme,
   createTheme,
   themeColor,
+  themeColorPair,
+  getContrastColor,
   themeSpacing,
   getBorderRadiusChars,
   resolveColor,
   detectColorScheme,
   useSystemTheme,
+  // Built-in themes
   darkTheme,
   lightTheme,
   highContrastDarkTheme,
   monochromeTheme,
+  // Popular terminal themes
+  monokaiTheme,
+  draculaTheme,
+  nordTheme,
+  solarizedDarkTheme,
+  gruvboxTheme,
+  tokyoNightTheme,
+  catppuccinTheme,
+  // Theme helpers
   themes,
+  themeNames,
+  getNextTheme,
   tw,
 } from './theme.js';
 
@@ -546,6 +560,17 @@ export type {
   ConstraintElement,
   ConstraintLayoutOptions,
 } from './constraint.js';
+
+// Hotkeys & Input Processing
+export {
+  isHotkey,
+  parseKeypress,
+} from './hotkeys.js';
+
+export type {
+  Key,
+  InputHandler,
+} from './hotkeys.js';
 
 // Key Binding System
 export {

@@ -78,3 +78,26 @@ export type {
 
 // Terminal hook
 export { useTerminalSize, type TerminalSize } from './use-terminal-size.js';
+
+// Hotkeys
+export {
+  useHotkeys,
+  parseHotkey,
+  parseHotkeys,
+  matchesHotkey,
+  formatHotkey,
+  formatHotkeyPlatform,
+  registerHotkey,
+  triggerHotkey,
+  getRegisteredHotkeys,
+  getHotkeyScope,
+  setHotkeyScope,
+  resetHotkeyScope,
+  isMac,
+} from './use-hotkeys.js';
+
+export type {
+  HotkeyBinding,
+  HotkeyOptions,
+  HotkeyHandler,
+} from './use-hotkeys.js';

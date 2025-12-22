@@ -1,9 +1,9 @@
 /**
- * Tests for design-system/forms/switch.ts
+ * Tests for atoms/switch.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createSwitch, Switch, ToggleGroup } from '../../src/design-system/forms/switch.js';
+import { createSwitch, Switch, ToggleGroup } from '../../src/atoms/switch.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 import { emitInput, clearInputHandlers } from '../../src/hooks/context.js';
 import type { Key } from '../../src/hooks/types.js';

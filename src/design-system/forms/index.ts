@@ -1,6 +1,13 @@
 /**
  * Design System Forms - User input components
+ *
+ * Re-exports from canonical sources (atoms/molecules)
+ * to maintain consistent API while avoiding code duplication.
  */
+
+// =============================================================================
+// Re-exports from Atoms
+// =============================================================================
 
 // Button
 export {
@@ -12,7 +19,7 @@ export {
   type ButtonSize,
   type IconButtonProps,
   type ButtonGroupProps,
-} from './button.js';
+} from '../../atoms/button.js';
 
 // Text Input
 export {
@@ -22,40 +29,7 @@ export {
   type TextInputState,
   type TextInputOptions,
   type TextInputProps,
-} from './text-input.js';
-
-// Select / Menu
-export {
-  createSelect,
-  renderSelect,
-  Select,
-  Confirm,
-  Checkbox,
-  type SelectItem,
-  type SelectOptions,
-} from './select.js';
-
-// Multi-Select
-export {
-  createMultiSelect,
-  MultiSelect,
-  type MultiSelectItem,
-  type MultiSelectOptions,
-  type MultiSelectState,
-  type MultiSelectProps,
-} from './multi-select.js';
-
-// Radio Group
-export {
-  createRadioGroup,
-  RadioGroup,
-  InlineRadio,
-  type RadioOption,
-  type RadioGroupOptions,
-  type RadioGroupState,
-  type RadioGroupProps,
-  type InlineRadioProps,
-} from './radio-group.js';
+} from '../../atoms/text-input.js';
 
 // Switch / Toggle
 export {
@@ -67,7 +41,7 @@ export {
   type SwitchProps,
   type ToggleOption,
   type ToggleGroupOptions,
-} from './switch.js';
+} from '../../atoms/switch.js';
 
 // Slider
 export {
@@ -80,7 +54,44 @@ export {
   type SliderProps,
   type RangeSliderOptions,
   type RangeSliderState,
-} from './slider.js';
+} from '../../atoms/slider.js';
+
+// =============================================================================
+// Re-exports from Molecules
+// =============================================================================
+
+// Select / Menu
+export {
+  createSelect,
+  renderSelect,
+  Select,
+  Confirm,
+  Checkbox,
+  type SelectItem,
+  type SelectOptions,
+} from '../../molecules/select.js';
+
+// Multi-Select
+export {
+  createMultiSelect,
+  MultiSelect,
+  type MultiSelectItem,
+  type MultiSelectOptions,
+  type MultiSelectState,
+  type MultiSelectProps,
+} from '../../molecules/multi-select.js';
+
+// Radio Group
+export {
+  createRadioGroup,
+  RadioGroup,
+  InlineRadio,
+  type RadioOption,
+  type RadioGroupOptions,
+  type RadioGroupState,
+  type RadioGroupProps,
+  type InlineRadioProps,
+} from '../../molecules/radio-group.js';
 
 // Autocomplete
 export {
@@ -96,4 +107,4 @@ export {
   type ComboboxProps,
   type TagInputOptions,
   type TagInputState,
-} from './autocomplete.js';
+} from '../../molecules/autocomplete.js';

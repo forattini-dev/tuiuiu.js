@@ -12,6 +12,7 @@
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
 import { story, defaultControls } from '../../core/registry.js';
+import { themeColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
 // Chart helper
@@ -124,7 +125,7 @@ export const splitPanelStories: Story[] = [
       const rightWidth = 58 - leftWidth - 1;
 
       return Box(
-        { width: 60, height: 10, borderStyle: 'single', borderColor: 'gray' },
+        { width: 60, height: 10, flexDirection: 'row', borderStyle: 'single', borderColor: 'gray' },
         Box(
           { width: leftWidth, height: '100%', backgroundColor: 'blue', padding: 1 },
           Text({ color: 'white' }, 'Left Panel')

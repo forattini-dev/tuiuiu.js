@@ -10,14 +10,21 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createSelect, Select, Confirm, Checkbox, type SelectItem, type SelectOptions } from '../../src/design-system/forms/select.js';
-import { emitInput, clearInputHandlers, getInputHandlerCount } from '../../src/hooks/context.js';
+import { createSelect, Select, Confirm, Checkbox, type SelectItem, type SelectOptions } from '../../src/molecules/select.js';
+import { emitInput, clearInputHandlers, getInputHandlerCount, addInputHandler } from '../../src/hooks/context.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
   emitInput(input, key);
+}
+
+// Helper to create select and register handler (since useInput moved to renderSelect)
+function createTestSelect<T = any>(options: SelectOptions<T>) {
+  const sel = createSelect(options);
+  addInputHandler(sel.handleInput);
+  return sel;
 }
 
 // Test items
@@ -57,7 +64,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Up Arrow (Move Up)', () => {
     it('should move cursor up one position', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       // Start at index 0, move down first
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(1);
@@ -67,14 +74,14 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should not move above first item', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.up().key);
       expect(sel.cursorIndex()).toBe(0); // Still at 0
     });
 
     it('should skip disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled });
+      const sel = createTestSelect({ items: itemsWithDisabled });
       // Items: Apple (0), Banana (1-disabled), Cherry (2), Date (3-disabled), Elderberry (4)
       // Move down: 0 → skip 1 → 2
       simulateInput('', keys.down().key);
@@ -85,7 +92,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should work with Ctrl+P as alternative', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(1);
       simulateInput('p', { ...keys.up().key, upArrow: false, ctrl: true });
@@ -93,7 +100,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should adjust scroll when moving above visible area', () => {
-      const sel = createSelect({ items: manyItems, maxVisible: 5 });
+      const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
       // Move to bottom using End key
       simulateInput('', keys.end().key);
       expect(sel.scrollOffset()).toBeGreaterThan(0);
@@ -112,14 +119,14 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Down Arrow (Move Down)', () => {
     it('should move cursor down one position', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(1);
     });
 
     it('should not move past last item', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       // Move to last item
       for (let i = 0; i < 10; i++) {
         simulateInput('', keys.down().key);
@@ -130,7 +137,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should skip disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled });
+      const sel = createTestSelect({ items: itemsWithDisabled });
       expect(sel.cursorIndex()).toBe(0); // Apple
       simulateInput('', keys.down().key);
       // Should skip Banana (disabled) and land on Cherry
@@ -138,14 +145,14 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should work with Ctrl+N as alternative', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('n', { ...keys.down().key, downArrow: false, ctrl: true });
       expect(sel.cursorIndex()).toBe(1);
     });
 
     it('should adjust scroll when moving below visible area', () => {
-      const sel = createSelect({ items: manyItems, maxVisible: 5 });
+      const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
       expect(sel.scrollOffset()).toBe(0);
       // Move down past visible area
       for (let i = 0; i < 6; i++) {
@@ -162,14 +169,14 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Vim Keys (j/k)', () => {
     it('should move down with j', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('j', charKey('j').key);
       expect(sel.cursorIndex()).toBe(1);
     });
 
     it('should move up with k', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(1);
       simulateInput('k', charKey('k').key);
@@ -177,7 +184,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should go to top with g', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       // Move to middle
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
@@ -188,14 +195,14 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should go to bottom with G (shift+g)', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('G', charKey('G').key);
       expect(sel.cursorIndex()).toBe(4);
     });
 
     it('should not work in search mode', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       // Enter search mode
       simulateInput('/', charKey('/').key);
       expect(sel.isSearching()).toBe(true);
@@ -213,7 +220,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Home (Go to Top)', () => {
     it('should move cursor to first item', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       // Move to middle
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
@@ -223,7 +230,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should reset scroll offset to 0', () => {
-      const sel = createSelect({ items: manyItems, maxVisible: 5 });
+      const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
       // Move to bottom using End key
       simulateInput('', keys.end().key);
       expect(sel.scrollOffset()).toBeGreaterThan(0);
@@ -235,14 +242,14 @@ describe('Select Keyboard Interactions', () => {
 
   describe('End (Go to Bottom)', () => {
     it('should move cursor to last item', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.end().key);
       expect(sel.cursorIndex()).toBe(4);
     });
 
     it('should set scroll to show last items', () => {
-      const sel = createSelect({ items: manyItems, maxVisible: 5 });
+      const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
       expect(sel.scrollOffset()).toBe(0);
       simulateInput('', keys.end().key);
       expect(sel.cursorIndex()).toBe(19);
@@ -256,14 +263,14 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Space (Toggle Selection)', () => {
     it('should select item in single-select mode', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       expect(sel.selected()).toEqual([]);
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual(['a']);
     });
 
     it('should change selection in single-select mode', () => {
-      const sel = createSelect({ items: basicItems });
+      const sel = createTestSelect({ items: basicItems });
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual(['a']);
       simulateInput('', keys.down().key);
@@ -272,7 +279,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should toggle item in multi-select mode', () => {
-      const sel = createSelect({ items: basicItems, multiple: true });
+      const sel = createTestSelect({ items: basicItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       // Select first
       simulateInput(' ', charKey(' ').key);
@@ -288,7 +295,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should not select disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled });
+      const sel = createTestSelect({ items: itemsWithDisabled });
       // Move to disabled item (Banana at index 1 but skipped, so we need to check)
       // Since disabled items are skipped in navigation, we need to test differently
       expect(sel.selected()).toEqual([]);
@@ -299,7 +306,7 @@ describe('Select Keyboard Interactions', () => {
 
     it('should call onChange callback', () => {
       const onChange = vi.fn();
-      const sel = createSelect({ items: basicItems, onChange });
+      const sel = createTestSelect({ items: basicItems, onChange });
       simulateInput(' ', charKey(' ').key);
       expect(onChange).toHaveBeenCalledWith('a');
     });
@@ -312,14 +319,14 @@ describe('Select Keyboard Interactions', () => {
   describe('Enter (Submit)', () => {
     it('should call onSubmit with selected value', () => {
       const onSubmit = vi.fn();
-      createSelect({ items: basicItems, onSubmit, initialValue: 'b' });
+      createTestSelect({ items: basicItems, onSubmit, initialValue: 'b' });
       simulateInput('', keys.enter().key);
       expect(onSubmit).toHaveBeenCalledWith('b');
     });
 
     it('should call onSubmit with selected array in multi-select', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: basicItems,
         multiple: true,
         onSubmit,
@@ -331,7 +338,7 @@ describe('Select Keyboard Interactions', () => {
 
     it('should exit search mode without cancelling', () => {
       const onSubmit = vi.fn();
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: basicItems,
         searchable: true,
         onSubmit,
@@ -354,14 +361,14 @@ describe('Select Keyboard Interactions', () => {
   describe('Escape (Cancel)', () => {
     it('should call onCancel callback', () => {
       const onCancel = vi.fn();
-      createSelect({ items: basicItems, onCancel });
+      createTestSelect({ items: basicItems, onCancel });
       simulateInput('', keys.escape().key);
       expect(onCancel).toHaveBeenCalled();
     });
 
     it('should exit search mode without calling onCancel', () => {
       const onCancel = vi.fn();
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: basicItems,
         searchable: true,
         onCancel,
@@ -380,7 +387,7 @@ describe('Select Keyboard Interactions', () => {
 
     it('should call onCancel on second escape after exiting search', () => {
       const onCancel = vi.fn();
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: basicItems,
         searchable: true,
         onCancel,
@@ -404,7 +411,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Tab (Multi-select Toggle & Move)', () => {
     it('should toggle selection and move down', () => {
-      const sel = createSelect({ items: basicItems, multiple: true });
+      const sel = createTestSelect({ items: basicItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.tab().key);
@@ -413,7 +420,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should toggle selection and move up with Shift+Tab', () => {
-      const sel = createSelect({ items: basicItems, multiple: true });
+      const sel = createTestSelect({ items: basicItems, multiple: true });
       // Move to item 2
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
@@ -425,7 +432,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should not affect single-select mode', () => {
-      const sel = createSelect({ items: basicItems, multiple: false });
+      const sel = createTestSelect({ items: basicItems, multiple: false });
       expect(sel.cursorIndex()).toBe(0);
       // Tab should not do anything special in single-select
       simulateInput('', keys.tab().key);
@@ -439,28 +446,28 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Ctrl+A (Select All)', () => {
     it('should select all items in multi-select mode', () => {
-      const sel = createSelect({ items: basicItems, multiple: true });
+      const sel = createTestSelect({ items: basicItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(sel.selected()).toEqual(['a', 'b', 'c', 'd', 'e']);
     });
 
     it('should not select disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+      const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       // Should only select non-disabled items
       expect(sel.selected()).toEqual(['a', 'c', 'e']);
     });
 
     it('should not work in single-select mode', () => {
-      const sel = createSelect({ items: basicItems, multiple: false });
+      const sel = createTestSelect({ items: basicItems, multiple: false });
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(sel.selected()).toEqual([]);
     });
 
     it('should call onChange with all values', () => {
       const onChange = vi.fn();
-      createSelect({ items: basicItems, multiple: true, onChange });
+      createTestSelect({ items: basicItems, multiple: true, onChange });
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(onChange).toHaveBeenCalledWith(['a', 'b', 'c', 'd', 'e']);
     });
@@ -468,7 +475,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Ctrl+D (Deselect All)', () => {
     it('should deselect all items', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: basicItems,
         multiple: true,
         initialValue: ['a', 'b', 'c'],
@@ -479,7 +486,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should work in single-select mode too', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: basicItems,
         initialValue: 'b',
       });
@@ -490,7 +497,7 @@ describe('Select Keyboard Interactions', () => {
 
     it('should call onChange with empty array/undefined', () => {
       const onChange = vi.fn();
-      createSelect({
+      createTestSelect({
         items: basicItems,
         multiple: true,
         initialValue: ['a'],
@@ -507,21 +514,21 @@ describe('Select Keyboard Interactions', () => {
 
   describe('/ (Enter Search Mode)', () => {
     it('should enter search mode when searchable', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       expect(sel.isSearching()).toBe(false);
       simulateInput('/', charKey('/').key);
       expect(sel.isSearching()).toBe(true);
     });
 
     it('should not enter search mode when not searchable', () => {
-      const sel = createSelect({ items: basicItems, searchable: false });
+      const sel = createTestSelect({ items: basicItems, searchable: false });
       expect(sel.isSearching()).toBe(false);
       simulateInput('/', charKey('/').key);
       expect(sel.isSearching()).toBe(false);
     });
 
     it('should not enter search mode if already searching', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       expect(sel.isSearching()).toBe(true);
       // Typing / again should add to search query
@@ -536,7 +543,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Search Typing', () => {
     it('should add characters to search query', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       simulateInput('a', charKey('a').key);
       expect(sel.searchQuery()).toBe('a');
@@ -547,7 +554,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should filter items based on search query', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       simulateInput('a', charKey('a').key);
       // Items containing 'a': Apple, Banana, Date (Cherry and Elderberry don't have 'a')
@@ -561,7 +568,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should reset cursor and scroll when search changes', () => {
-      const sel = createSelect({ items: manyItems, maxVisible: 5, searchable: true });
+      const sel = createTestSelect({ items: manyItems, maxVisible: 5, searchable: true });
       // Move cursor
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
@@ -575,7 +582,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should enable type-ahead search automatically', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       expect(sel.isSearching()).toBe(false);
       // Just start typing without /
       simulateInput('b', charKey('b').key);
@@ -590,7 +597,7 @@ describe('Select Keyboard Interactions', () => {
 
   describe('Search Backspace', () => {
     it('should remove last character from search query', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       simulateInput('a', charKey('a').key);
       simulateInput('p', charKey('p').key);
@@ -600,7 +607,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should handle backspace on empty search', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       expect(sel.searchQuery()).toBe('');
       simulateInput('', keys.backspace().key);
@@ -608,7 +615,7 @@ describe('Select Keyboard Interactions', () => {
     });
 
     it('should update filtered items when backspacing', () => {
-      const sel = createSelect({ items: basicItems, searchable: true });
+      const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);
       simulateInput('c', charKey('c').key);
       simulateInput('h', charKey('h').key);
@@ -630,7 +637,7 @@ describe('Select Keyboard Interactions', () => {
   describe('States', () => {
     describe('Empty List', () => {
       it('should handle empty items array', () => {
-        const sel = createSelect({ items: [] });
+        const sel = createTestSelect({ items: [] });
         expect(sel.cursorIndex()).toBe(0);
         expect(sel.selected()).toEqual([]);
         // Navigation should not crash
@@ -642,7 +649,7 @@ describe('Select Keyboard Interactions', () => {
     describe('Single Item', () => {
       it('should handle single item', () => {
         const items: SelectItem<string>[] = [{ value: 'only', label: 'Only One' }];
-        const sel = createSelect({ items });
+        const sel = createTestSelect({ items });
         expect(sel.cursorIndex()).toBe(0);
         simulateInput('', keys.down().key);
         expect(sel.cursorIndex()).toBe(0); // Can't go past single item
@@ -653,7 +660,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('Initial Selection', () => {
       it('should start with initial value selected', () => {
-        const sel = createSelect({
+        const sel = createTestSelect({
           items: basicItems,
           initialValue: 'c',
         });
@@ -661,7 +668,7 @@ describe('Select Keyboard Interactions', () => {
       });
 
       it('should start with multiple initial values', () => {
-        const sel = createSelect({
+        const sel = createTestSelect({
           items: basicItems,
           multiple: true,
           initialValue: ['a', 'c', 'e'],
@@ -676,7 +683,7 @@ describe('Select Keyboard Interactions', () => {
           { value: 'a', label: 'A', disabled: true },
           { value: 'b', label: 'B', disabled: true },
         ];
-        const sel = createSelect({ items: disabledItems });
+        const sel = createTestSelect({ items: disabledItems });
         expect(sel.cursorIndex()).toBe(0);
         simulateInput('', keys.down().key);
         expect(sel.cursorIndex()).toBe(0);
@@ -686,7 +693,7 @@ describe('Select Keyboard Interactions', () => {
         const disabledItems: SelectItem<string>[] = [
           { value: 'a', label: 'A', disabled: true },
         ];
-        const sel = createSelect({ items: disabledItems });
+        const sel = createTestSelect({ items: disabledItems });
         simulateInput(' ', charKey(' ').key);
         expect(sel.selected()).toEqual([]);
       });
@@ -695,7 +702,7 @@ describe('Select Keyboard Interactions', () => {
     describe('Inactive State', () => {
       it('should ignore all input when inactive', () => {
         const onChange = vi.fn();
-        const sel = createSelect({
+        const sel = createTestSelect({
           items: basicItems,
           isActive: false,
           onChange,
@@ -710,7 +717,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('Scrolling', () => {
       it('should show correct visible items window', () => {
-        const sel = createSelect({ items: manyItems, maxVisible: 5 });
+        const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
         const { items, startIndex } = sel.getVisibleItems();
         expect(items.length).toBe(5);
         expect(startIndex).toBe(0);
@@ -719,7 +726,7 @@ describe('Select Keyboard Interactions', () => {
       });
 
       it('should scroll window when cursor moves', () => {
-        const sel = createSelect({ items: manyItems, maxVisible: 5 });
+        const sel = createTestSelect({ items: manyItems, maxVisible: 5 });
         // Move down 6 times
         for (let i = 0; i < 6; i++) {
           simulateInput('', keys.down().key);
@@ -732,7 +739,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('Filtered Empty Results', () => {
       it('should handle search with no results', () => {
-        const sel = createSelect({ items: basicItems, searchable: true });
+        const sel = createTestSelect({ items: basicItems, searchable: true });
         simulateInput('/', charKey('/').key);
         simulateInput('x', charKey('x').key);
         simulateInput('y', charKey('y').key);
@@ -752,7 +759,7 @@ describe('Select Keyboard Interactions', () => {
   describe('Public API', () => {
     describe('toggleSelection', () => {
       it('should toggle current item selection', () => {
-        const sel = createSelect({ items: basicItems, multiple: true });
+        const sel = createTestSelect({ items: basicItems, multiple: true });
         expect(sel.selected()).toEqual([]);
         sel.toggleSelection();
         expect(sel.selected()).toEqual(['a']);
@@ -763,7 +770,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('selectAll', () => {
       it('should select all non-disabled items', () => {
-        const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+        const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
         sel.selectAll();
         expect(sel.selected()).toEqual(['a', 'c', 'e']);
       });
@@ -771,7 +778,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('selectNone', () => {
       it('should deselect all items', () => {
-        const sel = createSelect({
+        const sel = createTestSelect({
           items: basicItems,
           multiple: true,
           initialValue: ['a', 'b'],
@@ -784,7 +791,7 @@ describe('Select Keyboard Interactions', () => {
 
     describe('moveUp/moveDown', () => {
       it('should move cursor programmatically', () => {
-        const sel = createSelect({ items: basicItems });
+        const sel = createTestSelect({ items: basicItems });
         expect(sel.cursorIndex()).toBe(0);
         sel.moveDown();
         expect(sel.cursorIndex()).toBe(1);

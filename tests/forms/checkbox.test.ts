@@ -11,15 +11,22 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Checkbox } from '../../src/design-system/forms/select.js';
-import { createSelect, type SelectItem } from '../../src/design-system/forms/select.js';
-import { emitInput, clearInputHandlers } from '../../src/hooks/context.js';
+import { Checkbox } from '../../src/molecules/select.js';
+import { createSelect, type SelectItem, type SelectOptions } from '../../src/molecules/select.js';
+import { emitInput, clearInputHandlers, addInputHandler } from '../../src/hooks/context.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
   emitInput(input, key);
+}
+
+// Helper to create select and register handler (since useInput moved to renderSelect)
+function createTestSelect<T = any>(options: SelectOptions<T>) {
+  const sel = createSelect(options);
+  addInputHandler(sel.handleInput);
+  return sel;
 }
 
 // Test items
@@ -51,14 +58,14 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Navigation', () => {
     it('should navigate down with down arrow', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(1);
     });
 
     it('should navigate up with up arrow', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(2);
@@ -67,7 +74,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should navigate with vim j/k keys', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('j', charKey('j').key);
       expect(sel.cursorIndex()).toBe(1);
@@ -76,7 +83,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should go to top with Home', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       simulateInput('', keys.end().key);
       expect(sel.cursorIndex()).toBe(3);
       simulateInput('', keys.home().key);
@@ -84,14 +91,14 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should go to bottom with End', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.end().key);
       expect(sel.cursorIndex()).toBe(3);
     });
 
     it('should skip disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+      const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
       expect(sel.cursorIndex()).toBe(0);
       // Move down should skip disabled opt2 and land on opt3
       simulateInput('', keys.down().key);
@@ -105,21 +112,21 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Space (Toggle)', () => {
     it('should check item with Space', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual(['opt1']);
     });
 
     it('should uncheck item with Space', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true, initialValue: ['opt1'] });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true, initialValue: ['opt1'] });
       expect(sel.selected()).toEqual(['opt1']);
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual([]);
     });
 
     it('should toggle multiple items independently', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       // Check first
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual(['opt1']);
@@ -134,7 +141,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should not toggle disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+      const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
       // Try to navigate to disabled item (it will be skipped)
       // So we can't directly test toggling disabled items via Space
       // The select will skip disabled items automatically
@@ -145,7 +152,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
     it('should call onChange when toggling', () => {
       const onChange = vi.fn();
-      createSelect({ items: checkboxItems, multiple: true, onChange });
+      createTestSelect({ items: checkboxItems, multiple: true, onChange });
       simulateInput(' ', charKey(' ').key);
       expect(onChange).toHaveBeenCalledWith(['opt1']);
     });
@@ -157,21 +164,21 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Ctrl+A (Select All)', () => {
     it('should select all items', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(sel.selected()).toEqual(['opt1', 'opt2', 'opt3', 'opt4']);
     });
 
     it('should not select disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+      const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(sel.selected()).toEqual(['opt1', 'opt3']);
     });
 
     it('should call onChange with all values', () => {
       const onChange = vi.fn();
-      createSelect({ items: checkboxItems, multiple: true, onChange });
+      createTestSelect({ items: checkboxItems, multiple: true, onChange });
       simulateInput('a', { ...charKey('a').key, ctrl: true });
       expect(onChange).toHaveBeenCalledWith(['opt1', 'opt2', 'opt3', 'opt4']);
     });
@@ -183,7 +190,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Ctrl+D (Deselect All)', () => {
     it('should deselect all items', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: checkboxItems,
         multiple: true,
         initialValue: ['opt1', 'opt2', 'opt3'],
@@ -195,7 +202,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
     it('should call onChange with empty array', () => {
       const onChange = vi.fn();
-      createSelect({
+      createTestSelect({
         items: checkboxItems,
         multiple: true,
         initialValue: ['opt1'],
@@ -212,7 +219,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Tab (Toggle and Move)', () => {
     it('should toggle and move down', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       expect(sel.selected()).toEqual([]);
       expect(sel.cursorIndex()).toBe(0);
       simulateInput('', keys.tab().key);
@@ -221,7 +228,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should toggle and move up with Shift+Tab', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
       expect(sel.cursorIndex()).toBe(2);
@@ -231,7 +238,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should allow rapid selection with Tab', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       // Tab through all items
       simulateInput('', keys.tab().key);
       simulateInput('', keys.tab().key);
@@ -248,7 +255,7 @@ describe('Checkbox Keyboard Interactions', () => {
   describe('Enter (Submit)', () => {
     it('should call onSubmit with selected values', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: checkboxItems,
         multiple: true,
         initialValue: ['opt2', 'opt4'],
@@ -260,7 +267,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
     it('should submit empty array if nothing selected', () => {
       const onSubmit = vi.fn();
-      createSelect({
+      createTestSelect({
         items: checkboxItems,
         multiple: true,
         onSubmit,
@@ -277,7 +284,7 @@ describe('Checkbox Keyboard Interactions', () => {
   describe('Escape (Cancel)', () => {
     it('should call onCancel', () => {
       const onCancel = vi.fn();
-      createSelect({
+      createTestSelect({
         items: checkboxItems,
         multiple: true,
         onCancel,
@@ -293,7 +300,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('States', () => {
     it('should start with initial selections', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: checkboxItems,
         multiple: true,
         initialValue: ['opt1', 'opt3'],
@@ -302,7 +309,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should handle empty list', () => {
-      const sel = createSelect({ items: [], multiple: true });
+      const sel = createTestSelect({ items: [], multiple: true });
       expect(sel.selected()).toEqual([]);
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual([]);
@@ -310,7 +317,7 @@ describe('Checkbox Keyboard Interactions', () => {
 
     it('should handle single item', () => {
       const items: SelectItem<string>[] = [{ value: 'only', label: 'Only One' }];
-      const sel = createSelect({ items, multiple: true });
+      const sel = createTestSelect({ items, multiple: true });
       simulateInput(' ', charKey(' ').key);
       expect(sel.selected()).toEqual(['only']);
       simulateInput(' ', charKey(' ').key);
@@ -318,7 +325,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should ignore input when inactive', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: checkboxItems,
         multiple: true,
         isActive: false,
@@ -330,7 +337,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('should preserve order of selections', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       // Select items in order: opt3, opt1, opt4
       simulateInput('', keys.down().key);
       simulateInput('', keys.down().key);
@@ -349,13 +356,13 @@ describe('Checkbox Keyboard Interactions', () => {
 
   describe('Public API', () => {
     it('selectAll should select all non-disabled items', () => {
-      const sel = createSelect({ items: itemsWithDisabled, multiple: true });
+      const sel = createTestSelect({ items: itemsWithDisabled, multiple: true });
       sel.selectAll();
       expect(sel.selected()).toEqual(['opt1', 'opt3']);
     });
 
     it('selectNone should deselect all items', () => {
-      const sel = createSelect({
+      const sel = createTestSelect({
         items: checkboxItems,
         multiple: true,
         initialValue: ['opt1', 'opt2'],
@@ -365,7 +372,7 @@ describe('Checkbox Keyboard Interactions', () => {
     });
 
     it('toggleSelection should toggle current item', () => {
-      const sel = createSelect({ items: checkboxItems, multiple: true });
+      const sel = createTestSelect({ items: checkboxItems, multiple: true });
       sel.toggleSelection();
       expect(sel.selected()).toEqual(['opt1']);
       sel.toggleSelection();

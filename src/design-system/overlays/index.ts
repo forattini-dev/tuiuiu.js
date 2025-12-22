@@ -1,6 +1,13 @@
 /**
  * Design System Overlays - Layered UI components
+ *
+ * Re-exports from canonical sources (organisms)
+ * to maintain consistent API while avoiding code duplication.
  */
+
+// =============================================================================
+// Re-exports from Organisms
+// =============================================================================
 
 // Modal / Window
 export {
@@ -19,7 +26,7 @@ export {
   type ToastType,
   type AlertBoxProps,
   type BorderStyle,
-} from './modal.js';
+} from '../../organisms/modal.js';
 
 // Command Palette
 export {
@@ -32,7 +39,7 @@ export {
   type CommandPaletteState,
   type CreateCommandPaletteOptions,
   type GoToDialogProps,
-} from './command-palette.js';
+} from '../../organisms/command-palette.js';
 
 // Overlay Stack Manager
 export {
@@ -49,4 +56,4 @@ export {
   type OverlayStackState,
   type OverlayContainerProps,
   type UseOverlayInputOptions,
-} from './overlay-stack.js';
+} from '../../organisms/overlay-stack.js';

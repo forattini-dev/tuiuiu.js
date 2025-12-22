@@ -4,7 +4,7 @@
 
 ### Terminal UI Framework for the Modern Era
 
-Build beautiful, reactive terminal apps with a familiar component API.
+Build beautiful, reactive terminal apps with a Modern Component API.
 <br>
 **Zero dependencies** • **Signals-based** • **Flexbox layout** • **Full mouse support**
 <br>
@@ -247,7 +247,7 @@ import { BarChart, Gauge } from 'tuiuiu.js/design-system';
 
 </details>
 
-### 🔄 Redux-like Store
+### 🔄 Centralized Store
 
 Built-in state management for complex applications.
 

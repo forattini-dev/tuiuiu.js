@@ -32,3 +32,21 @@ We welcome contributions to Tuiuiu!
 - **Signals**: Use signals for all reactive state.
 - **Tests**: Add tests for new components or logic.
 - **Types**: Everything must be strictly typed with TypeScript.
+
+### Testing Input Components
+
+When writing unit tests for input components (like `TextInput` or `Select`), keep in mind:
+
+1.  **Component Rendering**: If you render the component using `render(...)`, input handling is set up automatically.
+2.  **State Factories**: If you act on the state factory directly (e.g., `createTextInput()`) without rendering, you must **manually register the input handler** to simulate key presses.
+
+    ```typescript
+    import { addInputHandler } from 'tuiuiu/hooks/context'; // or internal path
+    
+    // Helper for tests
+    function createTestInput(options) {
+      const input = createTextInput(options);
+      addInputHandler(input.handleInput); // Bind handler!
+      return input;
+    }
+    ```

@@ -99,3 +99,22 @@ export type {
 export {
   createNodeFsStorage
 } from './fs-storage.js';
+
+// System data (Linux /proc filesystem)
+export {
+  getCpuUsage,
+  getMemoryInfo,
+  getProcessList,
+  getSystemInfo,
+  formatBytes,
+  formatUptime,
+  getStateDescription,
+} from './system-data.js';
+
+export type {
+  CpuStats,
+  CpuUsage,
+  MemoryInfo,
+  ProcessInfo,
+  SystemInfo,
+} from './system-data.js';

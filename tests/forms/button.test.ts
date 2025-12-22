@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Button, IconButton, ButtonGroup } from '../../src/design-system/forms/button.js';
+import { Button, IconButton, ButtonGroup } from '../../src/atoms/button.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';

@@ -854,13 +854,14 @@ export function ColoredPicture(props: ColoredPictureProps): VNode {
         borderStyle: borderStyle === 'none' ? undefined : borderStyle,
         borderColor,
         padding,
+        width: targetWidth + (borderStyle && borderStyle !== 'none' ? 2 : 0) + padding * 2,
       },
       ...rows
     );
   }
 
   return Box(
-    { flexDirection: 'column' },
+    { flexDirection: 'column', width: targetWidth },
     ...rows
   );
 }

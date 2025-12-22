@@ -1,6 +1,9 @@
 /**
  * Design System Layout - Layout utility components
  *
+ * Re-exports from canonical sources (molecules/organisms)
+ * plus unique layout utilities (stack, app).
+ *
  * Basic Layouts:
  * - VStack, HStack: Stack layouts with gap
  * - Center: Center content
@@ -18,6 +21,10 @@
  * - Container: Constrained width container
  */
 
+// =============================================================================
+// Unique to Design System (no duplicates)
+// =============================================================================
+
 // Stack Layouts
 export {
   VStack,
@@ -34,17 +41,6 @@ export {
   type DividerProps,
 } from './stack.js';
 
-// Split Panel
-export {
-  SplitPanel,
-  ThreePanel,
-  createSplitPanel,
-  type SplitPanelProps,
-  type SplitPanelState,
-  type ThreePanelProps,
-  type DividerStyle,
-} from './split-panel.js';
-
 // App Layouts
 export {
   Page,
@@ -58,6 +54,10 @@ export {
   type HeaderProps,
   type ContainerProps,
 } from './app.js';
+
+// =============================================================================
+// Re-exports from Molecules
+// =============================================================================
 
 // Tabs
 export {
@@ -73,7 +73,7 @@ export {
   type TabPanelProps,
   type VerticalTabsOptions,
   type LazyTabsProps,
-} from './tabs.js';
+} from '../../molecules/tabs.js';
 
 // Collapsible
 export {
@@ -92,7 +92,22 @@ export {
   type AccordionProps,
   type DetailsProps,
   type ExpandableTextProps,
-} from './collapsible.js';
+} from '../../molecules/collapsible.js';
+
+// =============================================================================
+// Re-exports from Organisms
+// =============================================================================
+
+// Split Panel
+export {
+  SplitPanel,
+  ThreePanel,
+  createSplitPanel,
+  type SplitPanelProps,
+  type SplitPanelState,
+  type ThreePanelProps,
+  type DividerStyle,
+} from '../../organisms/split-panel.js';
 
 // Scroll Area
 export {
@@ -111,9 +126,9 @@ export {
   type VirtualListProps,
   type ScrollableTextProps,
   type LogViewerOptions,
-} from './scroll-area.js';
+} from '../../organisms/scroll-area.js';
 
-// Grid
+// Grid (unique to design-system - different from organisms/grid)
 export {
   Grid,
   GridCell,

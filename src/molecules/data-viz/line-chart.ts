@@ -483,7 +483,15 @@ export function LineChart(options: LineChartOptions): VNode {
 
   // Build Y-axis labels
   const yTicks = yAxis.ticks ?? 5;
-  const yLabelWidth = 6;
+
+  // Calculate max Y label width dynamically from actual formatted labels
+  let yLabelWidth = 6; // minimum width
+  for (let i = 0; i <= yTicks; i++) {
+    const value = bounds.yMax - (i / yTicks) * (bounds.yMax - bounds.yMin);
+    const labelLen = formatTick(value, yAxis.formatter).length;
+    if (labelLen > yLabelWidth) yLabelWidth = labelLen;
+  }
+
   const yLabels: VNode[] = [];
 
   for (let i = 0; i <= yTicks; i++) {

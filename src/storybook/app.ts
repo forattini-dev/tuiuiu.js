@@ -10,12 +10,13 @@ import { render } from '../app/render-loop.js';
 import { useState, useInput, useApp, useEffect, useMouse } from '../hooks/index.js';
 import { createRef } from '../core/index.js';
 import { startTick, stopTick, getTick, isTickRunning, setTickRate } from '../core/tick.js';
+import { setTheme, useTheme, getNextTheme, themeColor } from '../core/theme.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
 import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
 import { SplashScreen, createSplashScreen } from '../design-system/visual/splash-screen.js';
-import { createTextInput, renderTextInput } from '../design-system/forms/text-input.js';
+import { createTextInput, renderTextInput } from '../atoms/text-input.js';
 
 // Storybook Global State & Logger
 import { storybookStore, interceptConsole } from './store.js';
@@ -74,9 +75,9 @@ function StoryContent(props: { story: Story; values: Record<string, any>; frame?
   } catch (error: any) {
     console.error('Render error:', error); // Captured by our interceptor!
     return Box(
-      { flexDirection: 'column', padding: 1, borderStyle: 'single', borderColor: 'red' },
-      Text({ color: 'red', bold: true }, 'Render Error'),
-      Text({ color: 'red' }, error.message || String(error))
+      { flexDirection: 'column', padding: 1, borderStyle: 'single', borderColor: themeColor('error') },
+      Text({ color: themeColor('error'), bold: true }, 'Render Error'),
+      Text({ color: themeColor('error') }, error.message || String(error))
     );
   }
 }
@@ -130,17 +131,17 @@ function Sidebar(props: {
       flexDirection: 'column',
       width: 50,
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
     },
     // Header
     Box(
-      { borderStyle: 'single', borderColor: isFocused ? 'cyan' : 'gray', paddingX: 1 },
-      Text({ color: 'cyan', bold: true }, 'Stories')
+      { borderStyle: 'single', borderColor: isFocused ? themeColor('primary') : themeColor('border'), paddingX: 1 },
+      Text({ color: themeColor('primary'), bold: true }, 'Stories')
     ),
     // Categories (horizontal tabs) - clickable
     Box(
       { flexDirection: 'row', paddingX: 1, marginY: 1 },
-      Text({ color: 'gray' }, '◀ ▶ '),
+      Text({ color: themeColor('mutedForeground') }, '◀ ▶ '),
       ...categories.map((cat, catIdx) => {
         const isActive = cat === currentCategory;
         const count = getStoriesByCategory(cat).length;
@@ -154,7 +155,7 @@ function Sidebar(props: {
           },
           Text(
             {
-              color: isActive ? 'cyan' : 'gray',
+              color: isActive ? themeColor('primary') : themeColor('mutedForeground'),
               bold: isActive,
               inverse: isActive,
             },
@@ -163,11 +164,11 @@ function Sidebar(props: {
         );
       })
     ),
-    Divider({ color: 'gray' }),
+    Divider({ color: themeColor('border') }),
     // Scroll up indicator (always present, may be empty)
     Box(
       { paddingX: 1, height: 1 },
-      Text({ color: 'cyan', dim: true }, scrollUpText)
+      Text({ color: themeColor('primary'), dim: true }, scrollUpText)
     ),
     // Stories list (fixed height container) - clickable items
     Box(
@@ -184,7 +185,7 @@ function Sidebar(props: {
           },
           Text(
             {
-              color: isSelected ? 'white' : 'gray',
+              color: isSelected ? themeColor('foreground') : themeColor('mutedForeground'),
               bold: isSelected,
               inverse: isSelected && isFocused,
             },
@@ -196,12 +197,12 @@ function Sidebar(props: {
     // Scroll down indicator (always present, may be empty)
     Box(
       { paddingX: 1, height: 1 },
-      Text({ color: 'cyan', dim: true }, scrollDownText)
+      Text({ color: themeColor('primary'), dim: true }, scrollDownText)
     ),
     // Footer
     Box(
-      { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-      Text({ color: 'gray', dim: true }, `${selectedIndex + 1}/${stories.length}`)
+      { borderStyle: 'single', borderColor: themeColor('border'), paddingX: 1 },
+      Text({ color: themeColor('mutedForeground'), dim: true }, `${selectedIndex + 1}/${stories.length}`)
     )
   );
 }
@@ -228,8 +229,8 @@ function ControlPanel(props: {
 
   if (controls.length === 0) {
     return Box(
-      { padding: 1, borderStyle: 'single', borderColor: 'gray' },
-      Text({ color: 'gray', dim: true }, 'No controls defined')
+      { padding: 1, borderStyle: 'single', borderColor: themeColor('border') },
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'No controls defined')
     );
   }
 
@@ -237,12 +238,12 @@ function ControlPanel(props: {
     {
       flexDirection: 'column',
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
       width: 30,
     },
     Box(
-      { borderStyle: 'single', borderColor: isFocused ? 'cyan' : 'gray', paddingX: 1 },
-      Text({ color: 'yellow', bold: true }, 'Controls')
+      { borderStyle: 'single', borderColor: isFocused ? themeColor('primary') : themeColor('border'), paddingX: 1 },
+      Text({ color: themeColor('warning'), bold: true }, 'Controls')
     ),
     Box(
       { flexDirection: 'column', padding: 1 },
@@ -272,7 +273,7 @@ function ControlPanel(props: {
           },
           Box(
             {},
-            Text({ color: isActive ? 'cyan' : 'gray' }, `${control.label}: `),
+            Text({ color: isActive ? themeColor('primary') : themeColor('mutedForeground') }, `${control.label}: `),
             isThisEditingText
               ? renderTextInputInline(editingTextValue, isActive, onTextChange)
               : renderControlValue(value, control.type, isActive)
@@ -291,10 +292,10 @@ function renderTextInputInline(value: string, isActive: boolean, onChange: (valu
   const cursorChar = '▎';
   return Box(
     { flexDirection: 'row' },
-    Text({ color: 'white' }, '"'),
-    Text({ color: 'cyan' }, value),
-    isActive ? Text({ color: 'cyan', bold: true }, cursorChar) : null,
-    Text({ color: 'white' }, '"')
+    Text({ color: themeColor('foreground') }, '"'),
+    Text({ color: themeColor('primary') }, value),
+    isActive ? Text({ color: themeColor('primary'), bold: true }, cursorChar) : null,
+    Text({ color: themeColor('foreground') }, '"')
   );
 }
 
@@ -302,11 +303,11 @@ function renderTextInputInline(value: string, isActive: boolean, onChange: (valu
  * Render control value display
  */
 function renderControlValue(value: any, type: string, isActive: boolean): VNode {
-  const color = isActive ? 'white' : 'gray';
+  const color = isActive ? themeColor('foreground') : themeColor('mutedForeground');
 
   switch (type) {
     case 'boolean':
-      return Text({ color: value ? 'green' : 'red' }, value ? 'true' : 'false');
+      return Text({ color: value ? themeColor('success') : themeColor('error') }, value ? 'true' : 'false');
     case 'number':
     case 'range':
       return Text({ color }, String(value));
@@ -330,12 +331,12 @@ function DocsView(props: { story: Story }): VNode {
 
   const children: VNode[] = [
     // Title
-    Box({ marginBottom: 1 }, Text({ color: 'cyan', bold: true }, `📖 ${story.name}`)),
+    Box({ marginBottom: 1 }, Text({ color: themeColor('primary'), bold: true }, `📖 ${story.name}`)),
   ];
 
   // Description (optional)
   if (story.description) {
-    children.push(Box({ marginBottom: 1 }, Text({ color: 'white' }, story.description)));
+    children.push(Box({ marginBottom: 1 }, Text({ color: themeColor('foreground') }, story.description)));
   }
 
   // Controls documentation (if any)
@@ -343,13 +344,13 @@ function DocsView(props: { story: Story }): VNode {
     children.push(
       Box(
         { flexDirection: 'column', marginTop: 1 },
-        Text({ color: 'yellow', bold: true }, 'Props:'),
+        Text({ color: themeColor('warning'), bold: true }, 'Props:'),
         ...controls.map(([key, control]) =>
           Box(
             { marginLeft: 1 },
-            Text({ color: 'cyan' }, `• ${key}`),
-            Text({ color: 'gray' }, ` (${control.type})`),
-            Text({ color: 'gray', dim: true }, ` - ${control.label}`)
+            Text({ color: themeColor('primary') }, `• ${key}`),
+            Text({ color: themeColor('mutedForeground') }, ` (${control.type})`),
+            Text({ color: themeColor('mutedForeground'), dim: true }, ` - ${control.label}`)
           )
         )
       )
@@ -358,7 +359,7 @@ function DocsView(props: { story: Story }): VNode {
 
   // Category
   children.push(
-    Box({ marginTop: 1 }, Text({ color: 'gray' }, 'Category: '), Text({ color: 'magenta' }, story.category))
+    Box({ marginTop: 1 }, Text({ color: themeColor('mutedForeground') }, 'Category: '), Text({ color: themeColor('accent') }, story.category))
   );
 
   return Box({ flexDirection: 'column', padding: 1 }, ...children);
@@ -377,7 +378,7 @@ function CompareView(props: { story: Story; values: Record<string, any> }): VNod
   if (!compareControl) {
     return Box(
       { padding: 1 },
-      Text({ color: 'gray' }, 'No comparable props found for this story')
+      Text({ color: themeColor('mutedForeground') }, 'No comparable props found for this story')
     );
   }
 
@@ -388,8 +389,8 @@ function CompareView(props: { story: Story; values: Record<string, any> }): VNod
 
   return Box(
     { flexDirection: 'column', padding: 1 },
-    Text({ color: 'green', bold: true }, `🔀 Comparing: ${control.label}`),
-    Divider({ color: 'gray' }),
+    Text({ color: themeColor('success'), bold: true }, `🔀 Comparing: ${control.label}`),
+    Divider({ color: themeColor('border') }),
     Box(
       { flexDirection: 'row', flexWrap: 'wrap', gap: 1 },
       ...variants.slice(0, 4).map((variant) =>
@@ -397,11 +398,11 @@ function CompareView(props: { story: Story; values: Record<string, any> }): VNod
           {
             flexDirection: 'column',
             borderStyle: 'single',
-            borderColor: values[key] === variant ? 'cyan' : 'gray',
+            borderColor: values[key] === variant ? themeColor('primary') : themeColor('border'),
             padding: 1,
             minWidth: 20,
           },
-          Text({ color: 'cyan', dim: true }, String(variant)),
+          Text({ color: themeColor('primary'), dim: true }, String(variant)),
           Box(
             { marginTop: 1 },
             StoryContent({ story, values: { ...values, [key]: variant }, frame: 0 })
@@ -449,15 +450,15 @@ function PreviewPanel(props: {
 
   // Header with optional animation indicator
   const headerChildren: VNode[] = [
-    Text({ color: 'gray' }, `${story.category} / `),
-    Text({ color: 'cyan', bold: true }, story.name),
+    Text({ color: themeColor('mutedForeground') }, `${story.category} / `),
+    Text({ color: themeColor('primary'), bold: true }, story.name),
   ];
   if (isAnimated) {
-    headerChildren.push(Text({ color: isPaused ? 'yellow' : 'green' }, isPaused ? ' ⏸' : ' ▶'));
+    headerChildren.push(Text({ color: isPaused ? themeColor('warning') : themeColor('success') }, isPaused ? ' ⏸' : ' ▶'));
   }
   previewChildren.push(
     Box(
-      { borderStyle: 'single', borderColor: isFocused ? 'cyan' : 'gray', paddingX: 1 },
+      { borderStyle: 'single', borderColor: isFocused ? themeColor('primary') : themeColor('border'), paddingX: 1 },
       ...headerChildren
     )
   );
@@ -475,11 +476,11 @@ function PreviewPanel(props: {
 
   if ((viewMode === 'preview' || viewMode === 'playground') && story.description) {
     previewChildren.push(
-      Box({ paddingX: 1 }, Text({ color: 'gray', dim: true }, story.description))
+      Box({ paddingX: 1 }, Text({ color: themeColor('mutedForeground'), dim: true }, story.description))
     );
   }
 
-  previewChildren.push(Divider({ color: 'gray' }));
+  previewChildren.push(Divider({ color: themeColor('border') }));
   previewChildren.push(renderContent());
 
   return Box(
@@ -487,7 +488,7 @@ function PreviewPanel(props: {
       flexDirection: 'column',
       flexGrow: 1,
       borderStyle: 'single',
-      borderColor: isFocused ? 'cyan' : 'gray',
+      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
     },
     ...previewChildren
   );
@@ -498,11 +499,11 @@ function PreviewPanel(props: {
  */
 function getModeColor(mode: ViewMode): string {
   switch (mode) {
-    case 'preview': return 'cyan';
-    case 'playground': return 'yellow';
-    case 'comparatives': return 'green';
-    case 'docs': return 'magenta';
-    default: return 'white';
+    case 'preview': return themeColor('primary');
+    case 'playground': return themeColor('warning');
+    case 'comparatives': return themeColor('success');
+    case 'docs': return themeColor('accent');
+    default: return themeColor('foreground');
   }
 }
 
@@ -514,21 +515,22 @@ function StatusBar(props: { viewMode: ViewMode; focusArea: FocusArea; isEditingT
 
   if (isEditingText) {
     return Box(
-      { borderStyle: 'single', borderColor: 'yellow', paddingX: 1 },
-      Text({ color: 'yellow', bold: true }, '✏️  EDITING TEXT  '),
-      Text({ color: 'gray' }, '[Enter] Save  '),
-      Text({ color: 'gray' }, '[Esc] Cancel  '),
-      Text({ color: 'gray' }, '[Backspace] Delete')
+      { borderStyle: 'single', borderColor: themeColor('warning'), paddingX: 1 },
+      Text({ color: themeColor('warning'), bold: true }, '✏️  EDITING TEXT  '),
+      Text({ color: themeColor('mutedForeground') }, '[Enter] Save  '),
+      Text({ color: themeColor('mutedForeground') }, '[Esc] Cancel  '),
+      Text({ color: themeColor('mutedForeground') }, '[Backspace] Delete')
     );
   }
 
   return Box(
-    { borderStyle: 'single', borderColor: 'gray', paddingX: 1 },
-    Text({ color: 'gray' }, '[Esc] Back/Quit  '),
-    Text({ color: 'gray' }, '[Enter] Select  '),
-    Text({ color: 'gray' }, '[Tab] Focus  '),
-    Text({ color: 'gray' }, '[F12] Logs  '),
-    Text({ color: 'cyan', dim: true }, '🖱️  Mouse enabled')
+    { borderStyle: 'single', borderColor: themeColor('border'), paddingX: 1 },
+    Text({ color: themeColor('mutedForeground') }, '[Esc] Back/Quit  '),
+    Text({ color: themeColor('mutedForeground') }, '[Enter] Select  '),
+    Text({ color: themeColor('mutedForeground') }, '[Tab] Focus  '),
+    Text({ color: themeColor('mutedForeground') }, '[F1] Theme  '),
+    Text({ color: themeColor('mutedForeground') }, '[F12] Logs  '),
+    Text({ color: themeColor('primary'), dim: true }, '🖱️  Mouse enabled')
   );
 }
 
@@ -550,28 +552,33 @@ function Navbar(props: {
   keystrokes: number;
   fps: number;
   elapsedSeconds: number;
+  themeName: string;
 }): VNode {
-  const { componentCount, clicks, keystrokes, fps, elapsedSeconds } = props;
-  const fpsColor = fps >= 30 ? 'green' : fps >= 15 ? 'yellow' : 'red';
+  const { componentCount, clicks, keystrokes, fps, elapsedSeconds, themeName } = props;
+  const fpsColor = fps >= 30 ? themeColor('success') : fps >= 15 ? themeColor('warning') : themeColor('error');
 
   return Box(
     {
       flexDirection: 'row',
       justifyContent: 'space-between',
       borderStyle: 'single',
-      borderColor: 'magenta',
+      borderColor: themeColor('accent'),
     },
-    Text({ color: 'magenta', bold: true }, ' Tuiuiu.js '),
     Box(
       { flexDirection: 'row' },
-      Text({ color: 'white', bold: true }, formatTime(elapsedSeconds)),
-      Text({ color: 'gray', dim: true }, ' '),
-      Text({ color: 'cyan' }, String(componentCount)),
-      Text({ color: 'gray', dim: true }, 's '),
-      Text({ color: 'yellow' }, String(clicks)),
-      Text({ color: 'gray', dim: true }, 'c '),
-      Text({ color: 'green' }, String(keystrokes)),
-      Text({ color: 'gray', dim: true }, 'k '),
+      Text({ color: themeColor('accent'), bold: true }, ' Tuiuiu.js '),
+      Text({ color: themeColor('warning'), dim: true }, `[${themeName}] `)
+    ),
+    Box(
+      { flexDirection: 'row' },
+      Text({ color: themeColor('foreground'), bold: true }, formatTime(elapsedSeconds)),
+      Text({ color: themeColor('mutedForeground'), dim: true }, ' '),
+      Text({ color: themeColor('primary') }, String(componentCount)),
+      Text({ color: themeColor('mutedForeground'), dim: true }, 's '),
+      Text({ color: themeColor('warning') }, String(clicks)),
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'c '),
+      Text({ color: themeColor('success') }, String(keystrokes)),
+      Text({ color: themeColor('mutedForeground'), dim: true }, 'k '),
       Text({ color: fpsColor, bold: true }, `${fps}fps `)
     )
   );
@@ -722,6 +729,14 @@ function StorybookApp(): VNode {
   // Input handling
   useInput((input, key) => {
     setKeystrokeCount((c) => c + 1);
+
+    // Toggle Theme with F1
+    if (key.f1) {
+      const currentTheme = useTheme();
+      const nextTheme = getNextTheme(currentTheme);
+      setTheme(nextTheme);
+      return;
+    }
 
     // Toggle Console Logs
     if (key.f12 || (key.ctrl && input === 'l')) {
@@ -907,8 +922,8 @@ function StorybookApp(): VNode {
   if (!currentStory) {
     return Box(
       { flexDirection: 'column', padding: 2 },
-      Text({ color: 'yellow' }, 'No stories found'),
-      Text({ color: 'gray' }, 'Add stories to src/storybook/stories/')
+      Text({ color: themeColor('warning') }, 'No stories found'),
+      Text({ color: themeColor('mutedForeground') }, 'Add stories to src/storybook/stories/')
     );
   }
 
@@ -920,6 +935,7 @@ function StorybookApp(): VNode {
       keystrokes: keystrokeCount(),
       fps: fps(),
       elapsedSeconds: elapsedSeconds(),
+      themeName: useTheme().name,
     }),
     Box(
       { flexDirection: 'row', flexGrow: 1 },

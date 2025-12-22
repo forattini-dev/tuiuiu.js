@@ -187,46 +187,56 @@ function FormsDemo(): VNode {
 
     if (field === 0) {
       return Box(
-        { flexDirection: 'column', marginBottom: 1 },
+        { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '1. Name:'),
-        renderTextInput(nameInput, { isActive: true }),
-        Text({ color: 'gray', dim: true, marginTop: 1 }, 'Enter: next field  Tab: skip  ESC: quit')
+        Box({ marginTop: 1 }),
+        renderTextInput(nameInput, { isActive: true, fullWidth: true, borderStyle: 'round' }),
+        Box({ marginTop: 1 }),
+        Text({ color: 'gray', dim: true }, 'Enter: next • Tab: skip • ESC: quit')
       );
     }
 
     if (field === 1) {
       return Box(
-        { flexDirection: 'column', marginBottom: 1 },
+        { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '2. Email:'),
-        renderTextInput(emailInput, { isActive: true }),
-        Text({ color: 'gray', dim: true, marginTop: 1 }, 'Enter: next field  Tab: skip  Shift+Tab: back  ESC: quit')
+        Box({ marginTop: 1 }),
+        renderTextInput(emailInput, { isActive: true, fullWidth: true, borderStyle: 'round' }),
+        Box({ marginTop: 1 }),
+        Text({ color: 'gray', dim: true }, 'Enter: next • Shift+Tab: back • ESC: quit')
       );
     }
 
     if (field === 2) {
       return Box(
-        { flexDirection: 'column', marginBottom: 1 },
+        { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '3. Role:'),
-        renderSelect(roleSelect, { items: roleOptions, isActive: true, showCount: false }),
-        Text({ color: 'gray', dim: true, marginTop: 1 }, '↑↓: navigate  Enter: select  ESC: back')
+        Box({ marginTop: 1 }),
+        renderSelect(roleSelect, { items: roleOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
+        Box({ marginTop: 1 }),
+        Text({ color: 'gray', dim: true }, '↑↓: navigate • Enter: select • ESC: back')
       );
     }
 
     if (field === 3) {
       return Box(
-        { flexDirection: 'column', marginBottom: 1 },
+        { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '4. Experience:'),
-        renderSelect(experienceSelect, { items: experienceOptions, isActive: true, showCount: false }),
-        Text({ color: 'gray', dim: true, marginTop: 1 }, '↑↓: navigate  Enter: select  ESC: back')
+        Box({ marginTop: 1 }),
+        renderSelect(experienceSelect, { items: experienceOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
+        Box({ marginTop: 1 }),
+        Text({ color: 'gray', dim: true }, '↑↓: navigate • Enter: select • ESC: back')
       );
     }
 
     if (field === 4) {
       return Box(
-        { flexDirection: 'column', marginBottom: 1 },
+        { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '5. Skills (multi-select):'),
-        renderSelect(skillsSelect, { items: skillOptions, multiple: true, isActive: true }),
-        Text({ color: 'gray', dim: true, marginTop: 1 }, '↑↓: navigate  Space: toggle  Enter: submit  ESC: back')
+        Box({ marginTop: 1 }),
+        renderSelect(skillsSelect, { items: skillOptions, multiple: true, isActive: true, fullWidth: true, borderStyle: 'round' }),
+        Box({ marginTop: 1 }),
+        Text({ color: 'gray', dim: true }, '↑↓: navigate • Space: toggle • Enter: submit • ESC: back')
       );
     }
 
@@ -262,13 +272,39 @@ function FormsDemo(): VNode {
     );
   };
 
+  // Get terminal dimensions for centering
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
+  const boxWidth = Math.min(60, termWidth - 4);
+
   return Box(
-    { flexDirection: 'column', padding: 1 },
-    Text({ color: 'cyan', bold: true }, '📝 Forms Example'),
-    Text({}),
-    renderProgress(),
-    Text({}),
-    renderActiveField()
+    {
+      flexDirection: 'column',
+      width: termWidth,
+      height: termHeight,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    Box(
+      {
+        flexDirection: 'column',
+        width: boxWidth,
+        borderStyle: 'round',
+        borderColor: 'cyan',
+        padding: 2,
+      },
+      // Title
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'cyan', bold: true }, '📝 Forms Wizard')
+      ),
+      // Progress steps
+      renderProgress(),
+      // Gap between progress and content
+      Box({ height: 1 }),
+      // Current field
+      renderActiveField()
+    )
   );
 }
 
