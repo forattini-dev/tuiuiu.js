@@ -295,7 +295,7 @@ store.dispatch({ type: 'INCREMENT' });
 
 ```bash
 # Start the MCP server
-npx tuiuiu mcp
+npx tuiuiu.js@latest mcp
 ```
 
 Add to your `.mcp.json` for Claude Code integration:

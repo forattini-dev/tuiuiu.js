@@ -13,7 +13,7 @@ When you're working with Claude Code or other AI assistants, the MCP server prov
 
 ```bash
 # Start coding with AI assistance
-npx tuiuiu mcp
+npx tuiuiu.js@latest mcp
 ```
 
 ## Quick Start
@@ -40,16 +40,16 @@ Now Claude has full access to Tuiuiu documentation and can help you build termin
 
 ```bash
 # Standard mode (stdio) - for Claude Code
-npx tuiuiu mcp
+npx tuiuiu.js@latest mcp
 
 # HTTP mode - for web-based AI tools
-npx tuiuiu mcp --http
+npx tuiuiu.js@latest mcp --http
 
 # Custom port (default: 3200)
-npx tuiuiu mcp --http --port=8080
+npx tuiuiu.js@latest mcp --http --port=8080
 
 # Debug logging
-npx tuiuiu mcp --debug
+npx tuiuiu.js@latest mcp --debug
 ```
 
 ## Available Tools
@@ -195,14 +195,14 @@ When you enable Tuiuiu MCP, Claude gets access to:
 
 ```bash
 # With debug logging
-npx tuiuiu mcp --debug
+npx tuiuiu.js@latest mcp --debug
 ```
 
 ### Test Tools Manually
 
 ```bash
 # HTTP mode for manual testing
-npx tuiuiu mcp --http --port=3200
+npx tuiuiu.js@latest mcp --http --port=3200
 
 # Test with curl
 curl -X POST http://localhost:3200 \

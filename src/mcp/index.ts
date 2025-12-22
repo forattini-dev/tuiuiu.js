@@ -4,8 +4,8 @@
  * Provides AI assistants with access to Tuiuiu documentation.
  *
  * Usage:
- *   npx tuiuiu mcp              # Start stdio server (for Claude Code)
- *   npx tuiuiu mcp --http       # Start HTTP server
+ *   npx tuiuiu.js@latest mcp              # Start stdio server (for Claude Code)
+ *   npx tuiuiu.js@latest mcp --http       # Start HTTP server
  */
 
 export { MCPServer, runMcpServer } from './server.js';

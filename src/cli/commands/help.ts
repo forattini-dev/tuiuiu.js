@@ -26,7 +26,7 @@ Commands:
 
 Examples:
   npx tuiuiu storybook    Start exploring components
-  npx tuiuiu mcp          Serve docs to Claude Code
+  npx tuiuiu.js@latest mcp          Serve docs to Claude Code
 
 Documentation: https://github.com/forattini-dev/tuiuiu.js
 `.trim());

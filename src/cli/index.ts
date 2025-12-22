@@ -5,8 +5,8 @@
  * Usage:
  *   npx tuiuiu              # Show help
  *   npx tuiuiu storybook    # Run component storybook
- *   npx tuiuiu mcp          # Start MCP server (stdio)
- *   npx tuiuiu mcp --http   # Start MCP server (HTTP)
+ *   npx tuiuiu.js@latest mcp          # Start MCP server (stdio)
+ *   npx tuiuiu.js@latest mcp --http   # Start MCP server (HTTP)
  *   npx tuiuiu --version    # Show version
  *   npx tuiuiu --help       # Show help
  */
