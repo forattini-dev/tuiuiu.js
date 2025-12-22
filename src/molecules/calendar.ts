@@ -17,6 +17,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getRenderMode } from '../core/capabilities.js';
+import { themeColor, getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -554,8 +555,8 @@ export function Calendar(props: CalendarProps): VNode {
         color = 'gray';
         dim = true;
       } else if (day.isSelected || day.isRangeStart || day.isRangeEnd) {
-        color = 'black';
         bgColor = selectedColor;
+        color = getContrastColor(selectedColor as string);
         bold = true;
       } else if (day.isInRange) {
         color = selectedColor;
@@ -580,8 +581,9 @@ export function Calendar(props: CalendarProps): VNode {
       if (isCursor) {
         bold = true;
         if (!bgColor) {
-          bgColor = 'white';
-          color = 'black';
+          // Use theme-based cursor colors
+          bgColor = themeColor('foreground');
+          color = getContrastColor(bgColor);
         }
       }
 
