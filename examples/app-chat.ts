@@ -1,15 +1,15 @@
 /**
- * Reck Example: Enhanced Chat Interface
+ * Tuiuiu Example: Enhanced Chat Interface
  *
- * Demonstrates all Reck components working together:
+ * Demonstrates all Tuiuiu components working together:
  * - TextInput with full editing capabilities
  * - Spinner with multiple styles
  * - ProgressBar for streaming
  * - Markdown rendering
  * - CodeBlock with syntax highlighting
- * - Select for command palette
+ * - Theme switching support
  *
- * Run with: pnpm tsx src/cli/reck/examples/enhanced-chat.ts
+ * Run with: pnpm tsx examples/app-chat.ts
  */
 
 import {
@@ -23,6 +23,10 @@ import {
   useState,
   useInput,
   useApp,
+  setTheme,
+  useTheme,
+  getNextTheme,
+  themeColor,
   type VNode,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
@@ -43,16 +47,6 @@ interface Message {
   tokens?: number;
 }
 
-interface AppState {
-  messages: Message[];
-  isStreaming: boolean;
-  streamProgress: number;
-  inputHistory: string[];
-  showHelp: boolean;
-  theme: 'dark' | 'light';
-  spinnerStyle: SpinnerStyle;
-}
-
 let messageId = 0;
 
 /**
@@ -65,7 +59,7 @@ function MessageBubble(props: { message: Message }): VNode {
 
   // Determine icon and color based on role
   const icon = isUser ? '👤' : isSystem ? '⚙️' : '🤖';
-  const nameColor = isUser ? 'blue' : isSystem ? 'yellow' : 'green';
+  const nameColor = isUser ? themeColor('info') : isSystem ? themeColor('warning') : themeColor('success');
   const name = isUser ? 'You' : isSystem ? 'System' : 'Assistant';
 
   // Check if content contains markdown elements
@@ -81,9 +75,9 @@ function MessageBubble(props: { message: Message }): VNode {
       { flexDirection: 'row' },
       Text({ color: nameColor, bold: true }, `${icon} ${name}`),
       Spacer(),
-      Text({ color: 'gray', dim: true }, formatTime(message.timestamp)),
+      Text({ color: themeColor('muted'), dim: true }, formatTime(message.timestamp)),
       message.tokens
-        ? Text({ color: 'gray', dim: true }, ` · ${message.tokens} tokens`)
+        ? Text({ color: themeColor('muted'), dim: true }, ` · ${message.tokens} tokens`)
         : Text({}, '')
     ),
     // Content
@@ -97,7 +91,7 @@ function MessageBubble(props: { message: Message }): VNode {
     message.streaming
       ? Box(
           { paddingLeft: 3 },
-          Text({ color: 'cyan', dim: true }, '▌')
+          Text({ color: themeColor('primary'), dim: true }, '▌')
         )
       : Box({})
   );
@@ -113,18 +107,19 @@ function HelpPanel(): VNode {
     { key: 'Up/Down', value: 'History navigation' },
     { key: 'Ctrl+L', value: 'Clear screen' },
     { key: 'Ctrl+C', value: 'Exit' },
-    { key: 'Tab', value: 'Toggle help' },
+    { key: 'Tab', value: 'Cycle theme' },
+    { key: 'H', value: 'Toggle help' },
     { key: 'Esc', value: 'Cancel/Close' },
   ];
 
   return Box(
-    { flexDirection: 'column', borderStyle: 'round', borderColor: 'cyan', padding: 1, marginBottom: 1 },
-    Text({ color: 'cyan', bold: true }, '⌨️  Keyboard Shortcuts'),
+    { flexDirection: 'column', borderStyle: 'round', borderColor: themeColor('primary'), padding: 1, marginBottom: 1 },
+    Text({ color: themeColor('primary'), bold: true }, '⌨️  Keyboard Shortcuts'),
     Newline(),
     KeyValueTable({
       entries: shortcuts,
-      keyColor: 'yellow',
-      valueColor: 'white',
+      keyColor: themeColor('warning'),
+      valueColor: themeColor('text'),
     })
   );
 }
@@ -134,22 +129,24 @@ function HelpPanel(): VNode {
  */
 function StatusBar(props: {
   model: string;
-  theme: string;
+  themeName: string;
   spinnerStyle: SpinnerStyle;
   messageCount: number;
 }): VNode {
-  const { model, theme, spinnerStyle, messageCount } = props;
+  const { model, themeName, spinnerStyle, messageCount } = props;
 
   return Box(
     { flexDirection: 'row', marginTop: 1, paddingX: 1 },
-    Text({ color: 'cyan' }, '▶'),
-    Text({ color: 'white' }, ` ${model}`),
-    Text({ color: 'gray', dim: true }, ' │ '),
-    Text({ color: 'gray' }, `${messageCount} msgs`),
-    Text({ color: 'gray', dim: true }, ' │ '),
-    Text({ color: 'gray' }, `spinner: ${spinnerStyle}`),
+    Text({ color: themeColor('primary') }, '▶'),
+    Text({ color: themeColor('text') }, ` ${model}`),
+    Text({ color: themeColor('muted'), dim: true }, ' │ '),
+    Text({ color: themeColor('muted') }, `${messageCount} msgs`),
+    Text({ color: themeColor('muted'), dim: true }, ' │ '),
+    Text({ color: themeColor('muted') }, `spinner: ${spinnerStyle}`),
+    Text({ color: themeColor('muted'), dim: true }, ' │ '),
+    Text({ color: themeColor('accent') }, `theme: ${themeName}`),
     Spacer(),
-    Text({ color: 'gray', dim: true }, 'tab:help')
+    Text({ color: themeColor('muted'), dim: true }, 'tab:theme h:help')
   );
 }
 
@@ -177,7 +174,7 @@ function StreamingIndicator(props: {
       width: 30,
       style: 'smooth',
       showPercentage: true,
-      color: 'cyan',
+      color: themeColor('primary'),
     })
   );
 }
@@ -186,13 +183,13 @@ function StreamingIndicator(props: {
  * Welcome Message
  */
 function WelcomeMessage(): VNode {
-  const exampleCode = `const reck = require('reck');
+  const exampleCode = `import { createSignal, createEffect } from 'tuiuiu.js';
 
 // Create a reactive signal
-const [count, setCount] = reck.createSignal(0);
+const [count, setCount] = createSignal(0);
 
 // Create an effect that runs when count changes
-reck.createEffect(() => {
+createEffect(() => {
   console.log('Count:', count());
 });
 
@@ -200,13 +197,13 @@ setCount(1); // Logs: "Count: 1"`;
 
   return Box(
     { flexDirection: 'column', marginBottom: 2 },
-    Text({ color: 'magenta', bold: true }, '🚀 Welcome to Reck Chat'),
+    Text({ color: themeColor('accent'), bold: true }, '🚀 Welcome to Tuiuiu Chat'),
     Newline(),
     Markdown({
       content: `
 ## Getting Started
 
-This is an **enhanced chat interface** built with Reck - a lightweight reactive terminal UI framework.
+This is an **enhanced chat interface** built with Tuiuiu - a zero-dependency reactive terminal UI framework.
 
 ### Features
 
@@ -215,6 +212,7 @@ This is an **enhanced chat interface** built with Reck - a lightweight reactive 
 - Code blocks with language detection
 - Interactive input with history
 - Multiple spinner styles
+- Theme switching (press **Tab**)
 
 ### Try These Commands
 
@@ -230,10 +228,10 @@ Type your message and press **Enter** to send.
       maxWidth: 80,
     }),
     Newline(),
-    Text({ color: 'gray', dim: true }, 'Example code block:'),
+    Text({ color: themeColor('muted'), dim: true }, 'Example code block:'),
     CodeBlock({
       code: exampleCode,
-      language: 'javascript',
+      language: 'typescript',
       lineNumbers: true,
       borderStyle: 'round',
     })
@@ -253,6 +251,7 @@ function EnhancedChatApp(): VNode {
   const [showWelcome, setShowWelcome] = useState(true);
 
   const { exit } = useApp();
+  const currentTheme = useTheme();
 
   // Create text input state
   const textInput = createTextInput({
@@ -321,6 +320,12 @@ function EnhancedChatApp(): VNode {
         } else {
           addSystemMessage('Available styles: dots, dots2, dots3, line, arc, circle, bounce, arrow, clock, earth, moon, hearts');
         }
+        break;
+
+      case 'theme':
+        const nextTheme = getNextTheme(currentTheme);
+        setTheme(nextTheme);
+        addSystemMessage(`Theme changed to: ${nextTheme}`);
         break;
 
       case 'code':
@@ -401,6 +406,7 @@ This function takes a name and returns a greeting.`;
 - **/help** - Toggle keyboard shortcuts
 - **/clear** - Clear chat history
 - **/spinner <style>** - Change spinner animation
+- **/theme** - Cycle through themes
 - **/code** - Show code example
 
 ### Keyboard Shortcuts
@@ -410,7 +416,8 @@ This function takes a name and returns a greeting.`;
 | Enter | Send message |
 | Shift+Enter | New line |
 | Up/Down | Navigate history |
-| Tab | Toggle help |
+| Tab | Cycle theme |
+| H | Toggle help |
 | Esc | Cancel |`;
     }
 
@@ -450,7 +457,14 @@ Feel free to ask me anything!`;
       setShowWelcome(true);
       return;
     }
+    // Tab cycles theme
     if (key.tab && !key.shift) {
+      const nextTheme = getNextTheme(currentTheme);
+      setTheme(nextTheme);
+      return;
+    }
+    // H toggles help
+    if (char === 'h' && !key.ctrl && !key.alt) {
       setShowHelp((h) => !h);
       return;
     }
@@ -464,7 +478,7 @@ Feel free to ask me anything!`;
     // Header
     TuiuiuHeader({
       title: 'chat',
-      emoji: '🚀',
+      emoji: '💬',
       subtitle: 'Interactive Chat Demo',
     }),
 
@@ -490,16 +504,16 @@ Feel free to ask me anything!`;
       TextInput(textInput, {
         placeholder: 'Type your message... (/ for commands)',
         borderStyle: 'round',
-        focusedBorderColor: 'cyan',
+        focusedBorderColor: themeColor('primary'),
         prompt: '❯',
-        promptColor: 'cyan',
+        promptColor: themeColor('primary'),
       })
     ),
 
     // Status bar
     StatusBar({
-      model: 'reck-demo',
-      theme: 'dark',
+      model: 'tuiuiu-demo',
+      themeName: currentTheme,
       spinnerStyle: spinnerStyle(),
       messageCount: messages().length,
     }),
@@ -520,5 +534,5 @@ function formatTime(date: Date): string {
 }
 
 // Run the app
-const { waitUntilExit } = render(() => EnhancedChatApp());
+const { waitUntilExit } = render(() => EnhancedChatApp(), { autoTabNavigation: false });
 await waitUntilExit();

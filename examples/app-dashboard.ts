@@ -1,23 +1,33 @@
 #!/usr/bin/env node
 /**
- * Real-time Dashboard Example
+ * Tuiuiu Dashboard - Real-time System Metrics
  *
- * A beautiful, symmetric dashboard with live metrics simulation.
+ * A beautiful dashboard with live metrics, activity feed, and simulated data.
  *
  * Features:
- * - Big number displays with LCD-style digits
+ * - LCD-style big number displays
  * - Live activity feed with simulated requests
  * - Real-time charts and gauges
- * - Symmetric grid layout
+ * - Theme switching with Tab
  * - Multiple animated spinners
  *
  * Run with: pnpm tsx examples/app-dashboard.ts
  */
 
-import { Box, Text, Spacer } from '../src/primitives/index.js';
-import { render } from '../src/app/render-loop.js';
-import { createSignal, createEffect } from '../src/primitives/signal.js';
-import { useInput, useApp } from '../src/hooks/index.js';
+import {
+  render,
+  Box,
+  Text,
+  Spacer,
+  createSignal,
+  createEffect,
+  useInput,
+  useApp,
+  setTheme,
+  useTheme,
+  getNextTheme,
+  themeColor,
+} from '../src/index.js';
 import { createSpinner, renderSpinner } from '../src/atoms/spinner.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
@@ -30,16 +40,6 @@ import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-hea
 const CARD_WIDTH = 26;
 const WIDE_CARD_WIDTH = 40;
 const FULL_WIDTH = 82;
-
-const COLORS = {
-  primary: 'cyan',
-  success: 'green',
-  warning: 'yellow',
-  error: 'red',
-  info: 'blue',
-  accent: 'magenta',
-  muted: 'gray',
-} as const;
 
 // ============================================================================
 // Utility Functions
@@ -70,22 +70,11 @@ function formatNum(n: number): string {
   return Math.floor(n).toString();
 }
 
-function formatBytes(b: number): string {
-  if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
-  if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
-  if (b >= 1e3) return (b / 1e3).toFixed(1) + ' KB';
-  return b + ' B';
-}
-
 function formatTime(secs: number): string {
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-function randomIP(): string {
-  return `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 }
 
 function randomEndpoint(): string {
@@ -106,10 +95,10 @@ function randomEndpoint(): string {
 
 function randomStatus(): { code: number; color: string } {
   const r = Math.random();
-  if (r > 0.95) return { code: 500, color: 'red' };
-  if (r > 0.90) return { code: 404, color: 'yellow' };
-  if (r > 0.85) return { code: 201, color: 'green' };
-  return { code: 200, color: 'green' };
+  if (r > 0.95) return { code: 500, color: themeColor('error') };
+  if (r > 0.90) return { code: 404, color: themeColor('warning') };
+  if (r > 0.85) return { code: 201, color: themeColor('success') };
+  return { code: 200, color: themeColor('success') };
 }
 
 function randomLatency(): number {
@@ -172,7 +161,6 @@ interface LogEntry {
   status: number;
   statusColor: string;
   latency: number;
-  ip: string;
 }
 
 // ============================================================================
@@ -180,7 +168,6 @@ interface LogEntry {
 // ============================================================================
 
 function createMetricsStore() {
-  // Core metrics
   const [rps, setRps] = createSignal(1247);
   const [rpsHistory, setRpsHistory] = createSignal<number[]>([]);
   const [totalReqs, setTotalReqs] = createSignal(0);
@@ -203,7 +190,6 @@ function createMetricsStore() {
   const [uptime, setUptime] = createSignal(0);
   const [activityLog, setActivityLog] = createSignal<LogEntry[]>([]);
 
-  // Simulated services
   const [services, setServices] = createSignal([
     { name: 'api-gateway', status: 'running', cpu: 23, mem: 512 },
     { name: 'auth-service', status: 'running', cpu: 12, mem: 256 },
@@ -213,6 +199,7 @@ function createMetricsStore() {
   ]);
 
   let timers: NodeJS.Timeout[] = [];
+  let logTimeout: NodeJS.Timeout | null = null;
 
   const start = () => {
     // RPS - every 100ms for smooth animation
@@ -275,19 +262,17 @@ function createMetricsStore() {
     const addLogEntry = () => {
       const now = new Date();
       const status = randomStatus();
+      const endpoint = randomEndpoint();
       const entry: LogEntry = {
         time: now.toLocaleTimeString('en-US', { hour12: false }),
-        method: randomEndpoint().split(' ')[0],
-        path: randomEndpoint().split(' ')[1],
+        method: endpoint.split(' ')[0],
+        path: endpoint.split(' ')[1],
         status: status.code,
         statusColor: status.color,
         latency: Math.round(randomLatency()),
-        ip: randomIP(),
       };
       setActivityLog(log => [entry, ...log.slice(0, 9)]);
-
-      // Schedule next entry
-      setTimeout(addLogEntry, 50 + Math.random() * 250);
+      logTimeout = setTimeout(addLogEntry, 50 + Math.random() * 250);
     };
     addLogEntry();
 
@@ -306,6 +291,7 @@ function createMetricsStore() {
   const stop = () => {
     timers.forEach(clearInterval);
     timers = [];
+    if (logTimeout) clearTimeout(logTimeout);
   };
 
   return {
@@ -334,13 +320,13 @@ function Card(props: {
     {
       flexDirection: 'column',
       borderStyle: 'round',
-      borderColor: (props.color || COLORS.muted) as any,
+      borderColor: (props.color || themeColor('muted')) as any,
       width: props.width || CARD_WIDTH,
       paddingX: 1,
     },
     Box(
       { marginBottom: 1 },
-      Text({ color: 'gray', dim: true }, props.title)
+      Text({ color: themeColor('mutedForeground'), dim: true }, props.title)
     ),
     ...props.children
   );
@@ -351,7 +337,6 @@ function BigMetric(props: {
   value: string;
   suffix?: string;
   color: string;
-  subtitle?: string;
   spark?: string;
   width?: number;
 }): VNode {
@@ -362,7 +347,6 @@ function BigMetric(props: {
     children: [
       renderLCD(props.value, props.color),
       props.suffix ? Text({ color: props.color as any, bold: true }, ` ${props.suffix}`) : null,
-      props.subtitle ? Box({ marginTop: 1 }, Text({ color: 'gray', dim: true }, props.subtitle)) : null,
       props.spark ? Box({ marginTop: 1 }, Text({ color: props.color as any, dim: true }, props.spark)) : null,
     ],
   });
@@ -374,7 +358,6 @@ function GaugeBar(props: {
   max: number;
   color: string;
   width?: number;
-  showPct?: boolean;
 }): VNode {
   const pct = (props.value / props.max) * 100;
   const barWidth = (props.width || CARD_WIDTH) - 12;
@@ -384,7 +367,7 @@ function GaugeBar(props: {
     { flexDirection: 'column', width: props.width || CARD_WIDTH },
     Box(
       { flexDirection: 'row' },
-      Text({ color: 'gray', dim: true }, props.title),
+      Text({ color: themeColor('mutedForeground'), dim: true }, props.title),
       Spacer({}),
       Text({ color: props.color as any, bold: true }, `${pct.toFixed(0)}%`)
     ),
@@ -399,15 +382,15 @@ function ActivityFeed(props: { entries: LogEntry[] }): VNode {
   return Card({
     title: '◉ LIVE REQUESTS',
     width: WIDE_CARD_WIDTH,
-    color: COLORS.info,
+    color: themeColor('primary'),
     children: props.entries.slice(0, 8).map((e, i) =>
       Box(
         { flexDirection: 'row', key: i },
-        Text({ color: 'gray', dim: true }, `${e.time} `),
+        Text({ color: themeColor('mutedForeground'), dim: true }, `${e.time} `),
         Text({ color: e.statusColor as any, bold: true }, `${e.status} `),
-        Text({ color: 'cyan' }, `${e.method.padEnd(6)} `),
-        Text({ color: 'white' }, e.path.slice(0, 12).padEnd(13)),
-        Text({ color: e.latency > 100 ? 'yellow' : 'green' as any }, ` ${e.latency}ms`)
+        Text({ color: themeColor('primary') }, `${e.method.padEnd(6)} `),
+        Text({ color: themeColor('foreground') }, e.path.slice(0, 12).padEnd(13)),
+        Text({ color: e.latency > 100 ? themeColor('warning') : themeColor('success') as any }, ` ${e.latency}ms`)
       )
     ),
   });
@@ -417,14 +400,14 @@ function ServicesList(props: { services: { name: string; status: string; cpu: nu
   return Card({
     title: '◎ SERVICES',
     width: WIDE_CARD_WIDTH,
-    color: COLORS.success,
+    color: themeColor('success'),
     children: props.services.map((s, i) =>
       Box(
         { flexDirection: 'row', key: i },
-        Text({ color: 'green' }, '● '),
-        Text({ color: 'white' }, s.name.padEnd(14)),
-        Text({ color: s.cpu > 50 ? 'yellow' : 'gray' as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
-        Text({ color: 'gray' }, `MEM:${s.mem}MB`)
+        Text({ color: themeColor('success') }, '● '),
+        Text({ color: themeColor('foreground') }, s.name.padEnd(14)),
+        Text({ color: s.cpu > 50 ? themeColor('warning') : themeColor('mutedForeground') as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
+        Text({ color: themeColor('mutedForeground') }, `MEM:${s.mem}MB`)
       )
     ),
   });
@@ -434,23 +417,23 @@ function NetworkStats(props: { inMb: number; outMb: number; connections: number 
   return Card({
     title: '◈ NETWORK',
     width: CARD_WIDTH,
-    color: COLORS.accent,
+    color: themeColor('accent'),
     children: [
       Box(
         { flexDirection: 'row' },
-        Text({ color: 'green' }, '↓ '),
-        Text({ color: 'white', bold: true }, `${props.inMb.toFixed(1)} MB/s`)
+        Text({ color: themeColor('success') }, '↓ '),
+        Text({ color: themeColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`)
       ),
       Box(
         { flexDirection: 'row' },
-        Text({ color: 'cyan' }, '↑ '),
-        Text({ color: 'white', bold: true }, `${props.outMb.toFixed(1)} MB/s`)
+        Text({ color: themeColor('primary') }, '↑ '),
+        Text({ color: themeColor('foreground'), bold: true }, `${props.outMb.toFixed(1)} MB/s`)
       ),
       Box({ marginTop: 1 }),
       Box(
         { flexDirection: 'row' },
-        Text({ color: 'gray' }, 'Connections: '),
-        Text({ color: 'yellow', bold: true }, props.connections.toString())
+        Text({ color: themeColor('mutedForeground') }, 'Connections: '),
+        Text({ color: themeColor('warning'), bold: true }, props.connections.toString())
       ),
     ],
   });
@@ -466,28 +449,31 @@ function SpinnersPanel(): VNode {
   return Card({
     title: '◐ BACKGROUND JOBS',
     width: CARD_WIDTH,
-    color: COLORS.warning,
+    color: themeColor('warning'),
     children: spinners.map((s, i) =>
-      renderSpinner(s, { color: ['cyan', 'green', 'magenta'][i], showTime: true, hint: '' })
+      renderSpinner(s, { color: [themeColor('primary'), themeColor('success'), themeColor('accent')][i], showTime: true, hint: '' })
     ),
   });
 }
 
 function Header(props: { uptime: number; totalReqs: number }): VNode {
+  const theme = useTheme();
+
   return Box(
     {
       flexDirection: 'row',
-      backgroundColor: 'blue',
+      backgroundColor: themeColor('primary'),
       width: FULL_WIDTH,
       paddingX: 1,
     },
-    Text({ color: 'white', bold: true }, ' 🚀 SYSTEM DASHBOARD '),
+    Text({ color: themeColor('primaryForeground'), bold: true }, ' 🚀 SYSTEM DASHBOARD '),
     Spacer({}),
-    Text({ color: 'cyan' }, `Total: ${formatNum(props.totalReqs)} reqs `),
-    Text({ color: 'gray' }, '│ '),
-    Text({ color: 'green' }, `Uptime: ${formatTime(props.uptime)} `),
-    Text({ color: 'gray' }, '│ '),
-    Text({ color: 'yellow' }, `${getFps()} FPS`)
+    Text({ color: themeColor('primaryForeground') }, `[${theme.name}] `),
+    Text({ color: themeColor('primaryForeground') }, `Total: ${formatNum(props.totalReqs)} reqs `),
+    Text({ color: themeColor('primaryForeground'), dim: true }, '│ '),
+    Text({ color: themeColor('primaryForeground') }, `Uptime: ${formatTime(props.uptime)} `),
+    Text({ color: themeColor('primaryForeground'), dim: true }, '│ '),
+    Text({ color: themeColor('primaryForeground') }, `${getFps()} FPS`)
   );
 }
 
@@ -495,15 +481,15 @@ function Footer(): VNode {
   return Box(
     {
       flexDirection: 'row',
-      backgroundColor: 'gray',
+      backgroundColor: themeColor('muted'),
       width: FULL_WIDTH,
       paddingX: 1,
     },
-    Text({ color: 'black' }, ' [Q] Quit '),
-    Text({ color: 'black', dim: true }, '│'),
-    Text({ color: 'black' }, ' [R] Refresh '),
+    Text({ color: themeColor('foreground') }, ' [Q] Quit '),
+    Text({ color: themeColor('mutedForeground') }, '│'),
+    Text({ color: themeColor('foreground') }, ' [Tab] Theme '),
     Spacer({}),
-    Text({ color: 'black', dim: true }, new Date().toLocaleString())
+    Text({ color: themeColor('mutedForeground') }, new Date().toLocaleString())
   );
 }
 
@@ -528,12 +514,18 @@ function Dashboard(): VNode {
       metrics.stop();
       app.exit();
     }
+
+    if (key.tab) {
+      const currentTheme = useTheme();
+      const nextTheme = getNextTheme(currentTheme);
+      setTheme(nextTheme);
+    }
   }));
 
-  const cpuColor = metrics.cpu() > 80 ? 'red' : metrics.cpu() > 60 ? 'yellow' : 'green';
-  const memColor = metrics.mem() > 80 ? 'red' : metrics.mem() > 60 ? 'yellow' : 'cyan';
-  const latColor = metrics.latency() > 100 ? 'red' : metrics.latency() > 60 ? 'yellow' : 'green';
-  const errColor = metrics.errors() > 1 ? 'red' : metrics.errors() > 0.5 ? 'yellow' : 'green';
+  const cpuColor = metrics.cpu() > 80 ? themeColor('error') : metrics.cpu() > 60 ? themeColor('warning') : themeColor('success');
+  const memColor = metrics.mem() > 80 ? themeColor('error') : metrics.mem() > 60 ? themeColor('warning') : themeColor('primary');
+  const latColor = metrics.latency() > 100 ? themeColor('error') : metrics.latency() > 60 ? themeColor('warning') : themeColor('success');
+  const errColor = metrics.errors() > 1 ? themeColor('error') : metrics.errors() > 0.5 ? themeColor('warning') : themeColor('success');
 
   return Box(
     { flexDirection: 'column' },
@@ -548,7 +540,7 @@ function Dashboard(): VNode {
         title: '◆ REQUESTS/SEC',
         value: formatNum(metrics.rps()),
         suffix: '/s',
-        color: COLORS.primary,
+        color: themeColor('primary'),
         spark: sparkline(metrics.rpsHistory(), 22),
       }),
       Box({ width: 1 }),
@@ -577,7 +569,7 @@ function Dashboard(): VNode {
       Card({
         title: '◇ SYSTEM RESOURCES',
         width: WIDE_CARD_WIDTH,
-        color: COLORS.success,
+        color: themeColor('success'),
         children: [
           GaugeBar({ title: 'CPU', value: metrics.cpu(), max: 100, color: cpuColor, width: 36 }),
           Box({ marginTop: 1 }),
@@ -620,10 +612,5 @@ function Dashboard(): VNode {
 // Run
 // ============================================================================
 
-async function main() {
-  console.clear();
-  const { waitUntilExit } = render(Dashboard, { maxFps: 30 });
-  await waitUntilExit();
-}
-
-main().catch(console.error);
+const { waitUntilExit } = render(Dashboard, { autoTabNavigation: false });
+await waitUntilExit();
