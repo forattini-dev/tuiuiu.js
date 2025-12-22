@@ -47,6 +47,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -421,7 +422,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
           },
           chars ? Text({ color: borderColor }, chars.vertical) : null,
           Text({ backgroundColor: isSelected ? selectedBg : undefined }, ' '),
-          Text({ color: isSelected ? 'white' : 'cyan' }, icon),
+          Text({ color: isSelected ? getContrastColor(selectedBg) : 'cyan', backgroundColor: isSelected ? selectedBg : undefined }, icon),
           Box(
             {
               flexDirection: 'row',
