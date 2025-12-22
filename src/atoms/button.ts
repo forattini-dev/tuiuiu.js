@@ -15,7 +15,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { themeColor } from '../core/theme.js';
+import { themeColor, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -126,7 +126,8 @@ export function Button(props: ButtonProps): VNode {
         bgColor = undefined;
         borderColor = 'gray';
       } else if (isHighlighted) {
-        textColor = 'black';
+        // Use automatic contrast color for text on solid background
+        textColor = getContrastColor(color as string);
         bgColor = color;
         borderColor = color;
       } else {
@@ -143,8 +144,14 @@ export function Button(props: ButtonProps): VNode {
       break;
 
     case 'ghost':
-      textColor = disabled ? 'gray' : isHighlighted ? color : 'white';
-      bgColor = isHighlighted && !disabled ? color : undefined;
+      // Ghost uses background when highlighted, need contrast color
+      if (isHighlighted && !disabled) {
+        textColor = getContrastColor(color as string);
+        bgColor = color;
+      } else {
+        textColor = disabled ? 'gray' : 'white';
+        bgColor = undefined;
+      }
       borderColor = undefined;
       borderStyle = 'none';
       break;
@@ -163,12 +170,12 @@ export function Button(props: ButtonProps): VNode {
   // Loading spinner
   if (loading) {
     const spinner = isAscii ? chars.spinner[0] : chars.spinner[0];
-    parts.push(Text({ color: textColor }, spinner + ' '));
+    parts.push(Text({ color: textColor, backgroundColor: bgColor }, spinner + ' '));
   }
 
   // Icon
   if (icon && !loading) {
-    parts.push(Text({ color: textColor }, icon + ' '));
+    parts.push(Text({ color: textColor, backgroundColor: bgColor }, icon + ' '));
   }
 
   // Label
@@ -176,8 +183,8 @@ export function Button(props: ButtonProps): VNode {
   parts.push(
     Text(
       {
-        color: variant === 'solid' && isHighlighted && !disabled ? 'black' : textColor,
-        backgroundColor: variant === 'solid' && isHighlighted && !disabled ? bgColor : undefined,
+        color: textColor,
+        backgroundColor: bgColor,
         bold: isHighlighted && isInteractive,
         dim: disabled,
         underline: variant === 'link' && isHighlighted,
@@ -188,7 +195,7 @@ export function Button(props: ButtonProps): VNode {
 
   // Right icon
   if (iconRight && !loading) {
-    parts.push(Text({ color: textColor }, ' ' + iconRight));
+    parts.push(Text({ color: textColor, backgroundColor: bgColor }, ' ' + iconRight));
   }
 
   // Wrapper
