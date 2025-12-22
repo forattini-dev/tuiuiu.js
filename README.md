@@ -19,7 +19,7 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 
 [📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook)
 
-<img src="docs/assets/demo-hero.gif" alt="Tuiuiu Demo" width="700">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/assets/demo-dashboard.gif" alt="Tuiuiu Demo" width="600">
 
 </div>
 

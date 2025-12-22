@@ -592,6 +592,13 @@ describe('Performance Benchmarks: Chart Components', () => {
       }
 
       const avg = times.reduce((a, b) => a + b, 0) / times.length;
+
+      // If average time is 0 (extremely fast), consistency is perfect
+      if (avg === 0) {
+        expect(0).toBeLessThan(0.5);
+        return;
+      }
+
       const variance =
         times.reduce((sum, t) => sum + Math.pow(t - avg, 2), 0) / times.length;
       const stdDev = Math.sqrt(variance);
