@@ -464,6 +464,8 @@ export function LineChart(options: LineChartOptions): VNode {
     'magenta',
     'blue',
     'red',
+    'white',
+    'brightCyan',
   ];
 
   if (series.length === 0 || series.every((s) => s.data.length === 0)) {
@@ -472,8 +474,14 @@ export function LineChart(options: LineChartOptions): VNode {
 
   const bounds = calculateBounds(series, xAxis, yAxis);
 
-  // Render chart canvas
-  const chartLines = renderLineChartStrings(series, {
+  // Assign colors to series if not specified
+  const seriesWithColors = series.map((s, idx) => ({
+    ...s,
+    color: s.color ?? defaultColors[idx % defaultColors.length],
+  }));
+
+  // Render chart canvas with multi-series colors
+  const { lines: chartLines, colors: lineColors } = renderMultiSeriesChart(seriesWithColors, {
     width,
     height,
     xAxis,
@@ -528,24 +536,53 @@ export function LineChart(options: LineChartOptions): VNode {
     );
   }
 
-  // Render chart lines with colors
+  // Render chart lines with per-character colors
   const chartNodes = chartLines.map((line, lineIdx) => {
-    // For braille mode, we need to color by series
-    // For simplicity, use first series color for now
-    const primaryColor = series[0]?.color ?? defaultColors[0];
-    return Text({ color: primaryColor }, line);
+    const charColors = lineColors[lineIdx] ?? [];
+
+    // Build colored text segments for this line
+    if (charColors.length === 0) {
+      // No colors for this line (empty line)
+      return Text({}, line);
+    }
+
+    // Group consecutive characters with same color
+    const segments: { text: string; color?: ColorValue }[] = [];
+    let currentColor = charColors[0];
+    let currentText = line[0] ?? '';
+
+    for (let i = 1; i < line.length; i++) {
+      const nextColor = charColors[i];
+      if (nextColor === currentColor) {
+        currentText += line[i];
+      } else {
+        segments.push({ text: currentText, color: currentColor });
+        currentColor = nextColor;
+        currentText = line[i] ?? '';
+      }
+    }
+
+    if (currentText) {
+      segments.push({ text: currentText, color: currentColor });
+    }
+
+    // Render segments as Box with multiple Text elements
+    const textElements = segments.map((seg) =>
+      Text({ color: seg.color }, seg.text)
+    );
+
+    return Box({ flexDirection: 'row' }, ...textElements);
   });
 
   // Build legend
-  const shouldShowLegend = showLegend ?? series.length > 1;
+  const shouldShowLegend = showLegend ?? seriesWithColors.length > 1;
   let legendNode: VNode | null = null;
 
   if (shouldShowLegend) {
-    const legendItems = series.map((s, i) => {
-      const color = s.color ?? defaultColors[i % defaultColors.length];
+    const legendItems = seriesWithColors.map((s) => {
       return Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color }, '●'),
+        Text({ color: s.color }, '●'),
         Text({ color: 'gray' }, s.name)
       );
     });

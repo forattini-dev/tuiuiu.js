@@ -27,12 +27,12 @@ import {
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
-import { createTextInput, renderTextInput } from '../src/components/text-input.js';
-import { createSpinner, renderSpinner, type SpinnerStyle } from '../src/components/spinner.js';
-import { ProgressBar } from '../src/components/progress-bar.js';
-import { Markdown } from '../src/components/markdown.js';
-import { CodeBlock } from '../src/components/code-block.js';
-import { Table, KeyValueTable } from '../src/components/table.js';
+import { createTextInput, TextInput } from '../src/atoms/text-input.js';
+import { Spinner, type SpinnerStyle } from '../src/atoms/spinner.js';
+import { ProgressBar } from '../src/atoms/progress-bar.js';
+import { Markdown } from '../src/molecules/markdown.js';
+import { CodeBlock } from '../src/molecules/code-block.js';
+import { Table, KeyValueTable } from '../src/molecules/table.js';
 
 interface Message {
   id: number;

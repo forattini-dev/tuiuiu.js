@@ -430,14 +430,20 @@ export interface ContributionData {
 export interface ContributionGraphOptions {
   /** Contribution data */
   data: ContributionData[];
-  /** Number of weeks to show */
+  /** Number of weeks to show (default: 52) */
   weeks?: number;
+  /** Custom start date (overrides weeks calculation) */
+  startDate?: Date | string;
+  /** Custom end date (overrides weeks calculation) */
+  endDate?: Date | string;
   /** Color scale */
-  colorScale?: ColorScale | 'greens' | 'blues';
+  colorScale?: ColorScale | 'greens' | 'blues' | 'reds' | 'purples' | 'oranges';
   /** Show month labels */
   showMonths?: boolean;
   /** Show day labels (Mon, Wed, Fri) */
   showDays?: boolean;
+  /** Format for cell values */
+  formatValue?: (count: number) => string;
 }
 
 const GREENS_SCALE: ColorScale = {
@@ -448,6 +454,21 @@ const GREENS_SCALE: ColorScale = {
 const BLUES_SCALE: ColorScale = {
   name: 'blues',
   colors: ['#161b22', '#0a3069', '#0969da', '#54aeff', '#79c0ff'],
+};
+
+const REDS_SCALE: ColorScale = {
+  name: 'reds',
+  colors: ['#161b22', '#67060c', '#a61e4d', '#da3633', '#f85149'],
+};
+
+const PURPLES_SCALE: ColorScale = {
+  name: 'purples',
+  colors: ['#161b22', '#3d0814', '#6e40aa', '#a371f7', '#d2a8ff'],
+};
+
+const ORANGES_SCALE: ColorScale = {
+  name: 'oranges',
+  colors: ['#161b22', '#7d2e0f', '#b35806', '#fb8500', '#ffb627'],
 };
 
 /**
@@ -464,9 +485,12 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
   const {
     data,
     weeks = 52,
+    startDate: customStartDate,
+    endDate: customEndDate,
     colorScale = 'greens',
     showMonths = true,
     showDays = true,
+    formatValue = (count) => String(count),
   } = props;
 
   const isAscii = getRenderMode() === 'ascii';
@@ -475,6 +499,9 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
   let scale: ColorScale;
   if (colorScale === 'greens') scale = GREENS_SCALE;
   else if (colorScale === 'blues') scale = BLUES_SCALE;
+  else if (colorScale === 'reds') scale = REDS_SCALE;
+  else if (colorScale === 'purples') scale = PURPLES_SCALE;
+  else if (colorScale === 'oranges') scale = ORANGES_SCALE;
   else if (typeof colorScale === 'string') scale = COLOR_SCALES[colorScale] || GREENS_SCALE;
   else scale = colorScale;
 
@@ -492,11 +519,27 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
   const maxCount = Math.max(1, ...Array.from(dateMap.values()));
 
   // Generate weeks grid (7 rows x N columns)
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - weeks * 7 + 1);
-  // Align to Sunday
-  startDate.setDate(startDate.getDate() - startDate.getDay());
+  let startDateObj = new Date();
+  let endDateObj = new Date();
+
+  if (customStartDate && customEndDate) {
+    // Use custom date range
+    startDateObj = typeof customStartDate === 'string' ? new Date(customStartDate) : customStartDate;
+    endDateObj = typeof customEndDate === 'string' ? new Date(customEndDate) : customEndDate;
+  } else {
+    // Use weeks parameter
+    endDateObj = new Date();
+    startDateObj = new Date(endDateObj);
+    startDateObj.setDate(startDateObj.getDate() - weeks * 7 + 1);
+  }
+
+  // Align start to Sunday
+  startDateObj.setDate(startDateObj.getDate() - startDateObj.getDay());
+
+  // Calculate number of weeks from date range
+  const weeksToShow = customStartDate && customEndDate
+    ? Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (7 * 24 * 60 * 60 * 1000))
+    : weeks;
 
   const grid: number[][] = [];
   for (let day = 0; day < 7; day++) {
@@ -506,9 +549,9 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
   const months: { month: string; col: number }[] = [];
   let currentMonth = '';
 
-  for (let week = 0; week < weeks; week++) {
+  for (let week = 0; week < weeksToShow; week++) {
     for (let day = 0; day < 7; day++) {
-      const d = new Date(startDate);
+      const d = new Date(startDateObj);
       d.setDate(d.getDate() + week * 7 + day);
 
       const dateStr = d.toISOString().slice(0, 10);
@@ -556,7 +599,7 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
       rowCells.push(Text({ color: 'gray', dim: true }, (dayLabels[day] ?? '').padEnd(4)));
     }
 
-    for (let week = 0; week < weeks; week++) {
+    for (let week = 0; week < weeksToShow; week++) {
       const count = grid[day]![week] ?? 0;
       const normalized = normalizeValue(count, 0, maxCount);
       const color = getColorForValue(normalized, scale);

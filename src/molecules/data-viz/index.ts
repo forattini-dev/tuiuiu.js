@@ -101,3 +101,77 @@ export type {
   CalendarHeatmapOptions,
   CorrelationMatrixOptions,
 } from './heatmap.js';
+
+// Legend
+export {
+  Legend,
+  createLegend,
+} from './legend.js';
+
+export type {
+  LegendItem,
+  LegendPosition,
+  LegendOptions,
+  LegendState,
+  LegendProps,
+} from './legend.js';
+
+// Scatter Plot
+export {
+  ScatterPlot,
+} from './scatter-plot.js';
+
+export type {
+  ScatterPoint,
+  MarkerStyle,
+  ScatterPlotOptions,
+  ScatterPlotProps,
+} from './scatter-plot.js';
+
+// Radar Chart
+export {
+  RadarChart,
+} from './radar-chart.js';
+
+export type {
+  RadarAxis,
+  RadarSeries,
+  RadarChartOptions,
+} from './radar-chart.js';
+
+// Gantt Chart
+export {
+  GanttChart,
+} from './gantt-chart.js';
+
+export type {
+  TaskStatus,
+  GanttTask,
+  GanttChartOptions,
+} from './gantt-chart.js';
+
+// Time Heatmap
+export {
+  TimeHeatmap,
+} from './time-heatmap.js';
+
+export type {
+  TimeHeatmapData,
+  TimeGranularity,
+  TimeHeatmapOptions,
+} from './time-heatmap.js';
+
+// Annotations
+export {
+  formatAnnotationLabel,
+  getAnnotationColor,
+} from './annotations.js';
+
+export type {
+  Annotation,
+  AnnotationType,
+  ThresholdAnnotation,
+  RangeAnnotation,
+  TextAnnotation,
+  PointAnnotation,
+} from './annotations.js';
