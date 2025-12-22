@@ -14,7 +14,13 @@
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
 import { story, defaultControls } from '../../core/registry.js';
+import { themeColor, getContrastColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
+import type { ColorValue } from '../../../utils/types.js';
+
+// Helper for background + contrasting text
+const bgText = (bg: ColorValue, text: string, props: Record<string, unknown> = {}) =>
+  Text({ color: getContrastColor(bg as string), backgroundColor: bg, ...props }, text);
 
 // ============================================================================
 // Navbars & Headers
@@ -24,53 +30,57 @@ export const navbarStories: Story[] = [
   story('Navbar - Simple')
     .category('Apps')
     .description('Simple top navigation bar')
-    .render(() =>
-      Box(
+    .render(() => {
+      const bg = 'blue';
+      const fg = getContrastColor(bg);
+      return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'blue',
+          backgroundColor: bg,
           paddingX: 2,
           paddingY: 1,
         },
-        Text({ color: 'white', bold: true }, '🚀 MyApp'),
+        Text({ color: fg, backgroundColor: bg, bold: true }, '🚀 MyApp'),
         Spacer({}),
         Box(
           { flexDirection: 'row', gap: 3 },
-          Text({ color: 'cyan' }, 'Home'),
-          Text({ color: 'gray' }, 'Files'),
-          Text({ color: 'gray' }, 'Settings'),
-          Text({ color: 'gray' }, 'Help')
+          Text({ color: 'cyan', backgroundColor: bg }, 'Home'),
+          Text({ color: fg, backgroundColor: bg, dim: true }, 'Files'),
+          Text({ color: fg, backgroundColor: bg, dim: true }, 'Settings'),
+          Text({ color: fg, backgroundColor: bg, dim: true }, 'Help')
         )
-      )
-    ),
+      );
+    }),
 
   story('Navbar - With Search')
     .category('Apps')
     .description('Navigation bar with search input')
-    .render(() =>
-      Box(
+    .render(() => {
+      const bg = 'gray';
+      const fg = getContrastColor(bg);
+      return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'gray',
+          backgroundColor: bg,
           paddingX: 2,
           paddingY: 1,
           gap: 2,
         },
-        Text({ color: 'white', bold: true }, '📦 PackageManager'),
+        Text({ color: fg, backgroundColor: bg, bold: true }, '📦 PackageManager'),
         Box(
-          { borderStyle: 'single', borderColor: 'white', paddingX: 1, flexGrow: 1 },
-          Text({ color: 'gray', dim: true }, '🔍 Search packages...')
+          { borderStyle: 'single', borderColor: fg, paddingX: 1, flexGrow: 1 },
+          Text({ color: fg, backgroundColor: bg, dim: true }, '🔍 Search packages...')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'cyan' }, 'Browse'),
-          Text({ color: 'gray' }, 'Installed'),
-          Text({ color: 'gray' }, 'Updates')
+          Text({ color: 'cyan', backgroundColor: bg }, 'Browse'),
+          Text({ color: fg, backgroundColor: bg, dim: true }, 'Installed'),
+          Text({ color: fg, backgroundColor: bg, dim: true }, 'Updates')
         )
-      )
-    ),
+      );
+    }),
 
   story('Navbar - Breadcrumb Style')
     .category('Apps')
@@ -113,30 +123,34 @@ export const navbarStories: Story[] = [
     })
     .render((props) => {
       const tabs = ['📄 index.ts', '📄 app.ts', '📄 utils.ts', '📄 types.ts'];
+      const barBg = 'gray';
+      const activeBg = 'blue';
+      const barFg = getContrastColor(barBg);
+      const activeFg = getContrastColor(activeBg);
       return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'gray',
+          backgroundColor: barBg,
         },
-        ...tabs.map((tab, idx) =>
-          Box(
+        ...tabs.map((tab, idx) => {
+          const isActive = idx === props.activeTab;
+          const bg = isActive ? activeBg : barBg;
+          const fg = isActive ? activeFg : barFg;
+          return Box(
             {
               paddingX: 2,
               paddingY: 1,
-              backgroundColor: idx === props.activeTab ? 'blue' : undefined,
+              backgroundColor: bg,
             },
-            Text(
-              { color: idx === props.activeTab ? 'white' : 'gray' },
-              tab
-            ),
-            idx === props.activeTab ? Text({ color: 'gray', dim: true }, ' ×') : null
-          )
-        ),
+            Text({ color: fg, backgroundColor: bg }, tab),
+            isActive ? Text({ color: fg, backgroundColor: bg, dim: true }, ' ×') : null
+          );
+        }),
         Spacer({}),
         Box(
           { paddingX: 2, paddingY: 1 },
-          Text({ color: 'gray' }, '+')
+          Text({ color: barFg, backgroundColor: barBg }, '+')
         )
       );
     }),
@@ -150,8 +164,10 @@ export const sidebarStories: Story[] = [
   story('Sidebar - File Explorer')
     .category('Apps')
     .description('File explorer sidebar')
-    .render(() =>
-      Box(
+    .render(() => {
+      const headerBg = 'blue';
+      const headerFg = getContrastColor(headerBg);
+      return Box(
         {
           flexDirection: 'column',
           width: 30,
@@ -161,8 +177,8 @@ export const sidebarStories: Story[] = [
         },
         // Header
         Box(
-          { paddingX: 1, backgroundColor: 'blue' },
-          Text({ color: 'white', bold: true }, 'EXPLORER')
+          { paddingX: 1, backgroundColor: headerBg },
+          Text({ color: headerFg, backgroundColor: headerBg, bold: true }, 'EXPLORER')
         ),
         // Tree
         Box(
@@ -184,8 +200,8 @@ export const sidebarStories: Story[] = [
           { paddingX: 1, borderStyle: 'single', borderColor: 'gray' },
           Text({ color: 'gray', dim: true }, '12 files, 4 folders')
         )
-      )
-    ),
+      );
+    }),
 
   story('Sidebar - Navigation Menu')
     .category('Apps')
@@ -201,6 +217,8 @@ export const sidebarStories: Story[] = [
         { icon: '📁', label: 'Files' },
         { icon: '⚙️', label: 'Settings' },
       ];
+      const activeBg = 'cyan';
+      const activeFg = getContrastColor(activeBg);
 
       return Box(
         {
@@ -218,19 +236,22 @@ export const sidebarStories: Story[] = [
         // Menu items
         Box(
           { flexDirection: 'column', padding: 1, flexGrow: 1 },
-          ...items.map((item, idx) =>
-            Box(
+          ...items.map((item, idx) => {
+            const isActive = idx === props.activeItem;
+            const bg = isActive ? activeBg : undefined;
+            const fg = isActive ? activeFg : 'gray';
+            return Box(
               {
                 paddingX: 1,
                 paddingY: 0,
-                backgroundColor: idx === props.activeItem ? 'cyan' : undefined,
+                backgroundColor: bg,
               },
               Text(
-                { color: idx === props.activeItem ? 'white' : 'gray' },
+                { color: fg, backgroundColor: bg },
                 `${item.icon} ${item.label}`
               )
-            )
-          ),
+            );
+          }),
           Spacer({})
         ),
         // User
@@ -292,60 +313,64 @@ export const statusBarStories: Story[] = [
   story('StatusBar - Editor Style')
     .category('Apps')
     .description('VS Code-style status bar')
-    .render(() =>
-      Box(
+    .render(() => {
+      const bg = 'blue';
+      const fg = getContrastColor(bg);
+      return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'blue',
+          backgroundColor: bg,
           paddingX: 1,
         },
         // Left section
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'white' }, '⎇ main'),
-          Text({ color: 'white' }, '↻ 0 ↓ 0'),
-          Text({ color: 'yellow' }, '⚠ 2'),
-          Text({ color: 'red' }, '✗ 1')
+          Text({ color: fg, backgroundColor: bg }, '⎇ main'),
+          Text({ color: fg, backgroundColor: bg }, '↻ 0 ↓ 0'),
+          Text({ color: 'yellow', backgroundColor: bg }, '⚠ 2'),
+          Text({ color: 'red', backgroundColor: bg }, '✗ 1')
         ),
         Spacer({}),
         // Right section
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'white' }, 'Ln 42, Col 15'),
-          Text({ color: 'white' }, 'UTF-8'),
-          Text({ color: 'white' }, 'LF'),
-          Text({ color: 'white' }, 'TypeScript'),
-          Text({ color: 'white' }, '⚡ Prettier')
+          Text({ color: fg, backgroundColor: bg }, 'Ln 42, Col 15'),
+          Text({ color: fg, backgroundColor: bg }, 'UTF-8'),
+          Text({ color: fg, backgroundColor: bg }, 'LF'),
+          Text({ color: fg, backgroundColor: bg }, 'TypeScript'),
+          Text({ color: fg, backgroundColor: bg }, '⚡ Prettier')
         )
-      )
-    ),
+      );
+    }),
 
   story('StatusBar - Terminal Style')
     .category('Apps')
     .description('Terminal-style status bar')
-    .render(() =>
-      Box(
+    .render(() => {
+      const bg = 'gray';
+      const fg = getContrastColor(bg);
+      return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'gray',
+          backgroundColor: bg,
           paddingX: 1,
         },
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'green' }, '●'),
-          Text({ color: 'white' }, 'zsh'),
-          Text({ color: 'cyan' }, '~/projects/tuiuiu')
+          Text({ color: 'green', backgroundColor: bg }, '●'),
+          Text({ color: fg, backgroundColor: bg }, 'zsh'),
+          Text({ color: 'cyan', backgroundColor: bg }, '~/projects/tuiuiu')
         ),
         Spacer({}),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'yellow' }, '⏱ 0.52s'),
-          Text({ color: 'white' }, '🕐 14:32:15')
+          Text({ color: 'yellow', backgroundColor: bg }, '⏱ 0.52s'),
+          Text({ color: fg, backgroundColor: bg }, '🕐 14:32:15')
         )
-      )
-    ),
+      );
+    }),
 
   story('StatusBar - Progress')
     .category('Apps')
@@ -374,41 +399,49 @@ export const statusBarStories: Story[] = [
   story('StatusBar - Multi-Section')
     .category('Apps')
     .description('Status bar with multiple sections')
-    .render(() =>
-      Box(
+    .render(() => {
+      const baseBg = 'gray';
+      const baseFg = getContrastColor(baseBg);
+      const modeBg = 'green';
+      const modeFg = getContrastColor(modeBg);
+      const posBg = 'blue';
+      const posFg = getContrastColor(posBg);
+      const pctBg = 'cyan';
+      const pctFg = getContrastColor(pctBg);
+      return Box(
         {
           flexDirection: 'row',
           width: 80,
-          backgroundColor: 'gray',
+          backgroundColor: baseBg,
         },
         // Mode indicator
         Box(
-          { backgroundColor: 'green', paddingX: 1 },
-          Text({ color: 'white', bold: true }, 'NORMAL')
+          { backgroundColor: modeBg, paddingX: 1 },
+          Text({ color: modeFg, backgroundColor: modeBg, bold: true }, 'NORMAL')
         ),
         // File info
         Box(
           { paddingX: 2 },
-          Text({ color: 'white' }, '📄 index.ts')
+          Text({ color: baseFg, backgroundColor: baseBg }, '📄 index.ts')
         ),
         // Modified indicator
         Box(
           { paddingX: 1 },
-          Text({ color: 'yellow' }, '[+]')
+          Text({ color: 'yellow', backgroundColor: baseBg }, '[+]')
         ),
         Spacer({}),
         // Position
         Box(
-          { backgroundColor: 'blue', paddingX: 1 },
-          Text({ color: 'white' }, '42:15')
+          { backgroundColor: posBg, paddingX: 1 },
+          Text({ color: posFg, backgroundColor: posBg }, '42:15')
         ),
         // Percentage
         Box(
-          { backgroundColor: 'cyan', paddingX: 1 },
-          Text({ color: 'white' }, '68%')
+          { backgroundColor: pctBg, paddingX: 1 },
+          Text({ color: pctFg, backgroundColor: pctBg }, '68%')
         )
-      )
-    ),
+      );
+    }),
 ];
 
 // ============================================================================
@@ -509,11 +542,15 @@ export const commandStories: Story[] = [
             borderColor: 'gray',
             marginTop: 0,
           },
-          Box(
-            { backgroundColor: 'blue', paddingX: 1 },
-            Text({ color: 'white' }, 'checkout'),
-            Text({ color: 'gray', dim: true }, '  Switch branches')
-          ),
+          (() => {
+            const selBg = 'blue';
+            const selFg = getContrastColor(selBg);
+            return Box(
+              { backgroundColor: selBg, paddingX: 1 },
+              Text({ color: selFg, backgroundColor: selBg }, 'checkout'),
+              Text({ color: selFg, backgroundColor: selBg, dim: true }, '  Switch branches')
+            );
+          })(),
           Box(
             { paddingX: 1 },
             Text({ color: 'gray' }, 'cherry-pick'),
@@ -549,12 +586,16 @@ export const commandStories: Story[] = [
         // Results
         Box(
           { flexDirection: 'column', padding: 1 },
-          Box(
-            { backgroundColor: 'blue', paddingX: 1, flexDirection: 'row' },
-            Text({ color: 'white' }, '📄 New File'),
-            Spacer({}),
-            Text({ color: 'gray' }, 'Ctrl+N')
-          ),
+          (() => {
+            const selBg = 'blue';
+            const selFg = getContrastColor(selBg);
+            return Box(
+              { backgroundColor: selBg, paddingX: 1, flexDirection: 'row' },
+              Text({ color: selFg, backgroundColor: selBg }, '📄 New File'),
+              Spacer({}),
+              Text({ color: selFg, backgroundColor: selBg, dim: true }, 'Ctrl+N')
+            );
+          })(),
           Box(
             { paddingX: 1, flexDirection: 'row' },
             Text({ color: 'gray' }, '📂 Open File'),
@@ -591,8 +632,17 @@ export const appShellStories: Story[] = [
   story('Shell - Editor')
     .category('Apps')
     .description('Complete code editor layout')
-    .render(() =>
-      Box(
+    .render(() => {
+      const tabBarBg = 'gray';
+      const tabBarFg = getContrastColor(tabBarBg);
+      const activeTabBg = 'blue';
+      const activeTabFg = getContrastColor(activeTabBg);
+      const sidebarHeaderBg = 'gray';
+      const sidebarHeaderFg = getContrastColor(sidebarHeaderBg);
+      const statusBg = 'blue';
+      const statusFg = getContrastColor(statusBg);
+
+      return Box(
         {
           flexDirection: 'column',
           width: 80,
@@ -600,13 +650,13 @@ export const appShellStories: Story[] = [
         },
         // Top bar (tabs)
         Box(
-          { flexDirection: 'row', backgroundColor: 'gray' },
+          { flexDirection: 'row', backgroundColor: tabBarBg },
           Box(
-            { paddingX: 2, backgroundColor: 'blue' },
-            Text({ color: 'white' }, '📄 index.ts ×')
+            { paddingX: 2, backgroundColor: activeTabBg },
+            Text({ color: activeTabFg, backgroundColor: activeTabBg }, '📄 index.ts ×')
           ),
-          Box({ paddingX: 2 }, Text({ color: 'gray' }, '📄 app.ts')),
-          Box({ paddingX: 2 }, Text({ color: 'gray' }, '📄 utils.ts')),
+          Box({ paddingX: 2 }, Text({ color: tabBarFg, backgroundColor: tabBarBg }, '📄 app.ts')),
+          Box({ paddingX: 2 }, Text({ color: tabBarFg, backgroundColor: tabBarBg }, '📄 utils.ts')),
           Spacer({})
         ),
         // Main content
@@ -621,8 +671,8 @@ export const appShellStories: Story[] = [
               borderColor: 'gray',
             },
             Box(
-              { paddingX: 1, backgroundColor: 'gray' },
-              Text({ color: 'white' }, 'EXPLORER')
+              { paddingX: 1, backgroundColor: sidebarHeaderBg },
+              Text({ color: sidebarHeaderFg, backgroundColor: sidebarHeaderBg }, 'EXPLORER')
             ),
             Box(
               { padding: 1, flexDirection: 'column', flexGrow: 1 },
@@ -683,21 +733,28 @@ export const appShellStories: Story[] = [
         ),
         // Status bar
         Box(
-          { flexDirection: 'row', backgroundColor: 'blue', paddingX: 1 },
-          Text({ color: 'white' }, '⎇ main'),
-          Text({ color: 'white' }, '  ✓ 0 ⚠ 0'),
+          { flexDirection: 'row', backgroundColor: statusBg, paddingX: 1 },
+          Text({ color: statusFg, backgroundColor: statusBg }, '⎇ main'),
+          Text({ color: statusFg, backgroundColor: statusBg }, '  ✓ 0 ⚠ 0'),
           Spacer({}),
-          Text({ color: 'white' }, 'Ln 5, Col 28'),
-          Text({ color: 'white' }, '  TypeScript')
+          Text({ color: statusFg, backgroundColor: statusBg }, 'Ln 5, Col 28'),
+          Text({ color: statusFg, backgroundColor: statusBg }, '  TypeScript')
         )
-      )
-    ),
+      );
+    }),
 
   story('Shell - Dashboard')
     .category('Apps')
     .description('Dashboard application layout')
-    .render(() =>
-      Box(
+    .render(() => {
+      const headerBg = 'blue';
+      const headerFg = getContrastColor(headerBg);
+      const activeBg = 'cyan';
+      const activeFg = getContrastColor(activeBg);
+      const footerBg = 'gray';
+      const footerFg = getContrastColor(footerBg);
+
+      return Box(
         {
           flexDirection: 'column',
           width: 80,
@@ -705,11 +762,11 @@ export const appShellStories: Story[] = [
         },
         // Header
         Box(
-          { flexDirection: 'row', backgroundColor: 'blue', paddingX: 2, paddingY: 1 },
-          Text({ color: 'white', bold: true }, '📊 Analytics Dashboard'),
+          { flexDirection: 'row', backgroundColor: headerBg, paddingX: 2, paddingY: 1 },
+          Text({ color: headerFg, backgroundColor: headerBg, bold: true }, '📊 Analytics Dashboard'),
           Spacer({}),
-          Text({ color: 'cyan' }, '🔔 3'),
-          Text({ color: 'white' }, '  👤 Admin')
+          Text({ color: 'cyan', backgroundColor: headerBg }, '🔔 3'),
+          Text({ color: headerFg, backgroundColor: headerBg }, '  👤 Admin')
         ),
         // Main content
         Box(
@@ -724,8 +781,8 @@ export const appShellStories: Story[] = [
               padding: 1,
             },
             Box(
-              { backgroundColor: 'cyan', paddingX: 1 },
-              Text({ color: 'white' }, '🏠 Overview')
+              { backgroundColor: activeBg, paddingX: 1 },
+              Text({ color: activeFg, backgroundColor: activeBg }, '🏠 Overview')
             ),
             Text({ color: 'gray' }, '📈 Analytics'),
             Text({ color: 'gray' }, '👥 Users'),
@@ -786,19 +843,24 @@ export const appShellStories: Story[] = [
         ),
         // Footer
         Box(
-          { flexDirection: 'row', backgroundColor: 'gray', paddingX: 1 },
-          Text({ color: 'white' }, '● Connected'),
+          { flexDirection: 'row', backgroundColor: footerBg, paddingX: 1 },
+          Text({ color: footerFg, backgroundColor: footerBg }, '● Connected'),
           Spacer({}),
-          Text({ color: 'gray' }, 'Last updated: 2 min ago')
+          Text({ color: footerFg, backgroundColor: footerBg, dim: true }, 'Last updated: 2 min ago')
         )
-      )
-    ),
+      );
+    }),
 
   story('Shell - Terminal')
     .category('Apps')
     .description('Terminal emulator layout')
-    .render(() =>
-      Box(
+    .render(() => {
+      const titleBg = 'gray';
+      const titleFg = getContrastColor(titleBg);
+      const terminalBg = 'black';
+      const terminalFg = getContrastColor(terminalBg);
+
+      return Box(
         {
           flexDirection: 'column',
           width: 80,
@@ -808,12 +870,12 @@ export const appShellStories: Story[] = [
         },
         // Title bar
         Box(
-          { flexDirection: 'row', backgroundColor: 'gray', paddingX: 1 },
-          Text({ color: 'red' }, '● '),
-          Text({ color: 'yellow' }, '● '),
-          Text({ color: 'green' }, '● '),
+          { flexDirection: 'row', backgroundColor: titleBg, paddingX: 1 },
+          Text({ color: 'red', backgroundColor: titleBg }, '● '),
+          Text({ color: 'yellow', backgroundColor: titleBg }, '● '),
+          Text({ color: 'green', backgroundColor: titleBg }, '● '),
           Spacer({}),
-          Text({ color: 'white' }, 'Terminal — zsh'),
+          Text({ color: titleFg, backgroundColor: titleBg }, 'Terminal — zsh'),
           Spacer({}),
           Text({ color: 'gray' }, '     ')
         ),
@@ -846,19 +908,30 @@ export const appShellStories: Story[] = [
           Spacer({}),
           Box(
             { flexDirection: 'row' },
-            Text({ color: 'green' }, '➜ '),
-            Text({ color: 'cyan' }, '~/projects/tuiuiu '),
-            Text({ color: 'white' }, '▋')
+            Text({ color: 'green', backgroundColor: terminalBg }, '➜ '),
+            Text({ color: 'cyan', backgroundColor: terminalBg }, '~/projects/tuiuiu '),
+            Text({ color: terminalFg, backgroundColor: terminalBg }, '▋')
           )
         )
-      )
-    ),
+      );
+    }),
 
   story('Shell - File Manager')
     .category('Apps')
     .description('Dual-pane file manager layout')
-    .render(() =>
-      Box(
+    .render(() => {
+      const menuBg = 'cyan';
+      const menuFg = getContrastColor(menuBg);
+      const activePaneBg = 'blue';
+      const activePaneFg = getContrastColor(activePaneBg);
+      const inactivePaneBg = 'gray';
+      const inactivePaneFg = getContrastColor(inactivePaneBg);
+      const fnKeyBg = 'blue';
+      const fnKeyFg = getContrastColor(fnKeyBg);
+      const fnKeyHighBg = 'cyan';
+      const fnKeyHighFg = getContrastColor(fnKeyHighBg);
+
+      return Box(
         {
           flexDirection: 'column',
           width: 80,
@@ -866,18 +939,18 @@ export const appShellStories: Story[] = [
         },
         // Menu bar
         Box(
-          { flexDirection: 'row', backgroundColor: 'cyan', paddingX: 1 },
-          Text({ color: 'white' }, 'File'),
-          Text({ color: 'white' }, '  Edit'),
-          Text({ color: 'white' }, '  View'),
-          Text({ color: 'white' }, '  Go'),
-          Text({ color: 'white' }, '  Help'),
+          { flexDirection: 'row', backgroundColor: menuBg, paddingX: 1 },
+          Text({ color: menuFg, backgroundColor: menuBg }, 'File'),
+          Text({ color: menuFg, backgroundColor: menuBg }, '  Edit'),
+          Text({ color: menuFg, backgroundColor: menuBg }, '  View'),
+          Text({ color: menuFg, backgroundColor: menuBg }, '  Go'),
+          Text({ color: menuFg, backgroundColor: menuBg }, '  Help'),
           Spacer({})
         ),
         // Dual pane
         Box(
           { flexDirection: 'row', flexGrow: 1 },
-          // Left pane
+          // Left pane (active)
           Box(
             {
               width: 40,
@@ -886,8 +959,8 @@ export const appShellStories: Story[] = [
               borderColor: 'cyan',
             },
             Box(
-              { paddingX: 1, backgroundColor: 'blue' },
-              Text({ color: 'white' }, '~/Documents')
+              { paddingX: 1, backgroundColor: activePaneBg },
+              Text({ color: activePaneFg, backgroundColor: activePaneBg }, '~/Documents')
             ),
             Box(
               { flexDirection: 'column', padding: 1, flexGrow: 1 },
@@ -899,11 +972,11 @@ export const appShellStories: Story[] = [
               Spacer({})
             ),
             Box(
-              { paddingX: 1, backgroundColor: 'gray' },
-              Text({ color: 'white' }, '5 files, 106.3K')
+              { paddingX: 1, backgroundColor: inactivePaneBg },
+              Text({ color: inactivePaneFg, backgroundColor: inactivePaneBg }, '5 files, 106.3K')
             )
           ),
-          // Right pane
+          // Right pane (inactive)
           Box(
             {
               width: 40,
@@ -912,8 +985,8 @@ export const appShellStories: Story[] = [
               borderColor: 'gray',
             },
             Box(
-              { paddingX: 1, backgroundColor: 'gray' },
-              Text({ color: 'white' }, '~/Downloads')
+              { paddingX: 1, backgroundColor: inactivePaneBg },
+              Text({ color: inactivePaneFg, backgroundColor: inactivePaneBg }, '~/Downloads')
             ),
             Box(
               { flexDirection: 'column', padding: 1, flexGrow: 1 },
@@ -924,41 +997,44 @@ export const appShellStories: Story[] = [
               Spacer({})
             ),
             Box(
-              { paddingX: 1, backgroundColor: 'gray' },
-              Text({ color: 'white' }, '3 files, 1.5M')
+              { paddingX: 1, backgroundColor: inactivePaneBg },
+              Text({ color: inactivePaneFg, backgroundColor: inactivePaneBg }, '3 files, 1.5M')
             )
           )
         ),
         // Function key bar
         Box(
-          { flexDirection: 'row', backgroundColor: 'blue' },
-          Text({ color: 'black', backgroundColor: 'cyan' }, ' 1'),
-          Text({ color: 'white' }, 'Help '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '2'),
-          Text({ color: 'white' }, 'Menu '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '3'),
-          Text({ color: 'white' }, 'View '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '4'),
-          Text({ color: 'white' }, 'Edit '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '5'),
-          Text({ color: 'white' }, 'Copy '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '6'),
-          Text({ color: 'white' }, 'Move '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '7'),
-          Text({ color: 'white' }, 'Mkdir'),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '8'),
-          Text({ color: 'white' }, 'Del '),
-          Text({ color: 'black', backgroundColor: 'cyan' }, '10'),
-          Text({ color: 'white' }, 'Quit')
+          { flexDirection: 'row', backgroundColor: fnKeyBg },
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, ' 1'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Help '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '2'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Menu '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '3'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'View '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '4'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Edit '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '5'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Copy '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '6'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Move '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '7'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Mkdir'),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '8'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Del '),
+          Text({ color: fnKeyHighFg, backgroundColor: fnKeyHighBg }, '10'),
+          Text({ color: fnKeyFg, backgroundColor: fnKeyBg }, 'Quit')
         )
-      )
-    ),
+      );
+    }),
 
   story('Shell - Chat App')
     .category('Apps')
     .description('Chat application layout')
-    .render(() =>
-      Box(
+    .render(() => {
+      const sentBg = 'cyan';
+      const sentFg = getContrastColor(sentBg);
+
+      return Box(
         {
           flexDirection: 'column',
           width: 70,
@@ -998,11 +1074,11 @@ export const appShellStories: Story[] = [
             Box(
               {
                 borderStyle: 'round',
-                borderColor: 'cyan',
-                backgroundColor: 'cyan',
+                borderColor: sentBg,
+                backgroundColor: sentBg,
                 paddingX: 1,
               },
-              Text({ color: 'white' }, "It's going great! Almost done 🎉")
+              Text({ color: sentFg, backgroundColor: sentBg }, "It's going great! Almost done 🎉")
             ),
             Text({ color: 'gray', dim: true }, '10:32 AM ✓✓')
           ),
@@ -1040,8 +1116,8 @@ export const appShellStories: Story[] = [
           Text({ color: 'gray' }, '😊'),
           Text({ color: 'cyan' }, '➤')
         )
-      )
-    ),
+      );
+    }),
 ];
 
 /**
