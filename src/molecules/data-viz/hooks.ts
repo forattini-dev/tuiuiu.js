@@ -10,7 +10,7 @@
  * - useChartInteraction: Combined interactions
  */
 
-import { createSignal, createEffect, createMemo } from '../../primitives/signal.js';
+import { createSignal, createMemo } from '../../primitives/signal.js';
 import type { ColorValue } from '../../utils/types.js';
 
 // =============================================================================
