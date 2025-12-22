@@ -30,6 +30,7 @@ import {
   getNextTheme,
   themeColor,
 } from '../src/index.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 // Types
 interface PingStats {
@@ -134,6 +135,7 @@ async function pingLoop() {
       });
 
       setStatus(`${formatDuration(elapsed)}`);
+      clearOldKeyPresses();
     } catch {
       setStats(current => ({
         ...current,
@@ -423,7 +425,7 @@ function Footer() {
 function App() {
   const app = useApp();
 
-  useInput((char, key) => {
+  useInput(withKeyIndicator((char, key) => {
     if (char === 'q' || key.escape) {
       setIsRunning(false);
       app.exit();
@@ -452,7 +454,7 @@ function App() {
       const nextTheme = getNextTheme(currentTheme);
       setTheme(nextTheme);
     }
-  });
+  }));
 
   return Box(
     { flexDirection: 'column' },
@@ -469,6 +471,7 @@ function App() {
     // Main graph
     LatencyGraph(),
     Footer(),
+    KeyIndicator(),
   );
 }
 

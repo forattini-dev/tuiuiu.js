@@ -27,6 +27,7 @@ import {
   type VNode,
   type SelectItem,
 } from '../src/index.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 // Form field definitions
 const roleOptions: SelectItem<string>[] = [
@@ -134,7 +135,8 @@ function FormsDemo(): VNode {
   };
 
   // Global navigation
-  useInput((char, key) => {
+  useInput(withKeyIndicator((char, key) => {
+    clearOldKeyPresses();
     // Tab navigation for text inputs
     if (activeField() < 2) {
       if (key.tab && !key.shift) {
@@ -157,7 +159,7 @@ function FormsDemo(): VNode {
     if (key.escape || (key.ctrl && char === 'c')) {
       exit();
     }
-  });
+  }));
 
   // Submission result
   if (submitted()) {
@@ -304,7 +306,9 @@ function FormsDemo(): VNode {
       Box({ height: 1 }),
       // Current field
       renderActiveField()
-    )
+    ),
+    // Key indicator at bottom
+    KeyIndicator()
   );
 }
 

@@ -23,6 +23,7 @@ import {
   getNextTheme,
   themeColor,
 } from '../src/index.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 // Types
 interface HopStats {
@@ -270,6 +271,7 @@ async function pingLoop() {
 
     await Promise.all(promises);
     setStatus(`Pinging ${currentHops.length} hops to ${target}`);
+    clearOldKeyPresses();
 
     // Small delay between rounds
     await new Promise(r => setTimeout(r, 100));
@@ -412,7 +414,7 @@ function Footer() {
 function App() {
   const app = useApp();
 
-  useInput((char, key) => {
+  useInput(withKeyIndicator((char, key) => {
     if (char === 'q' || key.escape) {
       setIsRunning(false);
       app.exit();
@@ -450,7 +452,7 @@ function App() {
       const nextTheme = getNextTheme(currentTheme);
       setTheme(nextTheme);
     }
-  });
+  }));
 
   return Box(
     { flexDirection: 'column' },
@@ -461,7 +463,8 @@ function App() {
       ...hops().map((hop, index) => HopRow({ hop, index }))
     ),
     LatencyGraph(),
-    Footer()
+    Footer(),
+    KeyIndicator(),
   );
 }
 

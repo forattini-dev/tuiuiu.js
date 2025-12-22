@@ -24,13 +24,14 @@ import {
   useInput,
   useApp,
   type VNode,
-} from '../index.js';
-import { createTextInput, renderTextInput } from '../components/text-input.js';
-import { createSpinner, renderSpinner, type SpinnerStyle } from '../components/spinner.js';
-import { ProgressBar } from '../components/progress-bar.js';
-import { Markdown } from '../components/markdown.js';
-import { CodeBlock } from '../components/code-block.js';
-import { Table, KeyValueTable } from '../components/table.js';
+} from '../src/index.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { createTextInput, renderTextInput } from '../src/components/text-input.js';
+import { createSpinner, renderSpinner, type SpinnerStyle } from '../src/components/spinner.js';
+import { ProgressBar } from '../src/components/progress-bar.js';
+import { Markdown } from '../src/components/markdown.js';
+import { CodeBlock } from '../src/components/code-block.js';
+import { Table, KeyValueTable } from '../src/components/table.js';
 
 interface Message {
   id: number;
@@ -442,7 +443,8 @@ Feel free to ask me anything!`;
   };
 
   // Global key handler
-  useInput((char, key) => {
+  useInput(withKeyIndicator((char, key) => {
+    clearOldKeyPresses();
     if (key.ctrl && char === 'c') {
       exit();
       return;
@@ -456,7 +458,7 @@ Feel free to ask me anything!`;
       setShowHelp((h) => !h);
       return;
     }
-  });
+  }));
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -503,7 +505,10 @@ Feel free to ask me anything!`;
       theme: 'dark',
       spinnerStyle: spinnerStyle(),
       messageCount: messages().length,
-    })
+    }),
+
+    // Key indicator
+    KeyIndicator()
   );
 }
 

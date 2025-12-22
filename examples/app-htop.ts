@@ -40,6 +40,7 @@ import {
   type SystemInfo,
 } from '../src/utils/system-data.js';
 import type { VNode } from '../src/utils/types.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 // =============================================================================
 // Types
@@ -296,6 +297,7 @@ function HtopApp(): VNode {
         setMemInfo(getMemoryInfo());
         setProcesses(getProcessList());
         setSystemInfo(getSystemInfo());
+        clearOldKeyPresses();
       });
     }, 200);
 
@@ -336,7 +338,7 @@ function HtopApp(): VNode {
   };
 
   // Input handling
-  useInput((input, key) => {
+  useInput(withKeyIndicator((input, key) => {
     if (showHelp()) {
       if (key.escape || input === 'q' || input === 'h') {
         setShowHelp(false);
@@ -380,7 +382,7 @@ function HtopApp(): VNode {
       const nextTheme = getNextTheme(currentTheme);
       setTheme(nextTheme);
     }
-  });
+  }));
 
   // Help overlay
   if (showHelp()) {
@@ -419,7 +421,7 @@ function HtopApp(): VNode {
   const cpuCount = cpu.cores.length || 1;
   const cpuRows = Math.ceil(cpuCount / 2);
   const headerHeight = 1 + 1 + cpuRows + 1 + 2 + 2; // Header + spacer + CPU rows + gap + Mem/Swap + Tasks/Load + StatusBar
-  const processListHeight = height - headerHeight - 1;
+  const processListHeight = height - headerHeight - 2; // -2 for KeyIndicator
 
   const procs = sortedProcesses();
   const visibleProcesses = procs.slice(0, Math.max(1, processListHeight));
@@ -501,6 +503,9 @@ function HtopApp(): VNode {
     ...Array.from({ length: Math.max(0, processListHeight - visibleProcesses.length) }, () =>
       Text({}, '')
     ),
+
+    // Key indicator at bottom
+    KeyIndicator({ width }),
   );
 }
 

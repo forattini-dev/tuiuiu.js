@@ -18,12 +18,14 @@ import {
   useApp,
   type VNode,
 } from '../src/index.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 function Counter(): VNode {
   const [count, setCount] = useState(0);
   const { exit } = useApp();
 
-  useInput((char, key) => {
+  useInput(withKeyIndicator((char, key) => {
+    clearOldKeyPresses();
     if (key.upArrow || char === 'k') {
       setCount(c => c + 1);
     }
@@ -36,7 +38,7 @@ function Counter(): VNode {
     if (key.escape || (key.ctrl && char === 'c')) {
       exit();
     }
-  });
+  }));
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -47,7 +49,8 @@ function Counter(): VNode {
       Text({ color: 'yellow', bold: true }, `Count: ${count()}`)
     ),
     Text({}),
-    Text({ color: 'gray', dim: true }, '↑/k: increment  ↓/j: decrement  r: reset  ESC: quit')
+    Text({ color: 'gray', dim: true }, '↑/k: increment  ↓/j: decrement  r: reset  ESC: quit'),
+    KeyIndicator()
   );
 }
 

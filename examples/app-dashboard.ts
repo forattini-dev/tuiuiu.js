@@ -17,6 +17,7 @@ import { createSignal, createEffect } from '../src/primitives/signal.js';
 import { useState, useInput, useApp } from '../src/hooks/index.js';
 import { createSpinner, renderSpinner } from '../src/components/spinner.js';
 import type { VNode } from '../src/utils/types.js';
+import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 
 // ============================================================================
 // Chart Helpers
@@ -469,15 +470,16 @@ function DashboardApp(): VNode {
     }
     setLastRenderTime(now);
     setRenderCount((c) => c + 1);
+    clearOldKeyPresses();
   });
 
   // Handle input
-  useInput((input, key) => {
+  useInput(withKeyIndicator((input, key) => {
     if (input === 'q' || key.escape) {
       metrics.stop();
       app.exit();
     }
-  });
+  }));
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -524,7 +526,8 @@ function DashboardApp(): VNode {
       })
     ),
 
-    StatusBar({ connections: metrics.activeConnections(), fps: fps() })
+    StatusBar({ connections: metrics.activeConnections(), fps: fps() }),
+    KeyIndicator(),
   );
 }
 
