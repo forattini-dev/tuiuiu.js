@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "tuiuiu": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "tsx",
+        "./src/storybook/cli.ts",
+        "mcp"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "tuiuiu-examples": {
+      "command": "node",
+      "args": [
+        "dist/examples/mcp-server-example.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "disabled": true
+    }
+  }
+}
