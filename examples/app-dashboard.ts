@@ -15,10 +15,10 @@ import { Box, Text, Spacer, Divider } from '../src/primitives/index.js';
 import { render } from '../src/app/render-loop.js';
 import { createSignal, createEffect } from '../src/primitives/signal.js';
 import { useState, useInput, useApp } from '../src/hooks/index.js';
-import { createSpinner, renderSpinner } from '../src/components/spinner.js';
+import { createSpinner, renderSpinner } from '../src/atoms/spinner.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
-import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
+import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-header.js';
 
 // ============================================================================
 // Chart Helpers
@@ -517,7 +517,7 @@ function DashboardApp(): VNode {
       })
     ),
 
-    StatusBar({ connections: metrics.activeConnections(), fps: fps() }),
+    StatusBar({ connections: metrics.activeConnections(), fps: getFps() }),
     KeyIndicator(),
   );
 }
