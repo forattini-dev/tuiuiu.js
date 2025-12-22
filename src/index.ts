@@ -26,6 +26,19 @@
  */
 
 // =============================================================================
+// Version
+// =============================================================================
+
+export {
+  getVersion,
+  getVersionSync,
+  getVersionInfo,
+  formatVersionInfo,
+} from './version.js';
+
+export type { VersionInfo } from './version.js';
+
+// =============================================================================
 // Core - Signals, Layout, Rendering, App
 // =============================================================================
 
@@ -57,6 +70,8 @@ export {
   // App
   render,
   renderOnce,
+  // Hotkeys
+  isHotkey,
 } from './core/index.js';
 
 export type {
@@ -78,6 +93,20 @@ export {
   parseKeypress,
   useTerminalSize,
   useMouse,
+  // Hotkeys
+  useHotkeys,
+  registerHotkey,
+  triggerHotkey,
+  getRegisteredHotkeys,
+  getHotkeyScope,
+  setHotkeyScope,
+  resetHotkeyScope,
+  parseHotkey,
+  parseHotkeys,
+  matchesHotkey,
+  formatHotkey,
+  formatHotkeyPlatform,
+  isMac,
 } from './hooks/index.js';
 
 export type {
@@ -86,6 +115,9 @@ export type {
   AppContext,
   FocusOptions,
   FocusResult,
+  HotkeyBinding,
+  HotkeyOptions,
+  HotkeyHandler,
 } from './hooks/index.js';
 
 // =============================================================================
@@ -318,6 +350,8 @@ export {
   popTheme,
   createTheme,
   themeColor,
+  themeColorPair,
+  getContrastColor,
   themeSpacing,
   resolveColor,
   detectColorScheme,
@@ -326,7 +360,18 @@ export {
   lightTheme,
   highContrastDarkTheme,
   monochromeTheme,
+  // Popular terminal themes
+  monokaiTheme,
+  draculaTheme,
+  nordTheme,
+  solarizedDarkTheme,
+  gruvboxTheme,
+  tokyoNightTheme,
+  catppuccinTheme,
+  // Theme utilities
   themes,
+  themeNames,
+  getNextTheme,
   tw,
   // Colors - Tailwind CSS palette
   colors,
