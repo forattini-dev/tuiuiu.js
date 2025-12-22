@@ -340,19 +340,6 @@ export function useChartInteraction(
 
   const [isFocused, setIsFocused] = createSignal(false);
 
-  // Auto-show tooltip when hovering (if tooltip enabled)
-  createEffect(() => {
-    if (!tooltip || !hover.hoveredIndex()) {
-      tooltip?.hide();
-      return;
-    }
-
-    const idx = hover.hoveredIndex();
-    if (idx !== undefined) {
-      tooltip?.show(`Data Point ${idx}`, hover.position?.() || { x: 0, y: 0 });
-    }
-  });
-
   const select = (index: number, addToSelection?: boolean) => {
     selection.select(index, addToSelection);
   };
@@ -462,37 +449,32 @@ export function useChartInteraction(
  * @returns Data tracking utilities
  *
  * @example
- * const { changedIndices, hasChanged } = useChartDataChange(data)
- * // Animate changed points
+ * const { changedIndices, hasChanged } = useChartDataChange(data, (indices) => {
+ *   // Call this manually when data changes to update tracking
+ *   updateChangedIndices(indices)
+ * })
  */
 export function useChartDataChange<T>(data: T[], onDataChange?: (indices: number[]) => void) {
-  const [previousData, setPreviousData] = createSignal<T[] | null>(null);
   const [changedIndices, setChangedIndices] = createSignal<number[]>([]);
 
-  createEffect(() => {
-    const prev = previousData();
-    if (!prev) {
-      setPreviousData([...data]);
-      return;
-    }
-
+  // Manual update function to avoid infinite loops
+  const updateChangedIndices = (previousData: T[]) => {
     const changed: number[] = [];
-    for (let i = 0; i < Math.max(data.length, prev.length); i++) {
-      if (data[i] !== prev[i]) {
+    for (let i = 0; i < Math.max(data.length, previousData.length); i++) {
+      if (data[i] !== previousData[i]) {
         changed.push(i);
       }
     }
-
     setChangedIndices(changed);
     onDataChange?.(changed);
-    setPreviousData([...data]);
-  });
+  };
 
   const hasChanged = (index: number) => changedIndices().includes(index);
 
   return {
     changedIndices,
     hasChanged,
+    updateChangedIndices,
   };
 }
 
