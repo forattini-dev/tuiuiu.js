@@ -354,7 +354,8 @@ describe('waitForEvent', () => {
 
     const promise = waitForEvent<string>(emitter, 'done');
 
-    setTimeout(() => emitter.emit('done', 'success'), 10);
+    // Emit immediately instead of using setTimeout
+    emitter.emit('done', 'success');
 
     const event = await promise;
     expect(event.type).toBe('done');
@@ -362,9 +363,19 @@ describe('waitForEvent', () => {
   });
 
   it('should reject on timeout', async () => {
-    const emitter = new EventEmitter();
+    vi.useFakeTimers();
+    try {
+      const emitter = new EventEmitter();
 
-    await expect(waitForEvent(emitter, 'never', 10)).rejects.toThrow('Timeout');
+      const promise = waitForEvent(emitter, 'never', 10);
+
+      // Advance timers to trigger the timeout and catch the rejection
+      vi.advanceTimersByTime(20);
+
+      await expect(promise).rejects.toThrow('Timeout');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -81,8 +81,8 @@ describe('Screen Manager', () => {
         transitionDuration: 0,
       });
 
-      // Wait for push to complete
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Wait for push to complete (transitionDuration: 0 resolves immediately)
+      await Promise.resolve();
 
       expect(manager.current?.id).toBe(homeScreen.id);
       expect(manager.stackSize).toBe(1);
