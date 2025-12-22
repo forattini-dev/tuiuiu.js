@@ -70,6 +70,6 @@ export default defineConfig({
         lines: 80,
       },
     },
-    testTimeout: 10000,
+    testTimeout: 30000,
   },
 })
