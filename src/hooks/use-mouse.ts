@@ -403,17 +403,38 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
 // Cleanup on process exit
 // =============================================================================
 
-// Ensure mouse tracking is disabled when the process exits
-process.on('exit', () => {
-  forceDisableMouseTracking();
-});
+let exitHandlersRegistered = false;
 
-process.on('SIGINT', () => {
-  forceDisableMouseTracking();
-  process.exit(0);
-});
+/**
+ * Setup exit handlers to ensure mouse tracking is disabled on exit.
+ * Uses a flag to prevent registering multiple listeners.
+ */
+function setupExitHandlers(): void {
+  if (exitHandlersRegistered) return;
+  exitHandlersRegistered = true;
 
-process.on('SIGTERM', () => {
+  process.on('exit', () => {
+    forceDisableMouseTracking();
+  });
+
+  process.on('SIGINT', () => {
+    forceDisableMouseTracking();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    forceDisableMouseTracking();
+    process.exit(0);
+  });
+}
+
+// Setup handlers when module is loaded
+setupExitHandlers();
+
+/**
+ * Reset mouse module state (for testing purposes only).
+ * This does NOT unregister process listeners (they are only registered once).
+ */
+export function resetMouseState(): void {
   forceDisableMouseTracking();
-  process.exit(0);
-});
+}
