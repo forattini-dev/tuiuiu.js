@@ -93,7 +93,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "tuiuiu": "./dist/storybook/cli.js"
+    "tuiuiu": "./dist/cli/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -108,7 +108,7 @@
     "docs:gifs": "bash scripts/generate-gifs.sh",
     "lint": "echo \"No linting configured for this project.\" && exit 0",
     "prepublishOnly": "pnpm run build && node scripts/inject-version.js",
-    "storybook": "tsx src/storybook/cli.ts",
+    "storybook": "tsx src/cli/index.ts storybook",
     "example": "tsx",
     "example:list": "ls -1 examples/*.ts | sed 's|examples/||' | sed 's|.ts$||'",
     "example:01": "tsx examples/01-basic-counter.ts",

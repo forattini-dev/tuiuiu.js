@@ -484,19 +484,30 @@ describe('Screen Manager', () => {
     });
 
     it('should provide convenience navigation functions', async () => {
-      resetScreenManager();
+      vi.useFakeTimers();
+      try {
+        resetScreenManager();
 
-      const home = createScreen(HomeScreen);
-      const settings = createScreen(SettingsScreen);
+        const home = createScreen(HomeScreen);
+        const settings = createScreen(SettingsScreen);
 
-      await pushScreen(home);
-      expect(getScreenManager().stackSize).toBe(1);
+        const push1 = pushScreen(home);
+        await vi.advanceTimersByTimeAsync(500);
+        await push1;
+        expect(getScreenManager().stackSize).toBe(1);
 
-      await pushScreen(settings);
-      expect(getScreenManager().stackSize).toBe(2);
+        const push2 = pushScreen(settings);
+        await vi.advanceTimersByTimeAsync(500);
+        await push2;
+        expect(getScreenManager().stackSize).toBe(2);
 
-      await popScreen();
-      expect(getScreenManager().stackSize).toBe(1);
+        const pop = popScreen();
+        await vi.advanceTimersByTimeAsync(500);
+        await pop;
+        expect(getScreenManager().stackSize).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -546,21 +557,29 @@ describe('Screen Manager', () => {
 
   describe('Transition blocking', () => {
     it('should block navigation during transition', async () => {
-      const manager = createScreenManager({ transitionDuration: 100 });
+      vi.useFakeTimers();
+      try {
+        const manager = createScreenManager({ transitionDuration: 100 });
 
-      // Start a push
-      const pushPromise = manager.push(createScreen(HomeScreen));
+        // Start a push
+        const pushPromise = manager.push(createScreen(HomeScreen));
 
-      // Try to push again immediately
-      const secondPush = manager.push(createScreen(SettingsScreen));
+        // Try to push again immediately (before transition completes)
+        const secondPush = manager.push(createScreen(SettingsScreen));
 
-      // Second push should fail because first is still transitioning
-      const result = await secondPush;
-      expect(result).toBe(false);
+        // Second push should fail because first is still transitioning
+        const result = await secondPush;
+        expect(result).toBe(false);
 
-      // Wait for first to complete
-      await pushPromise;
-      expect(manager.stackSize).toBe(1);
+        // Advance time to complete the first transition
+        await vi.advanceTimersByTimeAsync(150);
+
+        // Wait for first to complete
+        await pushPromise;
+        expect(manager.stackSize).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
