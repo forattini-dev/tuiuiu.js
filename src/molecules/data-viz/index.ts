@@ -175,3 +175,22 @@ export type {
   TextAnnotation,
   PointAnnotation,
 } from './annotations.js';
+
+// Interactive Hooks
+export {
+  useChartSelection,
+  useChartHover,
+  useChartTooltip,
+  useChartZoom,
+  useChartKeyboard,
+  useChartInteraction,
+  useChartDataChange,
+} from './hooks.js';
+
+export type {
+  SelectionState,
+  HoverState,
+  TooltipState,
+  ZoomState,
+  ChartInteractionState,
+} from './hooks.js';

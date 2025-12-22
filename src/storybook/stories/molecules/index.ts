@@ -9,9 +9,10 @@
  * - Toast: Notification popups
  * - Tabs: Tab navigation
  * - Sparkline & Gauge: Simple data visualizations
+ * - Advanced Charts: LineChart, ScatterPlot, RadarChart, GanttChart, TimeHeatmap, Legend
  */
 
-import { Box, Text, When, Each, Fragment, Spacer } from '../../../primitives/nodes.js';
+import { Box, Text, When, Each, Fragment, Spacer, Newline } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
 import {
   TextInput,
@@ -21,6 +22,14 @@ import {
   ToggleGroup
 } from '../../../design-system/forms/index.js';
 import { ProgressBar } from '../../../design-system/feedback/index.js';
+import {
+  LineChart,
+  ScatterPlot,
+  RadarChart,
+  GanttChart,
+  TimeHeatmap,
+  Legend,
+} from '../../../molecules/data-viz/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import { themeColor, getContrastColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
@@ -1311,6 +1320,409 @@ export const mouseStories: Story[] = [
 ];
 
 /**
+ * LineChart stories - Multi-series with color coding
+ */
+export const lineChartStories: Story[] = [
+  story('LineChart - Single Series')
+    .category('Molecules')
+    .description('Single data series line chart')
+    .render(() =>
+      LineChart({
+        series: [
+          { name: 'Usage', data: [10, 25, 30, 45, 60, 55, 70], color: 'cyan' },
+        ],
+        width: 50,
+        height: 8,
+        title: 'System Usage Over Time',
+        showLegend: true,
+      })
+    ),
+
+  story('LineChart - Multi-Series Colors')
+    .category('Molecules')
+    .description('Multiple series with automatic color assignment')
+    .render(() =>
+      LineChart({
+        series: [
+          { name: 'Frontend', data: [10, 25, 30, 45, 60, 55, 70] },
+          { name: 'Backend', data: [15, 20, 35, 40, 55, 65, 75] },
+          { name: 'Database', data: [5, 15, 25, 35, 45, 50, 60] },
+        ],
+        width: 50,
+        height: 10,
+        title: 'Performance Metrics',
+        showLegend: true,
+      })
+    ),
+
+  story('LineChart - Custom Colors')
+    .category('Molecules')
+    .description('Line chart with custom series colors')
+    .controls({
+      color1: defaultControls.color('Series 1 Color', 'green'),
+      color2: defaultControls.color('Series 2 Color', 'yellow'),
+    })
+    .render((props) =>
+      LineChart({
+        series: [
+          { name: 'Profit', data: [50, 65, 75, 70, 85, 90, 95], color: props.color1 },
+          { name: 'Costs', data: [30, 35, 40, 45, 40, 38, 35], color: props.color2 },
+        ],
+        width: 50,
+        height: 8,
+        title: 'Revenue Analysis',
+        showLegend: true,
+      })
+    ),
+];
+
+/**
+ * ScatterPlot stories - 2D correlation analysis
+ */
+export const scatterPlotStories: Story[] = [
+  story('ScatterPlot - Basic Correlation')
+    .category('Molecules')
+    .description('2D scatter plot for correlation analysis')
+    .render(() =>
+      ScatterPlot({
+        points: [
+          { x: 1, y: 2 },
+          { x: 2, y: 4 },
+          { x: 3, y: 6 },
+          { x: 4, y: 8 },
+          { x: 5, y: 10 },
+          { x: 6, y: 12 },
+        ],
+        width: 40,
+        height: 10,
+        title: 'X vs Y Correlation',
+        markerStyle: 'circle',
+      })
+    ),
+
+  story('ScatterPlot - Multiple Markers')
+    .category('Molecules')
+    .description('Scatter plot with different marker styles')
+    .controls({
+      markerStyle: defaultControls.select('Marker Style', ['circle', 'square', 'diamond', 'plus', 'star', 'cross']),
+    })
+    .render((props) =>
+      ScatterPlot({
+        points: [
+          { x: 1, y: 3 },
+          { x: 2, y: 5 },
+          { x: 3, y: 4 },
+          { x: 4, y: 7 },
+          { x: 5, y: 6 },
+          { x: 6, y: 9 },
+          { x: 7, y: 8 },
+        ],
+        width: 40,
+        height: 10,
+        title: 'Data Distribution',
+        markerStyle: props.markerStyle as 'circle' | 'square' | 'diamond' | 'plus' | 'star' | 'cross',
+      })
+    ),
+
+  story('ScatterPlot - Scatter with Color')
+    .category('Molecules')
+    .description('Scatter plot with color highlighting')
+    .render(() =>
+      ScatterPlot({
+        points: Array.from({ length: 15 }, () => ({
+          x: Math.floor(Math.random() * 10) + 1,
+          y: Math.floor(Math.random() * 10) + 1,
+        })),
+        width: 40,
+        height: 10,
+        title: 'Random Distribution',
+        markerStyle: 'circle',
+        color: 'green',
+      })
+    ),
+];
+
+/**
+ * RadarChart stories - Multi-dimensional comparison
+ */
+export const radarChartStories: Story[] = [
+  story('RadarChart - Product Comparison')
+    .category('Molecules')
+    .description('Compare multiple products across dimensions')
+    .render(() =>
+      RadarChart({
+        axes: [
+          { name: 'Speed', max: 100 },
+          { name: 'Power', max: 100 },
+          { name: 'Efficiency', max: 100 },
+          { name: 'Durability', max: 100 },
+          { name: 'Cost', max: 100 },
+        ],
+        series: [
+          { name: 'Model A', values: [80, 75, 70, 85, 60], color: 'cyan' },
+          { name: 'Model B', values: [70, 85, 80, 75, 80], color: 'green' },
+        ],
+        showLegend: true,
+      })
+    ),
+
+  story('RadarChart - Skills Assessment')
+    .category('Molecules')
+    .description('Compare skill levels across multiple domains')
+    .render(() =>
+      RadarChart({
+        axes: [
+          { name: 'Frontend', max: 100 },
+          { name: 'Backend', max: 100 },
+          { name: 'DevOps', max: 100 },
+          { name: 'Security', max: 100 },
+          { name: 'Testing', max: 100 },
+          { name: 'Documentation', max: 100 },
+        ],
+        series: [
+          { name: 'Developer 1', values: [85, 75, 65, 70, 80, 75], color: 'yellow' },
+          { name: 'Developer 2', values: [70, 85, 80, 75, 70, 80], color: 'magenta' },
+        ],
+        showLegend: true,
+      })
+    ),
+];
+
+/**
+ * GanttChart stories - Project timeline
+ */
+export const ganttChartStories: Story[] = [
+  story('GanttChart - Project Timeline')
+    .category('Molecules')
+    .description('Project timeline with task dependencies')
+    .render(() =>
+      GanttChart({
+        tasks: [
+          {
+            id: '1',
+            name: 'Design',
+            startDate: '2024-01-01',
+            endDate: '2024-01-15',
+            progress: 100,
+            status: 'complete',
+          },
+          {
+            id: '2',
+            name: 'Development',
+            startDate: '2024-01-15',
+            endDate: '2024-02-15',
+            progress: 65,
+            status: 'in-progress',
+          },
+          {
+            id: '3',
+            name: 'Testing',
+            startDate: '2024-02-01',
+            endDate: '2024-02-20',
+            progress: 30,
+            status: 'in-progress',
+            dependsOn: '2',
+          },
+          {
+            id: '4',
+            name: 'Deployment',
+            startDate: '2024-02-20',
+            endDate: '2024-02-25',
+            progress: 0,
+            status: 'pending',
+            dependsOn: '3',
+          },
+        ],
+        width: 60,
+        title: 'Project Timeline Q1 2024',
+        showLegend: true,
+      })
+    ),
+
+  story('GanttChart - Sprint Planning')
+    .category('Molecules')
+    .description('Sprint timeline with multiple tasks')
+    .render(() =>
+      GanttChart({
+        tasks: [
+          {
+            id: '1',
+            name: 'Epic Planning',
+            startDate: '2024-01-01',
+            endDate: '2024-01-03',
+            progress: 100,
+            status: 'complete',
+          },
+          {
+            id: '2',
+            name: 'Feature A',
+            startDate: '2024-01-03',
+            endDate: '2024-01-07',
+            progress: 100,
+            status: 'complete',
+          },
+          {
+            id: '3',
+            name: 'Feature B',
+            startDate: '2024-01-05',
+            endDate: '2024-01-10',
+            progress: 75,
+            status: 'in-progress',
+          },
+          {
+            id: '4',
+            name: 'QA Review',
+            startDate: '2024-01-07',
+            endDate: '2024-01-12',
+            progress: 50,
+            status: 'in-progress',
+          },
+          {
+            id: '5',
+            name: 'Release',
+            startDate: '2024-01-12',
+            endDate: '2024-01-15',
+            progress: 0,
+            status: 'pending',
+          },
+        ],
+        width: 60,
+        title: 'Sprint 2024-01',
+        showLegend: true,
+      })
+    ),
+];
+
+/**
+ * TimeHeatmap stories - Activity calendar
+ */
+export const timeHeatmapStories: Story[] = [
+  story('TimeHeatmap - Daily Activity')
+    .category('Molecules')
+    .description('Daily activity heatmap')
+    .render(() =>
+      TimeHeatmap({
+        data: [
+          { date: '2024-12-01', value: 5 },
+          { date: '2024-12-02', value: 10 },
+          { date: '2024-12-03', value: 8 },
+          { date: '2024-12-04', value: 15 },
+          { date: '2024-12-05', value: 12 },
+          { date: '2024-12-06', value: 20 },
+          { date: '2024-12-07', value: 18 },
+          { date: '2024-12-08', value: 5 },
+          { date: '2024-12-09', value: 10 },
+          { date: '2024-12-10', value: 25 },
+          { date: '2024-12-11', value: 30 },
+          { date: '2024-12-12', value: 22 },
+        ],
+        granularity: 'day',
+        colorScale: 'greens',
+        title: 'Daily Activity Heatmap',
+        showLegend: true,
+      })
+    ),
+
+  story('TimeHeatmap - Color Scales')
+    .category('Molecules')
+    .description('Heatmap with different color scales')
+    .controls({
+      colorScale: defaultControls.select('Color Scale', ['greens', 'blues', 'reds', 'heat']),
+    })
+    .render((props) =>
+      TimeHeatmap({
+        data: [
+          { date: '2024-12-01', value: 5 },
+          { date: '2024-12-02', value: 15 },
+          { date: '2024-12-03', value: 8 },
+          { date: '2024-12-04', value: 25 },
+          { date: '2024-12-05', value: 12 },
+          { date: '2024-12-06', value: 30 },
+          { date: '2024-12-07', value: 18 },
+          { date: '2024-12-08', value: 10 },
+          { date: '2024-12-09', value: 20 },
+          { date: '2024-12-10', value: 28 },
+          { date: '2024-12-11', value: 22 },
+          { date: '2024-12-12', value: 15 },
+        ],
+        granularity: 'day',
+        colorScale: props.colorScale as 'greens' | 'blues' | 'reds' | 'heat',
+        title: 'Activity Distribution',
+        showLegend: true,
+      })
+    ),
+];
+
+/**
+ * Legend stories - Reusable legend component
+ */
+export const legendStories: Story[] = [
+  story('Legend - Horizontal Bottom')
+    .category('Molecules')
+    .description('Legend positioned at bottom')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Box(
+          { flexDirection: 'row', height: 5, borderStyle: 'single', borderColor: 'gray', padding: 1 },
+          Text({ color: 'gray' }, 'Chart Area')
+        ),
+        Legend({
+          items: [
+            { label: 'Series 1', color: 'cyan' },
+            { label: 'Series 2', color: 'green' },
+            { label: 'Series 3', color: 'yellow' },
+          ],
+          position: 'bottom',
+          showSymbols: true,
+        })
+      )
+    ),
+
+  story('Legend - Priority Levels')
+    .category('Molecules')
+    .description('Legend for priority classification')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 2, padding: 1 },
+        Text({ bold: true, color: 'cyan' }, 'Task Priority Levels'),
+        Newline(),
+        Legend({
+          items: [
+            { label: 'Critical', color: 'red' },
+            { label: 'High', color: 'yellow' },
+            { label: 'Medium', color: 'blue' },
+            { label: 'Low', color: 'green' },
+          ],
+          position: 'bottom',
+          showSymbols: true,
+        })
+      )
+    ),
+
+  story('Legend - Status Indicators')
+    .category('Molecules')
+    .description('Legend for status tracking')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 2, padding: 1 },
+        Text({ bold: true, color: 'magenta' }, 'Build Status Legend'),
+        Newline(),
+        Legend({
+          items: [
+            { label: 'Passing', color: 'green' },
+            { label: 'Failing', color: 'red' },
+            { label: 'Pending', color: 'yellow' },
+            { label: 'Skipped', color: 'gray' },
+          ],
+          position: 'bottom',
+          showSymbols: true,
+        })
+      )
+    ),
+];
+
+/**
  * All molecule stories
  */
 export const allMoleculeStories: Story[] = [
@@ -1325,6 +1737,12 @@ export const allMoleculeStories: Story[] = [
   ...tabsStories,
   ...sparklineStories,
   ...gaugeStories,
+  ...lineChartStories,
+  ...scatterPlotStories,
+  ...radarChartStories,
+  ...ganttChartStories,
+  ...timeHeatmapStories,
+  ...legendStories,
   ...mouseStories,
 ];
 
