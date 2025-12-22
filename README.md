@@ -17,7 +17,7 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 [![License](https://img.shields.io/npm/l/tuiuiu.js.svg?style=flat-square&color=007AFF)](https://github.com/forattini-dev/tuiuiu.js/blob/main/LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success?style=flat-square)](https://www.npmjs.com/package/tuiuiu.js)
 
-[📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook)
+[📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook) · [🤖 MCP Guide](./MCP-GUIDE.md)
 
 <img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/assets/demo-dashboard.gif" alt="Tuiuiu Demo" width="600">
 
@@ -330,6 +330,7 @@ pnpm tsx examples/app-chat.ts      # Chat application
 | Layout | [→ Flexbox Guide](https://forattini-dev.github.io/tuiuiu.js/#/core/layout) |
 | Theming | [→ Theme System](https://forattini-dev.github.io/tuiuiu.js/#/core/theming) |
 | Storybook | [→ Component Explorer](https://forattini-dev.github.io/tuiuiu.js/#/core/storybook) |
+| MCP Server | [→ AI Integration Guide](./MCP-GUIDE.md) |
 
 ## Numbers
 
