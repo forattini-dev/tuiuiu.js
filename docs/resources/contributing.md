@@ -6,7 +6,7 @@ We welcome contributions to Tuiuiu!
 
 1.  **Clone the repo**:
     ```bash
-    git clone https://github.com/tetis-io/tuiuiu.git
+    git clone https://github.com/forattini-dev/tuiuiu.js.git
     cd tuiuiu
     ```
 

@@ -209,14 +209,14 @@ describe('BigText', () => {
 
   describe('Logo component', () => {
     it('should return a VNode', () => {
-      const node = Logo({ text: 'TETIS' });
+      const node = Logo({ text: 'TUIUIU' });
       expect(node).toBeDefined();
       expect(node.type).toBe('box');
     });
 
     it('should accept colors (gradient)', () => {
       const node = Logo({
-        text: 'TETIS',
+        text: 'TUIUIU',
         colors: ['cyan', 'blue'],
       });
       expect(node).toBeDefined();
@@ -224,15 +224,15 @@ describe('BigText', () => {
 
     it('should accept tagline', () => {
       const node = Logo({
-        text: 'TETIS',
-        tagline: 'Cloud Infrastructure Platform',
+        text: 'TUIUIU',
+        tagline: 'Terminal UI Library',
       });
       expect(node).toBeDefined();
     });
 
     it('should accept width option', () => {
       const node = Logo({
-        text: 'TETIS',
+        text: 'TUIUIU',
         width: 80,
       });
       expect(node).toBeDefined();

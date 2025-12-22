@@ -613,10 +613,10 @@ export interface LogoOptions {
  *
  * @example
  * Logo({
- *   text: 'TETIS',
+ *   text: 'TUIUIU',
  *   font: 'banner',
  *   colors: ['cyan', 'blue'],
- *   tagline: 'Cloud Infrastructure Platform',
+ *   tagline: 'Terminal UI Library',
  *   width: 80,
  * })
  */
