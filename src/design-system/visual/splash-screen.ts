@@ -201,28 +201,35 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
   if (!isVisible) return null;
 
   // Build center content (image + subtitle + version)
-  // All elements need width: '100%' to allow justifyContent: 'center' to work
+  // Centering uses flexGrow spacers pattern for reliable horizontal centering
   const centerContent: VNode[] = [];
 
   // Colored pixel grid (highest priority)
+  // Use flexGrow spacers for horizontal centering (more reliable than justifyContent)
   if (coloredArt) {
     centerContent.push(
-      Box({ justifyContent: 'center', width: '100%' },
-        ColoredPicture({ pixels: coloredArt })
+      Box({ flexDirection: 'row', width: '100%' },
+        Box({ flexGrow: 1 }),
+        ColoredPicture({ pixels: coloredArt }),
+        Box({ flexGrow: 1 })
       )
     );
   // ASCII art (second priority)
   } else if (asciiArt) {
     centerContent.push(
-      Box({ justifyContent: 'center', width: '100%' },
-        Text({ color }, asciiArt)
+      Box({ flexDirection: 'row', width: '100%' },
+        Box({ flexGrow: 1 }),
+        Text({ color }, asciiArt),
+        Box({ flexGrow: 1 })
       )
     );
   // BigText title (fallback)
   } else {
     centerContent.push(
-      Box({ justifyContent: 'center', width: '100%' },
-        BigText({ text: title, font, color })
+      Box({ flexDirection: 'row', width: '100%' },
+        Box({ flexGrow: 1 }),
+        BigText({ text: title, font, color }),
+        Box({ flexGrow: 1 })
       )
     );
   }
@@ -230,8 +237,10 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
   // Subtitle (1 line gap below image)
   if (subtitle) {
     centerContent.push(
-      Box({ justifyContent: 'center', marginTop: 1, width: '100%' },
-        Text({ color: secondaryColor }, subtitle)
+      Box({ flexDirection: 'row', marginTop: 1, width: '100%' },
+        Box({ flexGrow: 1 }),
+        Text({ color: secondaryColor }, subtitle),
+        Box({ flexGrow: 1 })
       )
     );
   }
@@ -239,8 +248,10 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
   // Version (below subtitle, on separate line)
   if (version) {
     centerContent.push(
-      Box({ justifyContent: 'center', width: '100%' },
-        Text({ color: secondaryColor, dim: true }, `v${version}`)
+      Box({ flexDirection: 'row', width: '100%' },
+        Box({ flexGrow: 1 }),
+        Text({ color: secondaryColor, dim: true }, `v${version}`),
+        Box({ flexGrow: 1 })
       )
     );
   }
@@ -276,37 +287,56 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
   const termWidth = process.stdout.columns || 80;
   const termHeight = process.stdout.rows || 24;
 
+  // Calculate content height for vertical centering
+  let contentHeight = 0;
+  if (coloredArt) {
+    contentHeight = coloredArt.length;
+  } else if (asciiArt) {
+    contentHeight = asciiArt.split('\n').length;
+  } else {
+    // BigText fonts are typically 6-8 lines tall
+    contentHeight = 7;
+  }
+  // Add subtitle height (1 line + 1 margin)
+  if (subtitle) contentHeight += 2;
+  // Add version height (1 line)
+  if (version) contentHeight += 1;
+
+  // Calculate top margin to center content vertically
+  // Subtract 2 for the loading indicator at the bottom
+  const loadingHeight = loadingNode ? 2 : 0;
+  const availableHeight = termHeight - loadingHeight;
+  const topMargin = Math.max(0, Math.floor((availableHeight - contentHeight) / 2));
+
   // Layout strategy:
-  // - Top spacer (flexGrow: 1) pushes content down
-  // - Center content (image + subtitle)
-  // - Bottom spacer (flexGrow: 1) pushes content up
-  // - Loading fixed at bottom
-  // The two spacers with equal flexGrow center the content vertically
+  // - Use calculated marginTop to position content at vertical center
+  // - Loading indicator fixed at bottom
   return Box(
     {
       flexDirection: 'column',
       width: width ?? termWidth,
       height: height ?? termHeight,
     },
-    // Top spacer
-    Box({ flexGrow: 1 }),
-    // Center content (image + subtitle) - each child handles its own centering
+    // Center content with calculated top margin
     Box(
       {
         flexDirection: 'column',
         width: '100%',
+        marginTop: topMargin,
       },
       ...centerContent
     ),
-    // Bottom spacer
+    // Flexible spacer to push loading to bottom
     Box({ flexGrow: 1 }),
-    // Loading at bottom with 1 line gap from terminal edge
+    // Loading centered horizontally at the bottom
     loadingNode
       ? Box(
-          { justifyContent: 'center', width: '100%', marginBottom: 1 },
-          loadingNode
+          { flexDirection: 'row', width: '100%', marginBottom: 1 },
+          Box({ flexGrow: 1 }),
+          loadingNode,
+          Box({ flexGrow: 1 })
         )
-      : Box({})
+      : null
   );
 }
 
