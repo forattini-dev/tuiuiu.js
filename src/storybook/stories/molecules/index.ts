@@ -13,15 +13,16 @@
 
 import { Box, Text, When, Each, Fragment, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
-import { 
-  TextInput, 
-  Checkbox, 
-  Select, 
-  RadioGroup, 
-  ToggleGroup 
+import {
+  TextInput,
+  Checkbox,
+  Select,
+  RadioGroup,
+  ToggleGroup
 } from '../../../design-system/forms/index.js';
 import { ProgressBar } from '../../../design-system/feedback/index.js';
 import { story, defaultControls } from '../../core/registry.js';
+import { themeColor, getContrastColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
 // Chart helpers
@@ -491,18 +492,20 @@ export const alertStories: Story[] = [
   story('Alert - Success')
     .category('Molecules')
     .description('Success alert')
-    .render(() =>
-      Box(
+    .render(() => {
+      const bg = 'green';
+      const fg = getContrastColor(bg);
+      return Box(
         {
           borderStyle: 'round',
-          borderColor: 'green',
-          backgroundColor: 'green',
+          borderColor: bg,
+          backgroundColor: bg,
           padding: 1,
           width: 50,
         },
-        Text({ color: 'white', bold: true }, '✓ Operation completed successfully!')
-      )
-    ),
+        Text({ color: fg, backgroundColor: bg, bold: true }, '✓ Operation completed successfully!')
+      );
+    }),
 
   story('Alert - Warning')
     .category('Molecules')
@@ -649,26 +652,32 @@ export const tabsStories: Story[] = [
     })
     .render((props) => {
       const tabs = ['Overview', 'Details', 'Settings'];
+      const activeBg = 'blue';
+      const activeFg = getContrastColor(activeBg);
 
       return Box(
         { width: 50, flexDirection: 'column' },
         Box(
           { flexDirection: 'row', borderStyle: 'single', borderColor: 'gray' },
-          ...tabs.map((tab, idx) =>
-            Box(
+          ...tabs.map((tab, idx) => {
+            const isActive = idx === props.activeTab;
+            const bg = isActive ? activeBg : undefined;
+            const fg = isActive ? activeFg : 'gray';
+            return Box(
               {
                 paddingX: 2,
-                backgroundColor: idx === props.activeTab ? 'blue' : undefined,
+                backgroundColor: bg,
               },
               Text(
                 {
-                  color: idx === props.activeTab ? 'white' : 'gray',
-                  bold: idx === props.activeTab,
+                  color: fg,
+                  backgroundColor: bg,
+                  bold: isActive,
                 },
                 tab
               )
-            )
-          )
+            );
+          })
         ),
         Box(
           { borderStyle: 'single', borderColor: 'blue', padding: 1, height: 5 },
@@ -680,14 +689,16 @@ export const tabsStories: Story[] = [
   story('Tabs - With Icons')
     .category('Molecules')
     .description('Tabs with icons')
-    .render(() =>
-      Box(
+    .render(() => {
+      const activeBg = 'blue';
+      const activeFg = getContrastColor(activeBg);
+      return Box(
         { width: 50, flexDirection: 'column' },
         Box(
           { flexDirection: 'row', borderStyle: 'single', borderColor: 'gray' },
           Box(
-            { paddingX: 2, backgroundColor: 'blue' },
-            Text({ color: 'white', bold: true }, '🏠 Home')
+            { paddingX: 2, backgroundColor: activeBg },
+            Text({ color: activeFg, backgroundColor: activeBg, bold: true }, '🏠 Home')
           ),
           Box({ paddingX: 2 }, Text({ color: 'gray' }, '📁 Files')),
           Box({ paddingX: 2 }, Text({ color: 'gray' }, '⚙️ Settings'))
@@ -696,8 +707,8 @@ export const tabsStories: Story[] = [
           { borderStyle: 'single', borderColor: 'blue', padding: 1, height: 5 },
           Text({}, 'Home content')
         )
-      )
-    ),
+      );
+    }),
 
   story('Tabs - Styled')
     .category('Molecules')
@@ -939,13 +950,17 @@ export const mouseStories: Story[] = [
           )
         ),
         Spacer({ size: 1 }),
-        Box(
-          { flexDirection: 'column', backgroundColor: 'gray' },
-          Text({ color: 'white' }, '                              '),
-          Text({ color: 'white' }, '     Move mouse here...       '),
-          Text({ color: 'white' }, '          ●                   '),
-          Text({ color: 'white' }, '                              ')
-        ),
+        (() => {
+          const bg = 'gray';
+          const fg = getContrastColor(bg);
+          return Box(
+            { flexDirection: 'column', backgroundColor: bg },
+            Text({ color: fg, backgroundColor: bg }, '                              '),
+            Text({ color: fg, backgroundColor: bg }, '     Move mouse here...       '),
+            Text({ color: fg, backgroundColor: bg }, '          ●                   '),
+            Text({ color: fg, backgroundColor: bg }, '                              ')
+          );
+        })(),
         Text({ color: 'gray', dim: true }, "action === 'move' for tracking")
       )
     ),
@@ -1081,10 +1096,14 @@ export const mouseStories: Story[] = [
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'green', backgroundColor: 'green' },
-            Text({ color: 'white', bold: true }, ' Button 1 ')
-          ),
+          (() => {
+            const bg = 'green';
+            const fg = getContrastColor(bg);
+            return Box(
+              { padding: 1, borderStyle: 'round', borderColor: bg, backgroundColor: bg },
+              Text({ color: fg, backgroundColor: bg, bold: true }, ' Button 1 ')
+            );
+          })(),
           Box(
             { padding: 1, borderStyle: 'round', borderColor: 'blue' },
             Text({ color: 'blue' }, ' Button 2 ')
@@ -1177,10 +1196,14 @@ export const mouseStories: Story[] = [
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'cyan', backgroundColor: 'blue' },
-            Text({ color: 'white', bold: true }, ' Hovered! ')
-          ),
+          (() => {
+            const bg = 'blue';
+            const fg = getContrastColor(bg);
+            return Box(
+              { padding: 1, borderStyle: 'round', borderColor: 'cyan', backgroundColor: bg },
+              Text({ color: fg, backgroundColor: bg, bold: true }, ' Hovered! ')
+            );
+          })(),
           Box(
             { padding: 1, borderStyle: 'round', borderColor: 'gray' },
             Text({ color: 'gray' }, ' Normal ')
@@ -1206,12 +1229,16 @@ export const mouseStories: Story[] = [
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 0 },
-          Box(
-            { flexDirection: 'column', width: 20 },
-            Text({}, '  📄 Document.txt'),
-            Text({}, '  📁 Folder'),
-            Text({ backgroundColor: 'blue', color: 'white' }, '  📄 Selected.md ')
-          ),
+          (() => {
+            const selBg = 'blue';
+            const selFg = getContrastColor(selBg);
+            return Box(
+              { flexDirection: 'column', width: 20 },
+              Text({}, '  📄 Document.txt'),
+              Text({}, '  📁 Folder'),
+              Text({ backgroundColor: selBg, color: selFg }, '  📄 Selected.md ')
+            );
+          })(),
           Box(
             { flexDirection: 'column', borderStyle: 'single', borderColor: 'cyan', padding: 1 },
             Text({ color: 'cyan' }, '  Open        '),
