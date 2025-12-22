@@ -19,7 +19,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal, createEffect } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
-import { themeColor } from '../core/theme.js';
+import { themeColor, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 export interface TextInputState {
@@ -317,15 +317,14 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
   };
 
-  // Register input handler
-  // Note: We always register and check isActive dynamically in handleInput
+  // handleInput is exposed to be registered during render phase
   // This allows isActive to be a reactive getter function
-  useInput(handleInput);
 
   return {
     value,
     cursorPosition,
     isMultiline: isMultilineMode,
+    handleInput, // Expose handler to be registered during render
     setValue: (v: string) => {
       setValue(v);
       setCursorPosition(v.length);
@@ -363,6 +362,9 @@ export function renderTextInput(
     isActive = true,
     fullWidth = false,
   } = options;
+
+  // Register input handler during render phase
+  useInput(state.handleInput);
 
   const value = state.value();
   const cursor = state.cursorPosition();
@@ -416,11 +418,13 @@ export function renderTextInput(
           const before = line.slice(0, cursorCol);
           const char = line[cursorCol] || ' ';
           const after = line.slice(cursorCol + 1);
+          const cursorBg = themeColor('foreground');
+          const cursorFg = getContrastColor(cursorBg);
           return Box(
             { flexDirection: 'row' },
             Text({ color: promptColor }, `${linePrompt} `),
             Text({}, before),
-            Text({ backgroundColor: 'white', color: 'black' }, char),
+            Text({ backgroundColor: cursorBg, color: cursorFg }, char),
             Text({}, after)
           );
         }
@@ -445,6 +449,10 @@ export function renderTextInput(
     rowStyle.paddingX = 1;
   }
 
+  // Cursor colors based on theme
+  const cursorBg = themeColor('foreground');
+  const cursorFg = getContrastColor(cursorBg);
+
   return Box(
     rowStyle,
     Text({ color: promptColor }, `${prompt} `),
@@ -452,13 +460,13 @@ export function renderTextInput(
       ? Box(
           { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
           Text({ color: 'gray', dim: true }, placeholder),
-          isActive ? Text({ backgroundColor: 'white', color: 'black' }, ' ') : Text({}, '')
+          isActive ? Text({ backgroundColor: cursorBg, color: cursorFg }, ' ') : Text({}, '')
         )
       : Box(
           { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
           Text({}, beforeCursor),
           isActive
-            ? Text({ backgroundColor: 'white', color: 'black' }, cursorChar)
+            ? Text({ backgroundColor: cursorBg, color: cursorFg }, cursorChar)
             : Text({}, cursorChar),
           Text({}, afterCursor)
         )
