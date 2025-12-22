@@ -11,6 +11,7 @@
 
 import type { VNode } from '../utils/types.js';
 import { Box, Text } from '../primitives/nodes.js';
+import { getContrastColor } from './theme.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -230,7 +231,7 @@ export function ErrorOverview(props: { error: Error }): VNode {
               // Line number
               Text(
                 {
-                  color: line.isErrorLine ? 'red' : 'gray',
+                  color: line.isErrorLine ? getContrastColor('red') : 'gray',
                   backgroundColor: line.isErrorLine ? 'red' : undefined,
                 },
                 ` ${String(line.line).padStart(lineWidth, ' ')} `
