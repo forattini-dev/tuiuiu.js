@@ -68,6 +68,37 @@ await waitUntilExit();
 | **Data Viz** | BarChart, LineChart, Sparkline, Heatmap, Gauge, BigText, Digits |
 | **DevTools** | Layout Inspector, Event Logger, Performance Metrics, Component Storybook |
 
+## Real-World Examples
+
+Build terminal apps that feel native. These examples recreate familiar CLI tools entirely in Tuiuiu:
+
+<table>
+<tr>
+<td align="center" width="33%">
+<strong>📊 htop</strong><br>
+<em>Process Monitor</em><br>
+<img src="docs/assets/demo-htop.gif" alt="htop clone" width="100%">
+</td>
+<td align="center" width="33%">
+<strong>🌐 mtr</strong><br>
+<em>Network Diagnostics</em><br>
+<img src="docs/assets/demo-mtr.gif" alt="mtr clone" width="100%">
+</td>
+<td align="center" width="33%">
+<strong>📡 ping</strong><br>
+<em>Network Latency</em><br>
+<img src="docs/assets/demo-ping.gif" alt="ping clone" width="100%">
+</td>
+</tr>
+</table>
+
+```bash
+# Try them yourself
+pnpm tsx examples/app-htop.ts   # Process monitor with live updates
+pnpm tsx examples/app-mtr.ts    # Network route tracer
+pnpm tsx examples/app-ping.ts   # Network latency monitor
+```
+
 ## Gallery
 
 <table>
@@ -77,16 +108,6 @@ await waitUntilExit();
 <img src="docs/assets/demo-dashboard.gif" alt="Dashboard" width="100%">
 </td>
 <td align="center" width="50%">
-<strong>📝 Interactive Forms</strong><br>
-<img src="docs/assets/demo-forms.gif" alt="Forms" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center">
-<strong>📈 Data Visualization</strong><br>
-<img src="docs/assets/demo-charts.gif" alt="Charts" width="100%">
-</td>
-<td align="center">
 <strong>💬 Chat Application</strong><br>
 <img src="docs/assets/demo-chat.gif" alt="Chat" width="100%">
 </td>
@@ -97,8 +118,8 @@ await waitUntilExit();
 <img src="docs/assets/demo-storybook.gif" alt="Storybook" width="100%">
 </td>
 <td align="center">
-<strong>⏳ Spinners & Progress</strong><br>
-<img src="docs/assets/demo-spinners.gif" alt="Spinners" width="100%">
+<strong>📝 Interactive Forms</strong><br>
+<img src="docs/assets/demo-forms.gif" alt="Forms" width="100%">
 </td>
 </tr>
 </table>
@@ -290,39 +311,13 @@ git clone https://github.com/forattini-dev/tuiuiu.js
 cd tuiuiu.js
 pnpm install
 
-# Run examples
-pnpm example:01  # Basic counter
-pnpm example:04  # Forms showcase
-pnpm example:06  # Dashboard
-pnpm example:chat  # Chat application
+# Real-world apps (featured)
+pnpm tsx examples/app-htop.ts      # Process monitor (htop clone)
+pnpm tsx examples/app-mtr.ts       # Network tracer (mtr clone)
+pnpm tsx examples/app-ping.ts      # Latency monitor (ping clone)
+pnpm tsx examples/app-dashboard.ts # Real-time dashboard
+pnpm tsx examples/app-chat.ts      # Chat application
 ```
-
-<details>
-<summary>All 20+ examples</summary>
-
-| Example | Description |
-|:--------|:------------|
-| `01-basic-counter` | useState, useInput basics |
-| `02-async-loading` | Async operations with spinners |
-| `03-global-state` | Shared state across components |
-| `04-forms` | Form inputs and validation |
-| `05-multi-component` | Component composition |
-| `06-dashboard` | Real-time dashboard layout |
-| `07-advanced-forms` | Complex form patterns |
-| `08-layout-components` | Flexbox layouts |
-| `09-visual-components` | Charts and visualizations |
-| `10-theme-context` | Theming system |
-| `11-static-logs` | Log viewer pattern |
-| `12-animation-system` | Animations and transitions |
-| `13-virtual-scroll` | Large list virtualization |
-| `14-focus-management` | Focus navigation |
-| `15-constraint-layout` | Advanced constraints |
-| `16-graphics-braille` | Braille graphics |
-| `17-event-system` | Event handling patterns |
-| `chat` | Full chat application |
-| `realtime-dashboard` | Live updating dashboard |
-
-</details>
 
 ## Documentation
 
