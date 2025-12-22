@@ -16,6 +16,7 @@
   - [Store](/core/store.md)
   - [Capabilities](/core/capabilities.md)
   - [Utilities](/core/utilities.md)
+  - [MCP Server](/core/mcp.md)
 
 - **Primitives**
   - [Box](/components/primitives/box.md)

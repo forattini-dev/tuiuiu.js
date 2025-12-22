@@ -6,9 +6,9 @@
 
 Build beautiful, reactive terminal apps with a Modern Component API.
 <br>
-**Zero dependencies** • **Signals-based** • **Flexbox layout** • **Full mouse support**
+**Zero dependencies** • **Signals-based** • **Flexbox layout** • **Full mouse support** • **MCP Ready**
 <br>
-50+ components. Pure Node.js. No C++ bindings.
+50+ components. Pure Node.js. No C++ bindings. AI-powered development.
 
 [![npm version](https://img.shields.io/npm/v/tuiuiu.js.svg?style=flat-square&color=F5A623)](https://www.npmjs.com/package/tuiuiu.js)
 [![npm downloads](https://img.shields.io/npm/dm/tuiuiu.js.svg?style=flat-square&color=34C759)](https://www.npmjs.com/package/tuiuiu.js)
@@ -17,7 +17,7 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 [![License](https://img.shields.io/npm/l/tuiuiu.js.svg?style=flat-square&color=007AFF)](https://github.com/forattini-dev/tuiuiu.js/blob/main/LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success?style=flat-square)](https://www.npmjs.com/package/tuiuiu.js)
 
-[📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook) · [🤖 MCP Guide](./MCP-GUIDE.md)
+[📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook) · [🤖 MCP Server](#mcp-server)
 
 <img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/assets/demo-dashboard.gif" alt="Tuiuiu Demo" width="600">
 
@@ -289,16 +289,41 @@ store.subscribe(() => console.log(store.state()));
 store.dispatch({ type: 'INCREMENT' });
 ```
 
+## MCP Server
+
+> **Build terminal UIs with AI.** Tuiuiu includes a native [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude and other AI assistants help you build terminal applications.
+
+```bash
+# Start the MCP server
+npx tuiuiu mcp
+```
+
+Add to your `.mcp.json` for Claude Code integration:
+
+```json
+{
+  "mcpServers": {
+    "tuiuiu": {
+      "command": "npx",
+      "args": ["tuiuiu", "mcp"]
+    }
+  }
+}
+```
+
+Now Claude has full access to Tuiuiu's 50+ components, hooks, themes, and examples. Ask it to build dashboards, forms, file browsers, or any terminal UI — it knows the API.
+
+**Available tools:** `tuiuiu_list_components`, `tuiuiu_get_component`, `tuiuiu_get_hook`, `tuiuiu_search`, `tuiuiu_list_themes`, `tuiuiu_getting_started`
+
+[→ Full MCP Documentation](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp)
+
 ## Storybook
 
 Tuiuiu includes a built-in component storybook for exploring all components:
 
 ```bash
 # Run the storybook
-npx tuiuiu
-
-# Or if installed locally
-pnpm storybook
+npx tuiuiu storybook
 ```
 
 Navigate through categories, see live previews, and copy code examples.
@@ -330,7 +355,7 @@ pnpm tsx examples/app-chat.ts      # Chat application
 | Layout | [→ Flexbox Guide](https://forattini-dev.github.io/tuiuiu.js/#/core/layout) |
 | Theming | [→ Theme System](https://forattini-dev.github.io/tuiuiu.js/#/core/theming) |
 | Storybook | [→ Component Explorer](https://forattini-dev.github.io/tuiuiu.js/#/core/storybook) |
-| MCP Server | [→ AI Integration Guide](./MCP-GUIDE.md) |
+| MCP Server | [→ AI Integration](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp) |
 
 ## Numbers
 
@@ -340,11 +365,13 @@ pnpm tsx examples/app-chat.ts      # Chat application
 | Dependencies | 0 |
 | Subpath Imports | 12 |
 | Hooks | 10 |
+| MCP Tools | 6 |
 | Examples | 20+ |
 | Border Styles | 9 |
 | Named Colors | 18 |
 | Tests | 3500+ |
 | Tree Shakeable | ✅ |
+| MCP Ready | ✅ |
 
 ## Why "Tuiuiu"?
 
