@@ -15,6 +15,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { getRenderMode } from '../core/capabilities.js';
+import { getContrastColor } from '../core/theme.js';
 
 // Border style type (matching Box component)
 type BorderStyle = 'single' | 'double' | 'round' | 'bold' | 'none';
@@ -520,7 +521,7 @@ export function Badge(props: BadgeOptions): VNode {
   switch (variant) {
     case 'solid':
       return Text(
-        { color: 'black', backgroundColor: color, bold: true },
+        { color: getContrastColor(color as string), backgroundColor: color, bold: true },
         ` ${label} `
       );
 
