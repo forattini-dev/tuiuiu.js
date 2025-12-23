@@ -27,6 +27,7 @@ export interface TextInputState {
   cursorPosition: number;
   isMultiline: boolean;
   historyIndex: number;
+  viewportOffset: number;
 }
 
 export interface TextInputOptions {
@@ -64,8 +65,108 @@ export interface TextInputOptions {
   prompt?: string;
   /** Prompt color */
   promptColor?: string;
-  /** Make input full width */
+  /** Make input full width (flex: 1) */
   fullWidth?: boolean;
+  /** Fixed width in columns for wrapping calculation */
+  width?: number;
+  /** Maximum number of lines to display (for textarea mode) */
+  maxLines?: number;
+  /** Show character count */
+  showCharCount?: boolean;
+  /** Enable word wrapping */
+  wordWrap?: boolean;
+  /** If true, Enter creates a newline without Shift */
+  enterCreatesNewline?: boolean;
+}
+
+interface VisualLine {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Calculate visual lines based on width and wrapping
+ * Preserves strict whitespace for editor behavior
+ */
+export function getVisualLines(text: string, width: number, wrap: boolean): VisualLine[] {
+  if (!wrap || width < 1) {
+    const lines = text.split('\n');
+    let currentIndex = 0;
+    return lines.map(line => {
+      const start = currentIndex;
+      const end = start + line.length;
+      currentIndex = end + 1; // +1 for newline
+      return { text: line, start, end };
+    });
+  }
+
+  // Strict word wrapping
+  const lines: VisualLine[] = [];
+  let currentIndex = 0;
+
+  // Split by physical newlines first
+  const physicalLines = text.split('\n');
+
+  for (let phase = 0; phase < physicalLines.length; phase++) {
+    const rawLine = physicalLines[phase];
+    if (rawLine === '') {
+      lines.push({ text: '', start: currentIndex, end: currentIndex });
+      currentIndex += 1;
+      continue;
+    }
+
+    let lineRemaining = rawLine;
+    let lineStartIndex = currentIndex;
+
+    while (lineRemaining.length > width) {
+      // Find split point
+      let splitIndex = -1;
+
+      // Look for last space within width
+      for (let i = width; i >= 1; i--) {
+        if (lineRemaining[i] === ' ' || lineRemaining[i] === '\t') {
+          splitIndex = i;
+          break;
+        }
+      }
+
+      // Force break if no space found
+      if (splitIndex === -1) {
+        splitIndex = width;
+      }
+
+      const subLine = lineRemaining.slice(0, splitIndex);
+      lines.push({
+        text: subLine,
+        start: lineStartIndex,
+        end: lineStartIndex + subLine.length
+      });
+
+      // Move past the split part
+      // Note: we don't consume the space if we wrapped at it? 
+      // Standard editors usually push the space to next line or hide it at eol.
+      // For simple logic, we keep it in the string but visual wrapping is tricky.
+      // Let's stick to simple greedy char slice for now if strict preservation is needed,
+      // BUT user requested 'wrap from end' which implies word wrap.
+      // My logic above attempts word wrap.
+
+      // Adjust for next iteration
+      lineRemaining = lineRemaining.slice(splitIndex);
+      lineStartIndex += splitIndex;
+    }
+
+    // Remaining part
+    lines.push({
+      text: lineRemaining,
+      start: lineStartIndex,
+      end: lineStartIndex + lineRemaining.length
+    });
+
+    currentIndex += rawLine.length + 1; // +1 for newline
+  }
+
+  return lines;
 }
 
 /**
@@ -84,6 +185,10 @@ export function createTextInput(options: TextInputOptions = {}) {
     onSubmit,
     onCancel,
     isActive: isActiveProp = true,
+    width = 80, // Default width for wrapping
+    maxLines,
+    wordWrap = false,
+    enterCreatesNewline = false,
   } = options;
 
   // Helper to check if input is currently active
@@ -97,6 +202,54 @@ export function createTextInput(options: TextInputOptions = {}) {
   const [isMultilineMode, setIsMultilineMode] = createSignal(false);
   const [historyIndex, setHistoryIndex] = createSignal(-1);
   const [originalValue, setOriginalValue] = createSignal('');
+  const [viewportOffset, setViewportOffset] = createSignal(0);
+
+  // Scroll to cursor helper
+  const scrollToCursor = (val: string, cursor: number) => {
+    if (!maxLines) return; // No scrolling needed if no max height
+
+    const visualLines = getVisualLines(val, width, wordWrap);
+
+    // Find visual line containing cursor
+    let cursorLineFn = 0;
+
+    // Fallback if cursor is at very end
+    if (cursor >= val.length && visualLines.length > 0) {
+      cursorLineFn = visualLines.length - 1;
+      // If the last line is full and cursor causes a wrap-to-new-empty-line logic?
+      // Our getVisualLines handles 'newline' at end by pushing empty line?
+      // Check getVisualLines: "currentIndex += rawLine.length + 1". 
+      // If text ends with \n, physicalLines has empty string at end.
+    } else {
+      // Find line where start <= cursor <= end
+      // Note: For end of line cursor, it should be on that line unless it wrapped
+      for (let i = 0; i < visualLines.length; i++) {
+        const line = visualLines[i];
+        // Cursor can be at 'end' index (after last char)
+        if (cursor >= line.start && cursor <= line.end) {
+          // If cursor is at start of next line vs end of this line?
+          // Visual wrap: if wrapped at index X, chars 0..X-1 are line 1. X starts line 2.
+          // Cursor at X is on line 2.
+          // So condition: cursor < line.end ?? 
+          // Let's use strict: start <= cursor < end, except for last line or eol.
+          cursorLineFn = i;
+          // If cursor is exactly at line.end (unwrapped), it's visually at end of this line.
+          // If it matched because of wrapping, getLogic handles it.
+          // We simply break on first match from top.
+          if (cursor < line.end) break;
+          // If cursor == line.end, it might be effectively on next line if wrapped?
+          // But loop continues.
+        }
+      }
+    }
+
+    const currentOffset = viewportOffset();
+    if (cursorLineFn < currentOffset) {
+      setViewportOffset(cursorLineFn);
+    } else if (cursorLineFn >= currentOffset + maxLines) {
+      setViewportOffset(cursorLineFn - maxLines + 1);
+    }
+  };
 
   // Word boundary detection
   const isWordChar = (char: string): boolean => /[\w]/.test(char);
@@ -135,14 +288,29 @@ export function createTextInput(options: TextInputOptions = {}) {
       return;
     }
 
+    // Ctrl+N - insert newline (N = New line, works in all terminals)
+    if (key.ctrl && input === 'n' && multiline) {
+      const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
+      setValue(newValue);
+      const newPos = pos + 1;
+      setCursorPosition(newPos);
+      setIsMultilineMode(true);
+      scrollToCursor(newValue, newPos);
+      onChange?.(newValue);
+      return;
+    }
+
     // Enter - submit or newline
+    // Ctrl+Alt+Enter, Alt+Enter, or Shift+Enter creates newline (if terminal supports it)
     if (key.return) {
-      if (key.shift && multiline) {
+      if (((key.shift || key.meta) && multiline) || (multiline && enterCreatesNewline)) {
         // Insert newline
         const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
         setValue(newValue);
-        setCursorPosition(pos + 1);
+        const newPos = pos + 1;
+        setCursorPosition(newPos);
         setIsMultilineMode(true);
+        scrollToCursor(newValue, newPos);
         onChange?.(newValue);
       } else {
         // Submit
@@ -162,9 +330,13 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (key.leftArrow) {
       if (key.ctrl) {
         // Move to previous word boundary
-        setCursorPosition(findPrevWordBoundary(currentValue, pos));
+        const newPos = findPrevWordBoundary(currentValue, pos);
+        setCursorPosition(newPos);
+        scrollToCursor(currentValue, newPos);
       } else {
-        setCursorPosition(Math.max(0, pos - 1));
+        const newPos = Math.max(0, pos - 1);
+        setCursorPosition(newPos);
+        scrollToCursor(currentValue, newPos);
       }
       return;
     }
@@ -172,9 +344,13 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (key.rightArrow) {
       if (key.ctrl) {
         // Move to next word boundary
-        setCursorPosition(findNextWordBoundary(currentValue, pos));
+        const newPos = findNextWordBoundary(currentValue, pos);
+        setCursorPosition(newPos);
+        scrollToCursor(currentValue, newPos);
       } else {
-        setCursorPosition(Math.min(currentValue.length, pos + 1));
+        const newPos = Math.min(currentValue.length, pos + 1);
+        setCursorPosition(newPos);
+        scrollToCursor(currentValue, newPos);
       }
       return;
     }
@@ -182,11 +358,14 @@ export function createTextInput(options: TextInputOptions = {}) {
     // Home/End or Ctrl+A/E
     if (key.home || (key.ctrl && input === 'a')) {
       setCursorPosition(0);
+      scrollToCursor(currentValue, 0);
       return;
     }
 
     if (key.end || (key.ctrl && input === 'e')) {
-      setCursorPosition(currentValue.length);
+      const newPos = currentValue.length;
+      setCursorPosition(newPos);
+      scrollToCursor(currentValue, newPos);
       return;
     }
 
@@ -314,6 +493,9 @@ export function createTextInput(options: TextInputOptions = {}) {
       setCursorPosition(pos + input.length);
       setHistoryIndex(-1);
       onChange?.(newValue);
+      // Update scroll on input
+      const newPos = pos + input.length;
+      scrollToCursor(newValue, newPos);
     }
   };
 
@@ -323,11 +505,13 @@ export function createTextInput(options: TextInputOptions = {}) {
   return {
     value,
     cursorPosition,
+    viewportOffset,
     isMultiline: isMultilineMode,
     handleInput, // Expose handler to be registered during render
     setValue: (v: string) => {
       setValue(v);
       setCursorPosition(v.length);
+      scrollToCursor(v, v.length);
       onChange?.(v);
     },
     clear: () => {
@@ -371,6 +555,12 @@ export function renderTextInput(
   const displayValue = password ? maskChar.repeat(value.length) : value;
   const isEmpty = value.length === 0;
 
+  // Use passed specific wrapping options or defaults
+  const width = options.width ?? 80;
+  const wordWrap = options.wordWrap ?? false;
+  const maxLines = options.maxLines;
+  const showCharCount = options.showCharCount ?? false;
+
   // Build the input display with cursor
   const beforeCursor = displayValue.slice(0, cursor);
   const cursorChar = displayValue[cursor] || ' ';
@@ -378,9 +568,9 @@ export function renderTextInput(
 
   const showPlaceholder = isEmpty && placeholder;
 
-  // Multi-line handling
-  const lines = displayValue.split('\n');
-  const isMultiline = lines.length > 1;
+  // Cursor colors based on theme
+  const cursorBg = themeColor('foreground');
+  const cursorFg = getContrastColor(cursorBg);
 
   // Box style based on borderStyle
   const noBorder = borderStyle === 'none';
@@ -395,45 +585,93 @@ export function renderTextInput(
     boxStyle.paddingX = 1;
   }
 
-  if (isMultiline) {
-    // Calculate which line the cursor is on
-    let charCount = 0;
-    let cursorLine = 0;
-    let cursorCol = cursor;
+  const isMultiline = state.isMultiline() || displayValue.includes('\n') || options.multiline;
+
+  // Use multiline path when any of these conditions are true
+  const shouldUseMultiline = isMultiline || wordWrap || showCharCount;
+
+  // Multi-line handling with wrapping or robust layout features
+  // ALWAYS use multiline path when wordWrap is enabled
+  if (shouldUseMultiline) {
+    // Calculate actual content width for wrapping:
+    // - Border: 2 chars (left + right)
+    // - paddingX: 2 chars (left + right)
+    // - Prompt "❯ " or "│ ": 2 chars
+    const contentWidth = noBorder ? width - 2 : width - 6;
+    const lines = getVisualLines(displayValue, contentWidth, wordWrap);
+
+    // Viewport handling
+    let offset = state.viewportOffset();
+    let visibleLines = lines;
+
+    // If maxLines is set, slice the lines
+    if (maxLines) {
+      visibleLines = lines.slice(offset, offset + maxLines);
+    }
+
+    // Determine visual cursor position relative to viewport
+    // We need to match the cursor index to a line and col
+    let cursorLine = -1;
+    let cursorCol = -1;
 
     for (let i = 0; i < lines.length; i++) {
-      if (charCount + lines[i].length >= cursor) {
+      const line = lines[i];
+      if (cursor >= line.start && cursor <= line.end) {
         cursorLine = i;
-        cursorCol = cursor - charCount;
+        cursorCol = cursor - line.start;
+        // Handle edge case where cursor is at the very beginning of a wrapped line
+        // but logially might be at end of previous?
+        // Usually cursor is at 'index' which falls into one bucket.
         break;
       }
-      charCount += lines[i].length + 1; // +1 for newline
+    }
+
+    // Adjust cursorLine to be relative to visible window
+    const relativeCursorLine = cursorLine - offset;
+
+    const renderedLines = visibleLines.map((lineObj, i) => {
+      const lineIndex = offset + i; // Absolute line index
+      const isCursorLine = lineIndex === cursorLine;
+      const line = lineObj.text;
+
+      const linePrompt = i === 0 && offset === 0 ? prompt : getChars().border.vertical;
+
+      if (isCursorLine && isActive) {
+        // Ensure cursorCol is within bounds of this line
+        const safeCol = Math.min(Math.max(0, cursorCol), line.length);
+        const before = line.slice(0, safeCol);
+        const char = line[safeCol] || ' ';
+        const after = line.slice(safeCol + 1);
+
+        return Box(
+          { flexDirection: 'row' },
+          Text({ color: promptColor }, `${linePrompt} `),
+          Text({}, before),
+          Text({ backgroundColor: cursorBg, color: cursorFg }, char),
+          Text({}, after)
+        );
+      }
+
+      return Box(
+        { flexDirection: 'row' },
+        Text({ color: promptColor }, `${linePrompt} `),
+        Text({}, line)
+      );
+    });
+
+    if (showCharCount) {
+      const countText = `${value.length}${options.maxLength ? '/' + options.maxLength : ''}`;
+      renderedLines.push(
+        Box(
+          { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 0 },
+          Text({ color: 'gray', dim: true }, countText)
+        )
+      );
     }
 
     return Box(
       boxStyle,
-      ...lines.map((line, i) => {
-        const linePrompt = i === 0 ? prompt : getChars().border.vertical;
-        if (i === cursorLine && isActive) {
-          const before = line.slice(0, cursorCol);
-          const char = line[cursorCol] || ' ';
-          const after = line.slice(cursorCol + 1);
-          const cursorBg = themeColor('foreground');
-          const cursorFg = getContrastColor(cursorBg);
-          return Box(
-            { flexDirection: 'row' },
-            Text({ color: promptColor }, `${linePrompt} `),
-            Text({}, before),
-            Text({ backgroundColor: cursorBg, color: cursorFg }, char),
-            Text({}, after)
-          );
-        }
-        return Box(
-          { flexDirection: 'row' },
-          Text({ color: promptColor }, `${linePrompt} `),
-          Text({}, line)
-        );
-      })
+      ...renderedLines
     );
   }
 
@@ -449,27 +687,25 @@ export function renderTextInput(
     rowStyle.paddingX = 1;
   }
 
-  // Cursor colors based on theme
-  const cursorBg = themeColor('foreground');
-  const cursorFg = getContrastColor(cursorBg);
+
 
   return Box(
     rowStyle,
     Text({ color: promptColor }, `${prompt} `),
     showPlaceholder
       ? Box(
-          { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
-          Text({ color: 'gray', dim: true }, placeholder),
-          isActive ? Text({ backgroundColor: cursorBg, color: cursorFg }, ' ') : Text({}, '')
-        )
+        { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
+        Text({ color: 'gray', dim: true }, placeholder),
+        isActive ? Text({ backgroundColor: cursorBg, color: cursorFg }, ' ') : Text({}, '')
+      )
       : Box(
-          { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
-          Text({}, beforeCursor),
-          isActive
-            ? Text({ backgroundColor: cursorBg, color: cursorFg }, cursorChar)
-            : Text({}, cursorChar),
-          Text({}, afterCursor)
-        )
+        { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
+        Text({}, beforeCursor),
+        isActive
+          ? Text({ backgroundColor: cursorBg, color: cursorFg }, cursorChar)
+          : Text({}, cursorChar),
+        Text({}, afterCursor)
+      )
   );
 }
 

@@ -1,51 +1,40 @@
 # Tuiuiu ping - Network Latency Monitor
-# Real-time ping visualization with theme cycling
+# Real-time ping visualization with statistics and latency graph
 
 Output docs/assets/demo-ping.gif
 
 Set Shell bash
-Set FontSize 13
-Set Width 1100
-Set Height 650
-Set Padding 15
-Set PlaybackSpeed 0.5
-Set TypingSpeed 0.005s
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.5
+Set TypingSpeed 0.003s
 
-# Run ping example (fast typing)
-Type "pnpm tsx examples/app-ping.ts google.com"
+# Run ping example
+Type "pnpm tsx examples/app-ping.ts 8.8.8.8"
 Enter
 
-# Let it collect ping data
-Sleep 5s
+# Let it collect initial ping data
+Sleep 3s
 
-# Clear stats with 'c'
+# Clear stats to show the feature
 Type "c"
-Sleep 1s
+Sleep 1.5s
 
-# Cycle through all 11 themes with Tab (0.5s each)
+# Theme cycling to show visual variety
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
+Sleep 300ms
+
+# Let more data accumulate
+Sleep 1.5s
 
 # Exit
 Ctrl+C
-Sleep 300ms
+Sleep 200ms

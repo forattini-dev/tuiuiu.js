@@ -1,46 +1,57 @@
 # Tuiuiu Storybook - Component Explorer
-# Interactive component documentation
+# Interactive component documentation and preview system
 
 Output docs/assets/demo-storybook.gif
 
 Set Shell bash
-Set FontSize 14
-Set Width 1600
-Set Height 800
-Set Padding 15
-Set PlaybackSpeed 0.5
-Set TypingSpeed 0.005s
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.5
+Set TypingSpeed 0.003s
 
-# Run storybook (fast typing)
+# Run storybook
 Type "pnpm storybook"
 Enter
 
 # Let it initialize
-Sleep 3s
+Sleep 1.2s
 
-# Navigate categories
-Sleep 1s
+# Browse categories
 Down
-Sleep 500ms
+Sleep 150ms
 Down
-Sleep 500ms
+Sleep 150ms
 Down
-Sleep 500ms
+Sleep 150ms
 Enter
-Sleep 1s
+Sleep 400ms
 
-# Explore component
+# Select a component
 Down
-Sleep 500ms
+Sleep 150ms
 Down
-Sleep 500ms
+Sleep 150ms
 Enter
-Sleep 2s
+Sleep 600ms
 
-# Go back
+# Go back and explore another
 Escape
-Sleep 500ms
+Sleep 200ms
+
+# Go to next category
+Down
+Sleep 150ms
+Enter
+Sleep 400ms
+
+# View component
+Down
+Sleep 150ms
+Enter
+Sleep 600ms
 
 # Exit
 Ctrl+C
-Sleep 300ms
+Sleep 200ms

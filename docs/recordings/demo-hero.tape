@@ -1,58 +1,71 @@
 # Tuiuiu Storybook - Component Explorer (Hero)
-# Browse and preview all components
+# Main showcase GIF for documentation - exploring key components
 
 Output docs/assets/demo-hero.gif
 
 Set Shell bash
-Set FontSize 14
-Set Width 1600
-Set Height 800
-Set Padding 20
-Set PlaybackSpeed 0.4
-Set TypingSpeed 0.005s
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.2
+Set TypingSpeed 0.003s
 
-# Run storybook (fast typing)
+# Run storybook
 Type "pnpm storybook"
 Enter
 
 # Let it initialize
-Sleep 3s
+Sleep 1.5s
 
-# Navigate sidebar
+# Navigate to Atoms category
 Down
+Sleep 200ms
+Enter
 Sleep 400ms
+
+# Explore Spinner component
 Down
-Sleep 400ms
+Sleep 150ms
 Enter
 Sleep 800ms
-
-# Explore components
-Down
-Sleep 300ms
-Down
-Sleep 300ms
-Enter
-Sleep 1s
 
 # Go back
 Escape
-Sleep 300ms
+Sleep 200ms
 
-# Navigate more
+# Navigate to Molecules
 Down
-Sleep 300ms
+Sleep 150ms
 Down
-Sleep 300ms
+Sleep 150ms
+Enter
+Sleep 400ms
+
+# Select Table component
 Down
-Sleep 300ms
+Sleep 150ms
+Down
+Sleep 150ms
 Enter
 Sleep 800ms
 
+# Go back
+Escape
+Sleep 200ms
+
+# Navigate to Data Viz
 Down
-Sleep 300ms
+Sleep 150ms
 Enter
-Sleep 1.5s
+Sleep 400ms
+
+# Select Chart
+Down
+Sleep 150ms
+Enter
+Sleep 800ms
 
 # Exit
 Ctrl+C
-Sleep 300ms
+Sleep 200ms

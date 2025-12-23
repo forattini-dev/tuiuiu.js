@@ -18,7 +18,6 @@ import {
   Text,
   Spacer,
   Newline,
-  Each,
   When,
   useState,
   useInput,
@@ -29,11 +28,11 @@ import {
   themeColor,
   type VNode,
 } from '../src/index.js';
+import { useTerminalSize } from '../src/hooks/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
-import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
-import { createTextInput, TextInput } from '../src/atoms/text-input.js';
+import { TuiuiuHeader } from './_shared/tuiuiu-header.js';
+import { createTextInput, renderTextInput, getVisualLines } from '../src/atoms/text-input.js';
 import { Spinner, type SpinnerStyle } from '../src/atoms/spinner.js';
-import { ProgressBar } from '../src/atoms/progress-bar.js';
 import { Markdown } from '../src/molecules/markdown.js';
 import { CodeBlock } from '../src/molecules/code-block.js';
 import { Table, KeyValueTable } from '../src/molecules/table.js';
@@ -50,50 +49,45 @@ interface Message {
 let messageId = 0;
 
 /**
- * Message Bubble Component
+ * Chat Bubble Component - Clean WhatsApp/iMessage style
+ * User messages on the right, assistant/system on the left
  */
-function MessageBubble(props: { message: Message }): VNode {
-  const { message } = props;
+function ChatBubble(props: { message: Message; maxWidth?: number }): VNode {
+  const { message, maxWidth = 45 } = props;
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
-  // Determine icon and color based on role
-  const icon = isUser ? '👤' : isSystem ? '⚙️' : '🤖';
-  const nameColor = isUser ? themeColor('info') : isSystem ? themeColor('warning') : themeColor('success');
-  const name = isUser ? 'You' : isSystem ? 'System' : 'Assistant';
+  // Colors based on role
+  const bubbleColor = isUser
+    ? themeColor('primary')
+    : isSystem
+      ? themeColor('warning')
+      : themeColor('muted');
 
-  // Check if content contains markdown elements
-  const hasMarkdown = message.content.includes('```') ||
-                      message.content.includes('#') ||
-                      message.content.includes('**') ||
-                      message.content.includes('- ');
-
-  return Box(
-    { flexDirection: 'column', marginBottom: 1 },
-    // Header
+  // Simple bubble with border
+  const bubble = Box(
+    {
+      flexDirection: 'column',
+      borderStyle: 'round',
+      borderColor: bubbleColor,
+      paddingX: 1,
+    },
+    // Header: name + time
     Box(
       { flexDirection: 'row' },
-      Text({ color: nameColor, bold: true }, `${icon} ${name}`),
-      Spacer(),
-      Text({ color: themeColor('muted'), dim: true }, formatTime(message.timestamp)),
-      message.tokens
-        ? Text({ color: themeColor('muted'), dim: true }, ` · ${message.tokens} tokens`)
-        : Text({}, '')
+      Text({ color: bubbleColor, bold: true }, isUser ? '👤 Você' : isSystem ? '⚙️ Sistema' : '🤖 Assistente'),
+      Text({ color: themeColor('muted'), dim: true }, `  ${formatTime(message.timestamp)}`)
     ),
     // Content
-    Box(
-      { paddingLeft: 3, marginTop: 0 },
-      hasMarkdown && !isUser
-        ? Markdown({ content: message.content, maxWidth: 80 })
-        : Text({}, message.content)
-    ),
+    Text({}, message.content),
     // Streaming indicator
-    message.streaming
-      ? Box(
-          { paddingLeft: 3 },
-          Text({ color: themeColor('primary'), dim: true }, '▌')
-        )
-      : Box({})
+    message.streaming ? Text({ color: bubbleColor, dim: true }, '▌') : Text({}, '')
+  );
+
+  // Align: user right, others left
+  return Box(
+    { flexDirection: 'row', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: 1, flexGrow: 1 },
+    bubble
   );
 }
 
@@ -103,7 +97,7 @@ function MessageBubble(props: { message: Message }): VNode {
 function HelpPanel(): VNode {
   const shortcuts = [
     { key: 'Enter', value: 'Send message' },
-    { key: 'Shift+Enter', value: 'New line' },
+    { key: 'Ctrl+N', value: 'New line' },
     { key: 'Up/Down', value: 'History navigation' },
     { key: 'Ctrl+L', value: 'Clear screen' },
     { key: 'Ctrl+C', value: 'Exit' },
@@ -119,7 +113,7 @@ function HelpPanel(): VNode {
     KeyValueTable({
       entries: shortcuts,
       keyColor: themeColor('warning'),
-      valueColor: themeColor('text'),
+      valueColor: themeColor('foreground'),
     })
   );
 }
@@ -138,7 +132,7 @@ function StatusBar(props: {
   return Box(
     { flexDirection: 'row', marginTop: 1, paddingX: 1 },
     Text({ color: themeColor('primary') }, '▶'),
-    Text({ color: themeColor('text') }, ` ${model}`),
+    Text({ color: themeColor('foreground') }, ` ${model}`),
     Text({ color: themeColor('muted'), dim: true }, ' │ '),
     Text({ color: themeColor('muted') }, `${messageCount} msgs`),
     Text({ color: themeColor('muted'), dim: true }, ' │ '),
@@ -151,90 +145,25 @@ function StatusBar(props: {
 }
 
 /**
- * Streaming Indicator Component
+ * Typing Indicator Component - Shows when the assistant is "typing"
  */
-function StreamingIndicator(props: {
+function TypingIndicator(props: {
   isActive: boolean;
-  progress: number;
   style: SpinnerStyle;
 }): VNode {
-  const { isActive, progress, style } = props;
+  const { isActive, style } = props;
 
   if (!isActive) return Box({});
 
   return Box(
-    { flexDirection: 'column', marginY: 1 },
+    { flexDirection: 'row', marginY: 1, paddingLeft: 3 },
+    Text({ color: themeColor('success'), bold: true }, '🤖 Assistant '),
     Spinner({
       style,
       isActive: true,
+      color: themeColor('muted'),
     }),
-    ProgressBar({
-      value: progress,
-      max: 100,
-      width: 30,
-      style: 'smooth',
-      showPercentage: true,
-      color: themeColor('primary'),
-    })
-  );
-}
-
-/**
- * Welcome Message
- */
-function WelcomeMessage(): VNode {
-  const exampleCode = `import { createSignal, createEffect } from 'tuiuiu.js';
-
-// Create a reactive signal
-const [count, setCount] = createSignal(0);
-
-// Create an effect that runs when count changes
-createEffect(() => {
-  console.log('Count:', count());
-});
-
-setCount(1); // Logs: "Count: 1"`;
-
-  return Box(
-    { flexDirection: 'column', marginBottom: 2 },
-    Text({ color: themeColor('accent'), bold: true }, '🚀 Welcome to Tuiuiu Chat'),
-    Newline(),
-    Markdown({
-      content: `
-## Getting Started
-
-This is an **enhanced chat interface** built with Tuiuiu - a zero-dependency reactive terminal UI framework.
-
-### Features
-
-- Full markdown support with \`syntax highlighting\`
-- **Bold**, *italic*, and ~~strikethrough~~ text
-- Code blocks with language detection
-- Interactive input with history
-- Multiple spinner styles
-- Theme switching (press **Tab**)
-
-### Try These Commands
-
-- \`/help\` - Show keyboard shortcuts
-- \`/clear\` - Clear the screen
-- \`/spinner <style>\` - Change spinner style
-- \`/code\` - Show a code example
-
----
-
-Type your message and press **Enter** to send.
-`,
-      maxWidth: 80,
-    }),
-    Newline(),
-    Text({ color: themeColor('muted'), dim: true }, 'Example code block:'),
-    CodeBlock({
-      code: exampleCode,
-      language: 'typescript',
-      lineNumbers: true,
-      borderStyle: 'round',
-    })
+    Text({ color: themeColor('muted'), dim: true }, ' typing...')
   );
 }
 
@@ -243,32 +172,30 @@ Type your message and press **Enter** to send.
  */
 function EnhancedChatApp(): VNode {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamProgress, setStreamProgress] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const [spinnerStyle, setSpinnerStyle] = useState<SpinnerStyle>('dots');
-  const [showWelcome, setShowWelcome] = useState(true);
 
   const { exit } = useApp();
   const currentTheme = useTheme();
 
-  // Create text input state
-  const textInput = createTextInput({
+  // Use terminal size
+  const { columns: width, rows: height } = useTerminalSize();
+
+  // Create text input state (persisted across renders)
+  const [textInputState] = useState(createTextInput({
     placeholder: 'Type your message...',
     history: inputHistory(),
     multiline: true,
-    onChange: () => {
-      // Hide welcome on first input
-      if (showWelcome()) setShowWelcome(false);
-    },
+    onChange: () => {},
     onSubmit: (value) => {
       if (!value.trim()) return;
 
       // Handle commands
       if (value.startsWith('/')) {
         handleCommand(value.slice(1));
-        textInput.clear();
+        textInputState().clear();
         return;
       }
 
@@ -283,20 +210,38 @@ function EnhancedChatApp(): VNode {
         timestamp: new Date(),
       };
       setMessages((m) => [...m, userMsg]);
-      textInput.clear();
-      setShowWelcome(false);
+      textInputState().clear();
 
       // Simulate streaming response
       simulateResponse(value);
     },
     onCancel: () => {
-      if (isStreaming()) {
-        setIsStreaming(false);
-        setStreamProgress(0);
+      if (isTyping()) {
+        setIsTyping(false);
       }
     },
-    isActive: !isStreaming(),
-  });
+    isActive: !isTyping(),
+  }));
+
+  const textInput = textInputState();
+
+  // Calculate input width for wrapping
+  // Must match renderTextInput's contentWidth calculation:
+  // - Outer padding: 2 (from Box padding: 1)
+  // - Border: 2 chars
+  // - Inner paddingX: 2 chars
+  // - Prompt "❯ ": 2 chars
+  // Total: width - 2 (outer) - 6 (inner) = width - 8
+  const inputContentWidth = width - 8;
+
+  // Calculate input height based on VISUAL lines (includes wrapped lines)
+  const inputValue = textInput.value();
+  const visualLines = getVisualLines(inputValue, inputContentWidth, true);
+  const inputLines = Math.max(1, visualLines.length);
+  const inputHeight = Math.max(3, inputLines + 2); // +2 for border
+
+  // Messages area height = total - header(3) - status(1) - input - padding(2)
+  const messagesHeight = Math.max(3, height - 6 - inputHeight);
 
   // Handle slash commands
   const handleCommand = (cmd: string) => {
@@ -309,7 +254,6 @@ function EnhancedChatApp(): VNode {
 
       case 'clear':
         setMessages([]);
-        setShowWelcome(true);
         break;
 
       case 'spinner':
@@ -348,102 +292,26 @@ function EnhancedChatApp(): VNode {
     setMessages((m) => [...m, msg]);
   };
 
-  // Simulate streaming response
-  const simulateResponse = (userInput: string) => {
-    setIsStreaming(true);
-    setStreamProgress(0);
+  // Simulate typing response (like a real chat)
+  const simulateResponse = (_userInput: string) => {
+    setIsTyping(true);
 
-    // Simulate progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
+    // Simulate typing delay (1-2 seconds)
+    const typingDelay = 1000 + Math.random() * 1000;
 
-        // Add assistant message
-        const response = generateResponse(userInput);
-        const assistantMsg: Message = {
-          id: messageId++,
-          role: 'assistant',
-          content: response,
-          timestamp: new Date(),
-          tokens: Math.floor(response.length / 4),
-        };
-        setMessages((m) => [...m, assistantMsg]);
-        setIsStreaming(false);
-        setStreamProgress(0);
-      }
-      setStreamProgress(progress);
-    }, 100);
+    setTimeout(() => {
+      // Add assistant message
+      const assistantMsg: Message = {
+        id: messageId++,
+        role: 'assistant',
+        content: 'Mensagem recebida!',
+        timestamp: new Date(),
+      };
+      setMessages((m) => [...m, assistantMsg]);
+      setIsTyping(false);
+    }, typingDelay);
   };
 
-  // Generate mock response
-  const generateResponse = (input: string): string => {
-    const lowered = input.toLowerCase();
-
-    if (lowered.includes('hello') || lowered.includes('hi')) {
-      return 'Hello! How can I help you today? I can answer questions, generate code, or have a conversation.';
-    }
-
-    if (lowered.includes('code') || lowered.includes('example')) {
-      return `Here's a simple example:
-
-\`\`\`typescript
-function greet(name: string): string {
-  return \`Hello, \${name}!\`;
-}
-
-console.log(greet('World'));
-\`\`\`
-
-This function takes a name and returns a greeting.`;
-    }
-
-    if (lowered.includes('help')) {
-      return `## Available Commands
-
-- **/help** - Toggle keyboard shortcuts
-- **/clear** - Clear chat history
-- **/spinner <style>** - Change spinner animation
-- **/theme** - Cycle through themes
-- **/code** - Show code example
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| Enter | Send message |
-| Shift+Enter | New line |
-| Up/Down | Navigate history |
-| Tab | Cycle theme |
-| H | Toggle help |
-| Esc | Cancel |`;
-    }
-
-    if (lowered.includes('table')) {
-      return `Here's a table example:
-
-| Feature | Status | Priority |
-|---------|--------|----------|
-| Text Input | ✅ Done | High |
-| Spinner | ✅ Done | Medium |
-| Progress Bar | ✅ Done | Medium |
-| Markdown | ✅ Done | High |`;
-    }
-
-    return `I received your message: "${input}"
-
-This is a demo response that shows **markdown formatting**, including:
-
-1. Bold and *italic* text
-2. Inline \`code\` snippets
-3. Lists and bullet points
-
-> This is a blockquote for emphasis.
-
-Feel free to ask me anything!`;
-  };
 
   // Global key handler
   useInput(withKeyIndicator((char, key) => {
@@ -454,7 +322,6 @@ Feel free to ask me anything!`;
     }
     if (key.ctrl && char === 'l') {
       setMessages([]);
-      setShowWelcome(true);
       return;
     }
     // Tab cycles theme
@@ -464,14 +331,11 @@ Feel free to ask me anything!`;
       return;
     }
     // H toggles help
-    if (char === 'h' && !key.ctrl && !key.alt) {
+    if (char === 'h' && !key.ctrl) {
       setShowHelp((h) => !h);
       return;
     }
   }));
-
-  // Track frames for FPS
-  trackFrame();
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -480,40 +344,44 @@ Feel free to ask me anything!`;
       title: 'chat',
       emoji: '💬',
       subtitle: 'Interactive Chat Demo',
+      showFps: false,
     }),
 
     // Help panel (collapsible)
     When(showHelp(), HelpPanel()),
 
-    // Welcome message
-    When(showWelcome() && messages().length === 0, WelcomeMessage()),
+    // Messages Area (height shrinks as input grows)
+    Box(
+      { flexDirection: 'column', height: messagesHeight },
+      ...messages().map(msg => ChatBubble({
+        message: msg,
+        maxWidth: Math.floor(width * 0.65) // Bubbles take ~65% of width
+      }))
+    ),
 
-    // Messages
-    Each(messages(), (msg) => MessageBubble({ message: msg })),
-
-    // Streaming indicator
-    StreamingIndicator({
-      isActive: isStreaming(),
-      progress: streamProgress(),
+    // Typing indicator (shows when assistant is "typing")
+    TypingIndicator({
+      isActive: isTyping(),
       style: spinnerStyle(),
     }),
 
-    // Input
-    When(
-      !isStreaming(),
-      TextInput(textInput, {
-        placeholder: 'Type your message... (/ for commands)',
-        borderStyle: 'round',
-        focusedBorderColor: themeColor('primary'),
-        prompt: '❯',
-        promptColor: themeColor('primary'),
-      })
-    ),
+    // Input (multiline auto-expands)
+    renderTextInput(textInput, {
+      placeholder: 'Type your message... (/ for commands)',
+      borderStyle: 'round',
+      focusedBorderColor: themeColor('primary'),
+      prompt: '❯',
+      promptColor: themeColor('primary'),
+      fullWidth: true,
+      multiline: true,
+      wordWrap: true,
+      width: width - 2, // Minus outer padding; renderTextInput subtracts 6 more internally
+    }),
 
     // Status bar
     StatusBar({
       model: 'tuiuiu-demo',
-      themeName: currentTheme,
+      themeName: currentTheme.name,
       spinnerStyle: spinnerStyle(),
       messageCount: messages().length,
     }),

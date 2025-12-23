@@ -1,57 +1,69 @@
 # Tuiuiu forms - Form Wizard Demo
-# Multi-step form with validation
+# Multi-step form with validation, selections, and toggle controls
 
 Output docs/assets/demo-forms.gif
 
 Set Shell bash
-Set FontSize 14
-Set Width 900
-Set Height 550
-Set Padding 15
-Set PlaybackSpeed 0.6
-Set TypingSpeed 0.005s
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.5
+Set TypingSpeed 0.003s
 
-# Run forms example (fast command typing)
+# Run forms example
 Type "pnpm tsx examples/app-forms.ts"
 Enter
 
 # Let it initialize
-Sleep 1.5s
+Sleep 800ms
 
-# Fill out form (slower typing for readability)
-Set TypingSpeed 0.03s
-Type "John Doe"
-Sleep 500ms
+# Fill out form fields with realistic typing
+Set TypingSpeed 0.02s
+Type "Alice Johnson"
+Sleep 300ms
 Tab
-Sleep 300ms
+Sleep 200ms
 
-Type "john@example.com"
-Sleep 500ms
+Type "alice@tuiuiu.dev"
+Sleep 300ms
 Tab
-Sleep 300ms
+Sleep 200ms
 
-# Select role
+# Navigate role dropdown
 Down
-Sleep 300ms
+Sleep 150ms
 Down
-Sleep 300ms
+Sleep 150ms
 Enter
-Sleep 500ms
-
-# Skip to skills
-Tab
 Sleep 300ms
 
-# Toggle some skills
+# Move to skills
+Tab
+Sleep 200ms
+
+# Toggle some skills with space
 Space
-Sleep 500ms
-
-# Submit
-Tab
+Sleep 200ms
+Down
+Sleep 150ms
+Space
+Sleep 200ms
+Down
+Sleep 150ms
+Space
 Sleep 300ms
+
+# Navigate to submit
+Tab
+Sleep 200ms
+Tab
+Sleep 200ms
+
+# Submit form
 Enter
-Sleep 1.5s
+Sleep 1s
 
 # Exit
 Ctrl+C
-Sleep 300ms
+Sleep 200ms

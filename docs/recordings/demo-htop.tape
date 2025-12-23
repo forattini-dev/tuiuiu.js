@@ -1,47 +1,57 @@
 # Tuiuiu htop - System Process Monitor
-# Interactive process viewer with real-time updates and theme cycling
+# Interactive process viewer with real-time updates, sorting, and theme cycling
 
 Output docs/assets/demo-htop.gif
 
 Set Shell bash
-Set FontSize 13
-Set Width 1100
-Set Height 700
-Set Padding 15
-Set PlaybackSpeed 0.5
-Set TypingSpeed 0.005s
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.5
+Set TypingSpeed 0.003s
 
-# Run htop example (fast typing)
+# Run htop example
 Type "pnpm tsx examples/app-htop.ts"
 Enter
 
 # Let it initialize and show processes
-Sleep 5s
+Sleep 2s
 
-# Cycle through all 11 themes with Tab (0.5s each)
+# Navigate through processes
+Down
+Sleep 100ms
+Down
+Sleep 100ms
+Down
+Sleep 100ms
+Up
+Sleep 100ms
+Up
+Sleep 200ms
+
+# Quick theme cycle (show variety)
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
+Sleep 200ms
 Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
-Tab
-Sleep 500ms
+Sleep 300ms
+
+# Show more processes
+Down
+Sleep 100ms
+Down
+Sleep 100ms
+Down
+Sleep 100ms
+Down
+Sleep 400ms
 
 # Exit
 Ctrl+C
-Sleep 300ms
+Sleep 200ms

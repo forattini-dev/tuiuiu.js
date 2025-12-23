@@ -1,42 +1,67 @@
 # Tuiuiu counter - Basic Counter Example
-# Simple reactive counter with keyboard controls
+# Demonstrates reactive signals with keyboard controls
 
 Output docs/assets/demo-counter.gif
 
-Set FontSize 12
-Set Width 800
-Set Height 450
-Set Padding 20
-Set PlaybackSpeed 0.75
-Set TypingSpeed 0.005s
+Set Shell bash
+Set FontSize 16
+Set Width 1920
+Set Height 1080
+Set Padding 30
+Set PlaybackSpeed 1.5
+Set TypingSpeed 0.003s
 
-# Run counter example (fast typing)
+# Run counter example
 Type "pnpm tsx examples/app-counter.ts"
 Enter
 
 # Let it initialize
-Sleep 1s
+Sleep 800ms
 
-# Increment a few times
+# Rapid increment sequence - counting up fast
 Up
-Sleep 400ms
+Sleep 150ms
 Up
-Sleep 400ms
+Sleep 150ms
 Up
-Sleep 400ms
+Sleep 150ms
 Type "k"
-Sleep 400ms
+Sleep 150ms
+Type "k"
+Sleep 150ms
+Up
+Sleep 150ms
+Up
+Sleep 150ms
+Type "k"
+Sleep 150ms
+Up
+Sleep 150ms
+Up
+Sleep 300ms
 
-# Decrement
+# Decrement sequence
 Down
-Sleep 400ms
+Sleep 150ms
+Down
+Sleep 150ms
 Type "j"
-Sleep 400ms
+Sleep 150ms
+Type "j"
+Sleep 300ms
 
-# Reset
+# Reset to zero
 Type "r"
-Sleep 1s
+Sleep 500ms
+
+# Final increment
+Up
+Sleep 200ms
+Up
+Sleep 200ms
+Up
+Sleep 400ms
 
 # Exit
 Ctrl+C
-Sleep 500ms
+Sleep 200ms

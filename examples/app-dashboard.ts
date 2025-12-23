@@ -28,7 +28,9 @@ import {
   getNextTheme,
   themeColor,
 } from '../src/index.js';
-import { createSpinner, renderSpinner } from '../src/atoms/spinner.js';
+import { useTerminalSize } from '../src/hooks/index.js';
+import { createSpinner, renderSpinner, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
+import { createScrollArea, ScrollArea } from '../src/organisms/scroll-area.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-header.js';
@@ -37,9 +39,8 @@ import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-hea
 // Constants
 // ============================================================================
 
-const CARD_WIDTH = 26;
-const WIDE_CARD_WIDTH = 40;
-const FULL_WIDTH = 82;
+const MAX_LOG_ENTRIES = 100;
+const MAX_SPARKLINE_HISTORY = 200; // Store enough data for wide terminals
 
 // ============================================================================
 // Utility Functions
@@ -49,13 +50,21 @@ const SPARK = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
 function sparkline(values: number[], width: number = 20): string {
   if (values.length === 0) return SPARK[0].repeat(width);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+
+  // Take the last 'width' values
+  const data = values.slice(-width);
+  const min = Math.min(...data);
+  const max = Math.max(...data);
   const range = max - min || 1;
-  return values
-    .slice(-width)
+
+  // Convert values to spark characters
+  const sparks = data
     .map((v) => SPARK[Math.floor(((v - min) / range) * 7)])
     .join('');
+
+  // Pad with minimum spark on the left if not enough data
+  const padding = SPARK[0].repeat(Math.max(0, width - data.length));
+  return padding + sparks;
 }
 
 function progressBar(value: number, max: number, width: number, filled = '█', empty = '░'): string {
@@ -121,7 +130,7 @@ const LCD_DIGITS: Record<string, string[]> = {
   '7': ['╺━┓', '  ┃', '  ╹'],
   '8': ['┏━┓', '┣━┫', '┗━┛'],
   '9': ['┏━┓', '┗━┫', '╺━┛'],
-  '.': ['   ', '   ', ' ● '],
+  '.': ['  ', '  ', '• '],
   ',': ['   ', '   ', ' ╷ '],
   '%': ['○ ╱', ' ╱ ', '╱ ○'],
   ' ': ['   ', '   ', '   '],
@@ -131,7 +140,7 @@ const LCD_DIGITS: Record<string, string[]> = {
   's': ['╺┓ ', '━╸ ', '━┛ '],
 };
 
-function renderLCD(text: string, color: string): VNode {
+function renderLCD(text: string, color: string, suffix?: string): VNode {
   const chars = text.split('');
   const lines: string[] = ['', '', ''];
 
@@ -146,7 +155,12 @@ function renderLCD(text: string, color: string): VNode {
     { flexDirection: 'column' },
     Text({ color: color as any }, lines[0]),
     Text({ color: color as any }, lines[1]),
-    Text({ color: color as any }, lines[2])
+    // Suffix appears on the last line, right after the LCD digits
+    Box(
+      { flexDirection: 'row' },
+      Text({ color: color as any }, lines[2]),
+      suffix ? Text({ color: color as any, bold: true }, ` ${suffix}`) : null
+    )
   );
 }
 
@@ -208,7 +222,7 @@ function createMetricsStore() {
       const noise = (Math.random() - 0.5) * 100;
       const newRps = Math.max(800, Math.min(2000, 1200 + wave + noise));
       setRps(Math.round(newRps));
-      setRpsHistory(h => [...h.slice(-30), newRps]);
+      setRpsHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newRps]);
       setTotalReqs(t => t + Math.round(newRps / 10));
     }, 100));
 
@@ -218,7 +232,7 @@ function createMetricsStore() {
       const spike = Math.random() > 0.95 ? 20 : 0;
       const newCpu = Math.max(15, Math.min(95, 45 + wave + spike + (Math.random() - 0.5) * 10));
       setCpu(Math.round(newCpu));
-      setCpuHistory(h => [...h.slice(-20), newCpu]);
+      setCpuHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newCpu]);
     }, 200));
 
     // Memory - every 500ms
@@ -227,7 +241,7 @@ function createMetricsStore() {
         const delta = (Math.random() - 0.48) * 2;
         return Math.max(40, Math.min(85, m + delta));
       });
-      setMemHistory(h => [...h.slice(-20), mem()]);
+      setMemHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), mem()]);
     }, 500));
 
     // Latency - every 150ms
@@ -235,14 +249,14 @@ function createMetricsStore() {
       const base = 35 + Math.random() * 20;
       const spike = Math.random() > 0.92 ? Math.random() * 100 : 0;
       setLatency(Math.round(base + spike));
-      setLatencyHistory(h => [...h.slice(-20), latency()]);
+      setLatencyHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), latency()]);
     }, 150));
 
     // Errors - every 1s
     timers.push(setInterval(() => {
       const newErr = Math.random() > 0.9 ? Math.random() * 2 : Math.random() * 0.5;
       setErrors(Math.round(newErr * 100) / 100);
-      setErrorsHistory(h => [...h.slice(-20), newErr]);
+      setErrorsHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newErr]);
     }, 1000));
 
     // Connections - every 300ms
@@ -271,7 +285,7 @@ function createMetricsStore() {
         statusColor: status.color,
         latency: Math.round(randomLatency()),
       };
-      setActivityLog(log => [entry, ...log.slice(0, 9)]);
+      setActivityLog(log => [entry, ...log.slice(0, MAX_LOG_ENTRIES - 1)]);
       logTimeout = setTimeout(addLogEntry, 50 + Math.random() * 250);
     };
     addLogEntry();
@@ -313,7 +327,9 @@ function createMetricsStore() {
 function Card(props: {
   title: string;
   width?: number;
+  height?: number;
   color?: string;
+  flexGrow?: number;
   children: (VNode | null)[];
 }): VNode {
   return Box(
@@ -321,8 +337,11 @@ function Card(props: {
       flexDirection: 'column',
       borderStyle: 'round',
       borderColor: (props.color || themeColor('muted')) as any,
-      width: props.width || CARD_WIDTH,
+      width: props.width,
+      height: props.height,
+      flexGrow: props.flexGrow ?? (props.width ? undefined : 1),
       paddingX: 1,
+      paddingBottom: 1,
     },
     Box(
       { marginBottom: 1 },
@@ -338,16 +357,14 @@ function BigMetric(props: {
   suffix?: string;
   color: string;
   spark?: string;
-  width?: number;
+  sparkWidth?: number;
 }): VNode {
   return Card({
     title: props.title,
-    width: props.width || CARD_WIDTH,
     color: props.color,
     children: [
-      renderLCD(props.value, props.color),
-      props.suffix ? Text({ color: props.color as any, bold: true }, ` ${props.suffix}`) : null,
-      props.spark ? Box({ marginTop: 1 }, Text({ color: props.color as any, dim: true }, props.spark)) : null,
+      renderLCD(props.value, props.color, props.suffix),
+      props.spark ? Text({ color: props.color as any, dim: true }, props.spark) : null,
     ],
   });
 }
@@ -357,14 +374,13 @@ function GaugeBar(props: {
   value: number;
   max: number;
   color: string;
-  width?: number;
+  barWidth: number;
 }): VNode {
   const pct = (props.value / props.max) * 100;
-  const barWidth = (props.width || CARD_WIDTH) - 12;
-  const bar = progressBar(props.value, props.max, barWidth);
+  const bar = progressBar(props.value, props.max, props.barWidth);
 
   return Box(
-    { flexDirection: 'column', width: props.width || CARD_WIDTH },
+    { flexDirection: 'column' },
     Box(
       { flexDirection: 'row' },
       Text({ color: themeColor('mutedForeground'), dim: true }, props.title),
@@ -378,28 +394,47 @@ function GaugeBar(props: {
   );
 }
 
-function ActivityFeed(props: { entries: LogEntry[] }): VNode {
+function ActivityFeed(props: { entries: LogEntry[]; height: number }): VNode {
+  // Convert entries to VNodes for ScrollArea
+  const logContent = props.entries.map((e) =>
+    Box(
+      { flexDirection: 'row' },
+      Text({ color: themeColor('mutedForeground'), dim: true }, `${e.time} `),
+      Text({ color: e.statusColor as any, bold: true }, `${e.status} `),
+      Text({ color: themeColor('primary') }, `${e.method.padEnd(6)} `),
+      Text({ color: themeColor('foreground') }, e.path.padEnd(16)),
+      Text({ color: e.latency > 100 ? themeColor('warning') : themeColor('success') as any }, ` ${e.latency}ms`)
+    )
+  );
+
+  // Create scroll state with auto-scroll disabled (newest entries are at top)
+  const scrollState = createScrollArea({
+    height: props.height,
+    content: logContent,
+    autoScroll: false,
+    isActive: false, // Don't intercept keyboard input
+  });
+
   return Card({
-    title: '◉ LIVE REQUESTS',
-    width: WIDE_CARD_WIDTH,
+    title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES})`,
+    height: props.height + 4, // +4 for border and title
     color: themeColor('primary'),
-    children: props.entries.slice(0, 8).map((e, i) =>
-      Box(
-        { flexDirection: 'row', key: i },
-        Text({ color: themeColor('mutedForeground'), dim: true }, `${e.time} `),
-        Text({ color: e.statusColor as any, bold: true }, `${e.status} `),
-        Text({ color: themeColor('primary') }, `${e.method.padEnd(6)} `),
-        Text({ color: themeColor('foreground') }, e.path.slice(0, 12).padEnd(13)),
-        Text({ color: e.latency > 100 ? themeColor('warning') : themeColor('success') as any }, ` ${e.latency}ms`)
-      )
-    ),
+    children: [
+      ScrollArea({
+        height: props.height,
+        content: logContent,
+        state: scrollState,
+        showScrollbar: true,
+        scrollbarColor: themeColor('primary'),
+        isActive: false,
+      }),
+    ],
   });
 }
 
 function ServicesList(props: { services: { name: string; status: string; cpu: number; mem: number }[] }): VNode {
   return Card({
     title: '◎ SERVICES',
-    width: WIDE_CARD_WIDTH,
     color: themeColor('success'),
     children: props.services.map((s, i) =>
       Box(
@@ -416,7 +451,6 @@ function ServicesList(props: { services: { name: string; status: string; cpu: nu
 function NetworkStats(props: { inMb: number; outMb: number; connections: number }): VNode {
   return Card({
     title: '◈ NETWORK',
-    width: CARD_WIDTH,
     color: themeColor('accent'),
     children: [
       Box(
@@ -439,31 +473,129 @@ function NetworkStats(props: { inMb: number; outMb: number; connections: number 
   });
 }
 
+// Background jobs simulation
+interface BackgroundJob {
+  id: number;
+  name: string;
+  progress: number;
+  status: 'running' | 'completed' | 'pending';
+  startedAt: number;
+  spinnerStyle: SpinnerStyle;
+  spinner: SpinnerState;
+}
+
+const JOB_NAMES = [
+  'Syncing data',
+  'Processing queue',
+  'Indexing files',
+  'Compressing logs',
+  'Rebuilding cache',
+  'Uploading backup',
+  'Analyzing metrics',
+  'Optimizing tables',
+  'Cleaning temp',
+  'Validating checksums',
+];
+
+const SPINNER_STYLES: SpinnerStyle[] = ['dots', 'arc', 'bouncingBar', 'circle', 'arrow', 'bounce', 'line', 'moon', 'earth', 'clock'];
+
+let jobIdCounter = 0;
+const [backgroundJobs, setBackgroundJobs] = createSignal<BackgroundJob[]>([]);
+let jobsInterval: NodeJS.Timeout | null = null;
+
+function createJob(): BackgroundJob {
+  const style = SPINNER_STYLES[Math.floor(Math.random() * SPINNER_STYLES.length)];
+  return {
+    id: jobIdCounter++,
+    name: JOB_NAMES[Math.floor(Math.random() * JOB_NAMES.length)],
+    progress: Math.floor(Math.random() * 30),
+    status: 'running',
+    startedAt: Date.now(),
+    spinnerStyle: style,
+    spinner: createSpinner({ style, text: '', rotateText: false }),
+  };
+}
+
+function startBackgroundJobs() {
+  // Initialize with 3 running jobs
+  const initial: BackgroundJob[] = [createJob(), createJob(), createJob()];
+  setBackgroundJobs(initial);
+
+  // Update jobs every 200ms
+  jobsInterval = setInterval(() => {
+    setBackgroundJobs(jobs => {
+      const updated = jobs.map(job => {
+        if (job.status === 'completed') return job;
+
+        // Increase progress
+        const newProgress = Math.min(100, job.progress + Math.random() * 4);
+
+        if (newProgress >= 100) {
+          return { ...job, progress: 100, status: 'completed' as const };
+        }
+        return { ...job, progress: newProgress };
+      });
+
+      // Replace completed jobs with new ones after a delay
+      const result = updated.map(job => {
+        if (job.status === 'completed' && Date.now() - job.startedAt > 2500) {
+          return createJob();
+        }
+        return job;
+      });
+
+      return result;
+    });
+  }, 200);
+}
+
 function SpinnersPanel(): VNode {
-  const spinners = [
-    createSpinner({ style: 'dots', text: 'Syncing data...', rotateText: false }),
-    createSpinner({ style: 'arc', text: 'Processing queue...', rotateText: false }),
-    createSpinner({ style: 'bouncingBar', text: 'Indexing...', rotateText: false }),
-  ];
+  // Start jobs simulation if not already running
+  if (!jobsInterval) {
+    startBackgroundJobs();
+  }
+
+  const jobs = backgroundJobs();
 
   return Card({
-    title: '◐ BACKGROUND JOBS',
-    width: CARD_WIDTH,
+    title: `◐ BACKGROUND JOBS (${jobs.filter(j => j.status === 'running').length} running)`,
     color: themeColor('warning'),
-    children: spinners.map((s, i) =>
-      renderSpinner(s, { color: [themeColor('primary'), themeColor('success'), themeColor('accent')][i], showTime: true, hint: '' })
-    ),
+    children: jobs.map((job) => {
+      const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
+      const isComplete = job.status === 'completed';
+      const barWidth = 12;
+      const filledWidth = Math.floor((job.progress / 100) * barWidth);
+      const progressBar = '█'.repeat(filledWidth) + '░'.repeat(barWidth - filledWidth);
+
+      if (isComplete) {
+        return Box(
+          { flexDirection: 'row' },
+          Text({ color: themeColor('success'), bold: true }, '✓ '),
+          Text({ color: themeColor('success'), dim: true }, job.name.padEnd(18)),
+          Text({ color: themeColor('success') }, progressBar),
+          Text({ color: themeColor('muted'), dim: true }, ` done ${elapsed}s`),
+        );
+      }
+
+      return Box(
+        { flexDirection: 'row' },
+        renderSpinner(job.spinner, { color: themeColor('warning'), showTime: false, hint: '' }),
+        Text({ color: themeColor('foreground') }, job.name.padEnd(17)),
+        Text({ color: themeColor('primary') }, progressBar),
+        Text({ color: themeColor('muted'), dim: true }, ` ${Math.floor(job.progress).toString().padStart(2)}%`),
+      );
+    }),
   });
 }
 
-function Header(props: { uptime: number; totalReqs: number }): VNode {
+function Header(props: { uptime: number; totalReqs: number; width: number }): VNode {
   const theme = useTheme();
 
   return Box(
     {
       flexDirection: 'row',
       backgroundColor: themeColor('primary'),
-      width: FULL_WIDTH,
+      width: props.width,
       paddingX: 1,
     },
     Text({ color: themeColor('primaryForeground'), bold: true }, ' 🚀 SYSTEM DASHBOARD '),
@@ -477,12 +609,12 @@ function Header(props: { uptime: number; totalReqs: number }): VNode {
   );
 }
 
-function Footer(): VNode {
+function Footer(props: { width: number }): VNode {
   return Box(
     {
       flexDirection: 'row',
       backgroundColor: themeColor('muted'),
-      width: FULL_WIDTH,
+      width: props.width,
       paddingX: 1,
     },
     Text({ color: themeColor('foreground') }, ' [Q] Quit '),
@@ -497,12 +629,29 @@ function Footer(): VNode {
 // Main Dashboard
 // ============================================================================
 
+// Create and start metrics store at module level (persists across renders)
+const metricsStore = createMetricsStore();
+metricsStore.start();
+
 function Dashboard(): VNode {
   const app = useApp();
-  const metrics = createMetricsStore();
+  const { columns: termWidth, rows: termHeight } = useTerminalSize();
+  const m = metricsStore;
+
+  // Calculate responsive widths
+  const fullWidth = termWidth;
+  const leftColWidth = Math.floor((termWidth - 1) / 2); // Left column (half)
+  const rightColWidth = termWidth - leftColWidth - 1; // Right column (other half)
+
+  // Card content width = card width - border(2) - paddingX(2) = card width - 4
+  const bigMetricCardWidth = Math.floor((termWidth - 2) / 3); // 3 cards + 2 gaps
+  const bigMetricContentWidth = bigMetricCardWidth - 4;
+  const leftColContentWidth = leftColWidth - 4;
+
+  // Activity feed: 30 visible lines, stores up to MAX_LOG_ENTRIES (100)
+  const activityHeight = 30;
 
   resetFps();
-  metrics.start();
 
   createEffect(() => {
     trackFrame();
@@ -511,7 +660,7 @@ function Dashboard(): VNode {
 
   useInput(withKeyIndicator((input, key) => {
     if (input === 'q' || key.escape) {
-      metrics.stop();
+      m.stop();
       app.exit();
     }
 
@@ -522,88 +671,96 @@ function Dashboard(): VNode {
     }
   }));
 
-  const cpuColor = metrics.cpu() > 80 ? themeColor('error') : metrics.cpu() > 60 ? themeColor('warning') : themeColor('success');
-  const memColor = metrics.mem() > 80 ? themeColor('error') : metrics.mem() > 60 ? themeColor('warning') : themeColor('primary');
-  const latColor = metrics.latency() > 100 ? themeColor('error') : metrics.latency() > 60 ? themeColor('warning') : themeColor('success');
-  const errColor = metrics.errors() > 1 ? themeColor('error') : metrics.errors() > 0.5 ? themeColor('warning') : themeColor('success');
+  const cpuColor = m.cpu() > 80 ? themeColor('error') : m.cpu() > 60 ? themeColor('warning') : themeColor('success');
+  const memColor = m.mem() > 80 ? themeColor('error') : m.mem() > 60 ? themeColor('warning') : themeColor('primary');
+  const latColor = m.latency() > 100 ? themeColor('error') : m.latency() > 60 ? themeColor('warning') : themeColor('success');
+  const errColor = m.errors() > 1 ? themeColor('error') : m.errors() > 0.5 ? themeColor('warning') : themeColor('success');
+
+  // Calculate bar widths for gauges (content width - label "CPU" - percentage "100%")
+  const gaugeBarWidth = Math.max(10, leftColContentWidth - 10);
 
   return Box(
-    { flexDirection: 'column' },
+    { flexDirection: 'column', width: fullWidth },
 
     // Header
-    Header({ uptime: metrics.uptime(), totalReqs: metrics.totalReqs() }),
+    Header({ uptime: m.uptime(), totalReqs: m.totalReqs(), width: fullWidth }),
 
-    // Row 1: Big Numbers
+    // Row 1: Big Numbers (3 columns)
     Box(
-      { flexDirection: 'row', marginTop: 1 },
+      { flexDirection: 'row', marginTop: 1, width: fullWidth },
       BigMetric({
         title: '◆ REQUESTS/SEC',
-        value: formatNum(metrics.rps()),
+        value: m.rps().toString(),
         suffix: '/s',
         color: themeColor('primary'),
-        spark: sparkline(metrics.rpsHistory(), 22),
+        spark: sparkline(m.rpsHistory(), bigMetricContentWidth),
       }),
       Box({ width: 1 }),
       BigMetric({
         title: '◆ AVG LATENCY',
-        value: metrics.latency().toString(),
+        value: m.latency().toString(),
         suffix: 'ms',
         color: latColor,
-        spark: sparkline(metrics.latencyHistory(), 22),
+        spark: sparkline(m.latencyHistory(), bigMetricContentWidth),
       }),
       Box({ width: 1 }),
       BigMetric({
         title: '◆ ERROR RATE',
-        value: metrics.errors().toFixed(1),
+        value: m.errors().toFixed(1),
         suffix: '%',
         color: errColor,
-        spark: sparkline(metrics.errorsHistory(), 22),
+        spark: sparkline(m.errorsHistory(), bigMetricContentWidth),
       }),
     ),
 
-    // Row 2: Gauges + Activity
+    // Row 2: Two-column layout (Left: stacked cards, Right: Activity Feed full height)
     Box(
-      { flexDirection: 'row', marginTop: 1 },
+      { flexDirection: 'row', marginTop: 1, width: fullWidth },
 
-      // Left: System Gauges
-      Card({
-        title: '◇ SYSTEM RESOURCES',
-        width: WIDE_CARD_WIDTH,
-        color: themeColor('success'),
-        children: [
-          GaugeBar({ title: 'CPU', value: metrics.cpu(), max: 100, color: cpuColor, width: 36 }),
-          Box({ marginTop: 1 }),
-          Text({ color: cpuColor as any, dim: true }, sparkline(metrics.cpuHistory(), 34)),
-          Box({ marginTop: 1 }),
-          GaugeBar({ title: 'MEM', value: metrics.mem(), max: 100, color: memColor, width: 36 }),
-          Box({ marginTop: 1 }),
-          Text({ color: memColor as any, dim: true }, sparkline(metrics.memHistory(), 34)),
-        ],
-      }),
+      // Left Column: System Resources + Network + Services + Background Jobs
+      Box(
+        { flexDirection: 'column', width: leftColWidth },
+
+        // System Gauges
+        Card({
+          title: '◇ SYSTEM RESOURCES',
+          color: themeColor('success'),
+          width: leftColWidth,
+          children: [
+            GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),
+            Text({ color: cpuColor as any, dim: true }, sparkline(m.cpuHistory(), leftColContentWidth)),
+            Box({ marginTop: 1 }),
+            GaugeBar({ title: 'MEM', value: m.mem(), max: 100, color: memColor, barWidth: gaugeBarWidth }),
+            Text({ color: memColor as any, dim: true }, sparkline(m.memHistory(), leftColContentWidth)),
+          ],
+        }),
+
+        // Network Stats
+        Box({ marginTop: 1 }),
+        NetworkStats({
+          inMb: m.bandwidth().in,
+          outMb: m.bandwidth().out,
+          connections: m.connections(),
+        }),
+
+        // Services List
+        Box({ marginTop: 1 }),
+        ServicesList({ services: m.services() }),
+
+        // Background Jobs
+        Box({ marginTop: 1 }),
+        SpinnersPanel(),
+      ),
 
       Box({ width: 1 }),
 
-      // Right: Activity Feed
-      ActivityFeed({ entries: metrics.activityLog() }),
-    ),
-
-    // Row 3: Network + Services + Jobs
-    Box(
-      { flexDirection: 'row', marginTop: 1 },
-      NetworkStats({
-        inMb: metrics.bandwidth().in,
-        outMb: metrics.bandwidth().out,
-        connections: metrics.connections(),
-      }),
-      Box({ width: 1 }),
-      ServicesList({ services: metrics.services() }),
-      Box({ width: 1 }),
-      SpinnersPanel(),
+      // Right Column: Activity Feed (full height)
+      ActivityFeed({ entries: m.activityLog(), height: activityHeight }),
     ),
 
     // Footer
     Box({ marginTop: 1 }),
-    Footer(),
+    Footer({ width: fullWidth }),
     KeyIndicator(),
   );
 }
