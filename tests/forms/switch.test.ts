@@ -280,6 +280,30 @@ describe('ToggleGroup', () => {
     });
     expect(node.props.gap).toBe(2);
   });
+
+  it('accepts onChange callback', () => {
+    const onChange = vi.fn();
+    const node = ToggleGroup({
+      options: [
+        { key: 'a', label: 'A', initialValue: true },
+        { key: 'b', label: 'B', initialValue: false },
+      ],
+      onChange,
+    });
+    expect(node).toBeDefined();
+    expect(node.type).toBe('box');
+  });
+
+  it('renders with all options disabled', () => {
+    const node = ToggleGroup({
+      options: [
+        { key: 'a', label: 'A', disabled: true },
+        { key: 'b', label: 'B', disabled: true },
+      ],
+    });
+    expect(node).toBeDefined();
+    expect(node.children?.length).toBe(2);
+  });
 });
 
 describe('Switch keyboard interactions', () => {

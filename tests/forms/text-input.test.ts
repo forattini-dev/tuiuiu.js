@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createTextInput, renderTextInput } from '../../src/atoms/text-input.js';
+import { createTextInput, renderTextInput, TextInput } from '../../src/atoms/text-input.js';
 import { keys, charKey, typeString } from '../helpers/keyboard.js';
 import {
   addInputHandler,
@@ -1096,6 +1096,43 @@ describe('TextInput Keyboard Interactions', () => {
         ti.clear();
         expect(onChange).toHaveBeenCalledWith('');
       });
+    });
+
+    describe('focus', () => {
+      it('should have focus method', () => {
+        const ti = createTestInput({ initialValue: 'hello' });
+        expect(ti.focus).toBeDefined();
+        expect(typeof ti.focus).toBe('function');
+        ti.focus(); // Should not throw
+      });
+    });
+  });
+
+  describe('TextInput Component', () => {
+    it('should render TextInput component', () => {
+      const vnode = TextInput({ initialValue: 'test' });
+      expect(vnode).toBeDefined();
+      expect(vnode.type).toBe('box');
+    });
+
+    it('should render TextInput with placeholder', () => {
+      const vnode = TextInput({ placeholder: 'Enter text...' });
+      expect(vnode).toBeDefined();
+    });
+
+    it('should render TextInput in password mode', () => {
+      const vnode = TextInput({ initialValue: 'secret', password: true });
+      expect(vnode).toBeDefined();
+    });
+
+    it('should render TextInput with width', () => {
+      const vnode = TextInput({ initialValue: 'hello', width: 30 });
+      expect(vnode).toBeDefined();
+    });
+
+    it('should render TextInput with label', () => {
+      const vnode = TextInput({ initialValue: 'test', label: 'Name:' });
+      expect(vnode).toBeDefined();
     });
   });
 });
