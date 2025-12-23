@@ -408,15 +408,64 @@ export const layouts: ComponentDoc[] = [
     ],
   },
   {
-    name: 'ScrollArea',
-    category: 'molecules',
-    description: 'Scrollable content area with keyboard navigation.',
+    name: 'Scroll',
+    category: 'primitives',
+    description: 'Universal scroll wrapper for any content. Wraps any VNode content and adds scrolling when it exceeds the specified height.',
     props: [
-      { name: 'height', type: "number", required: true, description: 'Visible height in rows' },
-      { name: 'showScrollbar', type: "boolean", required: false, default: 'true', description: 'Show scrollbar indicator' },
+      { name: 'height', type: "number", required: true, description: 'Visible height in lines' },
+      { name: 'width', type: "number", required: false, default: '80', description: 'Width for content layout' },
+      { name: 'showScrollbar', type: "boolean", required: false, default: 'true', description: 'Show/hide scrollbar' },
+      { name: 'keysEnabled', type: "boolean", required: false, default: 'true', description: 'Enable keyboard navigation' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Is component focused' },
+      { name: 'scrollbarColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Scrollbar thumb color' },
+      { name: 'trackColor', type: "ColorValue", required: false, default: "'gray'", description: 'Scrollbar track color' },
+      { name: 'scrollStep', type: "number", required: false, default: '1', description: 'Lines per scroll step' },
+      { name: 'state', type: "ScrollState", required: false, description: 'External state for control via useScroll()' },
     ],
     examples: [
-      `ScrollArea({ height: 10 },\n  ...items.map(item => Text({}, item))\n)`,
+      `// Simple content scroll\nScroll({ height: 10 },\n  Text({}, longText),\n)`,
+      `// Complex layouts\nScroll({ height: 20, width: 60 },\n  Box({ flexDirection: 'column' },\n    Header(),\n    Content(),\n    Footer(),\n  ),\n)`,
+      `// With control hook\nconst scroll = useScroll();\nscroll.scrollToBottom();\n\nScroll({ ...scroll.bind, height: 20 },\n  ...content\n)`,
+    ],
+  },
+  {
+    name: 'ScrollList',
+    category: 'organisms',
+    description: 'Scroll list for rendering arrays of items with automatic height estimation and caching.',
+    props: [
+      { name: 'items', type: "T[] | (() => T[])", required: true, description: 'Items to display (array or accessor)' },
+      { name: 'children', type: "(item: T, index: number) => VNode", required: true, description: 'Render function for each item' },
+      { name: 'height', type: "number", required: true, description: 'Visible height in lines' },
+      { name: 'width', type: "number", required: false, default: '80', description: 'Width for layout' },
+      { name: 'itemHeight', type: "number | ((item: T) => number)", required: false, description: 'Item height (auto-estimated if omitted)' },
+      { name: 'inverted', type: "boolean", required: false, default: 'false', description: 'Inverted mode (newest at bottom)' },
+      { name: 'showScrollbar', type: "boolean", required: false, default: 'true', description: 'Show/hide scrollbar' },
+      { name: 'keysEnabled', type: "boolean", required: false, default: 'true', description: 'Enable keyboard navigation' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Is component focused' },
+      { name: 'state', type: "ScrollListState", required: false, description: 'External state for control via useScrollList()' },
+    ],
+    examples: [
+      `// Simple list with auto-height\nScrollList({\n  items: files(),\n  children: (file) => FileRow({ file }),\n  height: 20,\n})`,
+      `// With fixed item height (more performant)\nScrollList({\n  items: logs(),\n  children: (log) => Text({}, log),\n  height: 20,\n  itemHeight: 1,\n})`,
+      `// With control hook\nconst list = useScrollList({ inverted: true });\nlist.scrollToBottom();\n\nScrollList({\n  ...list.bind,\n  items: messages(),\n  children: (msg) => Message({ msg }),\n  height: 20,\n})`,
+    ],
+  },
+  {
+    name: 'ChatList',
+    category: 'organisms',
+    description: 'Pre-configured ScrollList for chat/messaging UIs with inverted scroll (newest at bottom).',
+    props: [
+      { name: 'items', type: "T[] | (() => T[])", required: true, description: 'Chat messages to display' },
+      { name: 'children', type: "(item: T, index: number) => VNode", required: true, description: 'Render function for each message' },
+      { name: 'height', type: "number", required: true, description: 'Visible height in lines' },
+      { name: 'width', type: "number", required: false, default: '80', description: 'Width for layout' },
+      { name: 'itemHeight', type: "number | ((item: T) => number)", required: false, description: 'Item height (auto-estimated if omitted)' },
+      { name: 'showScrollbar', type: "boolean", required: false, default: 'true', description: 'Show/hide scrollbar' },
+      { name: 'state', type: "ScrollListState", required: false, description: 'External state for control' },
+    ],
+    examples: [
+      `// Simple chat UI\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n})`,
+      `// With control for auto-scroll\nconst chatList = useScrollList({ inverted: true });\n\n// Scroll to bottom when sending\nconst sendMessage = (text) => {\n  addMessage(text);\n  chatList.scrollToBottom();\n};\n\nChatList({\n  ...chatList.bind,\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n})`,
     ],
   },
   {
@@ -531,6 +580,30 @@ export const hooks: HookDoc[] = [
     returns: 'Object with reactive columns() and rows() accessors',
     examples: [
       `const { columns, rows } = useTerminalSize();\n// columns() and rows() update automatically on terminal resize`,
+    ],
+  },
+  {
+    name: 'useScroll',
+    description: 'Hook for controlling Scroll component programmatically.',
+    signature: 'useScroll(options?: UseScrollOptions): UseScrollReturn',
+    params: [
+      { name: 'options.height', type: 'number', required: false, description: 'Initial height hint' },
+    ],
+    returns: 'Object with scroll control methods and bind property for Scroll component',
+    examples: [
+      `const scroll = useScroll();\n\n// Control\nscroll.scrollToBottom();\nscroll.scrollToTop();\nscroll.scrollTo(10);\nscroll.scrollBy(5);\n\n// Read state\nconst pos = scroll.scrollTop();\nconst max = scroll.maxScroll();\n\n// Bind to component\nScroll({ ...scroll.bind, height: 20 },\n  ...content\n)`,
+    ],
+  },
+  {
+    name: 'useScrollList',
+    description: 'Hook for controlling ScrollList/ChatList components programmatically.',
+    signature: 'useScrollList(options?: UseScrollListOptions): UseScrollListReturn',
+    params: [
+      { name: 'options.inverted', type: 'boolean', required: false, default: 'false', description: 'Inverted scroll mode' },
+    ],
+    returns: 'Object with scroll control methods and bind property for ScrollList/ChatList',
+    examples: [
+      `const list = useScrollList({ inverted: true });\n\n// Control\nlist.scrollToBottom();\nlist.scrollToTop();\nlist.scrollTo(10);\nlist.scrollBy(5);\n\n// Auto-scroll when adding items\nconst addItem = (item) => {\n  items.push(item);\n  list.scrollToBottom();\n};\n\n// Bind to component\nScrollList({\n  ...list.bind,\n  items: items(),\n  children: (item) => Item({ item }),\n  height: 20,\n})`,
     ],
   },
 ];

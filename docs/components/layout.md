@@ -104,16 +104,36 @@ Accordion({
 })
 ```
 
-## ScrollArea
+## Scroll Components
 
-Scrollable container with scrollbar.
+For comprehensive scrolling capabilities, see the dedicated [Scroll documentation](/components/scroll.md).
+
+Tuiuiu provides multiple scroll APIs:
+
+| Component | Use Case |
+|:----------|:---------|
+| `Scroll` | Universal wrapper for any content |
+| `ScrollList` | Item lists with auto-height |
+| `ChatList` | Chat/messaging (inverted) |
 
 ```typescript
-import { ScrollArea } from 'tuiuiu.js';
+import { Scroll, ScrollList, ChatList, useScrollList } from 'tuiuiu.js'
 
-ScrollArea({
-  height: 10,
-  content: logLines // Array of strings or VNodes
+// Wrap any content
+Scroll({ height: 10 }, Text({}, longText))
+
+// Item lists with auto-height
+ScrollList({
+  items: files,
+  children: (file) => FileRow({ file }),
+  height: 20,
+})
+
+// Chat with inverted scroll
+ChatList({
+  items: messages(),
+  children: (msg) => ChatBubble({ message: msg }),
+  height: 20,
 })
 ```
 
