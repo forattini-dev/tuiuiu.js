@@ -4,66 +4,46 @@
 Output docs/assets/demo-chat.gif
 
 Set Shell bash
-Set FontSize 16
-Set Width 1920
-Set Height 1080
-Set Padding 30
-Set PlaybackSpeed 1.5
-Set TypingSpeed 0.003s
+Set FontSize 14
+Set Width 1024
+Set Height 720
+Set Padding 20
+Set TypingSpeed 0.05s
+Set PlaybackSpeed 1.25
 
 # Run chat example
 Type "pnpm tsx examples/app-chat.ts"
 Enter
 
 # Let it initialize
-Sleep 1s
+Sleep 3s
 
 # Type messages (more realistic typing speed for chat)
-Set TypingSpeed 0.025s
 Type "Hey! What is Tuiuiu?"
-Sleep 200ms
-Enter
-Sleep 1.2s
-
-Type "Can it handle complex layouts?"
-Sleep 200ms
 Enter
 Sleep 1.2s
 
 Type "That's amazing! Zero dependencies!"
-Sleep 200ms
 Enter
 Sleep 1.2s
 
-# Show help command
-Set TypingSpeed 0.015s
-Type "/help"
+# One more message
+Type "Love the theme switching!"
 Enter
-Sleep 800ms
-
-# Toggle help
-Type "h"
-Sleep 600ms
-
-# Close help
-Type "h"
-Sleep 400ms
 
 # Change theme
 Tab
-Sleep 300ms
+Sleep 400ms
 Tab
-Sleep 300ms
+Sleep 400ms
+Tab
+Sleep 400ms
+Tab
+Sleep 400ms
+Tab
+Sleep 400ms
 Tab
 Sleep 400ms
 
-# One more message
-Set TypingSpeed 0.025s
-Type "Love the theme switching!"
-Sleep 200ms
-Enter
-Sleep 800ms
-
-# Exit
-Ctrl+C
-Sleep 200ms
+# End
+Sleep 5s

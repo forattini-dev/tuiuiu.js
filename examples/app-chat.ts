@@ -27,15 +27,16 @@ import {
   getNextTheme,
   themeColor,
   type VNode,
+  // New simplified scroll API!
+  ChatList,
+  useScrollList,
 } from '../src/index.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader } from './_shared/tuiuiu-header.js';
 import { createTextInput, renderTextInput, getVisualLines } from '../src/atoms/text-input.js';
-import { Spinner, type SpinnerStyle } from '../src/atoms/spinner.js';
-import { Markdown } from '../src/molecules/markdown.js';
-import { CodeBlock } from '../src/molecules/code-block.js';
-import { Table, KeyValueTable } from '../src/molecules/table.js';
+import { type SpinnerStyle } from '../src/atoms/spinner.js';
+import { KeyValueTable } from '../src/molecules/table.js';
 
 interface Message {
   id: number;
@@ -145,34 +146,10 @@ function StatusBar(props: {
 }
 
 /**
- * Typing Indicator Component - Shows when the assistant is "typing"
- */
-function TypingIndicator(props: {
-  isActive: boolean;
-  style: SpinnerStyle;
-}): VNode {
-  const { isActive, style } = props;
-
-  if (!isActive) return Box({});
-
-  return Box(
-    { flexDirection: 'row', marginY: 1, paddingLeft: 3 },
-    Text({ color: themeColor('success'), bold: true }, '🤖 Assistant '),
-    Spinner({
-      style,
-      isActive: true,
-      color: themeColor('muted'),
-    }),
-    Text({ color: themeColor('muted'), dim: true }, ' typing...')
-  );
-}
-
-/**
  * Main Chat Application
  */
 function EnhancedChatApp(): VNode {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const [spinnerStyle, setSpinnerStyle] = useState<SpinnerStyle>('dots');
@@ -183,14 +160,23 @@ function EnhancedChatApp(): VNode {
   // Use terminal size
   const { columns: width, rows: height } = useTerminalSize();
 
+  // Determine bubble max width
+  const bubbleMaxWidth = Math.floor(width * 0.65);
+
+  // NEW: Simple scroll list hook for control
+  const chatList = useScrollList({ inverted: true });
+
   // Create text input state (persisted across renders)
   const [textInputState] = useState(createTextInput({
     placeholder: 'Type your message...',
     history: inputHistory(),
     multiline: true,
-    onChange: () => {},
+    onChange: () => { },
     onSubmit: (value) => {
       if (!value.trim()) return;
+
+      // Reset scroll on new message (scroll to bottom in chat)
+      chatList.scrollToBottom();
 
       // Handle commands
       if (value.startsWith('/')) {
@@ -215,12 +201,8 @@ function EnhancedChatApp(): VNode {
       // Simulate streaming response
       simulateResponse(value);
     },
-    onCancel: () => {
-      if (isTyping()) {
-        setIsTyping(false);
-      }
-    },
-    isActive: !isTyping(),
+    onCancel: () => { },
+    isActive: true,
   }));
 
   const textInput = textInputState();
@@ -254,6 +236,7 @@ function EnhancedChatApp(): VNode {
 
       case 'clear':
         setMessages([]);
+        chatList.scrollToBottom();
         break;
 
       case 'spinner':
@@ -292,24 +275,16 @@ function EnhancedChatApp(): VNode {
     setMessages((m) => [...m, msg]);
   };
 
-  // Simulate typing response (like a real chat)
-  const simulateResponse = (_userInput: string) => {
-    setIsTyping(true);
-
-    // Simulate typing delay (1-2 seconds)
-    const typingDelay = 1000 + Math.random() * 1000;
-
-    setTimeout(() => {
-      // Add assistant message
-      const assistantMsg: Message = {
-        id: messageId++,
-        role: 'assistant',
-        content: 'Mensagem recebida!',
-        timestamp: new Date(),
-      };
-      setMessages((m) => [...m, assistantMsg]);
-      setIsTyping(false);
-    }, typingDelay);
+  // Respond immediately (no typing delay)
+  const simulateResponse = (userInput: string) => {
+    // Add assistant message immediately
+    const assistantMsg: Message = {
+      id: messageId++,
+      role: 'assistant',
+      content: `Your last message has ${userInput.length} chars`,
+      timestamp: new Date(),
+    };
+    setMessages((m) => [...m, assistantMsg]);
   };
 
 
@@ -322,6 +297,7 @@ function EnhancedChatApp(): VNode {
     }
     if (key.ctrl && char === 'l') {
       setMessages([]);
+      chatList.scrollToBottom();
       return;
     }
     // Tab cycles theme
@@ -350,19 +326,13 @@ function EnhancedChatApp(): VNode {
     // Help panel (collapsible)
     When(showHelp(), HelpPanel()),
 
-    // Messages Area (height shrinks as input grows)
-    Box(
-      { flexDirection: 'column', height: messagesHeight },
-      ...messages().map(msg => ChatBubble({
-        message: msg,
-        maxWidth: Math.floor(width * 0.65) // Bubbles take ~65% of width
-      }))
-    ),
-
-    // Typing indicator (shows when assistant is "typing")
-    TypingIndicator({
-      isActive: isTyping(),
-      style: spinnerStyle(),
+    // Messages Area - NEW simplified API!
+    ChatList({
+      ...chatList.bind,
+      items: messages(),
+      children: (msg) => ChatBubble({ message: msg, maxWidth: bubbleMaxWidth }),
+      height: messagesHeight,
+      width: width - 2,
     }),
 
     // Input (multiline auto-expands)
