@@ -32,3 +32,4 @@ export * from './nodes.js';
 export * from './divider.js';
 export * from './store.js';
 export * from './canvas.js';
+export * from './scroll.js';

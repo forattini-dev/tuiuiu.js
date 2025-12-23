@@ -574,9 +574,9 @@ export function LogViewer(props: LogViewerOptions): VNode {
       { flexDirection: 'row' },
       showLineNumbers
         ? Text(
-            { color: 'gray', dim: true },
-            String(lineNum).padStart(lineNumberWidth - 1) + ' '
-          )
+          { color: 'gray', dim: true },
+          String(lineNum).padStart(lineNumberWidth - 1) + ' '
+        )
         : null,
       Text(
         { color: shouldHighlight ? highlightColor : 'white' },

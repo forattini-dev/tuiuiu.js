@@ -132,6 +132,29 @@ export {
 } from './scroll-area.js';
 
 // =============================================================================
+// ScrollList - Simplified scroll list API
+// =============================================================================
+
+export {
+  // Components
+  ScrollList,
+  ChatList,
+  // Hook
+  useScrollList,
+  // State factory
+  createScrollList,
+  // Utilities
+  clearScrollListCache,
+  invalidateScrollListItem,
+  // Types
+  type ScrollListProps,
+  type ScrollListState,
+  type ChatListProps,
+  type UseScrollListOptions,
+  type UseScrollListReturn,
+} from './scroll-list.js';
+
+// =============================================================================
 // Grid Layout
 // =============================================================================
 
