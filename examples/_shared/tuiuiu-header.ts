@@ -13,7 +13,7 @@ import {
   Text,
   createSignal,
   useTheme,
-  themeColor,
+  resolveColor,
 } from '../../src/index.js';
 import type { VNode } from '../../src/utils/types.js';
 
@@ -147,10 +147,10 @@ export function TuiuiuHeader(props: TuiuiuHeaderProps): VNode {
   const currentFrame = globalFrame();
   const metricsStr = showFps ? ` F${currentFrame} | ${currentFps}fps ` : '';
   const fpsColor = currentFps >= 30
-    ? themeColor('success')
+    ? resolveColor('success')
     : currentFps >= 15
-      ? themeColor('warning')
-      : themeColor('error');
+      ? resolveColor('warning')
+      : resolveColor('error');
 
   // Calculate fixed width (title + theme + metrics)
   const fixedWidth = titleStr.length + themeLabel.length + metricsStr.length;
@@ -186,19 +186,19 @@ export function TuiuiuHeader(props: TuiuiuHeaderProps): VNode {
   const padding = Math.max(0, width - usedWidth);
 
   // Theme colors
-  const headerBg = themeColor('primary');
-  const headerFg = themeColor('primaryForeground');
+  const headerBg = resolveColor('primary');
+  const headerFg = resolveColor('primaryForeground');
 
   return Box(
     { flexDirection: 'row', backgroundColor: headerBg, width },
     // Title
     Text({ color: headerFg, backgroundColor: headerBg, bold: true }, titleStr),
     // Subtitle
-    subtitleStr ? Text({ color: themeColor('accent'), backgroundColor: headerBg }, subtitleStr) : null,
+    subtitleStr ? Text({ color: resolveColor('accent'), backgroundColor: headerBg }, subtitleStr) : null,
     // Theme label
-    showTheme ? Text({ color: themeColor('warning'), backgroundColor: headerBg, bold: true }, themeLabel) : null,
+    showTheme ? Text({ color: resolveColor('warning'), backgroundColor: headerBg, bold: true }, themeLabel) : null,
     // Status
-    statusStr ? Text({ color: themeColor('secondary'), backgroundColor: headerBg }, statusStr) : null,
+    statusStr ? Text({ color: resolveColor('secondary'), backgroundColor: headerBg }, statusStr) : null,
     // Spacer
     Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(padding)),
     // Frame count and FPS
@@ -238,10 +238,10 @@ export function CompactHeader(props: CompactHeaderProps): VNode {
   const right = props.right ?? (showFps ? `${currentFps} fps` : '');
 
   const fpsColor = currentFps >= 30
-    ? themeColor('success')
+    ? resolveColor('success')
     : currentFps >= 15
-      ? themeColor('warning')
-      : themeColor('error');
+      ? resolveColor('warning')
+      : resolveColor('error');
 
   // Calculate spacing
   const centerPadding = center
@@ -249,14 +249,14 @@ export function CompactHeader(props: CompactHeaderProps): VNode {
     : 0;
   const rightPadding = Math.max(0, width - left.length - (center?.length || 0) - right.length - centerPadding * 2);
 
-  const headerBg = themeColor('primary');
-  const headerFg = themeColor('primaryForeground');
+  const headerBg = resolveColor('primary');
+  const headerFg = resolveColor('primaryForeground');
 
   return Box(
     { flexDirection: 'row', backgroundColor: headerBg, width },
     Text({ color: headerFg, backgroundColor: headerBg, bold: true }, left),
     center ? Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(centerPadding)) : null,
-    center ? Text({ color: themeColor('accent'), backgroundColor: headerBg }, center) : null,
+    center ? Text({ color: resolveColor('accent'), backgroundColor: headerBg }, center) : null,
     Text({ color: headerFg, backgroundColor: headerBg }, ' '.repeat(center ? centerPadding + rightPadding : rightPadding)),
     Text({ color: props.right ? headerFg : fpsColor, backgroundColor: headerBg, bold: !props.right }, right)
   );

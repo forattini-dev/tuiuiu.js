@@ -26,11 +26,11 @@ import {
   setTheme,
   useTheme,
   getNextTheme,
-  themeColor,
+  resolveColor,
 } from '../src/index.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { createSpinner, renderSpinner, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
-import { createScrollArea, ScrollArea } from '../src/organisms/scroll-area.js';
+import { ScrollArea } from '../src/organisms/scroll-area.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-header.js';
@@ -104,10 +104,10 @@ function randomEndpoint(): string {
 
 function randomStatus(): { code: number; color: string } {
   const r = Math.random();
-  if (r > 0.95) return { code: 500, color: themeColor('error') };
-  if (r > 0.90) return { code: 404, color: themeColor('warning') };
-  if (r > 0.85) return { code: 201, color: themeColor('success') };
-  return { code: 200, color: themeColor('success') };
+  if (r > 0.95) return { code: 500, color: resolveColor('error') };
+  if (r > 0.90) return { code: 404, color: resolveColor('warning') };
+  if (r > 0.85) return { code: 201, color: resolveColor('success') };
+  return { code: 200, color: resolveColor('success') };
 }
 
 function randomLatency(): number {
@@ -336,7 +336,7 @@ function Card(props: {
     {
       flexDirection: 'column',
       borderStyle: 'round',
-      borderColor: (props.color || themeColor('muted')) as any,
+      borderColor: (props.color || resolveColor('muted')) as any,
       width: props.width,
       height: props.height,
       flexGrow: props.flexGrow ?? (props.width ? undefined : 1),
@@ -345,7 +345,7 @@ function Card(props: {
     },
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, props.title)
+      Text({ color: resolveColor('mutedForeground'), dim: true }, props.title)
     ),
     ...props.children
   );
@@ -383,7 +383,7 @@ function GaugeBar(props: {
     { flexDirection: 'column' },
     Box(
       { flexDirection: 'row' },
-      Text({ color: themeColor('mutedForeground'), dim: true }, props.title),
+      Text({ color: resolveColor('mutedForeground'), dim: true }, props.title),
       Spacer({}),
       Text({ color: props.color as any, bold: true }, `${pct.toFixed(0)}%`)
     ),
@@ -399,34 +399,25 @@ function ActivityFeed(props: { entries: LogEntry[]; height: number }): VNode {
   const logContent = props.entries.map((e) =>
     Box(
       { flexDirection: 'row' },
-      Text({ color: themeColor('mutedForeground'), dim: true }, `${e.time} `),
+      Text({ color: resolveColor('mutedForeground'), dim: true }, `${e.time} `),
       Text({ color: e.statusColor as any, bold: true }, `${e.status} `),
-      Text({ color: themeColor('primary') }, `${e.method.padEnd(6)} `),
-      Text({ color: themeColor('foreground') }, e.path.padEnd(16)),
-      Text({ color: e.latency > 100 ? themeColor('warning') : themeColor('success') as any }, ` ${e.latency}ms`)
+      Text({ color: resolveColor('primary') }, `${e.method.padEnd(6)} `),
+      Text({ color: resolveColor('foreground') }, e.path.padEnd(16)),
+      Text({ color: e.latency > 100 ? resolveColor('warning') : resolveColor('success') as any }, ` ${e.latency}ms`)
     )
   );
 
-  // Create scroll state with auto-scroll disabled (newest entries are at top)
-  const scrollState = createScrollArea({
-    height: props.height,
-    content: logContent,
-    autoScroll: false,
-    isActive: false, // Don't intercept keyboard input
-  });
-
   return Card({
-    title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES})`,
+    title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES}) [↑↓/jk scroll]`,
     height: props.height + 4, // +4 for border and title
-    color: themeColor('primary'),
+    color: resolveColor('primary'),
     children: [
       ScrollArea({
         height: props.height,
         content: logContent,
-        state: scrollState,
         showScrollbar: true,
-        scrollbarColor: themeColor('primary'),
-        isActive: false,
+        scrollbarColor: resolveColor('primary'),
+        isActive: true, // Component handles its own keyboard input
       }),
     ],
   });
@@ -435,14 +426,14 @@ function ActivityFeed(props: { entries: LogEntry[]; height: number }): VNode {
 function ServicesList(props: { services: { name: string; status: string; cpu: number; mem: number }[] }): VNode {
   return Card({
     title: '◎ SERVICES',
-    color: themeColor('success'),
+    color: resolveColor('success'),
     children: props.services.map((s, i) =>
       Box(
         { flexDirection: 'row', key: i },
-        Text({ color: themeColor('success') }, '● '),
-        Text({ color: themeColor('foreground') }, s.name.padEnd(14)),
-        Text({ color: s.cpu > 50 ? themeColor('warning') : themeColor('mutedForeground') as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
-        Text({ color: themeColor('mutedForeground') }, `MEM:${s.mem}MB`)
+        Text({ color: resolveColor('success') }, '● '),
+        Text({ color: resolveColor('foreground') }, s.name.padEnd(14)),
+        Text({ color: s.cpu > 50 ? resolveColor('warning') : resolveColor('mutedForeground') as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
+        Text({ color: resolveColor('mutedForeground') }, `MEM:${s.mem}MB`)
       )
     ),
   });
@@ -451,23 +442,23 @@ function ServicesList(props: { services: { name: string; status: string; cpu: nu
 function NetworkStats(props: { inMb: number; outMb: number; connections: number }): VNode {
   return Card({
     title: '◈ NETWORK',
-    color: themeColor('accent'),
+    color: resolveColor('accent'),
     children: [
       Box(
         { flexDirection: 'row' },
-        Text({ color: themeColor('success') }, '↓ '),
-        Text({ color: themeColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`)
+        Text({ color: resolveColor('success') }, '↓ '),
+        Text({ color: resolveColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`)
       ),
       Box(
         { flexDirection: 'row' },
-        Text({ color: themeColor('primary') }, '↑ '),
-        Text({ color: themeColor('foreground'), bold: true }, `${props.outMb.toFixed(1)} MB/s`)
+        Text({ color: resolveColor('primary') }, '↑ '),
+        Text({ color: resolveColor('foreground'), bold: true }, `${props.outMb.toFixed(1)} MB/s`)
       ),
       Box({ marginTop: 1 }),
       Box(
         { flexDirection: 'row' },
-        Text({ color: themeColor('mutedForeground') }, 'Connections: '),
-        Text({ color: themeColor('warning'), bold: true }, props.connections.toString())
+        Text({ color: resolveColor('mutedForeground') }, 'Connections: '),
+        Text({ color: resolveColor('warning'), bold: true }, props.connections.toString())
       ),
     ],
   });
@@ -559,7 +550,7 @@ function SpinnersPanel(): VNode {
 
   return Card({
     title: `◐ BACKGROUND JOBS (${jobs.filter(j => j.status === 'running').length} running)`,
-    color: themeColor('warning'),
+    color: resolveColor('warning'),
     children: jobs.map((job) => {
       const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
       const isComplete = job.status === 'completed';
@@ -570,19 +561,19 @@ function SpinnersPanel(): VNode {
       if (isComplete) {
         return Box(
           { flexDirection: 'row' },
-          Text({ color: themeColor('success'), bold: true }, '✓ '),
-          Text({ color: themeColor('success'), dim: true }, job.name.padEnd(18)),
-          Text({ color: themeColor('success') }, progressBar),
-          Text({ color: themeColor('muted'), dim: true }, ` done ${elapsed}s`),
+          Text({ color: resolveColor('success'), bold: true }, '✓ '),
+          Text({ color: resolveColor('success'), dim: true }, job.name.padEnd(18)),
+          Text({ color: resolveColor('success') }, progressBar),
+          Text({ color: resolveColor('muted'), dim: true }, ` done ${elapsed}s`),
         );
       }
 
       return Box(
         { flexDirection: 'row' },
-        renderSpinner(job.spinner, { color: themeColor('warning'), showTime: false, hint: '' }),
-        Text({ color: themeColor('foreground') }, job.name.padEnd(17)),
-        Text({ color: themeColor('primary') }, progressBar),
-        Text({ color: themeColor('muted'), dim: true }, ` ${Math.floor(job.progress).toString().padStart(2)}%`),
+        renderSpinner(job.spinner, { color: resolveColor('warning'), showTime: false, hint: '' }),
+        Text({ color: resolveColor('foreground') }, job.name.padEnd(17)),
+        Text({ color: resolveColor('primary') }, progressBar),
+        Text({ color: resolveColor('muted'), dim: true }, ` ${Math.floor(job.progress).toString().padStart(2)}%`),
       );
     }),
   });
@@ -594,18 +585,18 @@ function Header(props: { uptime: number; totalReqs: number; width: number }): VN
   return Box(
     {
       flexDirection: 'row',
-      backgroundColor: themeColor('primary'),
+      backgroundColor: resolveColor('primary'),
       width: props.width,
       paddingX: 1,
     },
-    Text({ color: themeColor('primaryForeground'), bold: true }, ' 🚀 SYSTEM DASHBOARD '),
+    Text({ color: resolveColor('primaryForeground'), bold: true }, ' 🚀 SYSTEM DASHBOARD '),
     Spacer({}),
-    Text({ color: themeColor('primaryForeground') }, `[${theme.name}] `),
-    Text({ color: themeColor('primaryForeground') }, `Total: ${formatNum(props.totalReqs)} reqs `),
-    Text({ color: themeColor('primaryForeground'), dim: true }, '│ '),
-    Text({ color: themeColor('primaryForeground') }, `Uptime: ${formatTime(props.uptime)} `),
-    Text({ color: themeColor('primaryForeground'), dim: true }, '│ '),
-    Text({ color: themeColor('primaryForeground') }, `${getFps()} FPS`)
+    Text({ color: resolveColor('primaryForeground') }, `[${theme.name}] `),
+    Text({ color: resolveColor('primaryForeground') }, `Total: ${formatNum(props.totalReqs)} reqs `),
+    Text({ color: resolveColor('primaryForeground'), dim: true }, '│ '),
+    Text({ color: resolveColor('primaryForeground') }, `Uptime: ${formatTime(props.uptime)} `),
+    Text({ color: resolveColor('primaryForeground'), dim: true }, '│ '),
+    Text({ color: resolveColor('primaryForeground') }, `${getFps()} FPS`)
   );
 }
 
@@ -613,15 +604,15 @@ function Footer(props: { width: number }): VNode {
   return Box(
     {
       flexDirection: 'row',
-      backgroundColor: themeColor('muted'),
+      backgroundColor: resolveColor('muted'),
       width: props.width,
       paddingX: 1,
     },
-    Text({ color: themeColor('foreground') }, ' [Q] Quit '),
-    Text({ color: themeColor('mutedForeground') }, '│'),
-    Text({ color: themeColor('foreground') }, ' [Tab] Theme '),
+    Text({ color: resolveColor('foreground') }, ' [Q] Quit '),
+    Text({ color: resolveColor('mutedForeground') }, '│'),
+    Text({ color: resolveColor('foreground') }, ' [Tab] Theme '),
     Spacer({}),
-    Text({ color: themeColor('mutedForeground') }, new Date().toLocaleString())
+    Text({ color: resolveColor('mutedForeground') }, new Date().toLocaleString())
   );
 }
 
@@ -671,10 +662,10 @@ function Dashboard(): VNode {
     }
   }));
 
-  const cpuColor = m.cpu() > 80 ? themeColor('error') : m.cpu() > 60 ? themeColor('warning') : themeColor('success');
-  const memColor = m.mem() > 80 ? themeColor('error') : m.mem() > 60 ? themeColor('warning') : themeColor('primary');
-  const latColor = m.latency() > 100 ? themeColor('error') : m.latency() > 60 ? themeColor('warning') : themeColor('success');
-  const errColor = m.errors() > 1 ? themeColor('error') : m.errors() > 0.5 ? themeColor('warning') : themeColor('success');
+  const cpuColor = m.cpu() > 80 ? resolveColor('error') : m.cpu() > 60 ? resolveColor('warning') : resolveColor('success');
+  const memColor = m.mem() > 80 ? resolveColor('error') : m.mem() > 60 ? resolveColor('warning') : resolveColor('primary');
+  const latColor = m.latency() > 100 ? resolveColor('error') : m.latency() > 60 ? resolveColor('warning') : resolveColor('success');
+  const errColor = m.errors() > 1 ? resolveColor('error') : m.errors() > 0.5 ? resolveColor('warning') : resolveColor('success');
 
   // Calculate bar widths for gauges (content width - label "CPU" - percentage "100%")
   const gaugeBarWidth = Math.max(10, leftColContentWidth - 10);
@@ -692,7 +683,7 @@ function Dashboard(): VNode {
         title: '◆ REQUESTS/SEC',
         value: m.rps().toString(),
         suffix: '/s',
-        color: themeColor('primary'),
+        color: resolveColor('primary'),
         spark: sparkline(m.rpsHistory(), bigMetricContentWidth),
       }),
       Box({ width: 1 }),
@@ -724,7 +715,7 @@ function Dashboard(): VNode {
         // System Gauges
         Card({
           title: '◇ SYSTEM RESOURCES',
-          color: themeColor('success'),
+          color: resolveColor('success'),
           width: leftColWidth,
           children: [
             GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),

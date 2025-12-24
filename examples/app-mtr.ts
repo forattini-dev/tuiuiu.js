@@ -23,7 +23,7 @@ import {
   setTheme,
   useTheme,
   getNextTheme,
-  themeColor,
+  resolveColor,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader as SharedHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
@@ -63,17 +63,17 @@ function stddev(values: number[]): number {
 
 // Helper: get color based on latency (uses theme colors)
 function getLatencyColor(ms: number): string {
-  if (ms < 0) return themeColor('mutedForeground');
-  if (ms < 50) return themeColor('success');
-  if (ms < 100) return themeColor('warning');
-  return themeColor('error');
+  if (ms < 0) return resolveColor('mutedForeground');
+  if (ms < 50) return resolveColor('success');
+  if (ms < 100) return resolveColor('warning');
+  return resolveColor('error');
 }
 
 // Helper: get color based on packet loss (uses theme colors)
 function getLossColor(loss: number): string {
-  if (loss === 0) return themeColor('success');
-  if (loss < 10) return themeColor('warning');
-  return themeColor('error');
+  if (loss === 0) return resolveColor('success');
+  if (loss < 10) return resolveColor('warning');
+  return resolveColor('error');
 }
 
 // Helper: format number with fixed width
@@ -353,7 +353,7 @@ function MtrHeader() {
 function TableHeader() {
   const headerText = `  ${'#'.padStart(2)} ${'Host'.padEnd(24)} ${'Loss'.padStart(5)} ${'Snt'.padStart(4)} ${'Last'.padStart(6)} ${'Avg'.padStart(6)} ${'Best'.padStart(6)} ${'Wrst'.padStart(6)} ${'StDv'.padStart(5)}  Hist`;
   return Text(
-    { color: themeColor('mutedForeground'), bold: true, dim: true },
+    { color: resolveColor('mutedForeground'), bold: true, dim: true },
     headerText
   );
 }
@@ -366,18 +366,18 @@ function HopRow({ hop, index }: { hop: HopStats; index: number }) {
     ? hop.host.substring(0, 21) + '...'
     : hop.host).padEnd(24);
 
-  const bgColor = isSelected ? themeColor('primary') : undefined;
-  const selectedFg = isSelected ? themeColor('primaryForeground') : undefined;
+  const bgColor = isSelected ? resolveColor('primary') : undefined;
+  const selectedFg = isSelected ? resolveColor('primaryForeground') : undefined;
 
   // Get last 15 samples for mini sparkline
   const sparkData = hop.history.slice(-15);
   const sparkColor = isSelected
-    ? themeColor('primaryForeground')
+    ? resolveColor('primaryForeground')
     : hop.avg < 50
-      ? themeColor('success')
+      ? resolveColor('success')
       : hop.avg < 100
-        ? themeColor('warning')
-        : themeColor('error');
+        ? resolveColor('warning')
+        : resolveColor('error');
 
   return Box(
     {
@@ -385,15 +385,15 @@ function HopRow({ hop, index }: { hop: HopStats; index: number }) {
       paddingX: 1,
       backgroundColor: bgColor,
     },
-    Text({ color: selectedFg ?? themeColor('accent') }, pad(hop.hop, 3, 0) + ' '),
-    Text({ color: selectedFg ?? (hop.ip === '*' ? themeColor('mutedForeground') : themeColor('foreground')) }, hostDisplay + ' '),
+    Text({ color: selectedFg ?? resolveColor('accent') }, pad(hop.hop, 3, 0) + ' '),
+    Text({ color: selectedFg ?? (hop.ip === '*' ? resolveColor('mutedForeground') : resolveColor('foreground')) }, hostDisplay + ' '),
     Text({ color: selectedFg ?? getLossColor(hop.loss) }, pad(hop.loss, 4, 0) + '% '),
-    Text({ color: selectedFg ?? themeColor('foreground') }, pad(hop.sent, 4, 0) + ' '),
+    Text({ color: selectedFg ?? resolveColor('foreground') }, pad(hop.sent, 4, 0) + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.last) }, (hop.last >= 0 ? pad(hop.last, 6) : '     -') + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.avg) }, (hop.avg >= 0 ? pad(hop.avg, 6) : '     -') + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.best) }, (hop.best >= 0 ? pad(hop.best, 6) : '     -') + ' '),
     Text({ color: selectedFg ?? getLatencyColor(hop.worst) }, (hop.worst >= 0 ? pad(hop.worst, 6) : '     -') + ' '),
-    Text({ color: selectedFg ?? themeColor('mutedForeground') }, pad(hop.stdev, 5) + '  '),
+    Text({ color: selectedFg ?? resolveColor('mutedForeground') }, pad(hop.stdev, 5) + '  '),
     // Mini sparkline showing latency trend
     sparkData.length > 0
       ? Sparkline({
@@ -402,7 +402,7 @@ function HopRow({ hop, index }: { hop: HopStats; index: number }) {
           color: sparkColor,
           min: 0,
         })
-      : Text({ color: themeColor('mutedForeground'), dim: true }, '···············')
+      : Text({ color: resolveColor('mutedForeground'), dim: true }, '···············')
   );
 }
 
@@ -414,11 +414,11 @@ function LatencyGraph() {
 
   if (!selected || selected.history.length === 0) {
     return Box(
-      { marginTop: 1, paddingX: 1, borderStyle: 'round', borderColor: themeColor('muted') },
+      { marginTop: 1, paddingX: 1, borderStyle: 'round', borderColor: resolveColor('muted') },
       Box(
         { flexDirection: 'column', padding: 1 },
-        Text({ color: themeColor('mutedForeground'), dim: true }, '📊 Latency Graph'),
-        Text({ color: themeColor('mutedForeground') }, 'Waiting for data...')
+        Text({ color: resolveColor('mutedForeground'), dim: true }, '📊 Latency Graph'),
+        Text({ color: resolveColor('mutedForeground') }, 'Waiting for data...')
       )
     );
   }
@@ -433,20 +433,20 @@ function LatencyGraph() {
     // Stats header
     Box(
       { flexDirection: 'row', gap: 2, marginBottom: 1 },
-      Text({ color: themeColor('primary'), bold: true }, `📊 Hop ${selected.hop}`),
-      Text({ color: themeColor('foreground') }, selected.host),
-      Text({ color: themeColor('mutedForeground') }, '│'),
-      Text({ color: themeColor('success') }, `▼ ${min.toFixed(1)}ms`),
-      Text({ color: themeColor('warning') }, `◆ ${avg.toFixed(1)}ms`),
-      Text({ color: themeColor('error') }, `▲ ${max.toFixed(1)}ms`),
-      Text({ color: themeColor('mutedForeground') }, `│ ${history.length} samples`),
+      Text({ color: resolveColor('primary'), bold: true }, `📊 Hop ${selected.hop}`),
+      Text({ color: resolveColor('foreground') }, selected.host),
+      Text({ color: resolveColor('mutedForeground') }, '│'),
+      Text({ color: resolveColor('success') }, `▼ ${min.toFixed(1)}ms`),
+      Text({ color: resolveColor('warning') }, `◆ ${avg.toFixed(1)}ms`),
+      Text({ color: resolveColor('error') }, `▲ ${max.toFixed(1)}ms`),
+      Text({ color: resolveColor('mutedForeground') }, `│ ${history.length} samples`),
     ),
     // Big LineChart with braille characters
     LineChart({
       series: [{
         name: 'Latency',
         data: history,
-        color: themeColor('primary'),
+        color: resolveColor('primary'),
       }],
       width: width - 8, // Account for Y-axis labels
       height: 8,
@@ -462,7 +462,7 @@ function LatencyGraph() {
       },
       showLegend: false,
       showGrid: true,
-      gridColor: themeColor('muted'),
+      gridColor: resolveColor('muted'),
     })
   );
 }
@@ -471,7 +471,7 @@ function LatencyGraph() {
 function Footer() {
   return Box(
     { marginTop: 1, paddingX: 1 },
-    Text({ color: themeColor('mutedForeground') },
+    Text({ color: resolveColor('mutedForeground') },
       '↑/↓ Select hop  •  Tab Theme  •  r Reset  •  q Quit'
     )
   );

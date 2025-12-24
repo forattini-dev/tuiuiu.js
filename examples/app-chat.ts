@@ -25,7 +25,7 @@ import {
   setTheme,
   useTheme,
   getNextTheme,
-  themeColor,
+  resolveColor,
   type VNode,
   // New simplified scroll API!
   ChatList,
@@ -60,10 +60,10 @@ function ChatBubble(props: { message: Message; maxWidth?: number }): VNode {
 
   // Colors based on role
   const bubbleColor = isUser
-    ? themeColor('primary')
+    ? resolveColor('primary')
     : isSystem
-      ? themeColor('warning')
-      : themeColor('muted');
+      ? resolveColor('warning')
+      : resolveColor('muted');
 
   // Simple bubble with border
   const bubble = Box(
@@ -77,7 +77,7 @@ function ChatBubble(props: { message: Message; maxWidth?: number }): VNode {
     Box(
       { flexDirection: 'row' },
       Text({ color: bubbleColor, bold: true }, isUser ? '👤 Você' : isSystem ? '⚙️ Sistema' : '🤖 Assistente'),
-      Text({ color: themeColor('muted'), dim: true }, `  ${formatTime(message.timestamp)}`)
+      Text({ color: resolveColor('muted'), dim: true }, `  ${formatTime(message.timestamp)}`)
     ),
     // Content
     Text({}, message.content),
@@ -108,13 +108,13 @@ function HelpPanel(): VNode {
   ];
 
   return Box(
-    { flexDirection: 'column', borderStyle: 'round', borderColor: themeColor('primary'), padding: 1, marginBottom: 1 },
-    Text({ color: themeColor('primary'), bold: true }, '⌨️  Keyboard Shortcuts'),
+    { flexDirection: 'column', borderStyle: 'round', borderColor: resolveColor('primary'), padding: 1, marginBottom: 1 },
+    Text({ color: resolveColor('primary'), bold: true }, '⌨️  Keyboard Shortcuts'),
     Newline(),
     KeyValueTable({
       entries: shortcuts,
-      keyColor: themeColor('warning'),
-      valueColor: themeColor('foreground'),
+      keyColor: resolveColor('warning'),
+      valueColor: resolveColor('foreground'),
     })
   );
 }
@@ -132,16 +132,16 @@ function StatusBar(props: {
 
   return Box(
     { flexDirection: 'row', marginTop: 1, paddingX: 1 },
-    Text({ color: themeColor('primary') }, '▶'),
-    Text({ color: themeColor('foreground') }, ` ${model}`),
-    Text({ color: themeColor('muted'), dim: true }, ' │ '),
-    Text({ color: themeColor('muted') }, `${messageCount} msgs`),
-    Text({ color: themeColor('muted'), dim: true }, ' │ '),
-    Text({ color: themeColor('muted') }, `spinner: ${spinnerStyle}`),
-    Text({ color: themeColor('muted'), dim: true }, ' │ '),
-    Text({ color: themeColor('accent') }, `theme: ${themeName}`),
+    Text({ color: resolveColor('primary') }, '▶'),
+    Text({ color: resolveColor('foreground') }, ` ${model}`),
+    Text({ color: resolveColor('muted'), dim: true }, ' │ '),
+    Text({ color: resolveColor('muted') }, `${messageCount} msgs`),
+    Text({ color: resolveColor('muted'), dim: true }, ' │ '),
+    Text({ color: resolveColor('muted') }, `spinner: ${spinnerStyle}`),
+    Text({ color: resolveColor('muted'), dim: true }, ' │ '),
+    Text({ color: resolveColor('accent') }, `theme: ${themeName}`),
     Spacer(),
-    Text({ color: themeColor('muted'), dim: true }, 'tab:theme h:help')
+    Text({ color: resolveColor('muted'), dim: true }, 'tab:theme h:help')
   );
 }
 
@@ -339,9 +339,9 @@ function EnhancedChatApp(): VNode {
     renderTextInput(textInput, {
       placeholder: 'Type your message... (/ for commands)',
       borderStyle: 'round',
-      focusedBorderColor: themeColor('primary'),
+      focusedBorderColor: resolveColor('primary'),
       prompt: '❯',
-      promptColor: themeColor('primary'),
+      promptColor: resolveColor('primary'),
       fullWidth: true,
       multiline: true,
       wordWrap: true,

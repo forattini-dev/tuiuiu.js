@@ -28,7 +28,7 @@ import {
   setTheme,
   useTheme,
   getNextTheme,
-  themeColor,
+  resolveColor,
 } from '../src/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader as SharedHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
@@ -81,10 +81,10 @@ function calculateJitter(history: number[]): number {
 
 // Helper: get color based on latency (uses theme colors)
 function getLatencyColor(ms: number): string {
-  if (ms < 0) return themeColor('mutedForeground');
-  if (ms < 50) return themeColor('success');
-  if (ms < 100) return themeColor('warning');
-  return themeColor('error');
+  if (ms < 0) return resolveColor('mutedForeground');
+  if (ms < 50) return resolveColor('success');
+  if (ms < 100) return resolveColor('warning');
+  return resolveColor('error');
 }
 
 // Helper: format duration
@@ -228,15 +228,15 @@ function LatencyDisplay() {
 
   return Box(
     { flexDirection: 'column', width, padding: 1 },
-    Text({ color: themeColor('mutedForeground'), bold: true }, 'LATENCY'),
+    Text({ color: resolveColor('mutedForeground'), bold: true }, 'LATENCY'),
     Box({ height: 1 }),
     Gauge({
       value: normalizedLatency,
       width: width - 2,
       height: 1,
       showValue: false,
-      color: s.last < 50 ? themeColor('success') : s.last < 100 ? themeColor('warning') : themeColor('error'),
-      backgroundColor: themeColor('muted'),
+      color: s.last < 50 ? resolveColor('success') : s.last < 100 ? resolveColor('warning') : resolveColor('error'),
+      backgroundColor: resolveColor('muted'),
     }),
     Box({ height: 1 }),
     Text({ color: getLatencyColor(s.last), bold: true },
@@ -252,27 +252,27 @@ function StatsDisplay() {
 
   return Box(
     { flexDirection: 'column', width, padding: 1 },
-    Text({ color: themeColor('mutedForeground'), bold: true }, 'STATISTICS'),
+    Text({ color: resolveColor('mutedForeground'), bold: true }, 'STATISTICS'),
     Box({ height: 1 }),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Min'),
-      Text({ color: themeColor('success') }, s.min >= 0 ? `${s.min.toFixed(1)}ms` : '---'),
+      Text({ color: resolveColor('mutedForeground') }, 'Min'),
+      Text({ color: resolveColor('success') }, s.min >= 0 ? `${s.min.toFixed(1)}ms` : '---'),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Avg'),
-      Text({ color: themeColor('warning') }, s.avg >= 0 ? `${s.avg.toFixed(1)}ms` : '---'),
+      Text({ color: resolveColor('mutedForeground') }, 'Avg'),
+      Text({ color: resolveColor('warning') }, s.avg >= 0 ? `${s.avg.toFixed(1)}ms` : '---'),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Max'),
-      Text({ color: themeColor('error') }, s.max >= 0 ? `${s.max.toFixed(1)}ms` : '---'),
+      Text({ color: resolveColor('mutedForeground') }, 'Max'),
+      Text({ color: resolveColor('error') }, s.max >= 0 ? `${s.max.toFixed(1)}ms` : '---'),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Jitter'),
-      Text({ color: themeColor('accent') }, s.jitter >= 0 ? `${s.jitter.toFixed(1)}ms` : '---'),
+      Text({ color: resolveColor('mutedForeground') }, 'Jitter'),
+      Text({ color: resolveColor('accent') }, s.jitter >= 0 ? `${s.jitter.toFixed(1)}ms` : '---'),
     ),
   );
 }
@@ -281,32 +281,32 @@ function StatsDisplay() {
 function PacketsDisplay() {
   const s = stats();
   const width = Math.floor((process.stdout.columns || 80) / 3) - 2;
-  const lossColor = s.lossPercent === 0 ? themeColor('success')
-    : s.lossPercent < 5 ? themeColor('warning')
-    : themeColor('error');
+  const lossColor = s.lossPercent === 0 ? resolveColor('success')
+    : s.lossPercent < 5 ? resolveColor('warning')
+    : resolveColor('error');
 
   return Box(
     { flexDirection: 'column', width, padding: 1 },
-    Text({ color: themeColor('mutedForeground'), bold: true }, 'PACKETS'),
+    Text({ color: resolveColor('mutedForeground'), bold: true }, 'PACKETS'),
     Box({ height: 1 }),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Sent'),
-      Text({ color: themeColor('foreground') }, `${s.sent}`),
+      Text({ color: resolveColor('mutedForeground') }, 'Sent'),
+      Text({ color: resolveColor('foreground') }, `${s.sent}`),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Received'),
-      Text({ color: themeColor('success') }, `${s.received}`),
+      Text({ color: resolveColor('mutedForeground') }, 'Received'),
+      Text({ color: resolveColor('success') }, `${s.received}`),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Lost'),
-      Text({ color: themeColor('error') }, `${s.lost}`),
+      Text({ color: resolveColor('mutedForeground') }, 'Lost'),
+      Text({ color: resolveColor('error') }, `${s.lost}`),
     ),
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
-      Text({ color: themeColor('mutedForeground') }, 'Loss'),
+      Text({ color: resolveColor('mutedForeground') }, 'Loss'),
       Text({ color: lossColor, bold: true }, `${s.lossPercent.toFixed(1)}%`),
     ),
   );
@@ -321,7 +321,7 @@ function RecentPings() {
   if (recentPings.length < 2) {
     return Box(
       { paddingX: 1, marginTop: 1 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'Waiting for ping data...'),
+      Text({ color: resolveColor('mutedForeground'), dim: true }, 'Waiting for ping data...'),
     );
   }
 
@@ -329,12 +329,12 @@ function RecentPings() {
     { flexDirection: 'column', paddingX: 1, marginTop: 1 },
     Box(
       { flexDirection: 'row', gap: 2 },
-      Text({ color: themeColor('mutedForeground'), bold: true }, 'RECENT'),
+      Text({ color: resolveColor('mutedForeground'), bold: true }, 'RECENT'),
       Sparkline({
         data: recentPings,
         width: width - 10,
         height: 1,
-        color: themeColor('primary'),
+        color: resolveColor('primary'),
       }),
     ),
   );
@@ -351,8 +351,8 @@ function LatencyGraph() {
     return Box(
       { marginTop: 1, paddingX: 1, height: height + 3 },
       Box(
-        { borderStyle: 'round', borderColor: themeColor('muted'), padding: 1, width },
-        Text({ color: themeColor('mutedForeground'), dim: true }, '📈 Latency Graph - Collecting data...'),
+        { borderStyle: 'round', borderColor: resolveColor('muted'), padding: 1, width },
+        Text({ color: resolveColor('mutedForeground'), dim: true }, '📈 Latency Graph - Collecting data...'),
       )
     );
   }
@@ -366,20 +366,20 @@ function LatencyGraph() {
     // Stats header
     Box(
       { flexDirection: 'row', gap: 2, marginBottom: 1 },
-      Text({ color: themeColor('mutedForeground'), bold: true }, 'LATENCY HISTORY'),
-      Text({ color: themeColor('mutedForeground') }, '│'),
-      Text({ color: themeColor('success') }, `▼${min.toFixed(0)}ms`),
-      Text({ color: themeColor('warning') }, `◆${avg.toFixed(0)}ms`),
-      Text({ color: themeColor('error') }, `▲${max.toFixed(0)}ms`),
-      Text({ color: themeColor('mutedForeground') }, '│'),
-      Text({ color: themeColor('mutedForeground') }, `${validHistory.length} samples`),
+      Text({ color: resolveColor('mutedForeground'), bold: true }, 'LATENCY HISTORY'),
+      Text({ color: resolveColor('mutedForeground') }, '│'),
+      Text({ color: resolveColor('success') }, `▼${min.toFixed(0)}ms`),
+      Text({ color: resolveColor('warning') }, `◆${avg.toFixed(0)}ms`),
+      Text({ color: resolveColor('error') }, `▲${max.toFixed(0)}ms`),
+      Text({ color: resolveColor('mutedForeground') }, '│'),
+      Text({ color: resolveColor('mutedForeground') }, `${validHistory.length} samples`),
     ),
     // LineChart
     LineChart({
       series: [{
         name: 'Latency',
         data: validHistory.slice(-100),
-        color: themeColor('primary'),
+        color: resolveColor('primary'),
       }],
       width: width - 12,
       height,
@@ -395,7 +395,7 @@ function LatencyGraph() {
       },
       showLegend: false,
       showGrid: true,
-      gridColor: themeColor('muted'),
+      gridColor: resolveColor('muted'),
     }),
   );
 }
@@ -404,7 +404,7 @@ function LatencyGraph() {
 function Footer() {
   return Box(
     { marginTop: 1, paddingX: 1 },
-    Text({ color: themeColor('mutedForeground') },
+    Text({ color: resolveColor('mutedForeground') },
       'Tab Theme  •  c Clear  •  q Quit'
     )
   );

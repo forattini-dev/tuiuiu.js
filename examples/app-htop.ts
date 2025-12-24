@@ -25,7 +25,7 @@ import {
   setTheme,
   useTheme,
   getNextTheme,
-  themeColor,
+  resolveColor,
 } from '../src/index.js';
 import {
   getCpuUsage,
@@ -83,14 +83,14 @@ function CPUBar({ id, percent, width }: CPUBarProps): VNode {
   const emptyWidth = barWidth - usedWidth;
 
   // Color based on usage - using theme colors
-  const barColor = percent > 80 ? themeColor('error') : percent > 50 ? themeColor('warning') : themeColor('success');
+  const barColor = percent > 80 ? resolveColor('error') : percent > 50 ? resolveColor('warning') : resolveColor('success');
 
   return Box(
     { flexDirection: 'row' },
-    Text({ color: themeColor('foreground') }, `${id.toString().padStart(2)}[`),
+    Text({ color: resolveColor('foreground') }, `${id.toString().padStart(2)}[`),
     Text({ color: barColor }, '|'.repeat(Math.max(0, usedWidth))),
-    Text({ color: themeColor('mutedForeground'), dim: true }, ' '.repeat(Math.max(0, emptyWidth))),
-    Text({ color: themeColor('foreground') }, `${percent.toFixed(1).padStart(5)}%]`)
+    Text({ color: resolveColor('mutedForeground'), dim: true }, ' '.repeat(Math.max(0, emptyWidth))),
+    Text({ color: resolveColor('foreground') }, `${percent.toFixed(1).padStart(5)}%]`)
   );
 }
 
@@ -116,12 +116,12 @@ function MemoryBar({ label, used, total, buffers = 0, cached = 0, width }: Memor
 
   return Box(
     { flexDirection: 'row' },
-    Text({ color: themeColor('foreground') }, `${label}[`),
-    Text({ color: themeColor('success') }, '|'.repeat(Math.max(0, usedWidth))),
-    Text({ color: themeColor('primary') }, '|'.repeat(Math.max(0, buffersWidth))),
-    Text({ color: themeColor('warning') }, '|'.repeat(Math.max(0, cachedWidth))),
-    Text({ color: themeColor('mutedForeground'), dim: true }, ' '.repeat(emptyWidth)),
-    Text({ color: themeColor('foreground') }, `${formatMemoryMb(used)}/${formatMemoryMb(total)}]`)
+    Text({ color: resolveColor('foreground') }, `${label}[`),
+    Text({ color: resolveColor('success') }, '|'.repeat(Math.max(0, usedWidth))),
+    Text({ color: resolveColor('primary') }, '|'.repeat(Math.max(0, buffersWidth))),
+    Text({ color: resolveColor('warning') }, '|'.repeat(Math.max(0, cachedWidth))),
+    Text({ color: resolveColor('mutedForeground'), dim: true }, ' '.repeat(emptyWidth)),
+    Text({ color: resolveColor('foreground') }, `${formatMemoryMb(used)}/${formatMemoryMb(total)}]`)
   );
 }
 
@@ -149,29 +149,29 @@ function ProcessRow({ process, isSelected, width }: ProcessRowProps): VNode {
   const cmdW = Math.max(10, width - pidW - userW - priW - niW - virtW - resW - shrW - stateW - cpuW - memW - timeW - 1);
 
   // Use theme colors
-  const stateColor = state === 'R' ? themeColor('success') : state === 'D' ? themeColor('error') : state === 'Z' ? themeColor('accent') : themeColor('foreground');
-  const cpuColor = cpuPercent > 50 ? themeColor('error') : cpuPercent > 20 ? themeColor('warning') : themeColor('foreground');
-  const memColor = memPercent > 10 ? themeColor('warning') : themeColor('foreground');
+  const stateColor = state === 'R' ? resolveColor('success') : state === 'D' ? resolveColor('error') : state === 'Z' ? resolveColor('accent') : resolveColor('foreground');
+  const cpuColor = cpuPercent > 50 ? resolveColor('error') : cpuPercent > 20 ? resolveColor('warning') : resolveColor('foreground');
+  const memColor = memPercent > 10 ? resolveColor('warning') : resolveColor('foreground');
 
-  const bgColor = isSelected ? themeColor('primary') : undefined;
-  const fgColor = isSelected ? themeColor('primaryForeground') : undefined;
+  const bgColor = isSelected ? resolveColor('primary') : undefined;
+  const fgColor = isSelected ? resolveColor('primaryForeground') : undefined;
 
   const truncatedCmd = command.length > cmdW ? command.slice(0, cmdW - 1) + '…' : command.padEnd(cmdW);
 
   return Box(
     { flexDirection: 'row', backgroundColor: bgColor },
-    Text({ color: fgColor ?? themeColor('success') }, pid.toString().padStart(pidW)),
-    Text({ color: fgColor ?? themeColor('foreground') }, user.slice(0, userW - 1).padEnd(userW)),
-    Text({ color: fgColor ?? themeColor('foreground') }, priority.toString().padStart(priW)),
-    Text({ color: fgColor ?? themeColor('foreground') }, nice.toString().padStart(niW)),
-    Text({ color: fgColor ?? themeColor('primary') }, formatKb(virt).padStart(virtW)),
-    Text({ color: fgColor ?? themeColor('primary') }, formatKb(res).padStart(resW)),
-    Text({ color: fgColor ?? themeColor('primary') }, formatKb(shr).padStart(shrW)),
+    Text({ color: fgColor ?? resolveColor('success') }, pid.toString().padStart(pidW)),
+    Text({ color: fgColor ?? resolveColor('foreground') }, user.slice(0, userW - 1).padEnd(userW)),
+    Text({ color: fgColor ?? resolveColor('foreground') }, priority.toString().padStart(priW)),
+    Text({ color: fgColor ?? resolveColor('foreground') }, nice.toString().padStart(niW)),
+    Text({ color: fgColor ?? resolveColor('primary') }, formatKb(virt).padStart(virtW)),
+    Text({ color: fgColor ?? resolveColor('primary') }, formatKb(res).padStart(resW)),
+    Text({ color: fgColor ?? resolveColor('primary') }, formatKb(shr).padStart(shrW)),
     Text({ color: fgColor ?? stateColor }, state.padStart(stateW)),
     Text({ color: fgColor ?? cpuColor }, cpuPercent.toFixed(1).padStart(cpuW)),
     Text({ color: fgColor ?? memColor }, memPercent.toFixed(1).padStart(memW)),
-    Text({ color: fgColor ?? themeColor('foreground') }, time.padStart(timeW)),
-    Text({ color: fgColor ?? themeColor('foreground') }, ' ' + truncatedCmd)
+    Text({ color: fgColor ?? resolveColor('foreground') }, time.padStart(timeW)),
+    Text({ color: fgColor ?? resolveColor('foreground') }, ' ' + truncatedCmd)
   );
 }
 
@@ -188,8 +188,8 @@ function ProcessHeader(width: number): VNode {
   const memW = 6;
   const timeW = 10;
 
-  const headerBg = themeColor('secondary');
-  const headerFg = themeColor('secondaryForeground');
+  const headerBg = resolveColor('secondary');
+  const headerFg = resolveColor('secondaryForeground');
 
   return Box(
     { flexDirection: 'row', backgroundColor: headerBg },
@@ -219,19 +219,19 @@ function StatusBar(props: { tasks: SystemInfo['tasks']; width: number }): VNode 
   const { tasks, width } = props;
 
   return Box(
-    { flexDirection: 'row', backgroundColor: themeColor('muted') },
-    Text({ color: themeColor('foreground') }, ` Tasks: `),
-    Text({ color: themeColor('success'), bold: true }, `${tasks.total}`),
-    Text({ color: themeColor('foreground') }, ` (`),
-    Text({ color: themeColor('success') }, `${tasks.running} running`),
-    Text({ color: themeColor('foreground') }, `, `),
-    Text({ color: themeColor('warning') }, `${tasks.sleeping} sleeping`),
-    Text({ color: themeColor('foreground') }, `, `),
-    Text({ color: themeColor('error') }, `${tasks.stopped} stopped`),
-    Text({ color: themeColor('foreground') }, `, `),
-    Text({ color: themeColor('accent') }, `${tasks.zombie} zombie`),
-    Text({ color: themeColor('foreground') }, `) `),
-    Text({ color: themeColor('foreground') }, ' '.repeat(Math.max(0, width - 80)))
+    { flexDirection: 'row', backgroundColor: resolveColor('muted') },
+    Text({ color: resolveColor('foreground') }, ` Tasks: `),
+    Text({ color: resolveColor('success'), bold: true }, `${tasks.total}`),
+    Text({ color: resolveColor('foreground') }, ` (`),
+    Text({ color: resolveColor('success') }, `${tasks.running} running`),
+    Text({ color: resolveColor('foreground') }, `, `),
+    Text({ color: resolveColor('warning') }, `${tasks.sleeping} sleeping`),
+    Text({ color: resolveColor('foreground') }, `, `),
+    Text({ color: resolveColor('error') }, `${tasks.stopped} stopped`),
+    Text({ color: resolveColor('foreground') }, `, `),
+    Text({ color: resolveColor('accent') }, `${tasks.zombie} zombie`),
+    Text({ color: resolveColor('foreground') }, `) `),
+    Text({ color: resolveColor('foreground') }, ' '.repeat(Math.max(0, width - 80)))
   );
 }
 
@@ -383,27 +383,27 @@ function HtopApp(): VNode {
     return Box(
       { flexDirection: 'column', padding: 2 },
       Box(
-        { borderStyle: 'round', borderColor: themeColor('primary'), padding: 1 },
+        { borderStyle: 'round', borderColor: resolveColor('primary'), padding: 1 },
         Box(
           { flexDirection: 'column' },
-          Text({ color: themeColor('primary'), bold: true }, '🐦 Tuiuiu htop - Keyboard Shortcuts'),
+          Text({ color: resolveColor('primary'), bold: true }, '🐦 Tuiuiu htop - Keyboard Shortcuts'),
           Text({}, ''),
-          Text({ color: themeColor('foreground') }, '  ↑/k, ↓/j     Move selection up/down'),
-          Text({ color: themeColor('foreground') }, '  PgUp/PgDn    Move selection by page'),
-          Text({ color: themeColor('foreground') }, '  g/G          Go to first/last process'),
+          Text({ color: resolveColor('foreground') }, '  ↑/k, ↓/j     Move selection up/down'),
+          Text({ color: resolveColor('foreground') }, '  PgUp/PgDn    Move selection by page'),
+          Text({ color: resolveColor('foreground') }, '  g/G          Go to first/last process'),
           Text({}, ''),
-          Text({ color: themeColor('foreground') }, '  P            Sort by CPU%'),
-          Text({ color: themeColor('foreground') }, '  M            Sort by MEM%'),
-          Text({ color: themeColor('foreground') }, '  T            Sort by TIME'),
-          Text({ color: themeColor('foreground') }, '  N            Sort by PID'),
+          Text({ color: resolveColor('foreground') }, '  P            Sort by CPU%'),
+          Text({ color: resolveColor('foreground') }, '  M            Sort by MEM%'),
+          Text({ color: resolveColor('foreground') }, '  T            Sort by TIME'),
+          Text({ color: resolveColor('foreground') }, '  N            Sort by PID'),
           Text({}, ''),
-          Text({ color: themeColor('foreground') }, '  Tab          Cycle themes'),
-          Text({ color: themeColor('foreground') }, '  q/Esc        Quit'),
-          Text({ color: themeColor('foreground') }, '  h/?          Show this help'),
+          Text({ color: resolveColor('foreground') }, '  Tab          Cycle themes'),
+          Text({ color: resolveColor('foreground') }, '  q/Esc        Quit'),
+          Text({ color: resolveColor('foreground') }, '  h/?          Show this help'),
           Text({}, ''),
-          Text({ color: themeColor('mutedForeground'), dim: true }, 'Press any key to close'),
+          Text({ color: resolveColor('mutedForeground'), dim: true }, 'Press any key to close'),
           Text({}, ''),
-          Text({ color: themeColor('accent') }, 'Powered by Tuiuiu - Zero-dependency Terminal UI'),
+          Text({ color: resolveColor('accent') }, 'Powered by Tuiuiu - Zero-dependency Terminal UI'),
         )
       )
     );
@@ -470,12 +470,12 @@ function HtopApp(): VNode {
     // Tasks and Load average
     Box(
       { flexDirection: 'row', marginTop: 1 },
-      Text({ color: themeColor('foreground') }, `Load: `),
-      Text({ color: themeColor('primary'), bold: true }, sys.loadAvg.map(l => l.toFixed(2)).join(' ')),
-      Text({ color: themeColor('foreground') }, `   Uptime: `),
-      Text({ color: themeColor('success') }, formatUptime(sys.uptime)),
-      Text({ color: themeColor('foreground') }, `   Total CPU: `),
-      Text({ color: cpu.total > 50 ? themeColor('error') : themeColor('success'), bold: true }, `${cpu.total}%`),
+      Text({ color: resolveColor('foreground') }, `Load: `),
+      Text({ color: resolveColor('primary'), bold: true }, sys.loadAvg.map(l => l.toFixed(2)).join(' ')),
+      Text({ color: resolveColor('foreground') }, `   Uptime: `),
+      Text({ color: resolveColor('success') }, formatUptime(sys.uptime)),
+      Text({ color: resolveColor('foreground') }, `   Total CPU: `),
+      Text({ color: cpu.total > 50 ? resolveColor('error') : resolveColor('success'), bold: true }, `${cpu.total}%`),
     ),
 
     // Status bar with task counts

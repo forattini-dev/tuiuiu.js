@@ -9,7 +9,7 @@ import {
   Box,
   Text,
   createSignal,
-  themeColor,
+  resolveColor,
 } from '../../src/index.js';
 import type { VNode } from '../../src/utils/types.js';
 import type { Key } from '../../src/hooks/types.js';
@@ -108,8 +108,8 @@ export function KeyIndicator({ width }: KeyIndicatorProps = {}): VNode {
   const termWidth = width ?? process.stdout.columns ?? 80;
 
   // Background color from theme
-  const bgColor = themeColor('muted');
-  const fgColor = themeColor('mutedForeground');
+  const bgColor = resolveColor('muted');
+  const fgColor = resolveColor('mutedForeground');
 
   if (keys.length === 0) {
     // Empty state - still show the bar for consistency
@@ -151,7 +151,7 @@ export function KeyIndicator({ width }: KeyIndicatorProps = {}): VNode {
     Text({ color: fgColor, dim: true }, keysLabel),
     ...keyDisplays.flatMap(({ key, isFading }, i) => [
       Text({
-        color: isFading ? fgColor : themeColor('accent'),
+        color: isFading ? fgColor : resolveColor('accent'),
         bold: !isFading,
         dim: isFading,
       }, `[${key}]`),
