@@ -1171,6 +1171,375 @@ export const availableThemes: ThemeDoc[] = [
 ];
 
 // =============================================================================
+// Custom Theme Creation Guide
+// =============================================================================
+
+export const customThemeGuide = `# Creating Custom Themes in Tuiuiu
+
+Tuiuiu provides two approaches for creating custom themes:
+
+## 1. Quick Customization with \`createTheme\`
+
+Extend an existing theme with partial overrides. Perfect for simple color tweaks.
+
+\`\`\`typescript
+import { createTheme, darkTheme, setTheme } from 'tuiuiu.js';
+
+// Create a custom theme by extending darkTheme
+const myTheme = createTheme(darkTheme, {
+  name: 'my-brand',
+
+  // Override just the colors you need
+  accents: {
+    ...darkTheme.accents,
+    positive: '#10b981',  // Custom success color
+    highlight: '#8b5cf6', // Custom primary highlight
+  },
+
+  // Override background hierarchy
+  background: {
+    ...darkTheme.background,
+    base: '#1a1a2e',
+    surface: '#252538',
+  },
+});
+
+setTheme(myTheme);
+\`\`\`
+
+## 2. Full Theme Definition with \`defineTheme\`
+
+Create a complete theme from scratch with full control.
+
+\`\`\`typescript
+import { defineTheme } from 'tuiuiu.js/core/theme-loader';
+import * as colors from 'tuiuiu.js/core/colors';
+
+// Define custom palette using Tailwind colors
+const palette = {
+  primary: colors.violet,     // Full color scale (50-900)
+  secondary: colors.slate,
+  success: colors.emerald,
+  warning: colors.amber,
+  danger: colors.rose,
+  neutral: colors.zinc,
+};
+
+export const myBrandTheme = defineTheme({
+  name: 'my-brand',
+  mode: 'dark',
+
+  meta: {
+    version: '1.0.0',
+    author: 'Your Name',
+    description: 'Custom brand theme',
+  },
+
+  palette,
+
+  background: {
+    lowest: palette.neutral[950],
+    base: palette.neutral[900],
+    subtle: palette.neutral[800],
+    surface: palette.neutral[700],
+    raised: palette.neutral[600],
+    elevated: palette.neutral[500],
+    popover: palette.neutral[800],
+    overlay: 'rgba(0, 0, 0, 0.7)',
+  },
+
+  foreground: {
+    primary: palette.neutral[50],
+    secondary: palette.neutral[200],
+    muted: palette.neutral[400],
+    disabled: palette.neutral[500],
+    inverse: {
+      base: '#ffffff',
+      soft: 'rgba(255, 255, 255, 0.6)',
+      subtle: 'rgba(255, 255, 255, 0.35)',
+    },
+  },
+
+  accents: {
+    positive: palette.success[500],
+    warning: palette.warning[500],
+    critical: palette.danger[500],
+    info: colors.cyan[500],
+    highlight: palette.primary[500],
+  },
+
+  states: {
+    hover: { bg: 'rgba(255, 255, 255, 0.05)', fg: null },
+    active: { bg: 'rgba(255, 255, 255, 0.1)' },
+    focus: {
+      border: palette.primary[400],
+      ring: { color: palette.primary[500], width: 2 },
+    },
+    disabled: {
+      opacity: 0.4,
+      bg: palette.neutral[800],
+      fg: palette.neutral[500],
+    },
+    selected: {
+      bg: palette.primary[700],
+      fg: '#ffffff',
+    },
+  },
+
+  borders: {
+    default: palette.neutral[700],
+    subtle: palette.neutral[800],
+    strong: palette.neutral[500],
+    accent: palette.primary[500],
+    danger: palette.danger[500],
+  },
+
+  opacity: {
+    disabled: 0.4,
+    muted: 0.7,
+    overlay: 0.5,
+    ghost: 0.2,
+  },
+
+  components: {
+    button: {
+      primary: {
+        bg: palette.primary[500],
+        fg: '#ffffff',
+        hoverBg: palette.primary[400],
+        activeBg: palette.primary[600],
+        border: 'transparent',
+      },
+      secondary: {
+        bg: palette.neutral[700],
+        fg: palette.neutral[50],
+        hoverBg: palette.neutral[600],
+        activeBg: palette.neutral[800],
+        border: 'transparent',
+      },
+      outline: {
+        bg: 'transparent',
+        fg: palette.primary[400],
+        hoverBg: 'rgba(255, 255, 255, 0.05)',
+        activeBg: 'rgba(255, 255, 255, 0.1)',
+        border: palette.primary[500],
+      },
+      ghost: {
+        bg: 'transparent',
+        fg: palette.neutral[50],
+        hoverBg: 'rgba(255, 255, 255, 0.05)',
+        activeBg: 'rgba(255, 255, 255, 0.1)',
+        border: 'transparent',
+      },
+    },
+    // ... other component tokens (panel, menu, tabs, input, etc.)
+    // See src/themes/dark.theme.ts for full component token structure
+  },
+});
+\`\`\`
+
+## 3. Merge Themes with \`mergeThemes\`
+
+Deep merge for more complex overrides including component tokens.
+
+\`\`\`typescript
+import { mergeThemes, darkTheme, setTheme } from 'tuiuiu.js';
+
+const customTheme = mergeThemes(darkTheme, {
+  name: 'custom-dark',
+
+  // Override component-specific tokens
+  components: {
+    button: {
+      primary: {
+        bg: '#8b5cf6',
+        hoverBg: '#a78bfa',
+      },
+    },
+    input: {
+      focusBorder: '#8b5cf6',
+    },
+  },
+});
+
+setTheme(customTheme);
+\`\`\`
+
+### \`createTheme\` vs \`mergeThemes\` - When to Use Each
+
+| | \`createTheme\` | \`mergeThemes\` |
+|---|---|---|
+| **Component merge** | **Shallow** - replaces entire \`components\` object | **Deep** - merges each component recursively |
+| **Best for** | Overriding top-level colors (accents, background, foreground) | Overriding specific component tokens |
+
+**Example of the difference:**
+
+\`\`\`typescript
+// createTheme - if you pass components, it REPLACES everything
+const theme1 = createTheme(darkTheme, {
+  components: {
+    button: { primary: { bg: '#8b5cf6' } }  // ❌ Loses secondary, outline, ghost!
+  }
+});
+
+// mergeThemes - does deep merge, preserves the rest
+const theme2 = mergeThemes(darkTheme, {
+  components: {
+    button: { primary: { bg: '#8b5cf6' } }  // ✅ Keeps secondary, outline, ghost
+  }
+});
+\`\`\`
+
+**Rule of thumb:** Use \`mergeThemes\` if you're changing \`components\`. For everything else, both work the same.
+
+## 4. Applying Themes
+
+### Global Theme
+
+\`\`\`typescript
+import { setTheme, useTheme, getTheme, themes } from 'tuiuiu.js';
+
+// Set the global theme (reactive - all components re-render)
+setTheme(themes.dracula);
+setTheme(myCustomTheme);
+
+// Get current theme (reactive - use inside components)
+const theme = useTheme();
+
+// Get current theme (non-reactive - use outside components)
+const theme = getTheme();
+
+// Cycle through themes
+import { getNextTheme, getPreviousTheme } from 'tuiuiu.js';
+setTheme(getNextTheme(useTheme()));  // Next theme
+setTheme(getPreviousTheme(useTheme()));  // Previous theme
+\`\`\`
+
+### Nested/Temporary Themes (pushTheme/popTheme)
+
+Use theme stacking for temporary theme changes (e.g., modals with different themes):
+
+\`\`\`typescript
+import { pushTheme, popTheme, lightTheme } from 'tuiuiu.js';
+
+// Temporarily use a different theme
+pushTheme(lightTheme);
+// ... render modal or overlay with light theme ...
+popTheme();  // Restore previous theme
+
+// Common pattern for themed modals
+function ThemedModal({ children }) {
+  pushTheme(lightTheme);
+
+  // Cleanup when modal closes
+  onCleanup(() => popTheme());
+
+  return Modal({}, children);
+}
+\`\`\`
+
+### Theme Cycling (Development)
+
+\`\`\`typescript
+import { useInput, useTheme, setTheme, getNextTheme } from 'tuiuiu.js';
+
+// Cycle themes with Tab key (great for testing)
+useInput((input, key) => {
+  if (key.tab) {
+    const current = useTheme();
+    setTheme(getNextTheme(current));
+  }
+});
+\`\`\`
+
+## Theme Structure Reference
+
+### Palette (Color Scales)
+Each color has shades from 50 (lightest) to 900 (darkest):
+- \`primary\` - Main brand color
+- \`secondary\` - Neutral/secondary actions
+- \`success\` - Positive/confirmation states
+- \`warning\` - Caution/attention states
+- \`danger\` - Error/destructive states
+- \`neutral\` - Grayscale for backgrounds/text
+
+### Background Hierarchy (depth levels)
+- \`lowest\` - Deepest background (app shell)
+- \`base\` - Main app background
+- \`subtle\` - Slightly elevated (muted areas)
+- \`surface\` - Cards, panels
+- \`raised\` - Elevated elements
+- \`elevated\` - Highest elevation
+- \`popover\` - Popovers, dropdowns
+- \`overlay\` - Modal overlays (rgba)
+
+### Foreground Hierarchy (text levels)
+- \`primary\` - Main text
+- \`secondary\` - Secondary text
+- \`muted\` - De-emphasized text
+- \`disabled\` - Disabled text
+- \`inverse\` - Text on colored backgrounds
+
+### Semantic Colors (resolveColor)
+Use these in components for automatic theme integration:
+\`\`\`typescript
+Text({ color: resolveColor('primary') })     // Theme primary color
+Text({ color: resolveColor('success') })     // Success/positive
+Text({ color: resolveColor('error') })       // Error/danger
+Text({ color: resolveColor('warning') })     // Warning
+Text({ color: resolveColor('foreground') })  // Primary text
+Text({ color: resolveColor('muted') })       // Muted background
+Text({ color: resolveColor('mutedForeground') }) // Muted text
+
+// Auto-contrast (returns white or black based on background)
+Box({ backgroundColor: resolveColor('primary') },
+  Text({ color: resolveColor('primaryForeground') }, 'Auto-readable!')
+)
+\`\`\`
+
+## Available Tailwind Colors
+
+Import from \`tuiuiu.js/core/colors\`:
+\`\`\`typescript
+import {
+  slate, gray, zinc, neutral, stone,  // Neutrals
+  red, orange, amber, yellow,          // Warm
+  lime, green, emerald, teal,          // Greens
+  cyan, sky, blue, indigo,             // Blues
+  violet, purple, fuchsia, pink, rose, // Purples/Pinks
+} from 'tuiuiu.js/core/colors';
+
+// Each color has shades: 50, 100, 200, 300, 400, 500, 600, 700, 800, 900
+colors.blue[500] // '#3b82f6'
+\`\`\`
+
+## Theme API Reference
+
+| Function | Description |
+|----------|-------------|
+| \`setTheme(theme)\` | Set the global theme |
+| \`useTheme()\` | Get current theme (reactive) |
+| \`getTheme()\` | Get current theme (non-reactive) |
+| \`pushTheme(theme)\` | Push theme onto stack (temporary) |
+| \`popTheme()\` | Pop theme from stack (restore previous) |
+| \`getNextTheme(current)\` | Get next theme in cycle |
+| \`getPreviousTheme(current)\` | Get previous theme in cycle |
+| \`resolveColor(name)\` | Resolve semantic color to hex |
+| \`createTheme(base, overrides)\` | Extend theme (shallow merge) |
+| \`mergeThemes(base, overrides)\` | Extend theme (deep merge) |
+| \`defineTheme(definition)\` | Create complete theme from scratch |
+
+## Tips
+
+1. **Use \`mergeThemes\`** when overriding component tokens
+2. **Use \`createTheme\`** for simple color overrides
+3. **Use \`defineTheme\`** when you need full control from scratch
+4. **Use semantic colors** (\`resolveColor\`) for automatic theme switching
+5. **Test with Tab key cycling** using \`getNextTheme()\` during development
+6. **Use \`pushTheme/popTheme\`** for temporary theme changes (modals, overlays)
+`;
+
+// =============================================================================
 // Signals (Core Reactivity)
 // =============================================================================
 

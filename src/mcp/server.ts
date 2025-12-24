@@ -17,6 +17,7 @@ import {
   allHooks,
   allThemes,
   categories,
+  customThemeGuide,
 } from './docs-data.js';
 import type {
   JsonRpcRequest,
@@ -104,6 +105,14 @@ const tools: MCPTool[] = [
   {
     name: 'tuiuiu_list_themes',
     description: 'List all available Tuiuiu themes with their color schemes.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'tuiuiu_create_theme',
+    description: 'Get a comprehensive guide on how to create custom themes in Tuiuiu. Explains createTheme, defineTheme, mergeThemes, theme structure, color scales, semantic colors, and component tokens.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -262,7 +271,12 @@ function handleListThemes(): MCPToolResult {
     output += `Colors: ${JSON.stringify(theme.colors)}\n\n`;
   }
   output += '## Usage\n```typescript\nimport { setTheme, draculaTheme } from \'tuiuiu.js\';\nsetTheme(draculaTheme);\n```';
+  output += '\n\n**Tip:** Use `tuiuiu_create_theme` tool to learn how to create your own custom themes.';
   return { content: [{ type: 'text', text: output }] };
+}
+
+function handleCreateTheme(): MCPToolResult {
+  return { content: [{ type: 'text', text: customThemeGuide }] };
 }
 
 function handleGettingStarted(): MCPToolResult {
@@ -397,6 +411,7 @@ const toolHandlers: Record<string, MCPToolHandler> = {
   tuiuiu_get_hook: handleGetHook,
   tuiuiu_search: handleSearch,
   tuiuiu_list_themes: handleListThemes,
+  tuiuiu_create_theme: handleCreateTheme,
   tuiuiu_getting_started: handleGettingStarted,
 };
 
