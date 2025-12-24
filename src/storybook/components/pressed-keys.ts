@@ -133,7 +133,7 @@ export function PressedKeysIndicator(): VNode {
       width: '100%',
       height: 1,
       paddingX: 1,
-      backgroundColor: theme.background.base,
+      backgroundColor: theme.background.subtle,
     },
     Text({ color: theme.foreground.muted, dim: true }, 'Keys: '),
 
