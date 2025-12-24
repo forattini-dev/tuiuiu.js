@@ -24,14 +24,26 @@ export interface StorybookState {
   logs: LogEntry[];
   isLogOpen: boolean;
   maxLogs: number;
+  // Search state
+  searchVisible: boolean;
+  searchQuery: string;
 }
 
 // Actions
 export interface AddLogAction extends Action { type: 'ADD_LOG'; payload: { level: LogLevel; args: any[] }; }
 export interface ToggleLogAction extends Action { type: 'TOGGLE_LOG'; }
 export interface ClearLogsAction extends Action { type: 'CLEAR_LOGS'; }
+export interface ToggleSearchAction extends Action { type: 'TOGGLE_SEARCH'; }
+export interface SetSearchQueryAction extends Action { type: 'SET_SEARCH_QUERY'; payload: string; }
+export interface CloseSearchAction extends Action { type: 'CLOSE_SEARCH'; }
 
-export type StorybookAction = AddLogAction | ToggleLogAction | ClearLogsAction;
+export type StorybookAction =
+  | AddLogAction
+  | ToggleLogAction
+  | ClearLogsAction
+  | ToggleSearchAction
+  | SetSearchQueryAction
+  | CloseSearchAction;
 
 // =============================================================================
 // Reducer
@@ -39,8 +51,11 @@ export type StorybookAction = AddLogAction | ToggleLogAction | ClearLogsAction;
 
 const initialState: StorybookState = {
   logs: [],
-  isLogOpen: true, // Open by default, toggle with F12
+  isLogOpen: false, // Collapsed by default, toggle with F12
   maxLogs: 100, // Keep memory sane
+  // Search state
+  searchVisible: false,
+  searchQuery: '',
 };
 
 function storybookReducer(state: StorybookState = initialState, action: StorybookAction): StorybookState {
@@ -81,6 +96,26 @@ function storybookReducer(state: StorybookState = initialState, action: Storyboo
       return {
         ...state,
         logs: [],
+      };
+
+    case 'TOGGLE_SEARCH':
+      return {
+        ...state,
+        searchVisible: !state.searchVisible,
+        searchQuery: state.searchVisible ? '' : state.searchQuery, // Clear on close
+      };
+
+    case 'SET_SEARCH_QUERY':
+      return {
+        ...state,
+        searchQuery: action.payload,
+      };
+
+    case 'CLOSE_SEARCH':
+      return {
+        ...state,
+        searchVisible: false,
+        searchQuery: '',
       };
 
     default:

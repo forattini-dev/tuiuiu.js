@@ -1,73 +1,166 @@
 /**
- * LogViewer Component
+ * Console Accordion Component
  *
  * Displays logs captured from console.log/warn/error.
- * Open by default, toggled with F12.
- * Takes the bottom 6 lines of the screen.
+ * Accordion pattern: collapsed shows summary, F12 expands upward.
+ * Positioned in footer area (not overlay).
  */
 
 import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import { storybookStore, type LogEntry } from '../store.js';
 import { getTheme } from '../../core/theme.js';
+import type { VNode } from '../../utils/types.js';
 
-/** Height of log viewer in lines (including border) */
-const LOG_VIEWER_HEIGHT = 6;
+// =============================================================================
+// Constants
+// =============================================================================
 
-/** Number of visible log entries (height minus header and borders) */
-const VISIBLE_LOG_COUNT = LOG_VIEWER_HEIGHT - 2;
+/** Maximum visible log entries when expanded */
+const MAX_VISIBLE_LOGS = 8;
 
-export function LogViewer() {
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Get color for log level
+ */
+function getLevelColor(level: string, theme: ReturnType<typeof getTheme>): string {
+  switch (level) {
+    case 'error': return theme.accents.critical;
+    case 'warn': return theme.accents.warning;
+    case 'debug': return theme.foreground.muted;
+    case 'info': return theme.accents.info;
+    default: return theme.foreground.primary;
+  }
+}
+
+/**
+ * Get icon for log level
+ */
+function getLevelIcon(level: string): string {
+  switch (level) {
+    case 'error': return '✖';
+    case 'warn': return '⚠';
+    case 'debug': return '○';
+    case 'info': return 'ℹ';
+    default: return '●';
+  }
+}
+
+/**
+ * Format timestamp as HH:MM:SS
+ */
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { hour12: false }).split(' ')[0] || '';
+}
+
+// =============================================================================
+// Component
+// =============================================================================
+
+/**
+ * Console accordion - collapsed or expanded based on store state
+ */
+export function ConsoleAccordion(): VNode {
   const theme = getTheme();
   const state = storybookStore.state();
+  const { logs, isLogOpen } = state;
+  const logCount = logs.length;
 
-  if (!state.isLogOpen) {
-    return null; // Don't render anything if closed
+  // Count by level for summary
+  const errorCount = logs.filter(l => l.level === 'error').length;
+  const warnCount = logs.filter(l => l.level === 'warn').length;
+
+  // Collapsed state: single line summary
+  if (!isLogOpen) {
+    return Box(
+      {
+        flexDirection: 'row',
+        paddingX: 1,
+        borderStyle: 'single',
+        borderColor: theme.borders.default,
+        backgroundColor: theme.background.subtle,
+      },
+      // Expand indicator
+      Text({ color: theme.foreground.muted }, '▶ '),
+      Text({ color: theme.palette.primary[500], bold: true }, 'Console'),
+      Text({ color: theme.foreground.muted }, ` (${logCount} entries)`),
+
+      // Error/warn counts if any
+      errorCount > 0 ? Box(
+        { flexDirection: 'row', marginLeft: 1 },
+        Text({ color: theme.accents.critical }, ` ${errorCount} errors`),
+      ) : null,
+      warnCount > 0 ? Box(
+        { flexDirection: 'row', marginLeft: 1 },
+        Text({ color: theme.accents.warning }, ` ${warnCount} warnings`),
+      ) : null,
+
+      Spacer(),
+      Text({ color: theme.foreground.muted, dim: true }, '[F12 expand]'),
+    );
   }
 
-  // Styles based on log level
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'error': return theme.accents.critical;
-      case 'warn': return theme.accents.warning;
-      case 'debug': return theme.foreground.muted;
-      default: return theme.foreground.primary;
-    }
-  };
+  // Expanded state: show log entries
+  const visibleLogs = logs.slice(-MAX_VISIBLE_LOGS);
 
-  // Show the latest logs that fit in the visible area
-  const visibleLogs = state.logs.slice(-VISIBLE_LOG_COUNT);
+  const children: VNode[] = [
+    // Header
+    Box(
+      {
+        flexDirection: 'row',
+        borderStyle: 'single',
+        borderColor: theme.borders.default,
+        paddingX: 1,
+        backgroundColor: theme.background.surface,
+      },
+      Text({ color: theme.foreground.muted }, '▼ '),
+      Text({ color: theme.palette.primary[500], bold: true }, 'Console'),
+      Text({ color: theme.foreground.muted }, ` (${logCount})`),
+      Spacer(),
+      Text({ color: theme.foreground.muted, dim: true }, '[F12 collapse] [C clear]'),
+    ),
+  ];
+
+  // Log entries
+  if (visibleLogs.length === 0) {
+    children.push(
+      Box(
+        { paddingX: 2, paddingY: 1 },
+        Text({ color: theme.foreground.muted, dim: true }, 'No log entries'),
+      ),
+    );
+  } else {
+    children.push(
+      Box(
+        { flexDirection: 'column', paddingX: 1 },
+        ...visibleLogs.map((log) =>
+          Box(
+            { flexDirection: 'row', gap: 1 },
+            Text({ color: theme.foreground.muted, dim: true }, formatTime(log.timestamp)),
+            Text({ color: getLevelColor(log.level, theme) }, getLevelIcon(log.level)),
+            Text({
+              color: getLevelColor(log.level, theme),
+              bold: log.level === 'error',
+            }, log.message.join(' ').slice(0, 80)),
+          ),
+        ),
+      ),
+    );
+  }
 
   return Box(
     {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: LOG_VIEWER_HEIGHT,
+      flexDirection: 'column',
       borderStyle: 'single',
       borderColor: theme.borders.default,
       backgroundColor: theme.background.base,
-      flexDirection: 'column'
     },
-    // Header
-    Box(
-      { flexDirection: 'row', borderBottom: true, borderStyle: 'single', borderColor: theme.borders.default, paddingX: 1 },
-      Text({ bold: true, color: theme.palette.primary[500] }, 'Console'),
-      Spacer(),
-      Text({ color: theme.foreground.muted, dim: true }, `${state.logs.length} logs`),
-      Text({ color: theme.foreground.muted, dim: true }, ' | F12 close | C clear')
-    ),
-    // Logs Content
-    Box(
-      { flexDirection: 'column', paddingX: 1 },
-      ...visibleLogs.map((log) =>
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: theme.foreground.muted, dim: true }, new Date(log.timestamp).toLocaleTimeString().split(' ')[0]),
-          Text({ color: getLevelColor(log.level), bold: log.level === 'error' }, `[${log.level.toUpperCase().padEnd(5)}]`),
-          Text({ color: theme.foreground.primary }, log.message.join(' '))
-        )
-      )
-    )
+    ...children,
   );
 }
+
+// Keep old export for backwards compatibility
+export const LogViewer = ConsoleAccordion;

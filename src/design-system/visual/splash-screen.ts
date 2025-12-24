@@ -234,24 +234,20 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
     );
   }
 
-  // Subtitle (1 line gap below image)
-  if (subtitle) {
-    centerContent.push(
-      Box({ flexDirection: 'row', marginTop: 1, width: '100%' },
-        Box({ flexGrow: 1 }),
-        Text({ color: secondaryColor }, subtitle),
-        Box({ flexGrow: 1 })
-      )
-    );
-  }
+  // Subtitle and Version (combined to ensure proper line separation)
+  if (subtitle || version) {
+    const lines: string[] = [];
+    if (subtitle) lines.push(subtitle);
+    if (version) lines.push(`v${version}`);
 
-  // Version (below subtitle, on separate line)
-  if (version) {
     centerContent.push(
-      Box({ flexDirection: 'row', width: '100%' },
-        Box({ flexGrow: 1 }),
-        Text({ color: secondaryColor, dim: true }, `v${version}`),
-        Box({ flexGrow: 1 })
+      Box({ flexDirection: 'column', marginTop: 1, width: '100%', alignItems: 'center' },
+        ...lines.map((line, idx) =>
+          Text({
+            color: secondaryColor,
+            dim: idx > 0, // version is dimmed
+          }, line)
+        )
       )
     );
   }
@@ -297,10 +293,12 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
     // BigText fonts are typically 6-8 lines tall
     contentHeight = 7;
   }
-  // Add subtitle height (1 line + 1 margin)
-  if (subtitle) contentHeight += 2;
-  // Add version height (1 line)
-  if (version) contentHeight += 1;
+  // Add subtitle/version height (1 margin + lines)
+  if (subtitle || version) {
+    contentHeight += 1; // marginTop
+    if (subtitle) contentHeight += 1;
+    if (version) contentHeight += 1;
+  }
 
   // Calculate top margin to center content vertically
   // Subtract 2 for the loading indicator at the bottom

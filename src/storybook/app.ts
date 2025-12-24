@@ -18,9 +18,24 @@ import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
 import { SplashScreen, createSplashScreen } from '../design-system/visual/splash-screen.js';
 import { createTextInput, renderTextInput } from '../atoms/text-input.js';
 
+// Version
+import { getVersion, getVersionSync } from '../version.js';
+
 // Storybook Global State & Logger
 import { storybookStore, interceptConsole } from './store.js';
-import { LogViewer } from './components/log-viewer.js';
+
+// Storybook UI Components
+import {
+  Navbar,
+  MetricsStatusBar,
+  SearchBar,
+  searchStories,
+  ConsoleAccordion,
+  HotkeysPanel,
+  PressedKeysIndicator,
+  recordKeyPress,
+  clearOldKeyPresses,
+} from './components/index.js';
 
 // =============================================================================
 // Initialization
@@ -517,30 +532,17 @@ function getModeColor(mode: ViewMode): string {
 }
 
 /**
- * Status bar component
+ * Text editing mode indicator
  */
-function StatusBar(props: { viewMode: ViewMode; focusArea: FocusArea; isEditingText?: boolean }): VNode {
+function TextEditingIndicator(): VNode {
   const theme = getTheme();
-  const { isEditingText } = props;
-
-  if (isEditingText) {
-    return Box(
-      { borderStyle: 'single', borderColor: theme.accents.warning, paddingX: 1 },
-      Text({ color: theme.accents.warning, bold: true }, '✏️  EDITING TEXT  '),
-      Text({ color: theme.foreground.muted }, '[Enter] Save  '),
-      Text({ color: theme.foreground.muted }, '[Esc] Cancel  '),
-      Text({ color: theme.foreground.muted }, '[Backspace] Delete')
-    );
-  }
 
   return Box(
-    { borderStyle: 'single', borderColor: theme.borders.default, paddingX: 1 },
-    Text({ color: theme.foreground.muted }, '[Esc] Back/Quit  '),
-    Text({ color: theme.foreground.muted }, '[Enter] Select  '),
-    Text({ color: theme.foreground.muted }, '[Tab] Focus  '),
-    Text({ color: theme.foreground.muted }, '[F1] Theme  '),
-    Text({ color: theme.foreground.muted }, '[F12] Logs  '),
-    Text({ color: theme.palette.primary[500], dim: true }, '🖱️  Mouse enabled')
+    { borderStyle: 'single', borderColor: theme.accents.warning, paddingX: 1 },
+    Text({ color: theme.accents.warning, bold: true }, '✏️  EDITING TEXT  '),
+    Text({ color: theme.foreground.muted }, '[Enter] Save  '),
+    Text({ color: theme.foreground.muted }, '[Esc] Cancel  '),
+    Text({ color: theme.foreground.muted }, '[Backspace] Delete')
   );
 }
 
@@ -553,47 +555,6 @@ function formatTime(seconds: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-/**
- * Navbar component with metrics
- */
-function Navbar(props: {
-  componentCount: number;
-  clicks: number;
-  keystrokes: number;
-  fps: number;
-  elapsedSeconds: number;
-  themeName: string;
-}): VNode {
-  const theme = getTheme();
-  const { componentCount, clicks, keystrokes, fps, elapsedSeconds, themeName } = props;
-  const fpsColor = fps >= 30 ? theme.accents.positive : fps >= 15 ? theme.accents.warning : theme.accents.critical;
-
-  return Box(
-    {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      borderStyle: 'single',
-      borderColor: theme.accents.highlight,
-    },
-    Box(
-      { flexDirection: 'row' },
-      Text({ color: theme.accents.highlight, bold: true }, ' Tuiuiu.js '),
-      Text({ color: theme.accents.warning, dim: true }, `[${themeName}] `)
-    ),
-    Box(
-      { flexDirection: 'row' },
-      Text({ color: theme.foreground.primary, bold: true }, formatTime(elapsedSeconds)),
-      Text({ color: theme.foreground.muted, dim: true }, ' '),
-      Text({ color: theme.palette.primary[500] }, String(componentCount)),
-      Text({ color: theme.foreground.muted, dim: true }, 's '),
-      Text({ color: theme.accents.warning }, String(clicks)),
-      Text({ color: theme.foreground.muted, dim: true }, 'c '),
-      Text({ color: theme.accents.positive }, String(keystrokes)),
-      Text({ color: theme.foreground.muted, dim: true }, 'k '),
-      Text({ color: fpsColor, bold: true }, `${fps}fps `)
-    )
-  );
-}
 
 // =============================================================================
 // Splash Screen
@@ -750,12 +711,31 @@ function StorybookApp(): VNode {
 
   const controlKeys = currentStory ? Object.keys(currentStory.controls || {}) : [];
 
+  // Search state from store
+  const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
+
+  // Get search results
+  const storeState = storybookStore.state();
+  const searchResults = storeState.searchVisible
+    ? searchStories(allStories, storeState.searchQuery)
+    : [];
+
   // Input handling
   useInput((input, key) => {
     setKeystrokeCount((c) => c + 1);
+    // Record key press for indicator
+    recordKeyPress(input, key);
+    clearOldKeyPresses();
 
-    // Toggle Theme with F1
+    // Toggle Search with F1
     if (key.f1) {
+      storybookStore.dispatch({ type: 'TOGGLE_SEARCH' });
+      setSearchSelectedIndex(0);
+      return;
+    }
+
+    // Toggle Theme with F2
+    if (key.f2) {
       const currentTheme = useTheme();
       const nextTheme = getNextTheme(currentTheme);
       setTheme(nextTheme);
@@ -764,12 +744,68 @@ function StorybookApp(): VNode {
 
     // Toggle Console Logs
     if (key.f12 || (key.ctrl && input === 'l')) {
-        storybookStore.dispatch({ type: 'TOGGLE_LOG' });
-        return;
+      storybookStore.dispatch({ type: 'TOGGLE_LOG' });
+      return;
     }
     // Clear logs
     if (input === 'C') { // Shift+c
-        storybookStore.dispatch({ type: 'CLEAR_LOGS' });
+      storybookStore.dispatch({ type: 'CLEAR_LOGS' });
+    }
+
+    // =========================================================================
+    // SEARCH MODE
+    // =========================================================================
+    if (storeState.searchVisible) {
+      // Escape - close search
+      if (key.escape) {
+        storybookStore.dispatch({ type: 'CLOSE_SEARCH' });
+        return;
+      }
+
+      // Navigate results
+      if (key.upArrow) {
+        setSearchSelectedIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setSearchSelectedIndex((i) => Math.min(searchResults.length - 1, i + 1));
+        return;
+      }
+
+      // Select result and navigate
+      if (key.return && searchResults.length > 0) {
+        const selected = searchResults[searchSelectedIndex()];
+        if (selected) {
+          // Find category and story indices
+          const catIndex = categories.indexOf(selected.story.category);
+          const catStories = getStoriesByCategory(selected.story.category);
+          const storyIndex = catStories.findIndex((s) => s.name === selected.story.name);
+
+          if (catIndex >= 0) setCurrentCategoryIndex(catIndex);
+          if (storyIndex >= 0) setSelectedStoryIndex(storyIndex);
+
+          storybookStore.dispatch({ type: 'CLOSE_SEARCH' });
+        }
+        return;
+      }
+
+      // Backspace - delete character from query
+      if (key.backspace) {
+        const current = storeState.searchQuery;
+        storybookStore.dispatch({ type: 'SET_SEARCH_QUERY', payload: current.slice(0, -1) });
+        setSearchSelectedIndex(0);
+        return;
+      }
+
+      // Regular character input - append to search query
+      if (input && input.length > 0 && !key.ctrl && !key.meta) {
+        storybookStore.dispatch({ type: 'SET_SEARCH_QUERY', payload: storeState.searchQuery + input });
+        setSearchSelectedIndex(0);
+        return;
+      }
+
+      // Consume all other keys while searching
+      return;
     }
 
     // =========================================================================
@@ -963,7 +999,7 @@ function StorybookApp(): VNode {
     const splashNode = SplashScreen({
       coloredArt: TUIUIU_BIRD_COLORED,
       subtitle: 'Component Explorer',
-      version: '1.0.0',
+      version: getVersionSync(),
       loadingType: 'spinner',
       spinnerStyle: 'dots',
       loadingMessage: 'Loading stories...',
@@ -987,14 +1023,38 @@ function StorybookApp(): VNode {
 
   return Box(
     { flexDirection: 'column', height: '100%' },
-    Navbar({
-      componentCount: allStories.length,
+
+    // =========================================================================
+    // HEADER SECTION
+    // =========================================================================
+
+    // Enhanced Navbar with branding
+    Navbar({ componentCount: allStories.length }),
+
+    // StatusBar with metrics
+    MetricsStatusBar({
+      themeName: useTheme().name,
       clicks: clickCount(),
       keystrokes: keystrokeCount(),
       fps: fps(),
       elapsedSeconds: elapsedSeconds(),
-      themeName: useTheme().name,
     }),
+
+    // Search bar (conditional)
+    SearchBar({
+      query: storeState.searchQuery,
+      results: searchResults,
+      selectedIndex: searchSelectedIndex(),
+      isVisible: storeState.searchVisible,
+    }),
+
+    // Text editing indicator (when editing)
+    isEditingText() ? TextEditingIndicator() : null,
+
+    // =========================================================================
+    // MAIN CONTENT
+    // =========================================================================
+
     Box(
       { flexDirection: 'row', flexGrow: 1 },
       Sidebar({
@@ -1035,11 +1095,21 @@ function StorybookApp(): VNode {
             setEditingTextValue(value);
             setIsEditingText(true);
           },
-        })
+        }),
     ),
-    StatusBar({ viewMode: viewMode(), focusArea: focusArea(), isEditingText: isEditingText() }),
-    // LOG VIEWER OVERLAY
-    LogViewer()
+
+    // =========================================================================
+    // FOOTER SECTION (Console > Hotkeys > Pressed Keys)
+    // =========================================================================
+
+    // Console accordion
+    ConsoleAccordion(),
+
+    // Hotkeys panel
+    HotkeysPanel(),
+
+    // Pressed keys indicator
+    PressedKeysIndicator(),
   );
 }
 
@@ -1047,6 +1117,9 @@ function StorybookApp(): VNode {
  * Run the storybook
  */
 export async function runStorybook(): Promise<void> {
+  // Pre-cache version (async load, then sync access everywhere)
+  await getVersion();
+
   // Start global tick for animations
   startTick(100);
 
