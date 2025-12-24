@@ -892,6 +892,25 @@ export const layouts: ComponentDoc[] = [
     ],
   },
   {
+    name: 'Scrollbar',
+    category: 'atoms',
+    description: 'Standalone scrollbar component for custom scroll implementations. Renders a visual scrollbar with thumb and track.',
+    props: [
+      { name: 'height', type: "number", required: true, description: 'Height of the scrollbar area (number of lines)' },
+      { name: 'total', type: "number", required: true, description: 'Total height of content' },
+      { name: 'current', type: "number", required: true, description: 'Current scroll position (from 0 to maxScroll)' },
+      { name: 'color', type: "ColorValue", required: false, default: "'cyan'", description: 'Color of the thumb (scroller)' },
+      { name: 'trackColor', type: "ColorValue", required: false, default: "'gray'", description: 'Color of the track' },
+      { name: 'thumbChar', type: "string", required: false, description: 'Custom character for the thumb' },
+      { name: 'trackChar', type: "string", required: false, description: 'Custom character for the track' },
+    ],
+    examples: [
+      `// Basic scrollbar\nScrollbar({\n  height: 10,\n  total: 50,\n  current: 15,\n})`,
+      `// Custom styled scrollbar\nScrollbar({\n  height: 20,\n  total: 100,\n  current: scrollTop(),\n  color: 'primary',\n  trackColor: 'muted',\n})`,
+      `// In a custom scroll component\nBox({ flexDirection: 'row' },\n  Box({ width: 40, height: 10 },\n    ...visibleContent\n  ),\n  Scrollbar({\n    height: 10,\n    total: totalContent,\n    current: scrollPosition,\n  })\n)`,
+    ],
+  },
+  {
     name: 'Grid',
     category: 'molecules',
     description: 'CSS Grid-like layout for terminal.',

@@ -9,6 +9,7 @@
 | `Scroll` | Any content | Wraps anything, auto-scrollbar |
 | `ScrollList` | Item lists | Auto-height estimation |
 | `ChatList` | Chat/messaging | Inverted, newest at bottom |
+| `Scrollbar` | Custom implementations | Standalone scrollbar atom |
 | `useScrollList` | Advanced control | Programmatic scroll |
 | `useScroll` | Content control | Scroll any wrapped content |
 
@@ -348,6 +349,71 @@ ChatList({
   height: messagesHeight,
   width: width - 2,
 })
+```
+
+## Scrollbar (Atom)
+
+A standalone scrollbar component for custom scroll implementations. Use this when building your own scroll container or when you need a scrollbar without the full `Scroll` wrapper.
+
+```typescript
+import { Scrollbar } from 'tuiuiu.js'
+
+// Basic usage
+Scrollbar({
+  height: 10,      // Visible area height
+  total: 50,       // Total content height
+  current: 15,     // Current scroll position
+})
+
+// Custom styling
+Scrollbar({
+  height: 20,
+  total: 100,
+  current: scrollTop(),
+  color: 'primary',      // Thumb color
+  trackColor: 'muted',   // Track color
+})
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|:-----|:-----|:--------|:------------|
+| `height` | `number` | required | Height of the scrollbar (lines) |
+| `total` | `number` | required | Total content height |
+| `current` | `number` | required | Current scroll position (0 to maxScroll) |
+| `color` | `ColorValue` | `'cyan'` | Thumb (scroller) color |
+| `trackColor` | `ColorValue` | `'gray'` | Track color |
+| `thumbChar` | `string` | auto | Custom thumb character |
+| `trackChar` | `string` | auto | Custom track character |
+
+### Custom Scroll Container Example
+
+```typescript
+function CustomScrollArea({ content, height }: { content: VNode[], height: number }) {
+  const [scrollPos, setScrollPos] = useState(0)
+  const totalHeight = content.length
+
+  useInput((_, key) => {
+    if (key.upArrow) setScrollPos(p => Math.max(0, p - 1))
+    if (key.downArrow) setScrollPos(p => Math.min(totalHeight - height, p + 1))
+  })
+
+  const visible = content.slice(scrollPos, scrollPos + height)
+
+  return Box(
+    { flexDirection: 'row' },
+    Box({ width: 40, height },
+      ...visible
+    ),
+    Scrollbar({
+      height,
+      total: totalHeight,
+      current: scrollPos(),
+      color: 'primary',
+    })
+  )
+}
 ```
 
 ## Related

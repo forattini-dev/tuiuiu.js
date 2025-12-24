@@ -570,6 +570,20 @@ ScrollArea({
 }, longContent)
 ```
 
+#### `Scrollbar(props: ScrollbarOptions): VNode`
+
+Standalone scrollbar atom for custom scroll implementations.
+
+```typescript
+Scrollbar({
+  height: 10,       // Visible area height
+  total: 50,        // Total content height
+  current: 15,      // Current scroll position
+  color: 'primary', // Thumb color
+  trackColor: 'muted',
+})
+```
+
 #### `VirtualList(props: VirtualListProps): VNode`
 
 Virtualized list for performance.

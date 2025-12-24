@@ -73,10 +73,26 @@ story('Button')
 
 ## Keyboard Shortcuts
 
-- `↑` / `↓`: Navigate list
-- `Enter`: Select story
-- `Tab`: Switch focus between Sidebar and Preview
-- `p`: Toggle Playground mode
-- `d`: Toggle Documentation mode
-- `/`: Search
-- `q`: Quit
+### Navigation
+| Key | Action |
+|:----|:-------|
+| `↑` / `↓` | Navigate stories in current category |
+| `←` / `→` | Switch between categories |
+| `Enter` | Select/execute story |
+| `Tab` | Switch focus between panels |
+| `Esc` | Go back / Quit |
+
+### Features
+| Key | Action |
+|:----|:-------|
+| `F1` | Toggle search mode |
+| `F2` | Cycle through themes |
+| `F12` | Toggle console/debug panel |
+
+### Modes
+| Key | Action |
+|:----|:-------|
+| `p` | Toggle Playground mode |
+| `d` | Toggle Documentation mode |
+| `/` | Quick search |
+| `q` | Quit storybook |
