@@ -959,8 +959,51 @@ export const appShellStories: Story[] = [
 
   story('Shell - Chat App')
     .category('Apps')
-    .description('Chat application layout')
+    .description('Chat application layout with proper ChatBubble components')
     .render(() => {
+      // ChatBubble component - user messages on right, others on left
+      const ChatBubble = (props: {
+        content: string;
+        sender: string;
+        time: string;
+        isUser?: boolean;
+        status?: string;
+      }) => {
+        const { content, sender, time, isUser = false, status } = props;
+
+        const bubble = Box(
+          {
+            flexDirection: 'column',
+            borderStyle: 'round',
+            borderColor: isUser ? 'primary' : 'border',
+            backgroundColor: isUser ? 'primary' : undefined,
+            paddingX: 1,
+            maxWidth: 45,
+          },
+          // Header: sender + time
+          Box(
+            { flexDirection: 'row', gap: 1 },
+            Text({ color: isUser ? 'primaryForeground' : 'primary', bold: true }, sender),
+            Text({ color: isUser ? 'primaryForeground' : 'mutedForeground', dim: true }, time)
+          ),
+          // Content
+          Text({ color: isUser ? 'primaryForeground' : 'foreground' }, content),
+          // Status for user messages
+          status ? Text({ color: 'primaryForeground', dim: true }, status) : null
+        );
+
+        // Align: user right, others left
+        return Box(
+          {
+            flexDirection: 'row',
+            justifyContent: isUser ? 'flex-end' : 'flex-start',
+            marginBottom: 1,
+            width: '100%',
+          },
+          bubble
+        );
+      };
+
       return Box(
         {
           flexDirection: 'column',
@@ -978,51 +1021,26 @@ export const appShellStories: Story[] = [
           Spacer({}),
           Text({ color: 'mutedForeground' }, '📞  📹  ⋮')
         ),
-        // Messages
+        // Messages using ChatBubble
         Box(
           { flexDirection: 'column', padding: 1, flexGrow: 1 },
-          // Received message
-          Box(
-            { flexDirection: 'column', marginBottom: 1 },
-            Box(
-              {
-                borderStyle: 'round',
-                borderColor: 'border',
-                paddingX: 1,
-                alignSelf: 'flex-start',
-              },
-              Text({}, 'Hey! How is the TUI coming along?')
-            ),
-            Text({ color: 'mutedForeground', dim: true }, '10:30 AM')
-          ),
-          // Sent message
-          Box(
-            { flexDirection: 'column', alignItems: 'flex-end', marginBottom: 1 },
-            Box(
-              {
-                borderStyle: 'round',
-                borderColor: 'secondary',
-                backgroundColor: 'secondary',
-                paddingX: 1,
-              },
-              Text({ color: 'gray' }, "It's going great! Almost done 🎉")
-            ),
-            Text({ color: 'mutedForeground', dim: true }, '10:32 AM ✓✓')
-          ),
-          // Received
-          Box(
-            { flexDirection: 'column' },
-            Box(
-              {
-                borderStyle: 'round',
-                borderColor: 'border',
-                paddingX: 1,
-                alignSelf: 'flex-start',
-              },
-              Text({}, "Awesome! Can't wait to try it!")
-            ),
-            Text({ color: 'mutedForeground', dim: true }, '10:33 AM')
-          ),
+          ChatBubble({
+            sender: '👩 Alice',
+            content: 'Hey! How is the TUI coming along?',
+            time: '10:30 AM',
+          }),
+          ChatBubble({
+            sender: '👤 You',
+            content: "It's going great! Almost done 🎉",
+            time: '10:32 AM',
+            isUser: true,
+            status: '✓✓',
+          }),
+          ChatBubble({
+            sender: '👩 Alice',
+            content: "Awesome! Can't wait to try it!",
+            time: '10:33 AM',
+          }),
           Spacer({})
         ),
         // Input
