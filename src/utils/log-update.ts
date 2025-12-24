@@ -9,6 +9,9 @@ import { hideCursor, showCursor } from './cursor.js';
 
 // ANSI escape sequences
 const ESC = '\u001B[';
+const cursorHome = `${ESC}H`; // Move cursor to home (0,0)
+const clearFromCursor = `${ESC}J`; // Clear from cursor to end of screen
+
 const eraseLines = (count: number): string => {
   let result = '';
   for (let i = 0; i < count; i++) {
@@ -47,10 +50,10 @@ export interface LogUpdate {
 
 /**
  * Create a standard log updater (full redraw)
+ * Uses cursor home + clear to ensure no ghost lines accumulate
  */
 function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
   const { showCursor: showCursorOption = false } = options;
-  let previousLineCount = 0;
   let previousOutput = '';
   let hasHiddenCursor = false;
 
@@ -66,19 +69,17 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
     }
 
     previousOutput = output;
-    stream.write(eraseLines(previousLineCount) + output);
-    previousLineCount = output.split('\n').length;
+    // Move cursor to home (0,0), write output, then clear any remaining content below
+    stream.write(cursorHome + output + clearFromCursor);
   };
 
   render.clear = () => {
-    stream.write(eraseLines(previousLineCount));
+    stream.write(cursorHome + clearFromCursor);
     previousOutput = '';
-    previousLineCount = 0;
   };
 
   render.done = () => {
     previousOutput = '';
-    previousLineCount = 0;
 
     if (!showCursorOption && hasHiddenCursor) {
       showCursor(stream);
@@ -87,9 +88,7 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
   };
 
   render.sync = (content: string) => {
-    const output = content + '\n';
-    previousOutput = output;
-    previousLineCount = output.split('\n').length;
+    previousOutput = content + '\n';
   };
 
   return render;
