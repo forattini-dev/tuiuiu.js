@@ -920,3 +920,14 @@ export {
   getElapsedSeconds,
   everyNTicks,
 } from './tick.js';
+
+// FPS Tracking
+export {
+  trackFrame,
+  getFps,
+  getFpsMetrics,
+  resetFps,
+  getFpsColor,
+} from './fps.js';
+
+export type { FpsMetrics } from './fps.js';

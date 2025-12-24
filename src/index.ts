@@ -107,6 +107,8 @@ export {
   formatHotkey,
   formatHotkeyPlatform,
   isMac,
+  // FPS tracking
+  useFps,
 } from './hooks/index.js';
 
 export type {
@@ -118,6 +120,7 @@ export type {
   HotkeyBinding,
   HotkeyOptions,
   HotkeyHandler,
+  UseFpsResult,
 } from './hooks/index.js';
 
 // =============================================================================
@@ -137,6 +140,8 @@ export {
   Static,
   Divider,
   Slot,
+  // SplitBox
+  SplitBox,
   // Canvas
   Canvas,
   createCanvas,
@@ -169,6 +174,8 @@ export type {
   StaticProps,
   DividerProps,
   SlotProps,
+  SplitBoxProps,
+  SplitBoxSection,
   CanvasMode,
   CanvasColor,
   CanvasOptions,
@@ -335,7 +342,15 @@ export {
   oscillate,
   getElapsedSeconds,
   everyNTicks,
+  // FPS tracking
+  trackFrame,
+  getFps,
+  getFpsMetrics,
+  resetFps,
+  getFpsColor,
 } from './core/index.js';
+
+export type { FpsMetrics } from './core/index.js';
 
 // =============================================================================
 // Core - Theme, Animation, Capabilities

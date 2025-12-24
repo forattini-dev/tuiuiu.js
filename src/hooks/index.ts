@@ -102,3 +102,6 @@ export type {
   HotkeyOptions,
   HotkeyHandler,
 } from './use-hotkeys.js';
+
+// FPS tracking hook
+export { useFps, type UseFpsResult } from './use-fps.js';
