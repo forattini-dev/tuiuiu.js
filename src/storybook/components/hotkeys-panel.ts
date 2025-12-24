@@ -46,9 +46,10 @@ export function HotkeysPanel(): VNode {
   return Box(
     {
       flexDirection: 'row',
+      width: '100%',
+      height: 1,
       paddingX: 1,
       backgroundColor: theme.background.subtle,
-      flexWrap: 'wrap',
     },
     Text({ color: theme.foreground.muted, dim: true }, 'Keys: '),
     ...HOTKEYS.flatMap((hotkey, idx) => [

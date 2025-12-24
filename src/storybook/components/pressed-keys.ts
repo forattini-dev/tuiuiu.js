@@ -130,6 +130,8 @@ export function PressedKeysIndicator(): VNode {
   return Box(
     {
       flexDirection: 'row',
+      width: '100%',
+      height: 1,
       paddingX: 1,
       backgroundColor: theme.background.base,
     },

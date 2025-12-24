@@ -70,6 +70,7 @@ export function MetricsStatusBar({
       flexDirection: 'row',
       justifyContent: 'space-between',
       width: '100%',
+      height: 1,
       paddingX: 1,
       backgroundColor: theme.background.subtle,
     },
