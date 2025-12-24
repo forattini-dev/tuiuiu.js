@@ -7,15 +7,14 @@
 import { Box, Text } from '../primitives/nodes.js';
 import { Divider } from '../primitives/divider.js';
 import { render } from '../app/render-loop.js';
-import { useState, useInput, useApp, useEffect, useMouse } from '../hooks/index.js';
-import { createRef } from '../core/index.js';
+import { useState, useInput, useApp, useEffect, useMouse, useFps } from '../hooks/index.js';
 import { startTick, stopTick, getTick, isTickRunning, setTickRate } from '../core/tick.js';
 import { setTheme, useTheme, getNextTheme, getTheme } from '../core/theme.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
 import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
-import { SplashScreen, createSplashScreen } from '../design-system/visual/splash-screen.js';
+import { ImpactSplashScreen, createSplashScreen } from '../design-system/visual/splash-screen.js';
 import { createTextInput, renderTextInput } from '../atoms/text-input.js';
 
 // Version
@@ -632,29 +631,18 @@ function StorybookApp(): VNode {
   // Metrics state
   const [clickCount, setClickCount] = useState(0);
   const [keystrokeCount, setKeystrokeCount] = useState(0);
-  const [fps, setFps] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Refs for perf tracking
-  const frameCountRef = createRef(0);
-  const lastFpsTimeRef = createRef(Date.now());
+  // FPS tracking using native hook
+  const { fps } = useFps();
 
-  // Timer effect
+  // Timer effect for elapsed time
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsedSeconds((s) => s + 1);
-      const now = Date.now();
-      const elapsed = now - lastFpsTimeRef.current;
-      if (elapsed >= 1000) {
-        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
-        frameCountRef.current = 0;
-        lastFpsTimeRef.current = now;
-      }
     }, 1000);
     return () => clearInterval(timer);
   });
-
-  frameCountRef.current++;
 
   // Derived state
   const currentCategory = categories[currentCategoryIndex()] || 'Primitives';
@@ -996,8 +984,11 @@ function StorybookApp(): VNode {
 
   // Render splash while not done (use module-level flag + state for reactivity)
   if (!splashDone() && !splashCompleted) {
-    const splashNode = SplashScreen({
-      coloredArt: TUIUIU_BIRD_COLORED,
+    const splashNode = ImpactSplashScreen({
+      birdArt: TUIUIU_BIRD_COLORED,
+      showLogo: true,
+      logoColor: '#8ba622', // Verde-amarelado do passarinho
+      color: '#8ba622',
       subtitle: 'Component Explorer',
       version: getVersionSync(),
       loadingType: 'spinner',
@@ -1036,7 +1027,7 @@ function StorybookApp(): VNode {
       themeName: useTheme().name,
       clicks: clickCount(),
       keystrokes: keystrokeCount(),
-      fps: fps(),
+      fps,
       elapsedSeconds: elapsedSeconds(),
     }),
 

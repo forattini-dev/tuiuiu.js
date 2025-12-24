@@ -5,7 +5,7 @@
  * Provides discoverability for storybook navigation.
  */
 
-import { Box, Text } from '../../primitives/nodes.js';
+import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import { getTheme } from '../../core/theme.js';
 import type { VNode } from '../../utils/types.js';
 
@@ -39,30 +39,38 @@ const HOTKEYS: Hotkey[] = [
 
 /**
  * HotkeysPanel - displays available keyboard shortcuts
+ *
+ * Uses Spacer components for centering instead of justifyContent: 'center'
+ * due to a bug in the layout engine that hides content when using justifyContent.
  */
 export function HotkeysPanel(): VNode {
   const theme = getTheme();
 
+  const hotkeyElements = HOTKEYS.flatMap((hotkey, idx) => [
+    // Key badge
+    Box(
+      { flexDirection: 'row' },
+      Text({ color: theme.palette.primary[400], bold: true }, `[${hotkey.key}]`),
+      Text({ color: theme.foreground.muted }, ` ${hotkey.description}`),
+    ),
+    // Separator (except last)
+    idx < HOTKEYS.length - 1
+      ? Text({ color: theme.borders.default }, '  │  ')
+      : null,
+  ]).filter(Boolean) as VNode[];
+
   return Box(
     {
       flexDirection: 'row',
-      justifyContent: 'center',
       width: '100%',
       height: 1,
-      paddingX: 1,
       backgroundColor: theme.background.subtle,
     },
-    ...HOTKEYS.flatMap((hotkey, idx) => [
-      // Key badge
-      Box(
-        { flexDirection: 'row' },
-        Text({ color: theme.palette.primary[400], bold: true }, `[${hotkey.key}]`),
-        Text({ color: theme.foreground.muted }, ` ${hotkey.description}`),
-      ),
-      // Separator (except last)
-      idx < HOTKEYS.length - 1
-        ? Text({ color: theme.borders.default }, '  │  ')
-        : null,
-    ]).filter(Boolean) as VNode[],
+    // Left spacer for centering
+    Spacer(),
+    // Hotkey content
+    ...hotkeyElements,
+    // Right spacer for centering
+    Spacer(),
   );
 }
