@@ -5,7 +5,7 @@
  * Helps users understand keyboard interactions.
  */
 
-import { Box, Text } from '../../primitives/nodes.js';
+import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import { createSignal } from '../../primitives/signal.js';
 import { getTheme } from '../../core/theme.js';
 import type { VNode } from '../../utils/types.js';
@@ -155,5 +155,7 @@ export function PressedKeysIndicator(): VNode {
             );
           }),
         ),
+    // Spacer fills remaining width so background extends to edge
+    Spacer(),
   );
 }
