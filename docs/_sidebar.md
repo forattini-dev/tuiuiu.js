@@ -30,6 +30,7 @@
   - [Feedback](/components/feedback.md)
   - [Data Display](/components/data-display.md)
   - [Layout](/components/layout.md)
+  - [Collapsible](/components/collapsible.md)
   - [Scroll](/components/scroll.md)
   - [Overlays](/components/overlays.md)
   - [Media](/components/media.md)
