@@ -1124,7 +1124,7 @@ export async function runStorybook(): Promise<void> {
   startTick(100);
 
   const { waitUntilExit } = render(() => StorybookApp(), {
-    fullHeight: true, // Fill entire terminal to cover splash screen content
+    // fullHeight disabled to fix incremental renderer sync issues
   });
   await waitUntilExit();
 

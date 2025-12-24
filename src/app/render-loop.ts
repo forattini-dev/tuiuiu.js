@@ -134,9 +134,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Create log updater for efficient incremental rendering
   // Uses line-diffing to reduce flickering
+  // NOTE: Incremental mode temporarily disabled to debug line sync issues
   const logUpdate: LogUpdate = createLogUpdate(stdout, {
     showCursor,
-    incremental: !debug, // Use incremental rendering unless in debug mode
+    incremental: false, // Disabled: was causing ghost lines
   });
 
   // State
@@ -147,8 +148,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Expose clearScreen to app context for splash->main transitions
   // This properly resets logUpdate state to avoid incremental render corruption
   setClearScreen(() => {
+    // 1. Clear logUpdate state first (sets previousOutput='' and previousLines=[])
+    //    This ensures next render will be a full redraw since previousOutput.length === 0
     logUpdate.clear();
+    // 2. Clear terminal completely (moves cursor to home position 0,0)
     stdout.write(ansi.clearTerminal);
+    // 3. Reset render loop state
     lastOutput = '';
   });
   let exitPromise: Promise<void>;
