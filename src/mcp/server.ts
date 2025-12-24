@@ -141,10 +141,15 @@ const tools: MCPTool[] = [
   },
   {
     name: 'tuiuiu_version',
-    description: 'Get version information about Tuiuiu and the MCP server, including compatibility status.',
+    description: 'Get version information about Tuiuiu MCP server and check compatibility with a project version. If projectVersion is provided, returns compatibility analysis.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        projectVersion: {
+          type: 'string',
+          description: 'The Tuiuiu version used by the project (e.g., "1.0.5"). If provided, checks compatibility with the MCP server version.',
+        },
+      },
     },
   },
 ];
@@ -696,58 +701,132 @@ function handleQuickstart(args: Record<string, unknown>): MCPToolResult {
   return { content: [{ type: 'text', text: output }] };
 }
 
-function handleVersion(): MCPToolResult {
-  const tuiuiuVersion = getVersion();
+/**
+ * Parse a semver version string into components
+ */
+function parseSemver(version: string): { major: number; minor: number; patch: number } | null {
+  const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+  };
+}
+
+interface DocsCompatibility {
+  status: 'synced' | 'docs-ahead' | 'docs-behind';
+  icon: string;
+  message: string;
+  tip?: string;
+}
+
+/**
+ * Check if MCP docs are in sync with project version
+ */
+function checkDocsCompatibility(mcpVersion: string, projectVersion: string): DocsCompatibility {
+  const mcp = parseSemver(mcpVersion);
+  const project = parseSemver(projectVersion);
+
+  if (!mcp || !project) {
+    return {
+      status: 'docs-behind',
+      icon: '⚠️',
+      message: 'Could not parse version',
+      tip: 'Versions should follow semver format (e.g., 1.0.5)',
+    };
+  }
+
+  // Same version - docs are in sync
+  if (mcp.major === project.major && mcp.minor === project.minor && mcp.patch === project.patch) {
+    return {
+      status: 'synced',
+      icon: '✅',
+      message: 'Documentation is in sync with your project',
+    };
+  }
+
+  // MCP is newer - docs may have new features not in project
+  if (mcp.major > project.major || (mcp.major === project.major && mcp.minor > project.minor)) {
+    return {
+      status: 'docs-ahead',
+      icon: '📚',
+      message: `Docs may include features not in your project (${mcpVersion} > ${projectVersion})`,
+      tip: `Upgrade project: pnpm add tuiuiu.js@${mcpVersion}`,
+    };
+  }
+
+  // MCP is older - project may have features not in docs
+  if (project.major > mcp.major || (project.major === mcp.major && project.minor > mcp.minor)) {
+    return {
+      status: 'docs-behind',
+      icon: '⚠️',
+      message: `Docs may be missing new features (${projectVersion} > ${mcpVersion})`,
+      tip: `Update MCP: npx tuiuiu.js@${projectVersion} mcp`,
+    };
+  }
+
+  // Same major.minor, different patch - generally compatible
+  return {
+    status: 'synced',
+    icon: '✅',
+    message: 'Documentation is compatible (patch difference only)',
+  };
+}
+
+async function handleVersion(args: Record<string, unknown>): Promise<MCPToolResult> {
+  const projectVersion = args.projectVersion as string | undefined;
+  const mcpVersion = await getVersion();
   const mcpProtocolVersion = '2024-11-05';
   const nodeVersion = process.version;
 
-  const output = `# Tuiuiu Version Info
+  let output = `# Tuiuiu MCP Server
 
-## Versions
-
-| Component | Version |
-|-----------|---------|
-| **Tuiuiu.js** | ${tuiuiuVersion} |
+| | |
+|---|---|
+| **MCP Docs Version** | ${mcpVersion} |
 | **MCP Protocol** | ${mcpProtocolVersion} |
 | **Node.js** | ${nodeVersion} |
+`;
 
-## Compatibility
+  // If projectVersion is provided, check docs compatibility
+  if (projectVersion) {
+    const compat = checkDocsCompatibility(mcpVersion, projectVersion);
 
-✅ **MCP Protocol**: Compatible with Claude Desktop and Claude Code
-✅ **Node.js**: Requires Node.js 18.0.0 or higher
-✅ **TypeScript**: Full TypeScript support with type definitions
+    output += `
+## Documentation Status
 
-## Features in This Version
+| | |
+|---|---|
+| **Your Project** | ${projectVersion} |
+| **MCP Docs** | ${mcpVersion} |
+| **Status** | ${compat.icon} ${compat.status === 'synced' ? 'Synced' : compat.status === 'docs-ahead' ? 'Docs Ahead' : 'Docs Behind'} |
 
-- 🎨 11 built-in themes (dark, light, dracula, nord, etc.)
-- 📦 85+ components (primitives, atoms, molecules, organisms)
-- 🪝 10+ hooks (useState, useInput, useFps, useHotkeys, etc.)
-- 🖼️ SplitBox for headers with connected borders
-- 📊 Data visualization (Sparkline, BarChart, Gauge, Heatmap)
-- 🎮 Full keyboard and mouse support
-- 🚀 Zero external dependencies
+${compat.message}
+`;
 
-## Installation
+    if (compat.tip) {
+      output += `\n**Tip:** ${compat.tip}\n`;
+    }
+  } else {
+    output += `
+## Check Documentation Sync
 
-\`\`\`bash
-npm install tuiuiu.js
-# or
-pnpm add tuiuiu.js
+Pass your project version to verify docs are current:
+\`\`\`json
+{ "projectVersion": "1.0.5" }
 \`\`\`
+`;
+  }
 
-## MCP Server
+  output += `
+## Available Documentation
 
-To run the MCP server for AI assistants:
+- **${allComponents.length}** components documented
+- **${allHooks.length}** hooks documented
+- **${allThemes.length}** themes documented
 
-\`\`\`bash
-npx tuiuiu-mcp
-# or with HTTP transport
-npx tuiuiu-mcp --http --port 3200
-\`\`\`
-
-## Changelog
-
-For full changelog, see: https://github.com/user/tuiuiu/releases
+Use \`tuiuiu_list_components\`, \`tuiuiu_get_component\`, \`tuiuiu_get_hook\` to explore.
 `;
 
   return { content: [{ type: 'text', text: output }] };
