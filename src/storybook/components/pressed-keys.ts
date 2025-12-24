@@ -26,7 +26,7 @@ interface KeyPress {
 
 const [keyPresses, setKeyPresses] = createSignal<KeyPress[]>([]);
 const KEY_DISPLAY_TIME = 3000; // Show keys for 3 seconds
-const MAX_KEYS = 8; // Maximum keys to display
+const MAX_KEYS = 12; // Maximum keys to display
 
 // =============================================================================
 // Key Recording
@@ -130,32 +130,36 @@ export function PressedKeysIndicator(): VNode {
   return Box(
     {
       flexDirection: 'row',
+      justifyContent: 'space-between',
       width: '100%',
       height: 1,
       paddingX: 1,
       backgroundColor: theme.background.subtle,
     },
-    Text({ color: theme.foreground.muted, dim: true }, 'Keys: '),
+    // LEFT: Keys content
+    Box(
+      { flexDirection: 'row' },
+      Text({ color: theme.foreground.muted, dim: true }, 'Keys: '),
+      keys.length === 0
+        ? Text({ color: theme.foreground.muted, dim: true }, '(none)')
+        : Box(
+            { flexDirection: 'row', gap: 1 },
+            ...keys.map(({ key, timestamp }) => {
+              const age = now - timestamp;
+              const isFading = age > KEY_DISPLAY_TIME * 0.6;
 
-    keys.length === 0
-      ? Text({ color: theme.foreground.muted, dim: true }, '(none)')
-      : Box(
-          { flexDirection: 'row', gap: 1 },
-          ...keys.map(({ key, timestamp }) => {
-            const age = now - timestamp;
-            const isFading = age > KEY_DISPLAY_TIME * 0.6;
-
-            return Text(
-              {
-                color: isFading ? theme.foreground.muted : theme.accents.highlight,
-                bold: !isFading,
-                dim: isFading,
-              },
-              `[${key}]`,
-            );
-          }),
-        ),
-    // Spacer fills remaining width so background extends to edge
-    Spacer(),
+              return Text(
+                {
+                  color: isFading ? theme.foreground.muted : theme.accents.highlight,
+                  bold: !isFading,
+                  dim: isFading,
+                },
+                `[${key}]`,
+              );
+            }),
+          ),
+    ),
+    // RIGHT: Empty box to force space-between to work
+    Box({}),
   );
 }
