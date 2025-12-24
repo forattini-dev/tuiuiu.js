@@ -33,3 +33,4 @@ export * from './divider.js';
 export * from './store.js';
 export * from './canvas.js';
 export * from './scroll.js';
+export * from './split-box.js';

@@ -13,6 +13,7 @@
 
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
+import { SplitBox } from '../../../primitives/split-box.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 
@@ -137,6 +138,299 @@ export const navbarStories: Story[] = [
           Text({ color: 'mutedForeground' }, '+')
         )
       );
+    }),
+];
+
+// ============================================================================
+// Headers with Logo (SplitBox)
+// ============================================================================
+
+export const headerWithLogoStories: Story[] = [
+  story('Header - ASCII Logo Left')
+    .category('Apps')
+    .description('Header with ASCII art logo on the left using SplitBox')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'primary', bold: true }, '█▀█ █▀▀ █▄▀'),
+        Text({ color: 'primary', bold: true }, '█▀▄ ██▄ █ █'),
+      );
+
+      const info = Box(
+        { flexDirection: 'column' },
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: 'foreground', bold: true }, 'REK SHELL'),
+          Text({ color: 'mutedForeground' }, ' v1.0.50'),
+          Spacer({}),
+          Text({ color: 'success' }, '60fps'),
+        ),
+        Text({ color: 'mutedForeground' }, '📡 https://api.example.com'),
+        Text({ color: 'mutedForeground' }, '⚡ Jobs: idle'),
+      );
+
+      return SplitBox({
+        borderStyle: 'round',
+        borderColor: 'primary',
+        width: 70,
+        sections: [
+          { width: 13, content: logo, valign: 'middle' },
+          { flexGrow: 1, content: info },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - Block Logo')
+    .category('Apps')
+    .description('Header with block-style ASCII logo')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'cyan', bold: true }, '▀█▀ █ █ █'),
+        Text({ color: 'cyan', bold: true }, ' █  █ █ █'),
+        Text({ color: 'cyan', bold: true }, ' █  ▀▀▀ █'),
+      );
+
+      const info = Box(
+        { flexDirection: 'column' },
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: 'cyan', bold: true }, 'Tuiuiu.js'),
+          Text({ color: 'mutedForeground' }, ' Storybook'),
+          Spacer({}),
+          Text({ color: 'mutedForeground', dim: true }, 'v1.0.8'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 2 },
+          Text({ color: 'success' }, '● 85 components'),
+          Text({ color: 'primary' }, '● TypeScript'),
+        ),
+        Text({ color: 'mutedForeground', dim: true }, 'Zero dependencies TUI framework'),
+      );
+
+      return SplitBox({
+        borderStyle: 'round',
+        borderColor: 'cyan',
+        width: 65,
+        sections: [
+          { width: 11, content: logo, valign: 'middle' },
+          { flexGrow: 1, content: info },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - Three Sections')
+    .category('Apps')
+    .description('Header with logo, title, and status sections')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'warning', bold: true }, '╔═╗'),
+        Text({ color: 'warning', bold: true }, '╠═╣'),
+        Text({ color: 'warning', bold: true }, '╩ ╩'),
+      );
+
+      const title = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'foreground', bold: true }, 'ADMIN PANEL'),
+        Text({ color: 'mutedForeground', dim: true }, 'System Management'),
+      );
+
+      const status = Box(
+        { flexDirection: 'column', alignItems: 'flex-end' },
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'success' }, '●'),
+          Text({ color: 'success' }, 'Online'),
+        ),
+        Text({ color: 'mutedForeground', dim: true }, '14:32:15'),
+      );
+
+      return SplitBox({
+        borderStyle: 'double',
+        borderColor: 'warning',
+        width: 60,
+        sections: [
+          { width: 5, content: logo, valign: 'middle', align: 'center' },
+          { flexGrow: 1, content: title, valign: 'middle' },
+          { width: 12, content: status, valign: 'middle' },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - Minimal Logo')
+    .category('Apps')
+    .description('Minimal header with small logo icon')
+    .render(() => {
+      const logo = Text({ color: 'primary', bold: true }, '◆');
+
+      const info = Box(
+        { flexDirection: 'row' },
+        Text({ color: 'foreground', bold: true }, 'MyApp'),
+        Spacer({}),
+        Text({ color: 'mutedForeground' }, 'Dashboard'),
+        Text({ color: 'mutedForeground', dim: true }, '  │  '),
+        Text({ color: 'mutedForeground' }, 'Settings'),
+        Text({ color: 'mutedForeground', dim: true }, '  │  '),
+        Text({ color: 'mutedForeground' }, 'Help'),
+      );
+
+      return SplitBox({
+        borderStyle: 'round',
+        borderColor: 'border',
+        width: 60,
+        sections: [
+          { width: 3, content: logo, align: 'center' },
+          { flexGrow: 1, content: info },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - IDE Style')
+    .category('Apps')
+    .description('IDE-style header with file info and git status')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'blue', bold: true }, '┏━┓'),
+        Text({ color: 'blue', bold: true }, '┃▶┃'),
+        Text({ color: 'blue', bold: true }, '┗━┛'),
+      );
+
+      const fileInfo = Box(
+        { flexDirection: 'column' },
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: 'foreground', bold: true }, 'CodeEdit Pro'),
+          Spacer({}),
+          Text({ color: 'success' }, '⎇ main'),
+        ),
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: 'primary' }, '📄 src/index.ts'),
+          Spacer({}),
+          Text({ color: 'warning' }, '● Modified'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 2 },
+          Text({ color: 'mutedForeground', dim: true }, 'TypeScript'),
+          Text({ color: 'mutedForeground', dim: true }, 'UTF-8'),
+          Text({ color: 'mutedForeground', dim: true }, 'LF'),
+        ),
+      );
+
+      return SplitBox({
+        borderStyle: 'bold',
+        borderColor: 'blue',
+        width: 60,
+        sections: [
+          { width: 5, content: logo, valign: 'middle', align: 'center' },
+          { flexGrow: 1, content: fileInfo },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - Dashboard Metrics')
+    .category('Apps')
+    .description('Dashboard header with live metrics')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'green', bold: true }, '╭─╮'),
+        Text({ color: 'green', bold: true }, '│█│'),
+        Text({ color: 'green', bold: true }, '╰─╯'),
+      );
+
+      const title = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'green', bold: true }, 'SYSTEM MONITOR'),
+        Text({ color: 'mutedForeground', dim: true }, 'Real-time metrics'),
+      );
+
+      const metrics = Box(
+        { flexDirection: 'column' },
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'mutedForeground' }, 'CPU:'),
+          Text({ color: 'warning' }, '45%'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'mutedForeground' }, 'RAM:'),
+          Text({ color: 'success' }, '2.1G'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'mutedForeground' }, 'NET:'),
+          Text({ color: 'primary' }, '↓12 ↑4'),
+        ),
+      );
+
+      return SplitBox({
+        borderStyle: 'round',
+        borderColor: 'green',
+        width: 50,
+        sections: [
+          { width: 5, content: logo, valign: 'middle', align: 'center' },
+          { flexGrow: 1, content: title, valign: 'middle' },
+          { width: 12, content: metrics },
+        ],
+        paddingX: 1,
+      });
+    }),
+
+  story('Header - Game Style')
+    .category('Apps')
+    .description('Game-style header with player stats')
+    .render(() => {
+      const logo = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'magenta', bold: true }, '╔╦╗'),
+        Text({ color: 'magenta', bold: true }, ' ║ '),
+        Text({ color: 'magenta', bold: true }, ' ╩ '),
+      );
+
+      const title = Box(
+        { flexDirection: 'column' },
+        Text({ color: 'magenta', bold: true }, 'TERMINAL QUEST'),
+        Text({ color: 'yellow' }, '★★★☆☆ Level 42'),
+      );
+
+      const stats = Box(
+        { flexDirection: 'column', alignItems: 'flex-end' },
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'red' }, '♥'),
+          Text({ color: 'foreground' }, '85/100'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'yellow' }, '⚡'),
+          Text({ color: 'foreground' }, '50/50'),
+        ),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'cyan' }, '◆'),
+          Text({ color: 'foreground' }, '1,234'),
+        ),
+      );
+
+      return SplitBox({
+        borderStyle: 'double',
+        borderColor: 'magenta',
+        width: 50,
+        sections: [
+          { width: 5, content: logo, valign: 'middle', align: 'center' },
+          { flexGrow: 1, content: title, valign: 'middle' },
+          { width: 10, content: stats },
+        ],
+        paddingX: 1,
+      });
     }),
 ];
 
@@ -1070,6 +1364,7 @@ export const appShellStories: Story[] = [
  */
 export const allAppStories: Story[] = [
   ...navbarStories,
+  ...headerWithLogoStories,
   ...sidebarStories,
   ...statusBarStories,
   ...commandStories,

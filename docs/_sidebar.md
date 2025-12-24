@@ -50,10 +50,12 @@
   - [useFocus](/hooks/use-focus.md)
   - [useApp](/hooks/use-app.md)
   - [useNavigation](/hooks/use-navigation.md)
+  - [useFps](/hooks/use-fps.md)
   - [Context API](/hooks/context.md)
 
 - **Guides**
   - [Building a Dashboard](/guides/building-a-dashboard.md)
+  - [Building Headers](/guides/building-headers.md)
   - [State Management](/guides/state-management.md)
   - [Programmatic Control](/guides/programmatic-control.md)
 

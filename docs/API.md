@@ -202,6 +202,28 @@ focusManager.focusNext();
 focusManager.focusPrevious();
 ```
 
+### `useFps(): UseFpsResult`
+
+Track frames per second for performance monitoring.
+
+```typescript
+const { fps, metrics, color } = useFps();
+
+// fps: current FPS (number)
+// color: 'green' | 'yellow' | 'red' based on performance
+// metrics: detailed FpsMetrics object
+```
+
+**FpsMetrics:**
+- `fps` - Current frames per second
+- `avgFps` - Rolling average (10s window)
+- `minFps` / `maxFps` - Min/max recorded
+- `totalFrames` - Total frames rendered
+- `uptime` - Time since tracking started (ms)
+- `frameTime` - Milliseconds per frame
+
+**Color thresholds:** green (≥30), yellow (15-29), red (<15)
+
 ---
 
 ## Components
@@ -274,6 +296,37 @@ Horizontal divider line.
 ```typescript
 Divider({ title: 'Section', color: 'gray' })
 ```
+
+#### `SplitBox(props: SplitBoxProps): VNode`
+
+Box with internal divisions and connected border characters (┬ ┴).
+
+```typescript
+SplitBox({
+  borderStyle: 'round',
+  borderColor: 'cyan',
+  width: 60,
+  sections: [
+    { width: 12, content: Logo(), valign: 'middle' },
+    { flexGrow: 1, content: Content() },
+  ],
+  paddingX: 1,
+})
+```
+
+**Props:**
+- `sections`: Array of section definitions
+- `borderStyle`: `'single'` | `'round'` | `'double'` | `'bold'`
+- `borderColor`: ColorValue
+- `width`: Total width (defaults to terminal width)
+- `paddingX`, `paddingY`: Padding inside sections
+
+**Section Props:**
+- `width`: Fixed width in characters
+- `flexGrow`: Flex grow factor
+- `content`: VNode to render
+- `align`: `'left'` | `'center'` | `'right'`
+- `valign`: `'top'` | `'middle'` | `'bottom'`
 
 #### `When(condition: boolean, child: VNode): VNode | null`
 
