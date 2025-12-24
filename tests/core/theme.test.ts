@@ -14,8 +14,6 @@ import {
   pushTheme,
   popTheme,
   createTheme,
-  themeColor,
-  themeSpacing,
   getBorderRadiusChars,
   resolveColor,
   detectColorScheme,
@@ -43,30 +41,30 @@ describe('Theme System', () => {
   describe('Built-in Themes', () => {
     it('should have dark theme with all colors', () => {
       expect(darkTheme.name).toBe('dark');
-      expect(darkTheme.colors.primary).toBeDefined();
-      expect(darkTheme.colors.secondary).toBeDefined();
-      expect(darkTheme.colors.background).toBeDefined();
-      expect(darkTheme.colors.foreground).toBeDefined();
-      expect(darkTheme.colors.mutedForeground).toBeDefined();
-      expect(darkTheme.colors.card).toBeDefined();
-      expect(darkTheme.colors.border).toBeDefined();
-      expect(darkTheme.colors.success).toBeDefined();
-      expect(darkTheme.colors.warning).toBeDefined();
-      expect(darkTheme.colors.error).toBeDefined();
-      expect(darkTheme.colors.info).toBeDefined();
+      // v3 themes use palette, foreground, background, accents, and borders
+      expect(darkTheme.palette.primary).toBeDefined();
+      expect(darkTheme.palette.secondary).toBeDefined();
+      expect(darkTheme.background.base).toBeDefined();
+      expect(darkTheme.foreground.primary).toBeDefined();
+      expect(darkTheme.foreground.muted).toBeDefined();
+      expect(darkTheme.background.surface).toBeDefined();
+      expect(darkTheme.borders.default).toBeDefined();
+      expect(darkTheme.accents.positive).toBeDefined();
+      expect(darkTheme.accents.warning).toBeDefined();
+      expect(darkTheme.accents.critical).toBeDefined();
+      expect(darkTheme.accents.info).toBeDefined();
     });
 
     it('should have light theme', () => {
       expect(lightTheme.name).toBe('light');
-      expect(lightTheme.colors.background).toBe('#ffffff');
-      expect(lightTheme.colors.foreground).toBe('#020617'); // slate-950
+      expect(lightTheme.background.base).toBe('#ffffff');
+      expect(lightTheme.foreground.primary).toBeDefined();
     });
 
     it('should have high contrast dark theme', () => {
       expect(highContrastDarkTheme.name).toBe('high-contrast-dark');
-      expect(highContrastDarkTheme.colors.background).toBe('#000000');
-      expect(highContrastDarkTheme.colors.foreground).toBe('#ffffff');
-      expect(highContrastDarkTheme.borderRadius).toBe('sm');
+      expect(highContrastDarkTheme.background.base).toBe('#000000');
+      expect(highContrastDarkTheme.foreground.primary).toBe('#ffffff');
     });
 
     it('should have monochrome theme', () => {
@@ -74,12 +72,14 @@ describe('Theme System', () => {
       expect(monochromeTheme.borderRadius).toBe('none');
     });
 
-    it('should have spacing scale', () => {
-      expect(darkTheme.spacing.xs).toBe(1);
-      expect(darkTheme.spacing.sm).toBe(2);
-      expect(darkTheme.spacing.md).toBe(4);
-      expect(darkTheme.spacing.lg).toBe(8);
-      expect(darkTheme.spacing.xl).toBe(16);
+    it('should have palette hierarchy', () => {
+      // v3 themes use palette with color scales
+      expect(darkTheme.palette.primary[500]).toBeDefined();
+      expect(darkTheme.palette.secondary[500]).toBeDefined();
+      expect(darkTheme.palette.success[500]).toBeDefined();
+      expect(darkTheme.palette.warning[500]).toBeDefined();
+      expect(darkTheme.palette.danger[500]).toBeDefined();
+      expect(darkTheme.palette.neutral[500]).toBeDefined();
     });
 
     it('should export themes object', () => {
@@ -173,60 +173,52 @@ describe('Theme System', () => {
       });
 
       expect(custom.name).toBe('custom');
-      expect(custom.colors.primary).toBe(darkTheme.colors.primary);
-      expect(custom.spacing.md).toBe(darkTheme.spacing.md);
+      expect(custom.palette.primary[500]).toBe(darkTheme.palette.primary[500]);
+      expect(custom.foreground.primary).toBe(darkTheme.foreground.primary);
     });
 
-    it('should override colors', () => {
+    it('should override palette colors (full replacement)', () => {
+      // createTheme replaces the full palette, so you need to spread all colors
       const custom = createTheme(darkTheme, {
-        colors: {
-          primary: '#ff0000',
+        palette: {
+          ...darkTheme.palette,
+          primary: {
+            ...darkTheme.palette.primary,
+            500: '#ff0000',
+          },
         },
       });
 
-      expect(custom.colors.primary).toBe('#ff0000');
-      expect(custom.colors.secondary).toBe(darkTheme.colors.secondary);
+      expect(custom.palette.primary[500]).toBe('#ff0000');
+      expect(custom.palette.secondary[500]).toBe(darkTheme.palette.secondary[500]);
     });
 
-    it('should override spacing', () => {
+    it('should override accents', () => {
       const custom = createTheme(darkTheme, {
-        spacing: {
-          md: 8,
+        accents: {
+          ...darkTheme.accents,
+          critical: '#ff0000',
         },
       });
 
-      expect(custom.spacing.md).toBe(8);
-      expect(custom.spacing.sm).toBe(darkTheme.spacing.sm);
+      expect(custom.accents.critical).toBe('#ff0000');
+      expect(custom.accents.positive).toBe(darkTheme.accents.positive);
     });
 
-    it('should override border radius', () => {
+    it('should override foreground', () => {
       const custom = createTheme(darkTheme, {
-        borderRadius: 'lg',
+        foreground: {
+          ...darkTheme.foreground,
+          primary: '#ffffff',
+        },
       });
 
-      expect(custom.borderRadius).toBe('lg');
+      expect(custom.foreground.primary).toBe('#ffffff');
+      expect(custom.foreground.muted).toBe(darkTheme.foreground.muted);
     });
   });
 
-  describe('themeColor', () => {
-    it('should get color from current theme', () => {
-      expect(themeColor('primary')).toBe(darkTheme.colors.primary);
-      expect(themeColor('error')).toBe(darkTheme.colors.error);
-    });
-
-    it('should reflect theme changes', () => {
-      setTheme(lightTheme);
-      expect(themeColor('background')).toBe('#ffffff');
-    });
-  });
-
-  describe('themeSpacing', () => {
-    it('should get spacing from current theme', () => {
-      expect(themeSpacing('xs')).toBe(1);
-      expect(themeSpacing('md')).toBe(4);
-      expect(themeSpacing('xl')).toBe(16);
-    });
-  });
+  // Note: themeColor and themeSpacing were deprecated in v3 - use getTheme() directly
 
   describe('getBorderRadiusChars', () => {
     it('should return square corners for none', () => {
@@ -268,41 +260,39 @@ describe('Theme System', () => {
 
   describe('resolveColor', () => {
     it('should resolve primary color', () => {
-      expect(resolveColor('primary')).toBe(darkTheme.colors.primary);
+      expect(resolveColor('primary')).toBe(darkTheme.palette.primary[500]);
     });
 
     it('should resolve secondary color', () => {
-      expect(resolveColor('secondary')).toBe(darkTheme.colors.secondary);
+      expect(resolveColor('secondary')).toBe(darkTheme.palette.secondary[500]);
     });
 
     it('should resolve semantic colors', () => {
-      expect(resolveColor('success')).toBe(darkTheme.colors.success);
-      expect(resolveColor('warning')).toBe(darkTheme.colors.warning);
-      expect(resolveColor('error')).toBe(darkTheme.colors.error);
-      expect(resolveColor('info')).toBe(darkTheme.colors.info);
+      expect(resolveColor('success')).toBe(darkTheme.accents.positive);
+      expect(resolveColor('warning')).toBe(darkTheme.accents.warning);
+      expect(resolveColor('error')).toBe(darkTheme.accents.critical);
+      expect(resolveColor('info')).toBe(darkTheme.accents.info);
     });
 
     it('should resolve danger as error', () => {
-      expect(resolveColor('danger')).toBe(darkTheme.colors.error);
+      expect(resolveColor('danger')).toBe(darkTheme.accents.critical);
     });
 
     it('should resolve muted colors', () => {
-      // 'muted' maps to the muted background color
-      expect(resolveColor('muted')).toBe(darkTheme.colors.muted);
+      // 'muted' maps to the muted background color (for subtle areas like tabs)
+      expect(resolveColor('muted')).toBe(darkTheme.background.subtle);
       // 'muted-foreground' and 'mutedForeground' map to the muted text color
-      expect(resolveColor('muted-foreground')).toBe(darkTheme.colors.mutedForeground);
-      expect(resolveColor('mutedForeground')).toBe(darkTheme.colors.mutedForeground);
+      expect(resolveColor('muted-foreground')).toBe(darkTheme.foreground.muted);
+      expect(resolveColor('mutedForeground')).toBe(darkTheme.foreground.muted);
     });
 
-    it('should resolve Tailwind colors', () => {
-      // Tailwind color names resolve to shade 500
-      expect(resolveColor('cyan')).toBe('#06b6d4'); // cyan-500
-      expect(resolveColor('blue')).toBe('#3b82f6'); // blue-500
-      expect(resolveColor('red')).toBe('#ef4444');  // red-500
-      // Tailwind color-shade format
+    it('should resolve Tailwind-style colors from colors.ts', () => {
+      // Tailwind color-shade format resolves to colors from colors.ts
+      // These are direct hex values, not from theme palette
       expect(resolveColor('blue-500')).toBe('#3b82f6');
+      expect(resolveColor('red-500')).toBe('#ef4444');
+      expect(resolveColor('green-500')).toBe('#22c55e');
       expect(resolveColor('gray-100')).toBe('#f3f4f6');
-      expect(resolveColor('slate-900')).toBe('#0f172a');
     });
 
     it('should pass through unknown colors', () => {

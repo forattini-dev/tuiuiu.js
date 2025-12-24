@@ -173,7 +173,7 @@ describe('Timer Component', () => {
     });
 
     const output = JSON.stringify(vnode);
-    expect(output).toContain('green'); // Running indicator color
+    expect(output).toContain('success'); // Running indicator color (semantic)
   });
 
   it('should show paused indicator', () => {
@@ -184,7 +184,7 @@ describe('Timer Component', () => {
     });
 
     const output = JSON.stringify(vnode);
-    expect(output).toContain('yellow'); // Paused indicator color
+    expect(output).toContain('warning'); // Paused indicator color (semantic)
   });
 
   it('should use custom indicators', () => {

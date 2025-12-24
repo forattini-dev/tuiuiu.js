@@ -595,20 +595,20 @@ describe('Data Visualization Components', () => {
 
     it('gets zone color for low value', () => {
       const color = getZoneColor(20, DEFAULT_ZONES);
-      expect(color).toBe('green');
+      expect(color).toBe('success');  // Changed from 'green' to semantic
     });
 
     it('gets zone color for medium value', () => {
-      // DEFAULT_ZONES: 0-60 green, 60-85 yellow, 85-100 red
+      // DEFAULT_ZONES: 0-60 success, 60-85 warning, 85-100 destructive
       // Value 60 is at boundary, function uses >= start && <= end
-      // So 60 matches green (0-60) first. Use 70 for yellow zone.
+      // So 60 matches success (0-60) first. Use 70 for warning zone.
       const color = getZoneColor(70, DEFAULT_ZONES);
-      expect(color).toBe('yellow');
+      expect(color).toBe('warning');  // Changed from 'yellow' to semantic
     });
 
     it('gets zone color for high value', () => {
       const color = getZoneColor(90, DEFAULT_ZONES);
-      expect(color).toBe('red');
+      expect(color).toBe('destructive');  // Changed from 'red' to semantic
     });
   });
 

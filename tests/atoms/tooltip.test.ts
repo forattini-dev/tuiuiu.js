@@ -369,7 +369,7 @@ describe('InfoBox', () => {
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('blue');
+      expect(output).toContain('info'); // Semantic color
     });
 
     it('should render warning type', () => {
@@ -379,7 +379,7 @@ describe('InfoBox', () => {
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('yellow');
+      expect(output).toContain('warning'); // Semantic color
     });
 
     it('should render error type', () => {
@@ -389,7 +389,7 @@ describe('InfoBox', () => {
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('red');
+      expect(output).toContain('destructive'); // Semantic color
     });
 
     it('should render success type', () => {
@@ -399,7 +399,7 @@ describe('InfoBox', () => {
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('green');
+      expect(output).toContain('success'); // Semantic color
     });
 
     it('should render tip type', () => {
@@ -409,7 +409,7 @@ describe('InfoBox', () => {
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('cyan');
+      expect(output).toContain('primary'); // Semantic color
     });
   });
 
@@ -650,11 +650,11 @@ describe('Badge', () => {
       expect(output).toContain('magenta');
     });
 
-    it('should default to gray', () => {
-      const vnode = Badge({ label: 'GRAY' });
+    it('should default to mutedForeground', () => {
+      const vnode = Badge({ label: 'DEFAULT' });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('gray');
+      expect(output).toContain('mutedForeground'); // Semantic color
     });
   });
 });
@@ -724,11 +724,11 @@ describe('Tag', () => {
       expect(output).toContain('blue');
     });
 
-    it('should default to gray', () => {
-      const vnode = Tag({ label: 'Gray' });
+    it('should default to mutedForeground', () => {
+      const vnode = Tag({ label: 'Default' });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('gray');
+      expect(output).toContain('mutedForeground'); // Semantic color
     });
   });
 });

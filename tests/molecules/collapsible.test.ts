@@ -159,15 +159,16 @@ describe('Collapsible Component', () => {
     expect(vnode).toBeDefined();
   });
 
-  it('should apply title color', () => {
+  it('should apply custom color', () => {
     const vnode = Collapsible({
       title: 'Colored',
-      titleColor: 'cyan',
+      color: 'cyan',  // Now uses color prop instead of titleColor
       children: Text({}, 'Content'),
     });
 
     const output = JSON.stringify(vnode);
-    expect(output).toContain('cyan');
+    // With custom color, background becomes cyan
+    expect(output).toContain('"backgroundColor":"cyan"');
   });
 
   it('should apply indent', () => {
