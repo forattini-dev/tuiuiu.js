@@ -235,21 +235,29 @@ function renderLayoutToBuffer(
   layout: LayoutNode,
   buffer: CellBuffer,
   offsetX: number,
-  offsetY: number
+  offsetY: number,
+  parentBg?: Color
 ): void {
   const { node, x, y, width, height, children } = layout;
   const absX = offsetX + x;
   const absY = offsetY + y;
 
+  // Get this node's background color (or inherit from parent)
+  const style = node.props as BoxStyle;
+  const nodeBg = style.backgroundColor ? parseColor(style.backgroundColor) : parentBg;
+
   // Render based on node type
   switch (node.type) {
     case 'box':
-      renderBoxToBuffer(node, buffer, absX, absY, width, height);
+      renderBoxToBuffer(node, buffer, absX, absY, width, height, nodeBg);
       break;
     case 'text':
-      renderTextToBuffer(node, buffer, absX, absY, width);
+      renderTextToBuffer(node, buffer, absX, absY, width, nodeBg);
       break;
     case 'spacer':
+      // Note: Spacer background is NOT filled to avoid flickering.
+      // Background inheritance happens through text children.
+      break;
     case 'newline':
     case 'fragment':
       // No visual representation
@@ -257,16 +265,15 @@ function renderLayoutToBuffer(
   }
 
   // Calculate content offset (for padding and border)
-  const style = node.props as BoxStyle;
   const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
   const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
   const contentOffsetX = absX + paddingLeft + borderSize;
   const contentOffsetY = absY + paddingTop + borderSize;
 
-  // Render children
+  // Render children (pass background color for inheritance)
   for (const child of children) {
-    renderLayoutToBuffer(child, buffer, contentOffsetX, contentOffsetY);
+    renderLayoutToBuffer(child, buffer, contentOffsetX, contentOffsetY, nodeBg);
   }
 }
 
@@ -279,15 +286,16 @@ function renderBoxToBuffer(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  bgColor?: Color
 ): void {
   const style = node.props as BoxStyle;
 
   // Parse colors
   const borderColor = style.borderColor ? parseColor(style.borderColor) : undefined;
 
-  // Background fill would go here if backgroundColor is set
-  // For now, just render borders
+  // Note: Background is NOT filled here to avoid flickering.
+  // Text children inherit parentBg and render with the correct background.
 
   if (style.borderStyle && style.borderStyle !== 'none') {
     const borderChars = BORDER_STYLES[style.borderStyle] ?? BORDER_STYLES.single;
@@ -331,14 +339,15 @@ function renderTextToBuffer(
   buffer: CellBuffer,
   x: number,
   y: number,
-  maxWidth: number
+  maxWidth: number,
+  parentBg?: Color
 ): void {
   const props = node.props as TextStyle & { children: string };
   const text = String(props.children ?? '');
 
-  // Parse colors and attributes
+  // Parse colors and attributes (inherit bg from parent if not set)
   const fg = props.color ? parseColor(props.color) : undefined;
-  const bg = props.backgroundColor ? parseColor(props.backgroundColor) : undefined;
+  const bg = props.backgroundColor ? parseColor(props.backgroundColor) : parentBg;
   const attrs: CellAttrs = {
     bold: props.bold,
     dim: props.dim,

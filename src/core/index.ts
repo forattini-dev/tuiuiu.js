@@ -63,18 +63,35 @@ export type {
 
 // Theme system
 export {
+  // Core API
   useTheme,
   getTheme,
   setTheme,
   pushTheme,
   popTheme,
   createTheme,
-  themeColor,
-  themeColorPair,
+  // Theme mode helpers
+  useThemeMode,
+  useIsDark,
+  // Component tokens
+  useComponentTokens,
+  // Convenience accessors
+  th,
+  useBg,
+  useFg,
+  usePalette,
+  useAccents,
+  useStates,
+  useBorders,
+  useOpacity,
+  // Color utilities
   getContrastColor,
-  themeSpacing,
+  getColor,
+  getDarker,
+  getLighter,
   getBorderRadiusChars,
   resolveColor,
+  // System detection
   detectColorScheme,
   useSystemTheme,
   // Built-in themes
@@ -90,17 +107,28 @@ export {
   gruvboxTheme,
   tokyoNightTheme,
   catppuccinTheme,
-  // Theme helpers
+  // Theme collection
   themes,
   themeNames,
+  getThemeByName,
   getNextTheme,
-  tw,
+  getPreviousTheme,
 } from './theme.js';
 
 export type {
   Theme,
-  ThemeColors,
-  ThemeSpacing,
+  ThemeMode,
+  ThemePalette,
+  ThemeBackground,
+  ThemeForeground,
+  ThemeAccent,
+  ThemeStates,
+  ThemeBorders,
+  ThemeOpacity,
+  ComponentTokens,
+  ComponentName,
+  ColorScale,
+  ShadeValue,
   BorderRadius,
 } from './theme.js';
 

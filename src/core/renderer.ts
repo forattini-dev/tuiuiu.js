@@ -8,6 +8,7 @@ import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
 import { calculateLayout, getVisibleWidth } from './layout.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { resolveColor } from './theme.js';
 
 /** 2D character buffer */
 interface Cell {
@@ -118,8 +119,10 @@ export class OutputBuffer {
     }
   }
 
-  /** Convert buffer to string */
-  toString(): string {
+  /** Convert buffer to string
+   * @param fullHeight - If true, keeps all lines including trailing empty ones
+   */
+  toString(fullHeight = false): string {
     const lines: string[] = [];
 
     for (const row of this.cells) {
@@ -152,9 +155,11 @@ export class OutputBuffer {
       lines.push(line.trimEnd());
     }
 
-    // Remove trailing empty lines
-    while (lines.length > 0 && lines[lines.length - 1] === '') {
-      lines.pop();
+    // Remove trailing empty lines (unless fullHeight is requested)
+    if (!fullHeight) {
+      while (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
     }
 
     return lines.join('\n');
@@ -179,10 +184,16 @@ export function renderToString(node: VNode, width?: number, height?: number): st
 /**
  * Render a layout node to the buffer
  */
-function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number, offsetY: number): void {
+function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number, offsetY: number, parentBgStyle?: string): void {
   const { node, x, y, width, height, children } = layout;
   const absX = offsetX + x;
   const absY = offsetY + y;
+
+  // Get this node's background style (or inherit from parent)
+  const style = node.props as BoxStyle;
+  const nodeBgStyle = style.backgroundColor
+    ? `\x1b[${getColorCode(style.backgroundColor, true)}m`
+    : parentBgStyle;
 
   // Render based on node type
   switch (node.type) {
@@ -190,10 +201,11 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
       renderBox(node, buffer, absX, absY, width, height);
       break;
     case 'text':
-      renderText(node, buffer, absX, absY, width);
+      renderText(node, buffer, absX, absY, width, nodeBgStyle);
       break;
     case 'spacer':
-      // Spacer is just empty space
+      // Note: Spacer background is NOT filled to avoid flickering.
+      // Background inheritance happens through text children.
       break;
     case 'newline':
       // Newline is handled by layout
@@ -204,16 +216,15 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
   }
 
   // Calculate content offset (for padding and border)
-  const style = node.props as BoxStyle;
   const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
   const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
   const contentOffsetX = absX + paddingLeft + borderSize;
   const contentOffsetY = absY + paddingTop + borderSize;
 
-  // Render children
+  // Render children (pass background style for inheritance)
   for (const child of children) {
-    renderLayout(child, buffer, contentOffsetX, contentOffsetY);
+    renderLayout(child, buffer, contentOffsetX, contentOffsetY, nodeBgStyle);
   }
 }
 
@@ -230,7 +241,10 @@ function renderBox(
 ): void {
   const style = node.props as BoxStyle;
 
-  // Background fill
+  // Note: Background is NOT filled here to avoid flickering.
+  // Text children inherit parentBgStyle and render with the correct background.
+
+  // Border rendering
   if (style.borderStyle && style.borderStyle !== 'none') {
     const borderChars = BORDER_STYLES[style.borderStyle] ?? BORDER_STYLES.single;
     const borderStyle = style.borderColor ? getColorStyle(style.borderColor) : undefined;
@@ -260,10 +274,16 @@ function renderBox(
 /**
  * Render a Text node
  */
-function renderText(node: VNode, buffer: OutputBuffer, x: number, y: number, maxWidth: number): void {
+function renderText(node: VNode, buffer: OutputBuffer, x: number, y: number, maxWidth: number, parentBgStyle?: string): void {
   const props = node.props as TextStyle & { children: string };
   const text = String(props.children ?? '');
-  const style = getTextStyle(props);
+
+  // Combine text style with inherited background
+  let style = getTextStyle(props);
+  if (parentBgStyle && !props.backgroundColor) {
+    // Inherit background from parent
+    style = parentBgStyle + (style || '');
+  }
 
   // Handle wrapping
   const lines = wrapText(text, maxWidth, props.wrap);
@@ -309,50 +329,62 @@ function getColorStyle(color: string): string | undefined {
   return code ? `\x1b[${code}m` : undefined;
 }
 
+// Basic ANSI color names - checked first before theme resolution
+const ANSI_COLORS: Record<string, number> = {
+  black: 30,
+  red: 31,
+  green: 32,
+  yellow: 33,
+  blue: 34,
+  magenta: 35,
+  cyan: 36,
+  white: 37,
+  gray: 90,
+  grey: 90,
+  blackBright: 90,
+  redBright: 91,
+  greenBright: 92,
+  yellowBright: 93,
+  blueBright: 94,
+  magentaBright: 95,
+  cyanBright: 96,
+  whiteBright: 97,
+};
+
 /**
  * Get ANSI color code
+ * Supports: ANSI color names, hex (#rrggbb), RGB (rgb(r,g,b)), and semantic theme colors (primary, success, etc.)
+ *
+ * Priority: ANSI colors > semantic theme colors > hex/rgb
  */
 function getColorCode(color: string, background: boolean): string | undefined {
   const offset = background ? 10 : 0;
 
-  // Basic colors
-  const basicColors: Record<string, number> = {
-    black: 30,
-    red: 31,
-    green: 32,
-    yellow: 33,
-    blue: 34,
-    magenta: 35,
-    cyan: 36,
-    white: 37,
-    gray: 90,
-    grey: 90,
-    blackBright: 90,
-    redBright: 91,
-    greenBright: 92,
-    yellowBright: 93,
-    blueBright: 94,
-    magentaBright: 95,
-    cyanBright: 96,
-    whiteBright: 97,
-  };
-
-  if (basicColors[color] !== undefined) {
-    return String(basicColors[color] + offset);
+  // 1. Check for basic ANSI colors first (direct terminal colors have highest priority)
+  if (ANSI_COLORS[color] !== undefined) {
+    return String(ANSI_COLORS[color] + offset);
   }
 
-  // Hex color
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
+  // 2. Resolve semantic theme colors (like 'primary', 'success') to their actual hex values
+  const resolvedColor = resolveColor(color);
+
+  // 3. Check again for ANSI colors in case resolution returned one
+  if (ANSI_COLORS[resolvedColor] !== undefined) {
+    return String(ANSI_COLORS[resolvedColor] + offset);
+  }
+
+  // 4. Hex color
+  if (resolvedColor.startsWith('#')) {
+    const hex = resolvedColor.slice(1);
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);
     return `${background ? 48 : 38};2;${r};${g};${b}`;
   }
 
-  // RGB
-  if (color.startsWith('rgb')) {
-    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  // 5. RGB
+  if (resolvedColor.startsWith('rgb')) {
+    const match = resolvedColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (match) {
       return `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
     }

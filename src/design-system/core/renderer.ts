@@ -8,6 +8,7 @@ import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../../utils/types.j
 import { BORDER_STYLES } from '../../utils/types.js';
 import { calculateLayout, getVisibleWidth } from './layout.js';
 import { stringWidth } from '../../utils/text-utils.js';
+import { resolveColor } from '../../core/theme.js';
 
 /** 2D character buffer */
 interface Cell {
@@ -118,8 +119,10 @@ export class OutputBuffer {
     }
   }
 
-  /** Convert buffer to string */
-  toString(): string {
+  /** Convert buffer to string
+   * @param fullHeight - If true, keeps all lines including trailing empty ones
+   */
+  toString(fullHeight = false): string {
     const lines: string[] = [];
 
     for (const row of this.cells) {
@@ -152,37 +155,68 @@ export class OutputBuffer {
       lines.push(line.trimEnd());
     }
 
-    // Remove trailing empty lines
-    while (lines.length > 0 && lines[lines.length - 1] === '') {
-      lines.pop();
+    // Remove trailing empty lines (unless fullHeight is requested)
+    if (!fullHeight) {
+      while (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
     }
 
     return lines.join('\n');
   }
 }
 
+/** Options for renderToString */
+export interface RenderOptions {
+  /** Terminal width (defaults to process.stdout.columns or 80) */
+  width?: number;
+  /** Terminal height (defaults to unbounded) */
+  height?: number;
+  /** If true, preserve all lines including trailing empty ones (for full-screen apps) */
+  fullHeight?: boolean;
+}
+
 /**
  * Render a VNode tree to ANSI string
  */
-export function renderToString(node: VNode, width?: number, height?: number): string {
-  const termWidth = width ?? process.stdout.columns ?? 80;
-  const termHeight = height ?? 1000; // Large default for unbounded height
+export function renderToString(node: VNode, widthOrOptions?: number | RenderOptions, height?: number): string {
+  // Support both old signature (width, height) and new options object
+  let termWidth: number;
+  let termHeight: number;
+  let fullHeight = false;
+
+  if (typeof widthOrOptions === 'object') {
+    termWidth = widthOrOptions.width ?? process.stdout.columns ?? 80;
+    termHeight = widthOrOptions.height ?? 1000;
+    fullHeight = widthOrOptions.fullHeight ?? false;
+  } else {
+    termWidth = widthOrOptions ?? process.stdout.columns ?? 80;
+    termHeight = height ?? 1000; // Large default for unbounded height
+  }
 
   const layout = calculateLayout(node, termWidth, termHeight);
-  const buffer = new OutputBuffer(termWidth, layout.height);
+  // For fullHeight mode, use the requested height, not layout.height
+  const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layout.height;
+  const buffer = new OutputBuffer(termWidth, bufferHeight);
 
   renderLayout(layout, buffer, 0, 0);
 
-  return buffer.toString();
+  return buffer.toString(fullHeight);
 }
 
 /**
  * Render a layout node to the buffer
  */
-function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number, offsetY: number): void {
+function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number, offsetY: number, parentBgStyle?: string): void {
   const { node, x, y, width, height, children } = layout;
   const absX = offsetX + x;
   const absY = offsetY + y;
+
+  // Get this node's background style (or inherit from parent)
+  const style = node.props as BoxStyle;
+  // Get background color code, checking for undefined to avoid "[undefinedm" in output
+  const bgCode = style.backgroundColor ? getColorCode(style.backgroundColor, true) : undefined;
+  const nodeBgStyle = bgCode ? `\x1b[${bgCode}m` : parentBgStyle;
 
   // Render based on node type
   switch (node.type) {
@@ -190,10 +224,10 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
       renderBox(node, buffer, absX, absY, width, height);
       break;
     case 'text':
-      renderText(node, buffer, absX, absY, width);
+      renderText(node, buffer, absX, absY, width, nodeBgStyle);
       break;
     case 'spacer':
-      // Spacer is just empty space
+      // Spacer is just empty space (no visual)
       break;
     case 'newline':
       // Newline is handled by layout
@@ -204,16 +238,15 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
   }
 
   // Calculate content offset (for padding and border)
-  const style = node.props as BoxStyle;
   const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
   const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
   const contentOffsetX = absX + paddingLeft + borderSize;
   const contentOffsetY = absY + paddingTop + borderSize;
 
-  // Render children
+  // Render children (pass background style for inheritance)
   for (const child of children) {
-    renderLayout(child, buffer, contentOffsetX, contentOffsetY);
+    renderLayout(child, buffer, contentOffsetX, contentOffsetY, nodeBgStyle);
   }
 }
 
@@ -230,17 +263,12 @@ function renderBox(
 ): void {
   const style = node.props as BoxStyle;
 
-  // Background fill - fill entire box area with background color
+  // Fill background if backgroundColor is specified
   if (style.backgroundColor) {
-    const bgStyle = getColorStyle(style.backgroundColor);
-    // Use background color by setting it as a style prefix
-    const bgAnsi = bgStyle ? `\x1b[${getColorCode(style.backgroundColor, true)}m` : undefined;
-    if (bgAnsi) {
-      for (let row = 0; row < height; row++) {
-        for (let col = 0; col < width; col++) {
-          buffer.write(x + col, y + row, ' ', bgAnsi);
-        }
-      }
+    const bgCode = getColorCode(style.backgroundColor, true);
+    if (bgCode) {
+      const bgStyle = `\x1b[${bgCode}m`;
+      buffer.fill(x, y, width, height, ' ', bgStyle);
     }
   }
 
@@ -274,10 +302,16 @@ function renderBox(
 /**
  * Render a Text node
  */
-function renderText(node: VNode, buffer: OutputBuffer, x: number, y: number, maxWidth: number): void {
+function renderText(node: VNode, buffer: OutputBuffer, x: number, y: number, maxWidth: number, parentBgStyle?: string): void {
   const props = node.props as TextStyle & { children: string };
   const text = String(props.children ?? '');
-  const style = getTextStyle(props);
+
+  // Combine text style with inherited background
+  let style = getTextStyle(props);
+  if (parentBgStyle && !props.backgroundColor) {
+    // Inherit background from parent
+    style = parentBgStyle + (style || '');
+  }
 
   // Handle wrapping
   const lines = wrapText(text, maxWidth, props.wrap);
@@ -325,11 +359,17 @@ function getColorStyle(color: string): string | undefined {
 
 /**
  * Get ANSI color code
+ *
+ * Supports:
+ * - ANSI color names: 'red', 'cyan', 'whiteBright', etc.
+ * - Semantic theme colors: 'primary', 'success', 'foreground', 'primaryForeground', etc.
+ * - Hex colors: '#3b82f6'
+ * - RGB colors: 'rgb(255, 100, 50)'
  */
 function getColorCode(color: string, background: boolean): string | undefined {
   const offset = background ? 10 : 0;
 
-  // Basic colors
+  // Basic ANSI colors (check these first for performance)
   const basicColors: Record<string, number> = {
     black: 30,
     red: 31,
@@ -355,18 +395,31 @@ function getColorCode(color: string, background: boolean): string | undefined {
     return String(basicColors[color] + offset);
   }
 
-  // Hex color
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
+  // Resolve semantic/theme colors to hex values
+  // This handles: 'primary', 'foreground', 'primaryForeground', 'success-500', etc.
+  const resolved = resolveColor(color);
+
+  // Check if resolved value is a basic color name (e.g., when primaryForeground resolves to 'white' or 'black')
+  if (basicColors[resolved] !== undefined) {
+    return String(basicColors[resolved] + offset);
+  }
+
+  // Hex color (after resolution)
+  if (resolved.startsWith('#')) {
+    const hex = resolved.slice(1);
+    // Handle short hex (#fff -> #ffffff)
+    const fullHex = hex.length === 3
+      ? hex[0]! + hex[0] + hex[1]! + hex[1] + hex[2]! + hex[2]
+      : hex;
+    const r = parseInt(fullHex.slice(0, 2), 16);
+    const g = parseInt(fullHex.slice(2, 4), 16);
+    const b = parseInt(fullHex.slice(4, 6), 16);
     return `${background ? 48 : 38};2;${r};${g};${b}`;
   }
 
-  // RGB
-  if (color.startsWith('rgb')) {
-    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  // RGB color
+  if (resolved.startsWith('rgb')) {
+    const match = resolved.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (match) {
       return `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
     }
