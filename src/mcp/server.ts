@@ -4,9 +4,17 @@
  * Model Context Protocol server for serving component documentation
  * to AI assistants like Claude.
  *
- * Supports:
- * - stdio transport (for Claude Code)
- * - HTTP transport (for web integrations)
+ * Features:
+ * - Tools: 9 documentation tools
+ * - Resources: Component, hook, theme, and guide resources
+ * - Resource Templates: Dynamic URIs for flexible access
+ * - Prompts: 15+ pre-defined prompts for common tasks
+ * - Completions: Argument autocompletion for tools and prompts
+ * - Logging: Structured logging to clients
+ *
+ * Transports:
+ * - stdio (for Claude Code)
+ * - HTTP (for web integrations)
  */
 
 import * as readline from 'node:readline';
@@ -19,14 +27,36 @@ import {
   categories,
   customThemeGuide,
 } from './docs-data.js';
+import { prompts, getPromptResult } from './prompts.js';
+import {
+  getStaticResources,
+  getResourceTemplates,
+  readResource,
+} from './resources.js';
+import {
+  getPromptCompletions,
+  getResourceCompletions,
+  getToolCompletions,
+} from './completions.js';
+import {
+  createMCPLogger,
+  nullLogger,
+  type LogSender,
+  type MCPLogNotification,
+} from './logging.js';
 import type {
   JsonRpcRequest,
   JsonRpcResponse,
+  JsonRpcNotification,
   MCPTool,
   MCPToolResult,
   MCPToolHandler,
   MCPInitializeResult,
   MCPResource,
+  MCPResourceTemplate,
+  MCPPrompt,
+  MCPPromptResult,
+  MCPCompletionResult,
   ComponentDoc,
   HookDoc,
   ErrorCodes,
@@ -916,6 +946,8 @@ const toolHandlers: Record<string, MCPToolHandler> = {
 export class MCPServer {
   private options: MCPServerOptions;
   private version: string = '0.0.0';
+  private logSender: LogSender | null = null;
+  private logger = nullLogger;
 
   constructor(options: MCPServerOptions = {}) {
     this.options = {
@@ -931,6 +963,10 @@ export class MCPServer {
       // Use stderr for debug logs to avoid polluting stdio protocol
       console.error(`[MCP] ${message}`);
     }
+  }
+
+  private sendNotification(notification: JsonRpcNotification): void {
+    // Subclasses/transport implementations will override this
   }
 
   async start(): Promise<void> {
@@ -1040,12 +1076,22 @@ export class MCPServer {
     const { method, params, id } = request;
 
     switch (method) {
+      // ─────────────────────────────────────────────────────────────────────────
+      // Core Protocol
+      // ─────────────────────────────────────────────────────────────────────────
       case 'initialize':
         return this.handleInitialize(id);
 
       case 'ping':
         return { jsonrpc: '2.0', id: id ?? 0, result: {} };
 
+      case 'notifications/initialized':
+        this.logger.sessionStart();
+        return { jsonrpc: '2.0', id: id ?? 0, result: {} };
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // Tools
+      // ─────────────────────────────────────────────────────────────────────────
       case 'tools/list':
         return {
           jsonrpc: '2.0',
@@ -1056,15 +1102,55 @@ export class MCPServer {
       case 'tools/call':
         return this.handleToolCall(id, params as Record<string, unknown>);
 
+      // ─────────────────────────────────────────────────────────────────────────
+      // Resources
+      // ─────────────────────────────────────────────────────────────────────────
       case 'resources/list':
         return {
           jsonrpc: '2.0',
           id: id ?? 0,
-          result: { resources: this.getResources() },
+          result: {
+            resources: getStaticResources(),
+          },
+        };
+
+      case 'resources/templates/list':
+        return {
+          jsonrpc: '2.0',
+          id: id ?? 0,
+          result: {
+            resourceTemplates: getResourceTemplates(),
+          },
         };
 
       case 'resources/read':
         return this.handleResourceRead(id, params as Record<string, unknown>);
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // Prompts
+      // ─────────────────────────────────────────────────────────────────────────
+      case 'prompts/list':
+        return {
+          jsonrpc: '2.0',
+          id: id ?? 0,
+          result: { prompts },
+        };
+
+      case 'prompts/get':
+        return this.handlePromptGet(id, params as Record<string, unknown>);
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // Completions
+      // ─────────────────────────────────────────────────────────────────────────
+      case 'completion/complete':
+        return this.handleCompletion(id, params as Record<string, unknown>);
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // Logging
+      // ─────────────────────────────────────────────────────────────────────────
+      case 'logging/setLevel':
+        // Client requesting to set log level
+        return { jsonrpc: '2.0', id: id ?? 0, result: {} };
 
       default:
         return {
@@ -1076,6 +1162,15 @@ export class MCPServer {
   }
 
   private handleInitialize(id: string | number | undefined): JsonRpcResponse<MCPInitializeResult> {
+    // Setup logger sender
+    this.logSender = (notification: MCPLogNotification) => {
+      this.sendNotification(notification);
+    };
+    this.logger = createMCPLogger(this.logSender, {
+      name: 'tuiuiu',
+      minLevel: this.options.debug ? 'debug' : 'info',
+    });
+
     return {
       jsonrpc: '2.0',
       id: id ?? 0,
@@ -1086,9 +1181,36 @@ export class MCPServer {
           version: this.version,
         },
         capabilities: {
-          tools: {},
-          resources: {},
+          tools: {
+            listChanged: false,
+          },
+          resources: {
+            subscribe: false,
+            listChanged: false,
+          },
+          prompts: {
+            listChanged: false,
+          },
+          logging: {},
         },
+        instructions: `Tuiuiu MCP Server v${this.version}
+
+Tuiuiu is a zero-dependency Terminal UI library for Node.js with React-like patterns.
+
+Available capabilities:
+- **Tools**: Query component docs, search, get quickstart recipes
+- **Resources**: Access component/hook/theme docs via URIs (tuiuiu://component/Box)
+- **Prompts**: Use pre-defined prompts for creating dashboards, forms, games, migrations
+
+Quick start:
+1. Use \`tuiuiu_getting_started\` for installation and basic usage
+2. Use \`tuiuiu_list_components\` to explore available components
+3. Use \`tuiuiu_quickstart\` for ready-to-use code patterns
+
+For creating apps, try prompts like:
+- \`create_dashboard\` - Build a metrics dashboard
+- \`create_form\` - Create an interactive form
+- \`migrate_from_ink\` - Migrate from Ink to Tuiuiu`,
       },
     };
   }
@@ -1134,38 +1256,26 @@ export class MCPServer {
     }
   }
 
-  private getResources(): MCPResource[] {
-    const resources: MCPResource[] = [];
-
-    // Component docs as resources
-    for (const comp of allComponents) {
-      resources.push({
-        uri: `component://${comp.name}`,
-        name: comp.name,
-        description: comp.description,
-        mimeType: 'text/markdown',
-      });
-    }
-
-    // Hook docs as resources
-    for (const hook of allHooks) {
-      resources.push({
-        uri: `hook://${hook.name}`,
-        name: hook.name,
-        description: hook.description,
-        mimeType: 'text/markdown',
-      });
-    }
-
-    return resources;
-  }
-
   private handleResourceRead(
     id: string | number | undefined,
     params: Record<string, unknown>
   ): JsonRpcResponse {
     const uri = params.uri as string;
+    this.logger.resourceRead(uri);
 
+    // Use the new resource system
+    const content = readResource(uri);
+    if (content) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? 0,
+        result: {
+          contents: [content],
+        },
+      };
+    }
+
+    // Fallback for legacy URIs (component:// and hook://)
     if (uri.startsWith('component://')) {
       const name = uri.replace('component://', '');
       const comp = allComponents.find(c => c.name === name);
@@ -1206,6 +1316,69 @@ export class MCPServer {
       jsonrpc: '2.0',
       id: id ?? 0,
       error: { code: -32602, message: `Resource not found: ${uri}` },
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Prompt Handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private handlePromptGet(
+    id: string | number | undefined,
+    params: Record<string, unknown>
+  ): JsonRpcResponse {
+    const promptName = params.name as string;
+    const promptArgs = (params.arguments || {}) as Record<string, string>;
+
+    this.logger.promptGet(promptName, promptArgs);
+
+    const result = getPromptResult(promptName, promptArgs);
+    if (!result) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? 0,
+        error: {
+          code: -32602,
+          message: `Prompt not found: ${promptName}. Available prompts: ${prompts.map(p => p.name).join(', ')}`,
+        },
+      };
+    }
+
+    return {
+      jsonrpc: '2.0',
+      id: id ?? 0,
+      result: {
+        description: result.description,
+        messages: result.messages,
+      },
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Completion Handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private handleCompletion(
+    id: string | number | undefined,
+    params: Record<string, unknown>
+  ): JsonRpcResponse<{ completion: MCPCompletionResult }> {
+    const ref = params.ref as { type: string; name?: string; uri?: string };
+    const argument = params.argument as { name: string; value: string };
+
+    let completion: MCPCompletionResult;
+
+    if (ref.type === 'ref/prompt' && ref.name) {
+      completion = getPromptCompletions(ref.name, argument.name, argument.value);
+    } else if (ref.type === 'ref/resource' && ref.uri) {
+      completion = getResourceCompletions(ref.uri, argument.name, argument.value);
+    } else {
+      completion = { values: [] };
+    }
+
+    return {
+      jsonrpc: '2.0',
+      id: id ?? 0,
+      result: { completion },
     };
   }
 }

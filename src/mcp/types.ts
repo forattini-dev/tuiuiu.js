@@ -2,6 +2,7 @@
  * MCP (Model Context Protocol) Types
  *
  * JSON-RPC 2.0 based protocol for AI tool integration
+ * Spec: https://modelcontextprotocol.io/specification
  */
 
 // =============================================================================
@@ -28,6 +29,12 @@ export interface JsonRpcResponse<T = unknown> {
   error?: JsonRpcError;
 }
 
+export interface JsonRpcNotification {
+  jsonrpc: '2.0';
+  method: string;
+  params?: unknown;
+}
+
 // =============================================================================
 // MCP Protocol
 // =============================================================================
@@ -38,15 +45,25 @@ export interface MCPServerInfo {
 }
 
 export interface MCPCapabilities {
-  tools?: Record<string, unknown>;
-  resources?: Record<string, unknown>;
-  prompts?: Record<string, unknown>;
+  tools?: {
+    listChanged?: boolean;
+  };
+  resources?: {
+    subscribe?: boolean;
+    listChanged?: boolean;
+  };
+  prompts?: {
+    listChanged?: boolean;
+  };
+  logging?: Record<string, unknown>;
+  experimental?: Record<string, unknown>;
 }
 
 export interface MCPInitializeResult {
   protocolVersion: string;
   serverInfo: MCPServerInfo;
   capabilities: MCPCapabilities;
+  instructions?: string;
 }
 
 // =============================================================================
@@ -105,10 +122,87 @@ export interface MCPResource {
   mimeType?: string;
 }
 
+export interface MCPResourceTemplate {
+  uriTemplate: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
 export interface MCPResourceContent {
   uri: string;
   mimeType?: string;
   text?: string;
+}
+
+// =============================================================================
+// MCP Prompts
+// =============================================================================
+
+export interface MCPPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface MCPPrompt {
+  name: string;
+  description?: string;
+  arguments?: MCPPromptArgument[];
+}
+
+export interface MCPPromptMessage {
+  role: 'user' | 'assistant';
+  content: {
+    type: 'text' | 'image' | 'resource';
+    text?: string;
+    data?: string;
+    mimeType?: string;
+    uri?: string;
+  };
+}
+
+export interface MCPPromptResult {
+  description?: string;
+  messages: MCPPromptMessage[];
+}
+
+// =============================================================================
+// MCP Completions
+// =============================================================================
+
+export interface MCPCompletionRef {
+  type: 'ref/prompt' | 'ref/resource';
+  name?: string;
+  uri?: string;
+}
+
+export interface MCPCompletionArgument {
+  name: string;
+  value: string;
+}
+
+export interface MCPCompletionRequest {
+  ref: MCPCompletionRef;
+  argument: MCPCompletionArgument;
+}
+
+export interface MCPCompletionResult {
+  values: string[];
+  total?: number;
+  hasMore?: boolean;
+}
+
+// =============================================================================
+// MCP Logging
+// =============================================================================
+
+export type MCPLogLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
+
+export interface MCPLogMessage {
+  level: MCPLogLevel;
+  logger?: string;
+  data?: unknown;
 }
 
 // =============================================================================
