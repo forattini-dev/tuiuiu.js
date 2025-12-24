@@ -31,6 +31,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
+import { getTheme } from '../core/theme.js';
 
 /**
  * Border characters for split dividers
@@ -106,7 +107,7 @@ function VerticalDivider(props: {
   style: DividerStyle;
   color?: string;
 }): VNode {
-  const { height, style, color = 'gray' } = props;
+  const { height, style, color = 'border' } = props;
 
   if (style === 'none') {
     return Box({});
@@ -129,7 +130,7 @@ function HorizontalDivider(props: {
   style: DividerStyle;
   color?: string;
 }): VNode {
-  const { width, style, color = 'gray' } = props;
+  const { width, style, color = 'border' } = props;
 
   if (style === 'none') {
     return Box({});
@@ -150,7 +151,7 @@ function PanelHeader(props: {
   color?: string;
   align?: 'left' | 'center' | 'right';
 }): VNode {
-  const { title, width, color = 'cyan', align = 'left' } = props;
+  const { title, width, color = 'primary', align = 'left' } = props;
 
   let paddedTitle = title;
   const padding = width - title.length;
@@ -200,6 +201,9 @@ function PanelHeader(props: {
  * ```
  */
 export function SplitPanel(props: SplitPanelProps): VNode {
+  const theme = getTheme();
+  const tokens = theme.components.splitPanel;
+
   const {
     left,
     right,
@@ -211,16 +215,16 @@ export function SplitPanel(props: SplitPanelProps): VNode {
     ratio = 0.5,
     divider = false,
     dividerStyle = 'line',
-    dividerColor = 'gray',
+    dividerColor = props.dividerColor ?? tokens.dividerBg,
     gap = 0,
     border = false,
     borderStyle = 'single',
-    borderColor = 'gray',
+    borderColor = props.borderColor ?? tokens.border,
     minWidth = 10,
     leftTitle,
     rightTitle,
-    leftTitleColor = 'cyan',
-    rightTitleColor = 'cyan',
+    leftTitleColor = props.leftTitleColor ?? tokens.titleFg,
+    rightTitleColor = props.rightTitleColor ?? tokens.titleFg,
   } = props;
 
   // Use provided dimensions or fall back to terminal size

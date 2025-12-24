@@ -21,6 +21,14 @@ import {
   RadioGroup,
   ToggleGroup
 } from '../../../design-system/forms/index.js';
+import {
+  Collapsible,
+  Accordion,
+  Details,
+  ExpandableText,
+  createCollapsible,
+  createAccordion,
+} from '../../../molecules/collapsible.js';
 import { ProgressBar } from '../../../design-system/feedback/index.js';
 import {
   LineChart,
@@ -31,7 +39,7 @@ import {
   Legend,
 } from '../../../molecules/data-viz/index.js';
 import { story, defaultControls } from '../../core/registry.js';
-import { themeColor, getContrastColor } from '../../../core/theme.js';
+import { getTheme, getContrastColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
 // Chart helpers
@@ -73,7 +81,7 @@ export const utilityStories: Story[] = [
       Box(
         { flexDirection: 'column' },
         Text({}, 'Always visible'),
-        When(props.show, Text({ color: 'green' }, 'Conditionally visible')),
+        When(props.show, Text({ color: 'success' }, 'Conditionally visible')),
         Text({}, 'Also always visible')
       )
     ),
@@ -92,7 +100,7 @@ export const utilityStories: Story[] = [
           (item, index) =>
             Box(
               {},
-              Text({ color: index % 2 === 0 ? 'cyan' : 'gray' }, `${index + 1}. ${item}`)
+              Text({ color: index % 2 === 0 ? 'primary' : 'mutedForeground' }, `${index + 1}. ${item}`)
             )
         )
       )
@@ -106,9 +114,9 @@ export const utilityStories: Story[] = [
         { flexDirection: 'column' },
         Text({}, 'Before fragment'),
         Fragment(
-          Text({ color: 'cyan' }, 'Inside fragment 1'),
-          Text({ color: 'green' }, 'Inside fragment 2'),
-          Text({ color: 'yellow' }, 'Inside fragment 3')
+          Text({ color: 'primary' }, 'Inside fragment 1'),
+          Text({ color: 'success' }, 'Inside fragment 2'),
+          Text({ color: 'warning' }, 'Inside fragment 3')
         ),
         Text({}, 'After fragment')
       )
@@ -175,7 +183,7 @@ export const textInputStories: Story[] = [
     .render((props) =>
       Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color: 'cyan' }, props.label),
+        Text({ color: 'primary' }, props.label),
         TextInput({
           initialValue: props.initialValue,
           fullWidth: true,
@@ -328,8 +336,8 @@ export const progressBarStories: Story[] = [
     .render((props) =>
       Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color: 'cyan' }, textProgressBar(props.value, 100, props.width)),
-        Text({ color: 'cyan' }, `${props.value}%`)
+        Text({ color: 'primary' }, textProgressBar(props.value, 100, props.width)),
+        Text({ color: 'primary' }, `${props.value}%`)
       )
     ),
 
@@ -360,9 +368,9 @@ export const progressBarStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'gray' }, 'Progress:'),
-          Text({ color: 'cyan' }, textProgressBar(props.value, 100, 25)),
-          props.showLabel ? Text({ color: 'cyan' }, `${props.value}%`) : null
+          Text({ color: 'mutedForeground' }, 'Progress:'),
+          Text({ color: 'primary' }, textProgressBar(props.value, 100, 25)),
+          props.showLabel ? Text({ color: 'primary' }, `${props.value}%`) : null
         )
       )
     ),
@@ -375,21 +383,21 @@ export const progressBarStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'gray' }, 'Downloading:')),
-          Text({ color: 'blue' }, textProgressBar(75, 100, 20)),
-          Text({ color: 'blue' }, '75%')
+          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Downloading:')),
+          Text({ color: 'accent' }, textProgressBar(75, 100, 20)),
+          Text({ color: 'accent' }, '75%')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'gray' }, 'Installing:')),
-          Text({ color: 'green' }, textProgressBar(45, 100, 20)),
-          Text({ color: 'green' }, '45%')
+          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Installing:')),
+          Text({ color: 'success' }, textProgressBar(45, 100, 20)),
+          Text({ color: 'success' }, '45%')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'gray' }, 'Configuring:')),
-          Text({ color: 'yellow' }, textProgressBar(10, 100, 20)),
-          Text({ color: 'yellow' }, '10%')
+          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Configuring:')),
+          Text({ color: 'warning' }, textProgressBar(10, 100, 20)),
+          Text({ color: 'warning' }, '10%')
         )
       )
     ),
@@ -445,10 +453,10 @@ export const progressBarStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'cyan' }, barContent),
-          Text({ color: 'gray' }, style)
+          Text({ color: 'primary' }, barContent),
+          Text({ color: 'mutedForeground' }, style)
         ),
-        style === 'fill-and-clear' ? Text({ color: 'gray', dim: true }, `Step: ${fillStep}`) : null
+        style === 'fill-and-clear' ? Text({ color: 'mutedForeground', dim: true }, `Step: ${fillStep}`) : null
       );
     }),
 
@@ -466,7 +474,7 @@ export const progressBarStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'gray' }, 'Memory:'),
+          Text({ color: 'mutedForeground' }, 'Memory:'),
           Text({ color }, textProgressBar(props.value, 100, 25)),
           Text({ color }, `${props.value}%`)
         ),
@@ -489,12 +497,12 @@ export const alertStories: Story[] = [
       Box(
         {
           borderStyle: 'single',
-          borderColor: 'blue',
+          borderColor: 'accent',
           padding: 1,
           width: 50,
         },
-        Text({ color: 'blue' }, 'ℹ '),
-        Text({ color: 'white' }, props.message)
+        Text({ color: 'accent' }, 'ℹ '),
+        Text({ color: 'foreground' }, props.message)
       )
     ),
 
@@ -502,17 +510,15 @@ export const alertStories: Story[] = [
     .category('Molecules')
     .description('Success alert')
     .render(() => {
-      const bg = 'green';
-      const fg = getContrastColor(bg);
       return Box(
         {
           borderStyle: 'round',
-          borderColor: bg,
-          backgroundColor: bg,
+          borderColor: 'success',
+          backgroundColor: 'success',
           padding: 1,
           width: 50,
         },
-        Text({ color: fg, backgroundColor: bg, bold: true }, '✓ Operation completed successfully!')
+        Text({ color: 'successForeground', bold: true }, '✓ Operation completed successfully!')
       );
     }),
 
@@ -523,7 +529,7 @@ export const alertStories: Story[] = [
       Box(
         {
           borderStyle: 'single',
-          borderColor: 'yellow',
+          borderColor: 'warning',
           padding: 1,
           width: 50,
         },
@@ -531,9 +537,9 @@ export const alertStories: Story[] = [
           { flexDirection: 'column' },
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'yellow', bold: true }, '⚠ Warning')
+            Text({ color: 'warning', bold: true }, '⚠ Warning')
           ),
-          Text({ color: 'yellow' }, 'This action may have unintended consequences.')
+          Text({ color: 'warning' }, 'This action may have unintended consequences.')
         )
       )
     ),
@@ -545,7 +551,7 @@ export const alertStories: Story[] = [
       Box(
         {
           borderStyle: 'bold',
-          borderColor: 'red',
+          borderColor: 'destructive',
           padding: 1,
           width: 50,
         },
@@ -553,10 +559,10 @@ export const alertStories: Story[] = [
           { flexDirection: 'column' },
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'red', bold: true }, '✗ Error')
+            Text({ color: 'destructive', bold: true }, '✗ Error')
           ),
-          Text({ color: 'red' }, 'Failed to complete the operation.'),
-          Text({ color: 'gray', dim: true }, 'Error code: E_CONNECTION_TIMEOUT')
+          Text({ color: 'destructive' }, 'Failed to complete the operation.'),
+          Text({ color: 'mutedForeground', dim: true }, 'Error code: E_CONNECTION_TIMEOUT')
         )
       )
     ),
@@ -568,7 +574,7 @@ export const alertStories: Story[] = [
       Box(
         {
           borderStyle: 'single',
-          borderColor: 'cyan',
+          borderColor: 'primary',
           padding: 1,
           width: 50,
         },
@@ -576,10 +582,10 @@ export const alertStories: Story[] = [
           { flexDirection: 'row', justifyContent: 'space-between' },
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'cyan' }, 'ℹ'),
-            Text({ color: 'white' }, 'New updates available.')
+            Text({ color: 'primary' }, 'ℹ'),
+            Text({ color: 'foreground' }, 'New updates available.')
           ),
-          Text({ color: 'gray' }, '[x]')
+          Text({ color: 'mutedForeground' }, '[x]')
         )
       )
     ),
@@ -598,29 +604,29 @@ export const toastStories: Story[] = [
         Box(
           {
             borderStyle: 'round',
-            borderColor: 'green',
+            borderColor: 'success',
             paddingX: 2,
             paddingY: 0,
           },
-          Text({ color: 'green' }, '✓ File saved successfully')
+          Text({ color: 'success' }, '✓ File saved successfully')
         ),
         Box(
           {
             borderStyle: 'round',
-            borderColor: 'blue',
+            borderColor: 'accent',
             paddingX: 2,
             paddingY: 0,
           },
-          Text({ color: 'blue' }, 'ℹ 3 new messages')
+          Text({ color: 'accent' }, 'ℹ 3 new messages')
         ),
         Box(
           {
             borderStyle: 'round',
-            borderColor: 'yellow',
+            borderColor: 'warning',
             paddingX: 2,
             paddingY: 0,
           },
-          Text({ color: 'yellow' }, '⚠ Low disk space')
+          Text({ color: 'warning' }, '⚠ Low disk space')
         )
       )
     ),
@@ -632,17 +638,17 @@ export const toastStories: Story[] = [
       Box(
         {
           borderStyle: 'single',
-          borderColor: 'cyan',
+          borderColor: 'primary',
           padding: 1,
           width: 45,
         },
         Box(
           { flexDirection: 'column', gap: 1 },
-          Text({ color: 'white' }, 'New version available (v2.0.0)'),
+          Text({ color: 'foreground' }, 'New version available (v2.0.0)'),
           Box(
             { flexDirection: 'row', gap: 2 },
-            Text({ color: 'cyan', inverse: true }, ' Update '),
-            Text({ color: 'gray' }, 'Dismiss')
+            Text({ color: 'primary', inverse: true }, ' Update '),
+            Text({ color: 'mutedForeground' }, 'Dismiss')
           )
         )
       )
@@ -661,26 +667,21 @@ export const tabsStories: Story[] = [
     })
     .render((props) => {
       const tabs = ['Overview', 'Details', 'Settings'];
-      const activeBg = 'blue';
-      const activeFg = getContrastColor(activeBg);
 
       return Box(
         { width: 50, flexDirection: 'column' },
         Box(
-          { flexDirection: 'row', borderStyle: 'single', borderColor: 'gray' },
+          { flexDirection: 'row', borderStyle: 'single', borderColor: 'border' },
           ...tabs.map((tab, idx) => {
             const isActive = idx === props.activeTab;
-            const bg = isActive ? activeBg : undefined;
-            const fg = isActive ? activeFg : 'gray';
             return Box(
               {
                 paddingX: 2,
-                backgroundColor: bg,
+                backgroundColor: isActive ? 'primary' : undefined,
               },
               Text(
                 {
-                  color: fg,
-                  backgroundColor: bg,
+                  color: isActive ? 'white' : 'mutedForeground',
                   bold: isActive,
                 },
                 tab
@@ -689,7 +690,7 @@ export const tabsStories: Story[] = [
           })
         ),
         Box(
-          { borderStyle: 'single', borderColor: 'blue', padding: 1, height: 5 },
+          { borderStyle: 'single', borderColor: 'accent', padding: 1, height: 5 },
           Text({}, `${tabs[props.activeTab]} content here...`)
         )
       );
@@ -699,21 +700,19 @@ export const tabsStories: Story[] = [
     .category('Molecules')
     .description('Tabs with icons')
     .render(() => {
-      const activeBg = 'blue';
-      const activeFg = getContrastColor(activeBg);
       return Box(
         { width: 50, flexDirection: 'column' },
         Box(
-          { flexDirection: 'row', borderStyle: 'single', borderColor: 'gray' },
+          { flexDirection: 'row', borderStyle: 'single', borderColor: 'border' },
           Box(
-            { paddingX: 2, backgroundColor: activeBg },
-            Text({ color: activeFg, backgroundColor: activeBg, bold: true }, '🏠 Home')
+            { paddingX: 2, backgroundColor: 'primary' },
+            Text({ color: 'primaryForeground', bold: true }, '🏠 Home')
           ),
-          Box({ paddingX: 2 }, Text({ color: 'gray' }, '📁 Files')),
-          Box({ paddingX: 2 }, Text({ color: 'gray' }, '⚙️ Settings'))
+          Box({ paddingX: 2 }, Text({ color: 'mutedForeground' }, '📁 Files')),
+          Box({ paddingX: 2 }, Text({ color: 'mutedForeground' }, '⚙️ Settings'))
         ),
         Box(
-          { borderStyle: 'single', borderColor: 'blue', padding: 1, height: 5 },
+          { borderStyle: 'single', borderColor: 'accent', padding: 1, height: 5 },
           Text({}, 'Home content')
         )
       );
@@ -731,14 +730,354 @@ export const tabsStories: Story[] = [
         Box(
           { flexDirection: 'row', gap: 1 },
           Text({ color: props.activeColor, inverse: true }, ' Tab 1 '),
-          Text({ color: 'gray' }, 'Tab 2'),
-          Text({ color: 'gray' }, 'Tab 3')
+          Text({ color: 'mutedForeground' }, 'Tab 2'),
+          Text({ color: 'mutedForeground' }, 'Tab 3')
         ),
         Box(
           { borderStyle: 'single', borderColor: props.activeColor, padding: 1, marginTop: 1 },
           Text({}, 'Content 1')
         )
       )
+    ),
+
+  story('Tabs - Variants')
+    .category('Molecules')
+    .description('Tabs with semantic variants from theme')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 2 },
+        Text({ bold: true }, 'Primary Variant:'),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'primary', inverse: true }, ' Active '),
+          Text({ color: 'mutedForeground' }, 'Inactive'),
+        ),
+        Text({ bold: true }, 'Secondary Variant:'),
+        Box(
+          { flexDirection: 'row', gap: 1 },
+          Text({ color: 'secondary', inverse: true }, ' Active '),
+          Text({ color: 'mutedForeground' }, 'Inactive'),
+        ),
+        Text({ dim: true }, 'Note: Tabs component inherits colors from theme.components.tabs'),
+      )
+    ),
+];
+
+/**
+ * Collapsible stories
+ */
+export const collapsibleStories: Story[] = [
+  story('Collapsible - Basic')
+    .category('Molecules')
+    .description('Basic expandable section')
+    .render(() =>
+      Collapsible({
+        title: 'Advanced Options',
+        children: Box(
+          { flexDirection: 'column', gap: 1 },
+          Text({}, 'Option 1: Enable auto-save'),
+          Text({}, 'Option 2: Show notifications'),
+          Text({}, 'Option 3: Dark mode'),
+        ),
+      })
+    ),
+
+  story('Collapsible - Custom Icons')
+    .category('Molecules')
+    .description('Collapsible with folder icons')
+    .render(() =>
+      Collapsible({
+        title: 'Project Files',
+        collapsedIcon: '📁',
+        expandedIcon: '📂',
+        initialExpanded: true,
+        children: Box(
+          { flexDirection: 'column' },
+          Text({ color: 'primary' }, '  📄 index.ts'),
+          Text({ color: 'primary' }, '  📄 package.json'),
+          Text({ color: 'primary' }, '  📄 README.md'),
+        ),
+      })
+    ),
+
+  story('Collapsible - Nested')
+    .category('Molecules')
+    .description('Nested collapsible sections')
+    .render(() =>
+      Collapsible({
+        title: 'Category A',
+        initialExpanded: true,
+        children: Box(
+          { flexDirection: 'column', gap: 1 },
+          Collapsible({
+            title: 'Subcategory A.1',
+            indent: 4,
+            children: Text({}, 'Content A.1'),
+          }),
+          Collapsible({
+            title: 'Subcategory A.2',
+            indent: 4,
+            children: Text({}, 'Content A.2'),
+          }),
+        ),
+      })
+    ),
+
+  story('Collapsible - Disabled')
+    .category('Molecules')
+    .description('Disabled collapsible section')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Collapsible({
+          title: 'Available Section',
+          children: Text({}, 'This section is interactive'),
+        }),
+        Collapsible({
+          title: 'Locked Section (Premium)',
+          disabled: true,
+          children: Text({}, 'This content is locked'),
+        }),
+      )
+    ),
+
+  story('Collapsible - Interactive')
+    .category('Molecules')
+    .description('Collapsible with selectable variant and custom color')
+    .controls({
+      title: defaultControls.text('Title', 'Settings'),
+      variant: defaultControls.select('Variant', ['default', 'primary', 'secondary'], 'default'),
+      customColor: defaultControls.color('Custom Color', ''),
+      disabled: defaultControls.boolean('Disabled', false),
+    })
+    .render((props) =>
+      Collapsible({
+        title: props.title,
+        variant: props.customColor ? undefined : props.variant,
+        color: props.customColor || undefined,
+        disabled: props.disabled,
+        children: Box(
+          { flexDirection: 'column', gap: 1 },
+          Text({}, 'Content line 1'),
+          Text({}, 'Content line 2'),
+          Text({}, 'Content line 3'),
+        ),
+      })
+    ),
+
+  story('Collapsible - All Variants')
+    .category('Molecules')
+    .description('Collapsible sections showing all semantic variants')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Collapsible({
+          title: 'Default Variant',
+          variant: 'default',
+          children: Text({}, 'Default styling from theme'),
+        }),
+        Collapsible({
+          title: 'Primary Variant',
+          variant: 'primary',
+          children: Text({}, 'Primary accent styling'),
+        }),
+        Collapsible({
+          title: 'Secondary Variant',
+          variant: 'secondary',
+          children: Text({}, 'Secondary/muted styling'),
+        }),
+      )
+    ),
+
+  story('Collapsible - Custom Colors')
+    .category('Molecules')
+    .description('Collapsible with custom header colors')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Collapsible({
+          title: 'Cyan Header',
+          color: 'cyan',
+          children: Text({}, 'Custom cyan header with auto-contrast text'),
+        }),
+        Collapsible({
+          title: 'Magenta Header',
+          color: 'magenta',
+          children: Text({}, 'Custom magenta header'),
+        }),
+        Collapsible({
+          title: 'Orange Header',
+          color: '#ff6600',
+          children: Text({}, 'Custom hex color header'),
+        }),
+      )
+    ),
+];
+
+/**
+ * Accordion stories
+ */
+export const accordionStories: Story[] = [
+  story('Accordion - Basic')
+    .category('Molecules')
+    .description('Basic accordion with single open section')
+    .render(() =>
+      Accordion({
+        sections: [
+          { key: 'general', title: 'General Settings', content: Text({}, 'General settings content here...') },
+          { key: 'appearance', title: 'Appearance', content: Text({}, 'Theme, colors, fonts...') },
+          { key: 'advanced', title: 'Advanced', content: Text({}, 'Developer options...') },
+        ],
+        initialExpanded: 'general',
+      })
+    ),
+
+  story('Accordion - Multiple Open')
+    .category('Molecules')
+    .description('Accordion allowing multiple sections open')
+    .render(() =>
+      Accordion({
+        sections: [
+          { key: 'frontend', title: '1. Frontend', content: Text({}, 'React, Vue, Angular...') },
+          { key: 'backend', title: '2. Backend', content: Text({}, 'Node, Python, Go...') },
+          { key: 'database', title: '3. Database', content: Text({}, 'PostgreSQL, MongoDB...') },
+        ],
+        multiple: true,
+        gap: 1,
+      })
+    ),
+
+  story('Accordion - With Icons')
+    .category('Molecules')
+    .description('Accordion sections with custom icons')
+    .render(() =>
+      Accordion({
+        sections: [
+          { key: 'home', title: 'Home', icon: '🏠', content: Text({}, 'Welcome to the app!') },
+          { key: 'settings', title: 'Settings', icon: '⚙️', content: Text({}, 'Configure your preferences') },
+          { key: 'help', title: 'Help', icon: '❓', content: Text({}, 'Get support and documentation') },
+        ],
+      })
+    ),
+
+  story('Accordion - FAQ')
+    .category('Molecules')
+    .description('FAQ-style accordion')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Text({ bold: true, color: 'primary' }, 'Frequently Asked Questions'),
+        Divider({}),
+        Accordion({
+          sections: [
+            { key: 'q1', title: 'How do I install?', content: Text({ color: 'mutedForeground' }, 'Run: pnpm add tuiuiu.js') },
+            { key: 'q2', title: 'Is it zero-dependency?', content: Text({ color: 'mutedForeground' }, 'Yes! No external dependencies.') },
+            { key: 'q3', title: 'Does it support themes?', content: Text({ color: 'mutedForeground' }, '8+ built-in themes available.') },
+          ],
+          gap: 1,
+        }),
+      )
+    ),
+
+  story('Accordion - Disabled Sections')
+    .category('Molecules')
+    .description('Accordion with some disabled sections')
+    .render(() =>
+      Accordion({
+        sections: [
+          { key: 'free', title: 'Free Plan', content: Text({}, 'Basic features included') },
+          { key: 'pro', title: 'Pro Plan (Locked)', disabled: true, content: Text({}, 'Pro features') },
+          { key: 'enterprise', title: 'Enterprise (Locked)', disabled: true, content: Text({}, 'Enterprise features') },
+        ],
+      })
+    ),
+
+  story('Accordion - Variants')
+    .category('Molecules')
+    .description('Accordion with semantic variants')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 2 },
+        Text({ bold: true }, 'Primary Variant:'),
+        Accordion({
+          variant: 'primary',
+          sections: [
+            { key: 'a', title: 'Section A', content: Text({}, 'Primary variant styling') },
+            { key: 'b', title: 'Section B', content: Text({}, 'Consistent accent colors') },
+          ],
+        }),
+        Text({ bold: true }, 'Secondary Variant:'),
+        Accordion({
+          variant: 'secondary',
+          sections: [
+            { key: 'a', title: 'Section A', content: Text({}, 'Secondary/muted styling') },
+            { key: 'b', title: 'Section B', content: Text({}, 'Subtle appearance') },
+          ],
+        }),
+      )
+    ),
+];
+
+/**
+ * Details stories
+ */
+export const detailsStories: Story[] = [
+  story('Details - Basic')
+    .category('Molecules')
+    .description('Simple details element like HTML')
+    .render(() =>
+      Details({
+        summary: 'Click to see more',
+        children: Text({}, 'Additional information that was hidden.'),
+      })
+    ),
+
+  story('Details - Error Log')
+    .category('Molecules')
+    .description('Details for showing error stack')
+    .render(() =>
+      Box(
+        { flexDirection: 'column', gap: 1 },
+        Text({ color: 'destructive', bold: true }, '✗ Build failed'),
+        Details({
+          summary: 'View error details',
+          open: true,
+          children: Box(
+            { flexDirection: 'column' },
+            Text({ color: 'destructive' }, 'Error: Module not found'),
+            Text({ color: 'mutedForeground', dim: true }, '  at compile (build.ts:45)'),
+            Text({ color: 'mutedForeground', dim: true }, '  at run (main.ts:12)'),
+          ),
+        }),
+      )
+    ),
+];
+
+/**
+ * ExpandableText stories
+ */
+export const expandableTextStories: Story[] = [
+  story('ExpandableText - Basic')
+    .category('Molecules')
+    .description('Long text with show more/less')
+    .render(() =>
+      ExpandableText({
+        text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.\nSed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\nUt enim ad minim veniam, quis nostrud exercitation.\nDuis aute irure dolor in reprehenderit.\nExcepteur sint occaecat cupidatat non proident.',
+        maxLines: 2,
+      })
+    ),
+
+  story('ExpandableText - Custom Labels')
+    .category('Molecules')
+    .description('Expandable text with custom labels')
+    .render(() =>
+      ExpandableText({
+        text: 'This is a very long description that spans multiple lines.\nIt contains important information about the feature.\nUsers can expand it to read the full content.\nOr collapse it to save space.',
+        maxLines: 2,
+        showMoreLabel: 'Read full description...',
+        showLessLabel: 'Collapse',
+        color: 'mutedForeground',
+      })
     ),
 ];
 
@@ -753,8 +1092,8 @@ export const sparklineStories: Story[] = [
       const data = [5, 10, 8, 15, 12, 18, 14, 22, 19, 25];
       return Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color: 'gray' }, 'Trend:'),
-        Text({ color: 'cyan' }, textSparkline(data))
+        Text({ color: 'mutedForeground' }, 'Trend:'),
+        Text({ color: 'primary' }, textSparkline(data))
       );
     }),
 
@@ -768,7 +1107,7 @@ export const sparklineStories: Story[] = [
       const data = [3, 7, 4, 9, 6, 8, 5, 10, 7, 12];
       return Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color: 'gray' }, 'Data:'),
+        Text({ color: 'mutedForeground' }, 'Data:'),
         Text({ color: props.color }, textSparkline(data))
       );
     }),
@@ -785,18 +1124,18 @@ export const sparklineStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'gray' }, 'Revenue:')),
-          Text({ color: 'green' }, textSparkline(revenue))
+          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Revenue:')),
+          Text({ color: 'success' }, textSparkline(revenue))
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'gray' }, 'Costs:')),
-          Text({ color: 'red' }, textSparkline(costs))
+          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Costs:')),
+          Text({ color: 'destructive' }, textSparkline(costs))
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'gray' }, 'Profit:')),
-          Text({ color: 'cyan' }, textSparkline(profit))
+          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Profit:')),
+          Text({ color: 'primary' }, textSparkline(profit))
         )
       );
     }),
@@ -815,11 +1154,11 @@ export const gaugeStories: Story[] = [
     .render((props) =>
       Box(
         { flexDirection: 'column', gap: 1 },
-        Text({ color: 'gray' }, 'Progress'),
+        Text({ color: 'mutedForeground' }, 'Progress'),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'cyan' }, textProgressBar(props.value, 100, 30)),
-          Text({ color: 'cyan' }, `${props.value}%`)
+          Text({ color: 'primary' }, textProgressBar(props.value, 100, 30)),
+          Text({ color: 'primary' }, `${props.value}%`)
         )
       )
     ),
@@ -845,7 +1184,7 @@ export const gaugeStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'gray' }, 'Memory:'),
+          Text({ color: 'mutedForeground' }, 'Memory:'),
           Text({ color }, textProgressBar(props.value, 100, 25)),
           Text({ color }, `${props.value}%`)
         ),
@@ -861,21 +1200,21 @@ export const gaugeStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'gray' }, 'CPU:')),
-          Text({ color: 'green' }, textProgressBar(45, 100, 20)),
-          Text({ color: 'green' }, ' 45%')
+          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'CPU:')),
+          Text({ color: 'success' }, textProgressBar(45, 100, 20)),
+          Text({ color: 'success' }, ' 45%')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'gray' }, 'Memory:')),
-          Text({ color: 'yellow' }, textProgressBar(72, 100, 20)),
-          Text({ color: 'yellow' }, ' 72%')
+          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'Memory:')),
+          Text({ color: 'warning' }, textProgressBar(72, 100, 20)),
+          Text({ color: 'warning' }, ' 72%')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'gray' }, 'Disk:')),
-          Text({ color: 'cyan' }, textProgressBar(28, 100, 20)),
-          Text({ color: 'cyan' }, ' 28%')
+          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'Disk:')),
+          Text({ color: 'primary' }, textProgressBar(28, 100, 20)),
+          Text({ color: 'primary' }, ' 28%')
         )
       )
     ),
@@ -891,10 +1230,10 @@ export const mouseStories: Story[] = [
     .description('Detect mouse clicks with position')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'cyan' },
-        Text({ bold: true, color: 'cyan' }, '🖱️  Mouse Click Detection'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'primary' },
+        Text({ bold: true, color: 'primary' }, '🖱️  Mouse Click Detection'),
         Divider({}),
-        Text({ color: 'gray' }, 'Click anywhere in the terminal to see:'),
+        Text({ color: 'mutedForeground' }, 'Click anywhere in the terminal to see:'),
         Spacer({ size: 1 }),
         Box(
           { flexDirection: 'column', gap: 0 },
@@ -903,7 +1242,7 @@ export const mouseStories: Story[] = [
           Text({}, '  Action: click')
         ),
         Spacer({ size: 1 }),
-        Text({ color: 'gray', dim: true }, 'useMouse((event) => { ... })')
+        Text({ color: 'mutedForeground', dim: true }, 'useMouse((event) => { ... })')
       )
     ),
 
@@ -918,22 +1257,22 @@ export const mouseStories: Story[] = [
         Box(
           { flexDirection: 'row', gap: 2 },
           Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'green' },
-            Text({ color: 'green', bold: true }, '  LEFT  '),
-            Text({ color: 'gray', dim: true }, 'Clicks: 3')
+            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'success' },
+            Text({ color: 'success', bold: true }, '  LEFT  '),
+            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 3')
           ),
           Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'yellow' },
-            Text({ color: 'yellow', bold: true }, ' MIDDLE '),
-            Text({ color: 'gray', dim: true }, 'Clicks: 1')
+            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'warning' },
+            Text({ color: 'warning', bold: true }, ' MIDDLE '),
+            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 1')
           ),
           Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'red' },
-            Text({ color: 'red', bold: true }, ' RIGHT  '),
-            Text({ color: 'gray', dim: true }, 'Clicks: 0')
+            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'destructive' },
+            Text({ color: 'destructive', bold: true }, ' RIGHT  '),
+            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 0')
           )
         ),
-        Text({ color: 'gray', dim: true }, "event.button === 'left' | 'middle' | 'right'")
+        Text({ color: 'mutedForeground', dim: true }, "event.button === 'left' | 'middle' | 'right'")
       )
     ),
 
@@ -942,35 +1281,31 @@ export const mouseStories: Story[] = [
     .description('Real-time mouse position tracking')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'double', borderColor: 'magenta' },
-        Text({ bold: true, color: 'magenta' }, '📍 Mouse Position Tracker'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'double', borderColor: 'secondary' },
+        Text({ bold: true, color: 'accent' }, '📍 Mouse Position Tracker'),
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 4 },
           Box(
             { flexDirection: 'column' },
-            Text({ color: 'gray' }, 'X Position'),
-            Text({ color: 'cyan', bold: true }, '   24   ')
+            Text({ color: 'mutedForeground' }, 'X Position'),
+            Text({ color: 'primary', bold: true }, '   24   ')
           ),
           Box(
             { flexDirection: 'column' },
-            Text({ color: 'gray' }, 'Y Position'),
-            Text({ color: 'cyan', bold: true }, '   12   ')
+            Text({ color: 'mutedForeground' }, 'Y Position'),
+            Text({ color: 'primary', bold: true }, '   12   ')
           )
         ),
         Spacer({ size: 1 }),
-        (() => {
-          const bg = 'gray';
-          const fg = getContrastColor(bg);
-          return Box(
-            { flexDirection: 'column', backgroundColor: bg },
-            Text({ color: fg, backgroundColor: bg }, '                              '),
-            Text({ color: fg, backgroundColor: bg }, '     Move mouse here...       '),
-            Text({ color: fg, backgroundColor: bg }, '          ●                   '),
-            Text({ color: fg, backgroundColor: bg }, '                              ')
-          );
-        })(),
-        Text({ color: 'gray', dim: true }, "action === 'move' for tracking")
+        Box(
+          { flexDirection: 'column', backgroundColor: 'muted' },
+          Text({ color: 'mutedForeground' }, '                              '),
+          Text({ color: 'mutedForeground' }, '     Move mouse here...       '),
+          Text({ color: 'mutedForeground' }, '          ●                   '),
+          Text({ color: 'mutedForeground' }, '                              ')
+        ),
+        Text({ color: 'mutedForeground', dim: true }, "action === 'move' for tracking")
       )
     ),
 
@@ -979,18 +1314,18 @@ export const mouseStories: Story[] = [
     .description('Detect double-click events')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'yellow' },
-        Text({ bold: true, color: 'yellow' }, '⚡ Double Click Detection'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'warning' },
+        Text({ bold: true, color: 'warning' }, '⚡ Double Click Detection'),
         Divider({}),
         Box(
-          { padding: 2, borderStyle: 'single', borderColor: 'cyan' },
-          Text({ color: 'cyan' }, '   Double-click this area   ')
+          { padding: 2, borderStyle: 'single', borderColor: 'primary' },
+          Text({ color: 'primary' }, '   Double-click this area   ')
         ),
         Spacer({ size: 1 }),
         Text({}, 'Last action: double-click'),
-        Text({ color: 'green' }, '✓ Double-click detected!'),
+        Text({ color: 'success' }, '✓ Double-click detected!'),
         Spacer({ size: 1 }),
-        Text({ color: 'gray', dim: true }, "event.action === 'double-click'")
+        Text({ color: 'mutedForeground', dim: true }, "event.action === 'double-click'")
       )
     ),
 
@@ -999,26 +1334,26 @@ export const mouseStories: Story[] = [
     .description('Handle mouse drag operations')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'blue' },
-        Text({ bold: true, color: 'blue' }, '↔️  Drag Detection'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'accent' },
+        Text({ bold: true, color: 'accent' }, '↔️  Drag Detection'),
         Divider({}),
-        Text({ color: 'gray' }, 'Drag state: dragging'),
+        Text({ color: 'mutedForeground' }, 'Drag state: dragging'),
         Box(
           { flexDirection: 'row', gap: 1 },
           Text({}, 'Start: (5, 10)'),
-          Text({ color: 'gray' }, '→'),
+          Text({ color: 'mutedForeground' }, '→'),
           Text({}, 'Current: (25, 10)')
         ),
         Spacer({ size: 1 }),
         Box(
           { flexDirection: 'column' },
-          Text({ color: 'gray' }, '╔══════════════════════════╗'),
-          Text({ color: 'gray' }, '║                          ║'),
-          Text({ color: 'gray' }, '║   ●────────────○         ║'),
-          Text({ color: 'gray' }, '║                          ║'),
-          Text({ color: 'gray' }, '╚══════════════════════════╝')
+          Text({ color: 'mutedForeground' }, '╔══════════════════════════╗'),
+          Text({ color: 'mutedForeground' }, '║                          ║'),
+          Text({ color: 'mutedForeground' }, '║   ●────────────○         ║'),
+          Text({ color: 'mutedForeground' }, '║                          ║'),
+          Text({ color: 'mutedForeground' }, '╚══════════════════════════╝')
         ),
-        Text({ color: 'gray', dim: true }, "action === 'drag' | 'release'")
+        Text({ color: 'mutedForeground', dim: true }, "action === 'drag' | 'release'")
       )
     ),
 
@@ -1034,24 +1369,24 @@ export const mouseStories: Story[] = [
           { flexDirection: 'row', gap: 2 },
           Box(
             { flexDirection: 'column', alignItems: 'center' },
-            Text({ color: 'green' }, '▲'),
-            Text({ color: 'gray', dim: true }, 'scroll-up'),
-            Text({ color: 'cyan' }, '×5')
+            Text({ color: 'success' }, '▲'),
+            Text({ color: 'mutedForeground', dim: true }, 'scroll-up'),
+            Text({ color: 'primary' }, '×5')
           ),
           Box(
             { width: 1 },
-            Text({ color: 'gray' }, '│')
+            Text({ color: 'mutedForeground' }, '│')
           ),
           Box(
             { flexDirection: 'column', alignItems: 'center' },
-            Text({ color: 'red' }, '▼'),
-            Text({ color: 'gray', dim: true }, 'scroll-down'),
-            Text({ color: 'cyan' }, '×12')
+            Text({ color: 'destructive' }, '▼'),
+            Text({ color: 'mutedForeground', dim: true }, 'scroll-down'),
+            Text({ color: 'primary' }, '×12')
           )
         ),
         Spacer({ size: 1 }),
         Text({}, 'Scroll position: 72'),
-        Text({ color: 'gray', dim: true }, "button === 'scroll-up' | 'scroll-down'")
+        Text({ color: 'mutedForeground', dim: true }, "button === 'scroll-up' | 'scroll-down'")
       )
     ),
 
@@ -1060,38 +1395,38 @@ export const mouseStories: Story[] = [
     .description('Detect Ctrl, Shift, Alt + click')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'cyan' },
-        Text({ bold: true, color: 'cyan' }, '⌨️  Mouse + Modifiers'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'primary' },
+        Text({ bold: true, color: 'primary' }, '⌨️  Mouse + Modifiers'),
         Divider({}),
         Box(
           { flexDirection: 'column', gap: 0 },
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'green' }, '✓'),
+            Text({ color: 'success' }, '✓'),
             Text({}, 'Ctrl + Click'),
-            Text({ color: 'gray', dim: true }, '- Open in new tab')
+            Text({ color: 'mutedForeground', dim: true }, '- Open in new tab')
           ),
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'gray' }, '○'),
+            Text({ color: 'mutedForeground' }, '○'),
             Text({}, 'Shift + Click'),
-            Text({ color: 'gray', dim: true }, '- Select range')
+            Text({ color: 'mutedForeground', dim: true }, '- Select range')
           ),
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'gray' }, '○'),
+            Text({ color: 'mutedForeground' }, '○'),
             Text({}, 'Alt + Click'),
-            Text({ color: 'gray', dim: true }, '- Quick action')
+            Text({ color: 'mutedForeground', dim: true }, '- Quick action')
           ),
           Box(
             { flexDirection: 'row', gap: 1 },
-            Text({ color: 'gray' }, '○'),
+            Text({ color: 'mutedForeground' }, '○'),
             Text({}, 'Ctrl + Shift + Click'),
-            Text({ color: 'gray', dim: true }, '- Advanced mode')
+            Text({ color: 'mutedForeground', dim: true }, '- Advanced mode')
           )
         ),
         Spacer({ size: 1 }),
-        Text({ color: 'gray', dim: true }, 'event.modifiers.ctrl | shift | alt')
+        Text({ color: 'mutedForeground', dim: true }, 'event.modifiers.ctrl | shift | alt')
       )
     ),
 
@@ -1106,25 +1441,23 @@ export const mouseStories: Story[] = [
         Box(
           { flexDirection: 'row', gap: 1 },
           (() => {
-            const bg = 'green';
-            const fg = getContrastColor(bg);
             return Box(
-              { padding: 1, borderStyle: 'round', borderColor: bg, backgroundColor: bg },
-              Text({ color: fg, backgroundColor: bg, bold: true }, ' Button 1 ')
+              { padding: 1, borderStyle: 'round', borderColor: 'success', backgroundColor: 'success' },
+              Text({ color: 'successForeground', bold: true }, ' Button 1 ')
             );
           })(),
           Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'blue' },
-            Text({ color: 'blue' }, ' Button 2 ')
+            { padding: 1, borderStyle: 'round', borderColor: 'accent' },
+            Text({ color: 'accent' }, ' Button 2 ')
           ),
           Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'red' },
-            Text({ color: 'red' }, ' Button 3 ')
+            { padding: 1, borderStyle: 'round', borderColor: 'destructive' },
+            Text({ color: 'destructive' }, ' Button 3 ')
           )
         ),
         Spacer({ size: 1 }),
         Text({}, 'Clicked: Button 1'),
-        Text({ color: 'gray', dim: true }, 'Check x,y against element bounds')
+        Text({ color: 'mutedForeground', dim: true }, 'Check x,y against element bounds')
       )
     ),
 
@@ -1146,21 +1479,21 @@ export const mouseStories: Story[] = [
       ];
 
       return Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'magenta' },
-        Text({ bold: true, color: 'magenta' }, '🎨 Interactive Canvas'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'accent' },
+        Text({ bold: true, color: 'accent' }, '🎨 Interactive Canvas'),
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: isActive('pen') ? 'cyan' : 'gray' }, '[✏️ Pen]'),
-          Text({ color: 'gray' }, '[🧹 Eraser]'),
-          Text({ color: 'gray' }, '[⬜ Clear]')
+          Text({ color: isActive('pen') ? 'primary' : 'mutedForeground' }, '[✏️ Pen]'),
+          Text({ color: 'mutedForeground' }, '[🧹 Eraser]'),
+          Text({ color: 'mutedForeground' }, '[⬜ Clear]')
         ),
         Spacer({ size: 1 }),
         Box(
           { flexDirection: 'column' },
-          ...canvasLines.map((line) => Text({ color: 'cyan' }, line))
+          ...canvasLines.map((line) => Text({ color: 'primary' }, line))
         ),
-        Text({ color: 'gray', dim: true }, 'Click to draw, drag for lines')
+        Text({ color: 'mutedForeground', dim: true }, 'Click to draw, drag for lines')
       );
 
       function isActive(tool: string): boolean {
@@ -1177,20 +1510,20 @@ export const mouseStories: Story[] = [
         Text({ bold: true }, '📋 Mouse Event Log'),
         Divider({}),
         Box(
-          { flexDirection: 'column', height: 8, borderStyle: 'round', borderColor: 'gray', padding: 1 },
-          Text({ color: 'cyan' }, '[12:34:56] click left @ (24, 8)'),
-          Text({ color: 'cyan' }, '[12:34:57] release @ (24, 8)'),
-          Text({ color: 'yellow' }, '[12:34:58] scroll-down @ (24, 8)'),
-          Text({ color: 'green' }, '[12:34:59] double-click left @ (24, 8)'),
-          Text({ color: 'magenta' }, '[12:35:00] drag @ (25, 8)'),
-          Text({ color: 'magenta' }, '[12:35:00] drag @ (26, 8)'),
-          Text({ color: 'cyan' }, '[12:35:01] release @ (28, 8)')
+          { flexDirection: 'column', height: 8, borderStyle: 'round', borderColor: 'border', padding: 1 },
+          Text({ color: 'primary' }, '[12:34:56] click left @ (24, 8)'),
+          Text({ color: 'primary' }, '[12:34:57] release @ (24, 8)'),
+          Text({ color: 'warning' }, '[12:34:58] scroll-down @ (24, 8)'),
+          Text({ color: 'success' }, '[12:34:59] double-click left @ (24, 8)'),
+          Text({ color: 'accent' }, '[12:35:00] drag @ (25, 8)'),
+          Text({ color: 'accent' }, '[12:35:00] drag @ (26, 8)'),
+          Text({ color: 'primary' }, '[12:35:01] release @ (28, 8)')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'gray' }, 'Events: 7'),
-          Text({ color: 'gray' }, '|'),
-          Text({ color: 'gray' }, '[Clear Log]')
+          Text({ color: 'mutedForeground' }, 'Events: 7'),
+          Text({ color: 'mutedForeground' }, '|'),
+          Text({ color: 'mutedForeground' }, '[Clear Log]')
         )
       )
     ),
@@ -1209,22 +1542,22 @@ export const mouseStories: Story[] = [
             const bg = 'blue';
             const fg = getContrastColor(bg);
             return Box(
-              { padding: 1, borderStyle: 'round', borderColor: 'cyan', backgroundColor: bg },
+              { padding: 1, borderStyle: 'round', borderColor: 'primary', backgroundColor: bg },
               Text({ color: fg, backgroundColor: bg, bold: true }, ' Hovered! ')
             );
           })(),
           Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'gray' },
-            Text({ color: 'gray' }, ' Normal ')
+            { padding: 1, borderStyle: 'round', borderColor: 'border' },
+            Text({ color: 'mutedForeground' }, ' Normal ')
           ),
           Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'gray' },
-            Text({ color: 'gray' }, ' Normal ')
+            { padding: 1, borderStyle: 'round', borderColor: 'border' },
+            Text({ color: 'mutedForeground' }, ' Normal ')
           )
         ),
         Spacer({ size: 1 }),
-        Text({ color: 'gray' }, 'Hovering: Item 1'),
-        Text({ color: 'gray', dim: true }, "Track mouse position for hover effects")
+        Text({ color: 'mutedForeground' }, 'Hovering: Item 1'),
+        Text({ color: 'mutedForeground', dim: true }, "Track mouse position for hover effects")
       )
     ),
 
@@ -1249,15 +1582,15 @@ export const mouseStories: Story[] = [
             );
           })(),
           Box(
-            { flexDirection: 'column', borderStyle: 'single', borderColor: 'cyan', padding: 1 },
-            Text({ color: 'cyan' }, '  Open        '),
+            { flexDirection: 'column', borderStyle: 'single', borderColor: 'primary', padding: 1 },
+            Text({ color: 'primary' }, '  Open        '),
             Text({}, '  Edit        '),
             Text({}, '  Copy        '),
-            Text({ color: 'gray' }, '  ──────────  '),
-            Text({ color: 'red' }, '  Delete      ')
+            Text({ color: 'mutedForeground' }, '  ──────────  '),
+            Text({ color: 'destructive' }, '  Delete      ')
           )
         ),
-        Text({ color: 'gray', dim: true }, "if (event.button === 'right') showMenu()")
+        Text({ color: 'mutedForeground', dim: true }, "if (event.button === 'right') showMenu()")
       )
     ),
 
@@ -1266,31 +1599,31 @@ export const mouseStories: Story[] = [
     .description('Visual drag and drop interface')
     .render(() =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'green' },
-        Text({ bold: true, color: 'green' }, '📦 Drag & Drop'),
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'success' },
+        Text({ bold: true, color: 'success' }, '📦 Drag & Drop'),
         Divider({}),
         Box(
           { flexDirection: 'row', gap: 2 },
           Box(
-            { flexDirection: 'column', borderStyle: 'single', borderColor: 'gray', padding: 1 },
-            Text({ color: 'gray', dim: true }, 'Source'),
+            { flexDirection: 'column', borderStyle: 'single', borderColor: 'border', padding: 1 },
+            Text({ color: 'mutedForeground', dim: true }, 'Source'),
             Text({}, '  📄 File 1'),
-            Text({ color: 'yellow' }, '  📄 Dragging...'),
+            Text({ color: 'warning' }, '  📄 Dragging...'),
             Text({}, '  📄 File 3')
           ),
           Box(
             { flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
-            Text({ color: 'yellow' }, '→→→'),
-            Text({ color: 'yellow', dim: true }, '📄')
+            Text({ color: 'warning' }, '→→→'),
+            Text({ color: 'warning', dim: true }, '📄')
           ),
           Box(
-            { flexDirection: 'column', borderStyle: 'double', borderColor: 'green', padding: 1 },
-            Text({ color: 'green' }, 'Drop Zone'),
+            { flexDirection: 'column', borderStyle: 'double', borderColor: 'success', padding: 1 },
+            Text({ color: 'success' }, 'Drop Zone'),
             Text({}, '  📄 Existing'),
-            Text({ color: 'green', dim: true }, '  ┄┄┄┄┄┄┄┄')
+            Text({ color: 'success', dim: true }, '  ┄┄┄┄┄┄┄┄')
           )
         ),
-        Text({ color: 'gray', dim: true }, 'Combine drag events with position tracking')
+        Text({ color: 'mutedForeground', dim: true }, 'Combine drag events with position tracking')
       )
     ),
 
@@ -1304,17 +1637,17 @@ export const mouseStories: Story[] = [
         Divider({}),
         Box(
           { flexDirection: 'column' },
-          Text({ color: 'gray' }, '┌──────────────────────────────┐'),
-          Text({ color: 'gray' }, '│  ○       ●       ○       ○   │'),
-          Text({ color: 'gray' }, '│      ┏━━━━━━━━━━━┓           │'),
-          Text({ color: 'gray' }, '│  ○   ┃ ●     ●   ┃   ○       │'),
-          Text({ color: 'gray' }, '│      ┃   ●       ┃           │'),
-          Text({ color: 'gray' }, '│      ┗━━━━━━━━━━━┛   ○       │'),
-          Text({ color: 'gray' }, '│  ○           ○               │'),
-          Text({ color: 'gray' }, '└──────────────────────────────┘')
+          Text({ color: 'mutedForeground' }, '┌──────────────────────────────┐'),
+          Text({ color: 'mutedForeground' }, '│  ○       ●       ○       ○   │'),
+          Text({ color: 'mutedForeground' }, '│      ┏━━━━━━━━━━━┓           │'),
+          Text({ color: 'mutedForeground' }, '│  ○   ┃ ●     ●   ┃   ○       │'),
+          Text({ color: 'mutedForeground' }, '│      ┃   ●       ┃           │'),
+          Text({ color: 'mutedForeground' }, '│      ┗━━━━━━━━━━━┛   ○       │'),
+          Text({ color: 'mutedForeground' }, '│  ○           ○               │'),
+          Text({ color: 'mutedForeground' }, '└──────────────────────────────┘')
         ),
-        Text({ color: 'cyan' }, 'Selected: 4 items'),
-        Text({ color: 'gray', dim: true }, 'Track start & end drag positions')
+        Text({ color: 'primary' }, 'Selected: 4 items'),
+        Text({ color: 'mutedForeground', dim: true }, 'Track start & end drag positions')
       )
     ),
 ];
@@ -1329,7 +1662,7 @@ export const lineChartStories: Story[] = [
     .render(() =>
       LineChart({
         series: [
-          { name: 'Usage', data: [10, 25, 30, 45, 60, 55, 70], color: 'cyan' },
+          { name: 'Usage', data: [10, 25, 30, 45, 60, 55, 70], color: 'primary' },
         ],
         width: 50,
         height: 8,
@@ -1437,7 +1770,7 @@ export const scatterPlotStories: Story[] = [
         height: 10,
         title: 'Random Distribution',
         markerStyle: 'circle',
-        color: 'green',
+        color: 'success',
       })
     ),
 ];
@@ -1459,8 +1792,8 @@ export const radarChartStories: Story[] = [
           { name: 'Cost', max: 100 },
         ],
         series: [
-          { name: 'Model A', values: [80, 75, 70, 85, 60], color: 'cyan' },
-          { name: 'Model B', values: [70, 85, 80, 75, 80], color: 'green' },
+          { name: 'Model A', values: [80, 75, 70, 85, 60], color: 'primary' },
+          { name: 'Model B', values: [70, 85, 80, 75, 80], color: 'success' },
         ],
         showLegend: true,
       })
@@ -1480,8 +1813,8 @@ export const radarChartStories: Story[] = [
           { name: 'Documentation', max: 100 },
         ],
         series: [
-          { name: 'Developer 1', values: [85, 75, 65, 70, 80, 75], color: 'yellow' },
-          { name: 'Developer 2', values: [70, 85, 80, 75, 70, 80], color: 'magenta' },
+          { name: 'Developer 1', values: [85, 75, 65, 70, 80, 75], color: 'warning' },
+          { name: 'Developer 2', values: [70, 85, 80, 75, 70, 80], color: 'accent' },
         ],
         showLegend: true,
       })
@@ -1664,14 +1997,14 @@ export const legendStories: Story[] = [
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
-          { flexDirection: 'row', height: 5, borderStyle: 'single', borderColor: 'gray', padding: 1 },
-          Text({ color: 'gray' }, 'Chart Area')
+          { flexDirection: 'row', height: 5, borderStyle: 'single', borderColor: 'border', padding: 1 },
+          Text({ color: 'mutedForeground' }, 'Chart Area')
         ),
         Legend({
           items: [
-            { label: 'Series 1', color: 'cyan' },
-            { label: 'Series 2', color: 'green' },
-            { label: 'Series 3', color: 'yellow' },
+            { label: 'Series 1', color: 'primary' },
+            { label: 'Series 2', color: 'success' },
+            { label: 'Series 3', color: 'warning' },
           ],
           position: 'bottom',
           showSymbols: true,
@@ -1685,14 +2018,14 @@ export const legendStories: Story[] = [
     .render(() =>
       Box(
         { flexDirection: 'column', gap: 2, padding: 1 },
-        Text({ bold: true, color: 'cyan' }, 'Task Priority Levels'),
+        Text({ bold: true, color: 'primary' }, 'Task Priority Levels'),
         Newline(),
         Legend({
           items: [
-            { label: 'Critical', color: 'red' },
-            { label: 'High', color: 'yellow' },
-            { label: 'Medium', color: 'blue' },
-            { label: 'Low', color: 'green' },
+            { label: 'Critical', color: 'destructive' },
+            { label: 'High', color: 'warning' },
+            { label: 'Medium', color: 'accent' },
+            { label: 'Low', color: 'success' },
           ],
           position: 'bottom',
           showSymbols: true,
@@ -1706,14 +2039,14 @@ export const legendStories: Story[] = [
     .render(() =>
       Box(
         { flexDirection: 'column', gap: 2, padding: 1 },
-        Text({ bold: true, color: 'magenta' }, 'Build Status Legend'),
+        Text({ bold: true, color: 'accent' }, 'Build Status Legend'),
         Newline(),
         Legend({
           items: [
-            { label: 'Passing', color: 'green' },
-            { label: 'Failing', color: 'red' },
-            { label: 'Pending', color: 'yellow' },
-            { label: 'Skipped', color: 'gray' },
+            { label: 'Passing', color: 'success' },
+            { label: 'Failing', color: 'destructive' },
+            { label: 'Pending', color: 'warning' },
+            { label: 'Skipped', color: 'mutedForeground' },
           ],
           position: 'bottom',
           showSymbols: true,
@@ -1735,6 +2068,10 @@ export const allMoleculeStories: Story[] = [
   ...alertStories,
   ...toastStories,
   ...tabsStories,
+  ...collapsibleStories,
+  ...accordionStories,
+  ...detailsStories,
+  ...expandableTextStories,
   ...sparklineStories,
   ...gaugeStories,
   ...lineChartStories,

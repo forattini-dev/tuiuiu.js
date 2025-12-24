@@ -12,7 +12,7 @@ import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, StoryCategory } from '../types.js';
 import type { Navigator, FocusArea } from '../core/navigator.js';
-import { themeColor } from '../../core/theme.js';
+import { getTheme } from '../../core/theme.js';
 
 export interface SidebarProps {
   navigator: Navigator;
@@ -28,6 +28,7 @@ function CategoryHeader(props: {
   isExpanded: boolean;
   isSelected: boolean;
 }): VNode {
+  const theme = getTheme();
   const { category, isExpanded, isSelected } = props;
   const icon = isExpanded ? '▼' : '▶';
 
@@ -35,12 +36,12 @@ function CategoryHeader(props: {
     { paddingX: 1 },
     Text(
       {
-        color: isSelected ? themeColor('primary') : themeColor('foreground'),
+        color: isSelected ? theme.palette.primary[500] : theme.foreground.primary,
         bold: isSelected,
       },
       `${icon} ${category.name}`
     ),
-    Text({ color: themeColor('mutedForeground'), dim: true }, ` (${category.stories.length})`)
+    Text({ color: theme.foreground.muted, dim: true }, ` (${category.stories.length})`)
   );
 }
 
@@ -52,6 +53,7 @@ function StoryItem(props: {
   isSelected: boolean;
   indent?: number;
 }): VNode {
+  const theme = getTheme();
   const { story, isSelected, indent = 2 } = props;
   const prefix = isSelected ? '●' : '○';
   const padding = ' '.repeat(indent);
@@ -60,7 +62,7 @@ function StoryItem(props: {
     { paddingX: 1 },
     Text(
       {
-        color: isSelected ? themeColor('primary') : themeColor('mutedForeground'),
+        color: isSelected ? theme.palette.primary[500] : theme.foreground.muted,
         bold: isSelected,
       },
       `${padding}${prefix} ${story.name}`
@@ -72,19 +74,20 @@ function StoryItem(props: {
  * Render search input display
  */
 function SearchBar(props: { query: string; isFocused: boolean }): VNode {
+  const theme = getTheme();
   const { query, isFocused } = props;
 
   return Box(
     {
       borderStyle: 'single',
-      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+      borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
       paddingX: 1,
       marginBottom: 1,
     },
-    Text({ color: themeColor('mutedForeground') }, '/ '),
+    Text({ color: theme.foreground.muted }, '/ '),
     query
-      ? Text({ color: themeColor('foreground') }, query)
-      : Text({ color: themeColor('mutedForeground'), dim: true }, 'Search...')
+      ? Text({ color: theme.foreground.primary }, query)
+      : Text({ color: theme.foreground.muted, dim: true }, 'Search...')
   );
 }
 
@@ -92,6 +95,7 @@ function SearchBar(props: { query: string; isFocused: boolean }): VNode {
  * Render the sidebar tree
  */
 export function Sidebar(props: SidebarProps): VNode {
+  const theme = getTheme();
   const { navigator, width = 30, isFocused = false } = props;
   const state = navigator.state();
   const categories = navigator.filteredCategories();
@@ -149,7 +153,7 @@ export function Sidebar(props: SidebarProps): VNode {
         items.push(
           Box(
             { paddingX: 1 },
-            Text({ color: themeColor('mutedForeground'), dim: true }, `    ▲ ${startIdx} more`)
+            Text({ color: theme.foreground.muted, dim: true }, `    ▲ ${startIdx} more`)
           )
         );
       }
@@ -176,7 +180,7 @@ export function Sidebar(props: SidebarProps): VNode {
         items.push(
           Box(
             { paddingX: 1 },
-            Text({ color: themeColor('mutedForeground'), dim: true }, `    ▼ ${totalStories - endIdx} more`)
+            Text({ color: theme.foreground.muted, dim: true }, `    ▼ ${totalStories - endIdx} more`)
           )
         );
       }
@@ -190,7 +194,7 @@ export function Sidebar(props: SidebarProps): VNode {
     items.push(
       Box(
         { padding: 1 },
-        Text({ color: themeColor('mutedForeground'), dim: true }, 'No stories found')
+        Text({ color: theme.foreground.muted, dim: true }, 'No stories found')
       )
     );
   }
@@ -200,16 +204,16 @@ export function Sidebar(props: SidebarProps): VNode {
       flexDirection: 'column',
       width,
       borderStyle: 'single',
-      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+      borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
     },
     // Header
     Box(
       {
         borderStyle: 'single',
-        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+        borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
         paddingX: 1,
       },
-      Text({ color: isFocused ? themeColor('primary') : themeColor('foreground'), bold: true }, 'Stories')
+      Text({ color: isFocused ? theme.palette.primary[500] : theme.foreground.primary, bold: true }, 'Stories')
     ),
     // Content
     Box({ flexDirection: 'column', padding: 1 }, ...items),
@@ -217,11 +221,11 @@ export function Sidebar(props: SidebarProps): VNode {
     Box(
       {
         borderStyle: 'single',
-        borderColor: themeColor('border'),
+        borderColor: theme.borders.default,
         paddingX: 1,
       },
       Text(
-        { color: themeColor('mutedForeground'), dim: true },
+        { color: theme.foreground.muted, dim: true },
         `${state.categories.length} categories`
       )
     )
@@ -232,6 +236,7 @@ export function Sidebar(props: SidebarProps): VNode {
  * Render a compact sidebar (just category names)
  */
 export function CompactSidebar(props: SidebarProps): VNode {
+  const theme = getTheme();
   const { navigator, width = 20, isFocused = false } = props;
   const state = navigator.state();
   const categories = navigator.filteredCategories();
@@ -241,7 +246,7 @@ export function CompactSidebar(props: SidebarProps): VNode {
       flexDirection: 'column',
       width,
       borderStyle: 'single',
-      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+      borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
     },
     // Categories
     ...categories.map((category, idx) => {
@@ -253,11 +258,11 @@ export function CompactSidebar(props: SidebarProps): VNode {
       return Box(
         {
           paddingX: 1,
-          backgroundColor: isSelected ? themeColor('info') : undefined,
+          backgroundColor: isSelected ? theme.accents.info : undefined,
         },
         Text(
           {
-            color: isSelected ? themeColor('foreground') : themeColor('mutedForeground'),
+            color: isSelected ? theme.foreground.primary : theme.foreground.muted,
             bold: isSelected,
           },
           category.name
@@ -271,6 +276,7 @@ export function CompactSidebar(props: SidebarProps): VNode {
  * Render keyboard shortcuts help
  */
 export function SidebarHelp(): VNode {
+  const theme = getTheme();
   const shortcuts = [
     { key: 'j/k', desc: 'Navigate' },
     { key: 'h/l', desc: 'Collapse/Expand' },
@@ -283,18 +289,18 @@ export function SidebarHelp(): VNode {
     {
       flexDirection: 'column',
       borderStyle: 'single',
-      borderColor: themeColor('border'),
+      borderColor: theme.borders.default,
       padding: 1,
     },
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('foreground'), bold: true }, 'Navigation')
+      Text({ color: theme.foreground.primary, bold: true }, 'Navigation')
     ),
     ...shortcuts.map(({ key, desc }) =>
       Box(
         {},
-        Text({ color: themeColor('primary') }, `[${key}]`),
-        Text({ color: themeColor('mutedForeground') }, ` ${desc}`)
+        Text({ color: theme.palette.primary[500] }, `[${key}]`),
+        Text({ color: theme.foreground.muted }, ` ${desc}`)
       )
     )
   );

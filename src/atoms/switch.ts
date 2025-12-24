@@ -16,7 +16,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { themeColor } from '../core/theme.js';
+import { getTheme } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -131,13 +131,14 @@ export interface SwitchProps extends SwitchOptions {
  * })
  */
 export function Switch(props: SwitchProps): VNode {
+  const theme = getTheme();
   const {
     onLabel = 'ON',
     offLabel = 'OFF',
     showLabels = false,
-    onColor = themeColor('success'),
-    offColor = themeColor('mutedForeground'),
-    trackColor = themeColor('border'),
+    onColor = theme.accents.positive,
+    offColor = theme.foreground.muted,
+    trackColor = theme.borders.default,
     size = 'normal',
     disabled = false,
     isActive = true,

@@ -337,8 +337,8 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     showCount = true,
     showTags = false,
     maxTags = 3,
-    activeColor = 'cyan',
-    selectedColor = 'green',
+    activeColor = 'primary',
+    selectedColor = 'success',
     isActive = true,
     state: externalState,
   } = props;
@@ -396,7 +396,7 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     );
 
     if (remaining > 0) {
-      tagNodes.push(Text({ color: 'gray', dim: true }, `+${remaining} more`));
+      tagNodes.push(Text({ color: 'mutedForeground', dim: true }, `+${remaining} more`));
     }
 
     tagsNode = Box({ flexDirection: 'row', gap: 1, marginBottom: 1 }, ...tagNodes);
@@ -408,7 +408,7 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     const query = state.searchQuery();
     searchNode = Box(
       { marginBottom: 1 },
-      Text({ color: 'gray' }, '🔍 '),
+      Text({ color: 'mutedForeground' }, '🔍 '),
       Text({}, query || props.searchPlaceholder || 'Type to search...')
     );
   }
@@ -425,12 +425,12 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
 
     const cursorChar = isCurrentCursor ? chars.arrows.right : ' ';
     const labelColor = item.disabled
-      ? 'gray'
+      ? 'mutedForeground'
       : isCurrentCursor
         ? activeColor
         : isItemSelected
           ? selectedColor
-          : 'white';
+          : 'foreground';
 
     return Box(
       {
@@ -438,11 +438,11 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
         gap: 1,
         onClick: item.disabled ? undefined : () => state.toggleIndex(globalIndex),
       },
-      Text({ color: isCurrentCursor ? activeColor : 'gray' }, cursorChar),
-      Text({ color: isItemSelected ? selectedColor : 'gray' }, checkbox),
+      Text({ color: isCurrentCursor ? activeColor : 'mutedForeground' }, cursorChar),
+      Text({ color: isItemSelected ? selectedColor : 'mutedForeground' }, checkbox),
       Text({ color: labelColor, dim: item.disabled }, item.label),
       item.description
-        ? Text({ color: 'gray', dim: true }, ` - ${item.description}`)
+        ? Text({ color: 'mutedForeground', dim: true }, ` - ${item.description}`)
         : null
     );
   });
@@ -453,7 +453,7 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     footerNode = Box(
       { marginTop: 1 },
       Text(
-        { color: 'gray', dim: true },
+        { color: 'mutedForeground', dim: true },
         `${selectedValues.length} selected · ${filtered.length} items`
       )
     );
@@ -468,9 +468,9 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     { flexDirection: 'column' },
     tagsNode,
     searchNode,
-    scrollTop ? Text({ color: 'gray', dim: true }, '  ▲ more above') : null,
+    scrollTop ? Text({ color: 'mutedForeground', dim: true }, '  ▲ more above') : null,
     ...itemNodes,
-    scrollBottom ? Text({ color: 'gray', dim: true }, '  ▼ more below') : null,
+    scrollBottom ? Text({ color: 'mutedForeground', dim: true }, '  ▼ more below') : null,
     footerNode
   );
 }

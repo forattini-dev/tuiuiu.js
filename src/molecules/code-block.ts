@@ -55,21 +55,21 @@ export interface CodeTheme {
 
 /** Default theme (similar to VSCode Dark+) */
 const DEFAULT_THEME: CodeTheme = {
-  keyword: 'magenta',
-  string: 'green',
-  number: 'yellow',
-  comment: 'gray',
-  function: 'blue',
-  variable: 'cyan',
-  operator: 'white',
-  punctuation: 'gray',
-  type: 'cyan',
-  constant: 'yellow',
-  builtin: 'magenta',
-  added: 'green',
-  removed: 'red',
-  lineNumber: 'gray',
-  background: 'black',
+  keyword: 'accent',
+  string: 'success',
+  number: 'warning',
+  comment: 'mutedForeground',
+  function: 'info',
+  variable: 'primary',
+  operator: 'foreground',
+  punctuation: 'mutedForeground',
+  type: 'primary',
+  constant: 'warning',
+  builtin: 'accent',
+  added: 'success',
+  removed: 'destructive',
+  lineNumber: 'mutedForeground',
+  background: 'background',
 };
 
 /** Language-specific keywords and patterns */
@@ -225,7 +225,7 @@ function highlightCode(code: string, language: Language, theme: CodeTheme): VNod
   if (language === 'diff') {
     const lines = code.split('\n');
     return lines.map((line, i) => {
-      let color = 'white';
+      let color = 'foreground';
       if (line.startsWith('+')) color = theme.added;
       else if (line.startsWith('-')) color = theme.removed;
       else if (line.startsWith('@')) color = theme.keyword;
@@ -239,7 +239,7 @@ function highlightCode(code: string, language: Language, theme: CodeTheme): VNod
 
   // Helper to add plain text
   const addPlain = (text: string) => {
-    if (text) tokens.push({ text, color: 'white' });
+    if (text) tokens.push({ text, color: 'foreground' });
   };
 
   // Process string literals first (they can contain keywords)
@@ -309,7 +309,7 @@ function highlightKeywords(
   for (const part of parts) {
     if (!part) continue;
 
-    let color = 'white';
+    let color = 'foreground';
 
     if (rules.keywords?.includes(part)) {
       color = theme.keyword;
@@ -352,7 +352,7 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
     lineNumbers = true,
     startLine = 1,
     highlightLines = [],
-    highlightColor = 'yellow',
+    highlightColor = 'warning',
     theme: customTheme = {},
     filename,
     showFilename = true,
@@ -360,7 +360,7 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
     wrap = false,
     showCopy = true,
     borderStyle = 'round',
-    borderColor = 'gray',
+    borderColor = 'border',
   } = options;
 
   const theme: CodeTheme = { ...DEFAULT_THEME, ...customTheme };
@@ -375,9 +375,9 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
     rows.push(
       Box(
         { flexDirection: 'row', marginBottom: 1 },
-        Text({ color: 'cyan' }, '📄 '),
-        Text({ color: 'white', bold: true }, filename),
-        showCopy ? Text({ color: 'gray', dim: true }, '  [copy]') : Text({}, '')
+        Text({ color: 'primary' }, '📄 '),
+        Text({ color: 'foreground', bold: true }, filename),
+        showCopy ? Text({ color: 'mutedForeground', dim: true }, '  [copy]') : Text({}, '')
       )
     );
   }
@@ -451,7 +451,7 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
  * InlineCode({ code: 'npm install', language: 'bash' })
  */
 export function InlineCode(options: { code: string; language?: Language; color?: string }): VNode {
-  const { code, language = 'plain', color = 'cyan' } = options;
+  const { code, language = 'plain', color = 'primary' } = options;
 
   if (language === 'plain') {
     return Text({ color, backgroundColor: 'black' }, ` ${code} `);

@@ -30,6 +30,7 @@ export {
   ConfirmDialog,
   Toast,
   AlertBox,
+  Window,
   // State factory
   createModal,
   createConfirmDialog,
@@ -43,6 +44,8 @@ export {
   type ToastProps,
   type AlertBoxProps,
   type ModalState,
+  type WindowVariant,
+  type WindowProps,
 } from './modal.js';
 
 // =============================================================================

@@ -414,7 +414,7 @@ function getFontHeight(font: BigTextFont): number {
  * Apply color gradient to text
  */
 function applyGradient(text: string, colors: ColorValue[], index: number): ColorValue {
-  if (colors.length === 0) return 'white';
+  if (colors.length === 0) return 'foreground';
   if (colors.length === 1) return colors[0]!;
   return colors[index % colors.length]!;
 }
@@ -442,7 +442,7 @@ export function BigText(props: BigTextOptions): VNode {
   const {
     text,
     font = 'block',
-    color = 'white',
+    color = 'foreground',
     gradient,
     align = 'left',
     maxWidth,
@@ -514,7 +514,7 @@ export interface FigletTextOptions {
  * FigletText({ text: 'Welcome', font: 'banner' })
  */
 export function FigletText(props: FigletTextOptions): VNode {
-  const { text, font = 'banner', color = 'white', width } = props;
+  const { text, font = 'banner', color = 'foreground', width } = props;
 
   return BigText({
     text,
@@ -561,8 +561,8 @@ export function BigTitle(props: BigTitleOptions): VNode {
     title,
     subtitle,
     font = 'block',
-    color = 'white',
-    subtitleColor = 'gray',
+    color = 'foreground',
+    subtitleColor = 'mutedForeground',
     underline = false,
     underlineChar = '═',
   } = props;
@@ -629,7 +629,7 @@ export function Logo(props: LogoOptions): VNode {
   if (colors && colors.length > 0) {
     parts.push(BigText({ text, font, gradient: colors }));
   } else {
-    parts.push(BigText({ text, font, color: 'cyan' }));
+    parts.push(BigText({ text, font, color: 'primary' }));
   }
 
   // Tagline
@@ -637,7 +637,7 @@ export function Logo(props: LogoOptions): VNode {
     parts.push(
       Box(
         { marginTop: 1 },
-        Text({ color: 'gray', dim: true }, tagline)
+        Text({ color: 'mutedForeground', dim: true }, tagline)
       )
     );
   }

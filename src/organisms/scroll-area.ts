@@ -153,8 +153,8 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
     height,
     content,
     showScrollbar = true,
-    scrollbarColor = 'cyan',
-    trackColor = 'gray',
+    scrollbarColor = 'primary',
+    trackColor = 'mutedForeground',
     scrollStep = 1,
     isActive = true,
     width,
@@ -438,7 +438,7 @@ export function VirtualList<T = unknown>(props: VirtualListProps<T>): VNode {
       const char = isThumb
         ? (isAscii ? '#' : chars.scrollbar.thumb)
         : (isAscii ? '|' : chars.scrollbar.track);
-      scrollbarLines.push(Text({ color: isThumb ? 'cyan' : 'gray' }, char));
+      scrollbarLines.push(Text({ color: isThumb ? 'primary' : 'mutedForeground' }, char));
     }
 
     scrollbar = Box(
@@ -484,7 +484,7 @@ export function ScrollableText(props: ScrollableTextProps): VNode {
     text,
     height,
     width,
-    color = 'white',
+    color = 'foreground',
     showScrollbar = true,
     isActive = true,
   } = props;
@@ -574,12 +574,12 @@ export function LogViewer(props: LogViewerOptions): VNode {
       { flexDirection: 'row' },
       showLineNumbers
         ? Text(
-          { color: 'gray', dim: true },
+          { color: 'mutedForeground', dim: true },
           String(lineNum).padStart(lineNumberWidth - 1) + ' '
         )
         : null,
       Text(
-        { color: shouldHighlight ? highlightColor : 'white' },
+        { color: shouldHighlight ? highlightColor : 'foreground' },
         line
       )
     );
@@ -607,7 +607,7 @@ export function LogViewer(props: LogViewerOptions): VNode {
       const char = isThumb
         ? (isAscii ? '#' : chars.scrollbar.thumb)
         : (isAscii ? '|' : chars.scrollbar.track);
-      scrollbarLines.push(Text({ color: isThumb ? 'cyan' : 'gray' }, char));
+      scrollbarLines.push(Text({ color: isThumb ? 'primary' : 'mutedForeground' }, char));
     }
 
     scrollbar = Box(

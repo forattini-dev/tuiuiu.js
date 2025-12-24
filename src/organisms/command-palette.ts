@@ -47,7 +47,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { stringWidth } from '../utils/text-utils.js';
-import { getContrastColor } from '../core/theme.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -288,6 +288,9 @@ const BORDER_CHARS = {
  * Renders a searchable command palette overlay.
  */
 export function CommandPalette(props: CommandPaletteProps): VNode {
+  const theme = getTheme();
+  const tokens = theme.components.commandPalette;
+
   const {
     query,
     items,
@@ -300,9 +303,9 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
     showShortcuts = true,
     width = 60,
     borderStyle = 'round',
-    borderColor = 'cyan',
-    highlightColor = 'yellow',
-    selectedBg = 'blue',
+    borderColor = props.borderColor ?? tokens.border,
+    highlightColor = props.highlightColor ?? tokens.highlightFg,
+    selectedBg = props.selectedBg ?? tokens.itemSelectedBg,
     noResultsMessage = 'No results found',
     onItemClick,
   } = props;
@@ -325,7 +328,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
         { flexDirection: 'row' },
         Text({ color: borderColor }, chars.topLeft),
         Text({ color: borderColor }, chars.horizontal.repeat(left)),
-        Text({ color: 'cyan', bold: true }, titleText),
+        Text({ color: 'primary', bold: true }, titleText),
         Text({ color: borderColor }, chars.horizontal.repeat(right)),
         Text({ color: borderColor }, chars.topRight)
       )
@@ -334,7 +337,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
 
   // Search input
   const inputDisplay = query || placeholder;
-  const inputColor = query ? 'white' : 'gray';
+  const inputColor = query ? 'foreground' : 'mutedForeground';
   const cursor = query ? '▌' : '';
 
   rows.push(
@@ -342,9 +345,9 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
       { flexDirection: 'row' },
       chars ? Text({ color: borderColor }, chars.vertical) : null,
       Text({}, ' '),
-      Text({ color: 'cyan' }, '❯ '),
+      Text({ color: 'primary' }, '❯ '),
       Text({ color: inputColor, dim: !query }, inputDisplay),
-      Text({ color: 'cyan' }, cursor),
+      Text({ color: 'primary' }, cursor),
       Text({}, ' '.repeat(Math.max(0, innerWidth - 4 - stringWidth(inputDisplay) - 1))),
       chars ? Text({ color: borderColor }, chars.vertical) : null
     )
@@ -356,7 +359,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
       Box(
         { flexDirection: 'row' },
         Text({ color: borderColor }, chars.vertical),
-        Text({ color: 'gray', dim: true }, '─'.repeat(innerWidth)),
+        Text({ color: 'mutedForeground', dim: true }, '─'.repeat(innerWidth)),
         Text({ color: borderColor }, chars.vertical)
       )
     );
@@ -369,7 +372,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
         { flexDirection: 'row' },
         chars ? Text({ color: borderColor }, chars.vertical) : null,
         Text({}, ' '),
-        Text({ color: 'gray', dim: true, italic: true }, noResultsMessage),
+        Text({ color: 'mutedForeground', dim: true, italic: true }, noResultsMessage),
         Text({}, ' '.repeat(Math.max(0, innerWidth - 2 - stringWidth(noResultsMessage)))),
         chars ? Text({ color: borderColor }, chars.vertical) : null
       )
@@ -398,7 +401,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
             { flexDirection: 'row' },
             chars ? Text({ color: borderColor }, chars.vertical) : null,
             Text({}, ' '),
-            Text({ color: 'gray', dim: true, bold: true }, currentCategory.toUpperCase()),
+            Text({ color: 'mutedForeground', dim: true, bold: true }, currentCategory.toUpperCase()),
             Text({}, ' '.repeat(Math.max(0, innerWidth - 2 - stringWidth(currentCategory)))),
             chars ? Text({ color: borderColor }, chars.vertical) : null
           )
@@ -422,7 +425,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
           },
           chars ? Text({ color: borderColor }, chars.vertical) : null,
           Text({ backgroundColor: isSelected ? selectedBg : undefined }, ' '),
-          Text({ color: isSelected ? getContrastColor(selectedBg) : 'cyan', backgroundColor: isSelected ? selectedBg : undefined }, icon),
+          Text({ color: isSelected ? getContrastColor(selectedBg) : 'primary', backgroundColor: isSelected ? selectedBg : undefined }, icon),
           Box(
             {
               flexDirection: 'row',
@@ -432,7 +435,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
           ),
           Text({ backgroundColor: isSelected ? selectedBg : undefined }, ' '.repeat(padding)),
           Text({
-            color: 'gray',
+            color: 'mutedForeground',
             dim: true,
             backgroundColor: isSelected ? selectedBg : undefined
           }, shortcut),
@@ -449,7 +452,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
             { flexDirection: 'row' },
             chars ? Text({ color: borderColor }, chars.vertical) : null,
             Text({}, '  '),
-            Text({ color: 'gray', dim: true, italic: true }, descText),
+            Text({ color: 'mutedForeground', dim: true, italic: true }, descText),
             Text({}, ' '.repeat(Math.max(0, innerWidth - 4 - stringWidth(descText)))),
             chars ? Text({ color: borderColor }, chars.vertical) : null
           )
@@ -465,7 +468,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
           { flexDirection: 'row' },
           chars ? Text({ color: borderColor }, chars.vertical) : null,
           Text({}, ' '.repeat(innerWidth - stringWidth(scrollInfo) - 1)),
-          Text({ color: 'gray', dim: true }, scrollInfo),
+          Text({ color: 'mutedForeground', dim: true }, scrollInfo),
           Text({}, ' '),
           chars ? Text({ color: borderColor }, chars.vertical) : null
         )
@@ -480,7 +483,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
       { flexDirection: 'row' },
       chars ? Text({ color: borderColor }, chars.vertical) : null,
       Text({}, ' '),
-      Text({ color: 'gray', dim: true }, helpText),
+      Text({ color: 'mutedForeground', dim: true }, helpText),
       Text({}, ' '.repeat(Math.max(0, innerWidth - 2 - stringWidth(helpText)))),
       chars ? Text({ color: borderColor }, chars.vertical) : null
     )
@@ -679,7 +682,7 @@ export function GoToDialog(props: GoToDialogProps): VNode {
     prompt = 'Enter number:',
     width = 30,
     borderStyle = 'round',
-    borderColor = 'cyan',
+    borderColor = 'primary',
   } = props;
 
   const chars = borderStyle !== 'none' ? BORDER_CHARS[borderStyle] : null;
@@ -700,7 +703,7 @@ export function GoToDialog(props: GoToDialogProps): VNode {
         { flexDirection: 'row' },
         Text({ color: borderColor }, chars.topLeft),
         Text({ color: borderColor }, chars.horizontal.repeat(left)),
-        Text({ color: 'cyan', bold: true }, titleText),
+        Text({ color: 'primary', bold: true }, titleText),
         Text({ color: borderColor }, chars.horizontal.repeat(right)),
         Text({ color: borderColor }, chars.topRight)
       )
@@ -717,11 +720,11 @@ export function GoToDialog(props: GoToDialogProps): VNode {
       { flexDirection: 'row' },
       chars ? Text({ color: borderColor }, chars.vertical) : null,
       Text({}, ' '),
-      Text({ color: 'white' }, prompt),
+      Text({ color: 'foreground' }, prompt),
       Text({}, ' '),
-      Text({ color: 'cyan', bold: true }, display),
+      Text({ color: 'primary', bold: true }, display),
       Text({}, ' '),
-      Text({ color: 'gray', dim: true }, rangeText),
+      Text({ color: 'mutedForeground', dim: true }, rangeText),
       Text({}, ' '.repeat(Math.max(0, innerWidth - 2 - stringWidth(inputLine) - stringWidth(rangeText) - 1))),
       chars ? Text({ color: borderColor }, chars.vertical) : null
     )
@@ -734,7 +737,7 @@ export function GoToDialog(props: GoToDialogProps): VNode {
       { flexDirection: 'row' },
       chars ? Text({ color: borderColor }, chars.vertical) : null,
       Text({}, ' '),
-      Text({ color: 'gray', dim: true }, helpText),
+      Text({ color: 'mutedForeground', dim: true }, helpText),
       Text({}, ' '.repeat(Math.max(0, innerWidth - 2 - stringWidth(helpText)))),
       chars ? Text({ color: borderColor }, chars.vertical) : null
     )

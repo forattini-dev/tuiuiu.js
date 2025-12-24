@@ -8,7 +8,6 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { themeColor } from '../core/theme.js';
 
 export interface ScrollbarOptions {
     /** Height of the scrollbar area (number of lines) */

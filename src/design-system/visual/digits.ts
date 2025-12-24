@@ -201,7 +201,7 @@ export function Digits(props: DigitsOptions): VNode {
     value,
     style = 'lcd',
     digits,
-    color = 'green',
+    color = 'success',
     leadingZeros = false,
   } = props;
 
@@ -272,7 +272,7 @@ export function Clock(
     format = '24h',
     showSeconds = false,
     style = 'lcd',
-    color = 'green',
+    color = 'success',
   } = props;
 
   let hours = time.getHours();
@@ -332,7 +332,7 @@ export function Counter(props: CounterOptions): VNode {
     value,
     digits = 4,
     style = 'lcd',
-    color = 'green',
+    color = 'success',
     showSign = false,
   } = props;
 
@@ -379,8 +379,8 @@ export function Countdown(props: CountdownOptions): VNode {
   const {
     seconds,
     style = 'lcd',
-    color = 'green',
-    lowColor = 'red',
+    color = 'success',
+    lowColor = 'destructive',
     showHours = false,
   } = props;
 
@@ -427,7 +427,7 @@ export function Stopwatch(props: StopwatchOptions): VNode {
   const {
     milliseconds,
     style = 'lcd',
-    color = 'green',
+    color = 'success',
     showMilliseconds = false,
   } = props;
 
@@ -463,7 +463,7 @@ export interface DigitRollOptions {
  * DigitRoll - Displays number (animation would require external timer)
  */
 export function DigitRoll(props: DigitRollOptions): VNode {
-  const { value, digits = 4, style = 'lcd', color = 'green' } = props;
+  const { value, digits = 4, style = 'lcd', color = 'success' } = props;
 
   const displayValue = String(Math.floor(value)).padStart(digits, '0');
 
@@ -498,8 +498,8 @@ export function Score(props: ScoreOptions): VNode {
     score,
     label = 'SCORE',
     style = 'lcd',
-    color = 'green',
-    labelColor = 'gray',
+    color = 'success',
+    labelColor = 'mutedForeground',
   } = props;
 
   return Box(

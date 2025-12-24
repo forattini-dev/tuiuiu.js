@@ -8,7 +8,7 @@ import type { VNode, BoxStyle, LayoutNode } from '../utils/types.js';
 import { renderToString } from '../design-system/core/renderer.js';
 import { calculateLayout } from '../design-system/core/layout.js';
 import { createEffect } from '../primitives/signal.js';
-import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking } from '../hooks/index.js';
+import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking, setClearScreen } from '../hooks/index.js';
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
 import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.js';
@@ -91,6 +91,8 @@ export interface RenderOptions {
   showCursor?: boolean;
   /** Enable automatic Tab/Shift+Tab navigation (default: true) */
   autoTabNavigation?: boolean;
+  /** Fill entire terminal height (default: false). Use for full-screen apps. */
+  fullHeight?: boolean;
 }
 
 export interface ReckInstance {
@@ -121,6 +123,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     clearOnStart = true,
     showCursor = false,
     autoTabNavigation = true,
+    fullHeight = false,
   } = options;
 
   // Initialize app context FIRST (before calling component functions)
@@ -140,6 +143,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let currentNode: VNode | null = null;
   let lastOutput = '';
   let isUnmounted = false;
+
+  // Expose clearScreen to app context for splash->main transitions
+  // This properly resets logUpdate state to avoid incremental render corruption
+  setClearScreen(() => {
+    logUpdate.clear();
+    stdout.write(ansi.clearTerminal);
+    lastOutput = '';
+  });
   let exitPromise: Promise<void>;
   let resolveExit: () => void;
   let rejectExit: (error: Error) => void;
@@ -259,7 +270,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
 
     // Render interactive content
-    const output = renderToString(interactiveNode, width);
+    const output = renderToString(interactiveNode, {
+      width,
+      height: fullHeight ? height : undefined,
+      fullHeight,
+    });
 
     if (output === lastOutput && !debug) {
       return; // No changes

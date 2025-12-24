@@ -157,8 +157,8 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
     options,
     direction = 'vertical',
     gap = direction === 'vertical' ? 0 : 2,
-    activeColor = 'cyan',
-    selectedColor = 'green',
+    activeColor = 'primary',
+    selectedColor = 'success',
     isActive = true,
     fullWidth = false,
     state: externalState,
@@ -197,12 +197,12 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
       : chars.radio.unselected;
 
     const labelColor = opt.disabled
-      ? 'gray'
+      ? 'mutedForeground'
       : isFocused
         ? activeColor
         : isSelected
           ? selectedColor
-          : 'white';
+          : 'foreground';
 
     return Box(
       {
@@ -210,10 +210,10 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
         gap: 1,
         onClick: opt.disabled ? undefined : () => state.select(opt.value),
       },
-      Text({ color: isSelected ? selectedColor : 'gray' }, radio),
+      Text({ color: isSelected ? selectedColor : 'mutedForeground' }, radio),
       Text({ color: labelColor, dim: opt.disabled }, opt.label),
       opt.description
-        ? Text({ color: 'gray', dim: true }, ` ${opt.description}`)
+        ? Text({ color: 'mutedForeground', dim: true }, ` ${opt.description}`)
         : null
     );
   });
@@ -249,15 +249,15 @@ export interface InlineRadioProps {
  * InlineRadio - Single radio button display
  */
 export function InlineRadio(props: InlineRadioProps): VNode {
-  const { selected, label, disabled = false, color = 'cyan' } = props;
+  const { selected, label, disabled = false, color = 'primary' } = props;
   const chars = getChars();
 
   const radio = selected ? chars.radio.selected : chars.radio.unselected;
-  const labelColor = disabled ? 'gray' : selected ? color : 'white';
+  const labelColor = disabled ? 'mutedForeground' : selected ? color : 'foreground';
 
   return Box(
     { flexDirection: 'row', gap: 1, onClick: disabled ? undefined : props.onClick },
-    Text({ color: selected ? color : 'gray' }, radio),
+    Text({ color: selected ? color : 'mutedForeground' }, radio),
     Text({ color: labelColor, dim: disabled }, label)
   );
 }

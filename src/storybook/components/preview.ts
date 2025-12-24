@@ -13,7 +13,7 @@ import { Divider } from '../../primitives/divider.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, ControlDefinition } from '../types.js';
 import type { Navigator, ViewMode } from '../core/navigator.js';
-import { themeColor } from '../../core/theme.js';
+import { getTheme } from '../../core/theme.js';
 
 export interface PreviewProps {
   navigator: Navigator;
@@ -28,6 +28,7 @@ function StoryContent(props: {
   story: Story;
   controlValues: Record<string, any>;
 }): VNode {
+  const theme = getTheme();
   const { story, controlValues } = props;
 
   try {
@@ -38,10 +39,10 @@ function StoryContent(props: {
         flexDirection: 'column',
         padding: 1,
         borderStyle: 'single',
-        borderColor: themeColor('error'),
+        borderColor: theme.accents.critical,
       },
-      Text({ color: themeColor('error'), bold: true }, 'Render Error'),
-      Text({ color: themeColor('error') }, error.message || String(error))
+      Text({ color: theme.accents.critical, bold: true }, 'Render Error'),
+      Text({ color: theme.accents.critical }, error.message || String(error))
     );
   }
 }
@@ -50,17 +51,18 @@ function StoryContent(props: {
  * Render story metadata header
  */
 function StoryHeader(props: { story: Story }): VNode {
+  const theme = getTheme();
   const { story } = props;
 
   return Box(
     { flexDirection: 'column', marginBottom: 1 },
     Box(
       {},
-      Text({ color: themeColor('mutedForeground') }, `${story.category} / `),
-      Text({ color: themeColor('primary'), bold: true }, story.name)
+      Text({ color: theme.foreground.muted }, `${story.category} / `),
+      Text({ color: theme.palette.primary[500], bold: true }, story.name)
     ),
     story.description &&
-      Text({ color: themeColor('mutedForeground'), dim: true }, story.description)
+      Text({ color: theme.foreground.muted, dim: true }, story.description)
   );
 }
 
@@ -71,24 +73,25 @@ function ControlsInfo(props: {
   controls: Record<string, ControlDefinition>;
   values: Record<string, any>;
 }): VNode {
+  const theme = getTheme();
   const { controls, values } = props;
   const entries = Object.entries(controls);
 
   if (entries.length === 0) {
-    return Text({ color: themeColor('mutedForeground'), dim: true }, 'No controls defined');
+    return Text({ color: theme.foreground.muted, dim: true }, 'No controls defined');
   }
 
   return Box(
     { flexDirection: 'column' },
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('foreground'), bold: true }, 'Controls')
+      Text({ color: theme.foreground.primary, bold: true }, 'Controls')
     ),
     ...entries.map(([key, control]) =>
       Box(
         {},
-        Text({ color: themeColor('mutedForeground') }, `${control.label}: `),
-        Text({ color: themeColor('primary') }, formatValue(values[key], control.type))
+        Text({ color: theme.foreground.muted }, `${control.label}: `),
+        Text({ color: theme.palette.primary[500] }, formatValue(values[key], control.type))
       )
     )
   );
@@ -116,14 +119,15 @@ function formatValue(value: any, type: string): string {
  * Render the preview panel in preview mode
  */
 function PreviewMode(props: PreviewProps): VNode {
+  const theme = getTheme();
   const { navigator, controlValues, isFocused } = props;
   const story = navigator.currentStory();
 
   if (!story) {
     return Box(
       { padding: 2, flexDirection: 'column' },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected'),
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'Select a story from the sidebar')
+      Text({ color: theme.foreground.muted, dim: true }, 'No story selected'),
+      Text({ color: theme.foreground.muted, dim: true }, 'Select a story from the sidebar')
     );
   }
 
@@ -138,7 +142,7 @@ function PreviewMode(props: PreviewProps): VNode {
         marginTop: 1,
         padding: 1,
         borderStyle: 'round',
-        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+        borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
       },
       StoryContent({ story, controlValues })
     ),
@@ -151,13 +155,14 @@ function PreviewMode(props: PreviewProps): VNode {
  * Render the preview panel in playground mode
  */
 function PlaygroundMode(props: PreviewProps): VNode {
+  const theme = getTheme();
   const { navigator, controlValues, isFocused } = props;
   const story = navigator.currentStory();
 
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
+      Text({ color: theme.foreground.muted, dim: true }, 'No story selected')
     );
   }
 
@@ -166,8 +171,8 @@ function PlaygroundMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('warning'), bold: true }, 'Playground: '),
-      Text({ color: themeColor('foreground') }, story.name)
+      Text({ color: theme.accents.warning, bold: true }, 'Playground: '),
+      Text({ color: theme.foreground.primary }, story.name)
     ),
     // Two columns: preview and controls
     Box(
@@ -177,7 +182,7 @@ function PlaygroundMode(props: PreviewProps): VNode {
         {
           flexGrow: 1,
           borderStyle: 'single',
-          borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+          borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
           padding: 1,
         },
         StoryContent({ story, controlValues })
@@ -186,7 +191,7 @@ function PlaygroundMode(props: PreviewProps): VNode {
     // Hint
     Box(
       { marginTop: 1 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'Tab to switch to controls panel')
+      Text({ color: theme.foreground.muted, dim: true }, 'Tab to switch to controls panel')
     )
   );
 }
@@ -195,13 +200,14 @@ function PlaygroundMode(props: PreviewProps): VNode {
  * Render the preview panel in comparatives mode
  */
 function ComparativesMode(props: PreviewProps): VNode {
+  const theme = getTheme();
   const { navigator, controlValues, isFocused } = props;
   const story = navigator.currentStory();
 
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
+      Text({ color: theme.foreground.muted, dim: true }, 'No story selected')
     );
   }
 
@@ -231,8 +237,8 @@ function ComparativesMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('success'), bold: true }, 'Comparatives: '),
-      Text({ color: themeColor('foreground') }, story.name)
+      Text({ color: theme.accents.positive, bold: true }, 'Comparatives: '),
+      Text({ color: theme.foreground.primary }, story.name)
     ),
     // Grid of variants
     Box(
@@ -242,12 +248,12 @@ function ComparativesMode(props: PreviewProps): VNode {
           {
             flexDirection: 'column',
             borderStyle: 'single',
-            borderColor: themeColor('border'),
+            borderColor: theme.borders.default,
             padding: 1,
           },
           Box(
             { marginBottom: 1 },
-            Text({ color: themeColor('primary'), bold: true }, variant.label)
+            Text({ color: theme.palette.primary[500], bold: true }, variant.label)
           ),
           StoryContent({ story, controlValues: variant.values })
         )
@@ -256,7 +262,7 @@ function ComparativesMode(props: PreviewProps): VNode {
     // Hint
     Box(
       { marginTop: 1 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, `Showing ${displayVariants.length} variants`)
+      Text({ color: theme.foreground.muted, dim: true }, `Showing ${displayVariants.length} variants`)
     )
   );
 }
@@ -265,13 +271,14 @@ function ComparativesMode(props: PreviewProps): VNode {
  * Render the preview panel in docs mode
  */
 function DocsMode(props: PreviewProps): VNode {
+  const theme = getTheme();
   const { navigator, controlValues, isFocused } = props;
   const story = navigator.currentStory();
 
   if (!story) {
     return Box(
       { padding: 2 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'No story selected')
+      Text({ color: theme.foreground.muted, dim: true }, 'No story selected')
     );
   }
 
@@ -282,20 +289,20 @@ function DocsMode(props: PreviewProps): VNode {
     // Header
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('accent'), bold: true }, 'Documentation: '),
-      Text({ color: themeColor('foreground') }, story.name)
+      Text({ color: theme.accents.highlight, bold: true }, 'Documentation: '),
+      Text({ color: theme.foreground.primary }, story.name)
     ),
     Divider({}),
     // Description
     Box(
       { marginTop: 1, marginBottom: 1 },
-      Text({ color: themeColor('foreground') }, story.description || 'No description provided.')
+      Text({ color: theme.foreground.primary }, story.description || 'No description provided.')
     ),
     // Category
     Box(
       {},
-      Text({ color: themeColor('mutedForeground') }, 'Category: '),
-      Text({ color: themeColor('primary') }, story.category)
+      Text({ color: theme.foreground.muted }, 'Category: '),
+      Text({ color: theme.palette.primary[500] }, story.category)
     ),
     // Controls API
     controls.length > 0 &&
@@ -303,18 +310,18 @@ function DocsMode(props: PreviewProps): VNode {
         { flexDirection: 'column', marginTop: 1 },
         Box(
           { marginBottom: 1 },
-          Text({ color: themeColor('foreground'), bold: true }, 'Props/Controls')
+          Text({ color: theme.foreground.primary, bold: true }, 'Props/Controls')
         ),
         ...controls.map(([key, control]) =>
           Box(
             { flexDirection: 'column', marginBottom: 1 },
             Box(
               {},
-              Text({ color: themeColor('primary') }, key),
-              Text({ color: themeColor('mutedForeground') }, `: ${control.type}`)
+              Text({ color: theme.palette.primary[500] }, key),
+              Text({ color: theme.foreground.muted }, `: ${control.type}`)
             ),
-            Text({ color: themeColor('mutedForeground'), dim: true }, `  ${control.label}`),
-            Text({ color: themeColor('mutedForeground'), dim: true }, `  Default: ${formatValue(control.defaultValue, control.type)}`)
+            Text({ color: theme.foreground.muted, dim: true }, `  ${control.label}`),
+            Text({ color: theme.foreground.muted, dim: true }, `  Default: ${formatValue(control.defaultValue, control.type)}`)
           )
         )
       ),
@@ -323,12 +330,12 @@ function DocsMode(props: PreviewProps): VNode {
       { marginTop: 1, flexDirection: 'column' },
       Box(
         { marginBottom: 1 },
-        Text({ color: themeColor('foreground'), bold: true }, 'Preview')
+        Text({ color: theme.foreground.primary, bold: true }, 'Preview')
       ),
       Box(
         {
           borderStyle: 'round',
-          borderColor: themeColor('border'),
+          borderColor: theme.borders.default,
           padding: 1,
         },
         StoryContent({ story, controlValues })
@@ -341,6 +348,7 @@ function DocsMode(props: PreviewProps): VNode {
  * Main Preview component
  */
 export function Preview(props: PreviewProps): VNode {
+  const theme = getTheme();
   const { navigator, controlValues, isFocused = false } = props;
   const state = navigator.state();
 
@@ -349,16 +357,16 @@ export function Preview(props: PreviewProps): VNode {
       flexDirection: 'column',
       flexGrow: 1,
       borderStyle: 'single',
-      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+      borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
     },
     // Mode indicator
     Box(
       {
         borderStyle: 'single',
-        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+        borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
         paddingX: 1,
       },
-      Text({ color: themeColor('mutedForeground') }, 'Mode: '),
+      Text({ color: theme.foreground.muted }, 'Mode: '),
       Text({ color: getModeColor(state.viewMode), bold: true }, state.viewMode.toUpperCase())
     ),
     // Content based on mode
@@ -373,17 +381,18 @@ export function Preview(props: PreviewProps): VNode {
  * Get color for view mode
  */
 function getModeColor(mode: ViewMode): string {
+  const theme = getTheme();
   switch (mode) {
     case 'preview':
-      return themeColor('primary');
+      return theme.palette.primary[500];
     case 'playground':
-      return themeColor('warning');
+      return theme.accents.warning;
     case 'comparatives':
-      return themeColor('success');
+      return theme.accents.positive;
     case 'docs':
-      return themeColor('accent');
+      return theme.accents.highlight;
     default:
-      return themeColor('foreground');
+      return theme.foreground.primary;
   }
 }
 
@@ -412,6 +421,7 @@ export function ModeSwitcher(props: {
   currentMode: ViewMode;
   isFocused?: boolean;
 }): VNode {
+  const theme = getTheme();
   const { currentMode, isFocused } = props;
   const modes: Array<{ mode: ViewMode; key: string; label: string }> = [
     { mode: 'preview', key: 'p', label: 'Preview' },
@@ -427,7 +437,7 @@ export function ModeSwitcher(props: {
         {},
         Text(
           {
-            color: currentMode === mode ? getModeColor(mode) : themeColor('mutedForeground'),
+            color: currentMode === mode ? getModeColor(mode) : theme.foreground.muted,
             bold: currentMode === mode,
           },
           `[${key.toUpperCase()}] ${label}`

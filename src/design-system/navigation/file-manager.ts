@@ -771,9 +771,9 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
     width = '100%',
     height = 'auto',
     maxDepth = Infinity,
-    selectedStyle = { backgroundColor: 'blue', color: 'white' },
-    directoryStyle = { color: 'cyan', bold: true },
-    fileStyle = { color: 'white' },
+    selectedStyle = { backgroundColor: 'primary', color: 'primaryForeground' },
+    directoryStyle = { color: 'primary', bold: true },
+    fileStyle = { color: 'foreground' },
   } = options;
 
   const treeIcons = {
@@ -837,7 +837,7 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
         ...(isSelected ? selectedStyle : {}),
       },
       Text(
-        { color: 'gray' },
+        { color: 'mutedForeground' },
         treeLine
       ),
       Text({}, icon + ' '),
@@ -881,9 +881,9 @@ export function FileList(options: FileListOptions): VNode {
     columns,
     width = '100%',
     height = 'auto',
-    selectedStyle = { backgroundColor: 'blue', color: 'white' },
-    directoryStyle = { color: 'cyan', bold: true },
-    fileStyle = { color: 'white' },
+    selectedStyle = { backgroundColor: 'primary', color: 'primaryForeground' },
+    directoryStyle = { color: 'primary', bold: true },
+    fileStyle = { color: 'foreground' },
     showSize = true,
     showModified = true,
     showPermissions = false,
@@ -957,7 +957,7 @@ export function FileList(options: FileListOptions): VNode {
 
           const style: TextStyleProps = col.field === 'name'
             ? (isDir ? directoryStyle : fileStyle)
-            : { color: 'gray' };
+            : { color: 'mutedForeground' };
 
           return Box(
             { width: col.width, flexShrink: 0 },
@@ -978,7 +978,7 @@ export function FileList(options: FileListOptions): VNode {
       Text({}, icon + ' '),
       Text(isDir ? directoryStyle : fileStyle, item.name),
       Spacer(),
-      When(showSize && !isDir, Text({ color: 'gray' }, formatFileSize(item.size)))
+      When(showSize && !isDir, Text({ color: 'mutedForeground' }, formatFileSize(item.size)))
     );
   }
 
@@ -989,7 +989,7 @@ export function FileList(options: FileListOptions): VNode {
         ...activeColumns.map(col =>
           Box(
             { width: col.width, flexShrink: 0 },
-            Text({ bold: true, color: 'yellow' }, col.label)
+            Text({ bold: true, color: 'warning' }, col.label)
           )
         )
       )
@@ -1027,9 +1027,9 @@ export function PathBreadcrumbs(options: PathBreadcrumbsOptions): VNode {
     maxSegments = 5,
     homePath,
     showHomeAs = '~',
-    separatorStyle = { color: 'gray' },
-    segmentStyle = { color: 'cyan' },
-    currentStyle = { color: 'white', bold: true },
+    separatorStyle = { color: 'mutedForeground' },
+    segmentStyle = { color: 'primary' },
+    currentStyle = { color: 'foreground', bold: true },
     width = '100%',
   } = options;
 
@@ -1106,8 +1106,8 @@ export function FileDetails(options: FileDetailsOptions): VNode {
     showMimeType = true,
     icons = unicodeIcons,
     width = '100%',
-    labelStyle = { color: 'gray' },
-    valueStyle = { color: 'white' },
+    labelStyle = { color: 'mutedForeground' },
+    valueStyle = { color: 'foreground' },
   } = options;
 
   const icon = getFileIcon(item, { ...unicodeIcons, ...icons });
@@ -1216,7 +1216,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
   if (item.size && item.size > maxPreviewSize) {
     return Box(
       { width, height, padding: 2, borderStyle: 'single' },
-      Text({ color: 'yellow' }, largeFileMessage)
+      Text({ color: 'warning' }, largeFileMessage)
     );
   }
 
@@ -1224,7 +1224,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
   if (!isTextFile && !content) {
     return Box(
       { width, height, padding: 2, borderStyle: 'single' },
-      Text({ color: 'gray' }, binaryMessage)
+      Text({ color: 'mutedForeground' }, binaryMessage)
     );
   }
 
@@ -1232,7 +1232,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
   if (!content) {
     return Box(
       { width, height, padding: 2, borderStyle: 'single' },
-      Text({ color: 'gray' }, placeholder)
+      Text({ color: 'mutedForeground' }, placeholder)
     );
   }
 
@@ -1248,7 +1248,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
         When(lineNumbers,
           Box(
             { width: lineNumberWidth + 2, flexShrink: 0 },
-            Text({ color: 'gray' }, lineNum + ' │')
+            Text({ color: 'mutedForeground' }, lineNum + ' │')
           )
         ),
         Text({}, line)
@@ -1320,7 +1320,7 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
   const statusBar = showStatusBar
     ? Box(
         { width: '100%', borderStyle: 'none', borderTop: true, paddingTop: 1 },
-        Text({ color: 'gray' }, statusText)
+        Text({ color: 'mutedForeground' }, statusText)
       )
     : null;
 
@@ -1395,7 +1395,7 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
         mainContent,
         Box(
           { width: previewWidth, borderStyle: 'single', padding: 1 },
-          Text({ color: 'gray' }, 'Preview')
+          Text({ color: 'mutedForeground' }, 'Preview')
         )
       ]
     });
@@ -1448,6 +1448,6 @@ export function DirectoryIndicator(options: {
     triangle: isExpanded ? '▾' : '▸',
   };
 
-  return Text({ color: 'gray' }, indicators[style]);
+  return Text({ color: 'mutedForeground' }, indicators[style]);
 }
 

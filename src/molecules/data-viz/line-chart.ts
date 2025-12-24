@@ -451,9 +451,9 @@ export function LineChart(options: LineChartOptions): VNode {
     showLegend,
     legendPosition = 'bottom',
     showGrid = false,
-    gridColor = 'gray',
+    gridColor = 'mutedForeground',
     title,
-    titleColor = 'white',
+    titleColor = 'foreground',
     borderStyle = 'none',
   } = options;
 
@@ -469,7 +469,7 @@ export function LineChart(options: LineChartOptions): VNode {
   ];
 
   if (series.length === 0 || series.every((s) => s.data.length === 0)) {
-    return Text({ color: 'gray', dim: true }, 'No data');
+    return Text({ color: 'mutedForeground', dim: true }, 'No data');
   }
 
   const bounds = calculateBounds(series, xAxis, yAxis);
@@ -512,7 +512,7 @@ export function LineChart(options: LineChartOptions): VNode {
       yLabels.push(
         Box(
           { height: i === 0 ? 1 : Math.round(chartLines.length / yTicks) },
-          Text({ color: 'gray', dim: true }, label)
+          Text({ color: 'mutedForeground', dim: true }, label)
         )
       );
     }
@@ -583,7 +583,7 @@ export function LineChart(options: LineChartOptions): VNode {
       return Box(
         { flexDirection: 'row', gap: 1 },
         Text({ color: s.color }, '●'),
-        Text({ color: 'gray' }, s.name)
+        Text({ color: 'mutedForeground' }, s.name)
       );
     });
 

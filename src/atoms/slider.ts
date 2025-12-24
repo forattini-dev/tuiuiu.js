@@ -190,9 +190,9 @@ export function Slider(props: SliderProps): VNode {
     showValue = true,
     showMinMax = false,
     formatValue = (v) => String(Math.round(v)),
-    filledColor = 'cyan',
-    emptyColor = 'gray',
-    thumbColor = 'white',
+    filledColor = 'primary',
+    emptyColor = 'border',
+    thumbColor = 'foreground',
     disabled = false,
     isActive = true,
     label,
@@ -263,13 +263,13 @@ export function Slider(props: SliderProps): VNode {
   }
 
   if (showMinMax) {
-    parts.push(Box({ marginRight: 1 }, Text({ color: 'gray', dim: true }, formatValue(min))));
+    parts.push(Box({ marginRight: 1 }, Text({ color: 'mutedForeground', dim: true }, formatValue(min))));
   }
 
   parts.push(Box({ flexDirection: 'row' }, ...trackParts));
 
   if (showMinMax) {
-    parts.push(Box({ marginLeft: 1 }, Text({ color: 'gray', dim: true }, formatValue(max))));
+    parts.push(Box({ marginLeft: 1 }, Text({ color: 'mutedForeground', dim: true }, formatValue(max))));
   }
 
   if (showValue) {
@@ -420,8 +420,8 @@ export function RangeSlider(props: RangeSliderOptions): VNode {
     width = 20,
     showValue = true,
     formatValue = (v) => String(Math.round(v)),
-    rangeColor = 'cyan',
-    trackColor = 'gray',
+    rangeColor = 'primary',
+    trackColor = 'border',
     isActive = true,
   } = props;
 
@@ -473,13 +473,13 @@ export function RangeSlider(props: RangeSliderOptions): VNode {
   const parts: VNode[] = [];
 
   if (showValue) {
-    parts.push(Box({ marginRight: 1 }, Text({ color: 'gray' }, formatValue(start))));
+    parts.push(Box({ marginRight: 1 }, Text({ color: 'mutedForeground' }, formatValue(start))));
   }
 
   parts.push(Box({ flexDirection: 'row' }, ...trackParts));
 
   if (showValue) {
-    parts.push(Box({ marginLeft: 1 }, Text({ color: 'gray' }, formatValue(end))));
+    parts.push(Box({ marginLeft: 1 }, Text({ color: 'mutedForeground' }, formatValue(end))));
   }
 
   return Box(

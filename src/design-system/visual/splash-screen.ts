@@ -182,8 +182,8 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
     asciiArt,
     coloredArt,
     font = 'block',
-    color = 'cyan',
-    secondaryColor = 'gray',
+    color = 'primary',
+    secondaryColor = 'mutedForeground',
     loadingType = 'spinner',
     spinnerStyle = 'dots',
     loadingMessage = 'Loading...',
@@ -360,8 +360,8 @@ export function TuiuiuSplash(props: Omit<SplashScreenProps, 'title' | 'asciiArt'
   return SplashScreen({
     asciiArt: TUIUIU_LOGO,
     subtitle: 'Zero-dependency Terminal UI',
-    color: 'cyan',
-    secondaryColor: 'gray',
+    color: 'primary',
+    secondaryColor: 'mutedForeground',
     loadingType: 'spinner',
     spinnerStyle: 'dots',
     loadingMessage: 'Initializing...',
@@ -376,7 +376,7 @@ export function MinimalSplash(props: SplashScreenProps): VNode | null {
   return SplashScreen({
     font: 'small',
     loadingType: 'dots',
-    secondaryColor: 'gray',
+    secondaryColor: 'mutedForeground',
     ...props,
   });
 }

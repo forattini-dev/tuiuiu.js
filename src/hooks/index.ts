@@ -46,6 +46,7 @@ export {
   useApp,
   initializeApp,
   cleanupApp,
+  setClearScreen,
   type InitAppOptions,
 } from './use-app.js';
 

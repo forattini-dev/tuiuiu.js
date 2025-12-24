@@ -283,7 +283,7 @@ export function Heatmap(props: HeatmapProps): VNode {
     showValues = false,
     formatValue = (v) => v.toFixed(0),
     showBorder = false,
-    borderColor = 'gray',
+    borderColor = 'border',
     interactive = false,
     isActive = true,
     state: externalState,
@@ -332,7 +332,7 @@ export function Heatmap(props: HeatmapProps): VNode {
       headerRow.push(
         Box(
           { marginRight: showBorder ? 0 : 1 },
-          Text({ color: 'gray', dim: true }, padded)
+          Text({ color: 'mutedForeground', dim: true }, padded)
         )
       );
       if (showBorder && i < columnHeaders.length - 1) {
@@ -353,7 +353,7 @@ export function Heatmap(props: HeatmapProps): VNode {
       rowCells.push(
         Box(
           { marginRight: 1 },
-          Text({ color: 'gray', dim: true }, rowHeaders[rowIdx]!.padEnd(maxRowHeaderLen))
+          Text({ color: 'mutedForeground', dim: true }, rowHeaders[rowIdx]!.padEnd(maxRowHeaderLen))
         )
       );
     }
@@ -581,7 +581,7 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
       if (spaces > 0) {
         monthLabels.push(Text({}, ' '.repeat(spaces)));
       }
-      monthLabels.push(Text({ color: 'gray', dim: true }, month.slice(0, 3)));
+      monthLabels.push(Text({ color: 'mutedForeground', dim: true }, month.slice(0, 3)));
       lastCol = col + 3;
     }
   }
@@ -596,7 +596,7 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
     const rowCells: VNode[] = [];
 
     if (showDays) {
-      rowCells.push(Text({ color: 'gray', dim: true }, (dayLabels[day] ?? '').padEnd(4)));
+      rowCells.push(Text({ color: 'mutedForeground', dim: true }, (dayLabels[day] ?? '').padEnd(4)));
     }
 
     for (let week = 0; week < weeksToShow; week++) {
@@ -605,7 +605,7 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
       const color = getColorForValue(normalized, scale);
       const char = isAscii ? (count > 0 ? '█' : '·') : '█';
 
-      rowCells.push(Text({ color: count > 0 ? color : 'gray' }, char));
+      rowCells.push(Text({ color: count > 0 ? color : 'mutedForeground' }, char));
     }
 
     rows.push(Box({ flexDirection: 'row' }, ...rowCells));
@@ -673,7 +673,7 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
 
   for (let month = 0; month < 12; month++) {
     const monthCells: VNode[] = [];
-    monthCells.push(Text({ color: 'gray', dim: true }, monthNames[month]!.padEnd(4)));
+    monthCells.push(Text({ color: 'mutedForeground', dim: true }, monthNames[month]!.padEnd(4)));
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -684,7 +684,7 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
       const color = getColorForValue(normalized, scale);
       const char = isAscii ? (count > 0 ? '#' : '·') : '█';
 
-      monthCells.push(Text({ color: count > 0 ? color : 'gray' }, char));
+      monthCells.push(Text({ color: count > 0 ? color : 'mutedForeground' }, char));
     }
 
     // Pad to 31 days
@@ -699,21 +699,21 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
   let legend: VNode | null = null;
   if (showLegend) {
     const legendItems: VNode[] = [
-      Text({ color: 'gray', dim: true }, 'Less '),
+      Text({ color: 'mutedForeground', dim: true }, 'Less '),
     ];
 
     for (let i = 0; i < scale.colors.length; i++) {
       legendItems.push(Text({ color: scale.colors[i] }, '█'));
     }
 
-    legendItems.push(Text({ color: 'gray', dim: true }, ' More'));
+    legendItems.push(Text({ color: 'mutedForeground', dim: true }, ' More'));
 
     legend = Box({ flexDirection: 'row', marginTop: 1 }, ...legendItems);
   }
 
   return Box(
     { flexDirection: 'column' },
-    Box({ marginBottom: 1 }, Text({ color: 'white', bold: true }, String(year))),
+    Box({ marginBottom: 1 }, Text({ color: 'foreground', bold: true }, String(year))),
     ...monthRows,
     legend
   );

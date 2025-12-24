@@ -190,7 +190,7 @@ export function Legend(props: LegendProps): VNode {
   const legendItems: VNode[] = items.map((item, idx) => {
     const isVisible = visibleItems[idx];
     const symbol = getSymbol(symbolType, item.symbol);
-    const textColor = item.color ?? 'gray';
+    const textColor = item.color ?? 'mutedForeground';
 
     // Build item content
     const itemContent: VNode[] = [];
@@ -210,7 +210,7 @@ export function Legend(props: LegendProps): VNode {
     itemContent.push(
       Text(
         {
-          color: 'gray',
+          color: 'mutedForeground',
           dim: !isVisible,
         },
         item.label
@@ -227,7 +227,7 @@ export function Legend(props: LegendProps): VNode {
         // Visual feedback for interactive mode
         ...(interactive && isVisible === false
           ? {
-              backgroundColor: 'gray',
+              backgroundColor: 'mutedForeground',
             }
           : {}),
       },

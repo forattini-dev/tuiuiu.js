@@ -15,7 +15,7 @@
 import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
-import { themeColor } from '../../core/theme.js';
+import { getTheme } from '../../core/theme.js';
 import { getChars, getRenderMode } from '../../core/capabilities.js';
 
 export type ProgressBarStyle = 'block' | 'smooth' | 'line' | 'dots' | 'braille' | 'ascii';
@@ -179,6 +179,7 @@ export function renderProgressBar(
   state: ReturnType<typeof createProgressBar>,
   options: ProgressBarOptions = {}
 ): VNode {
+  const theme = getTheme();
   const {
     width = 40,
     style = 'block',
@@ -187,8 +188,8 @@ export function renderProgressBar(
     showEta = false,
     showSpeed = false,
     speedUnit = '/s',
-    color = themeColor('info'),
-    emptyColor = themeColor('mutedForeground'),
+    color = theme.accents.info,
+    emptyColor = theme.foreground.muted,
     gradient,
     label,
     description,
@@ -356,35 +357,35 @@ export function renderProgressBar(
   const infoParts: VNode[] = [];
 
   if (showPercentage && !indeterminate) {
-    infoParts.push(Text({ color: themeColor('foreground') }, ` ${(progress * 100).toFixed(0)}%`));
+    infoParts.push(Text({ color: theme.foreground.primary }, ` ${(progress * 100).toFixed(0)}%`));
   }
 
   if (showValue && options.value !== undefined && options.max !== undefined) {
-    infoParts.push(Text({ color: themeColor('mutedForeground') }, ` ${options.value}/${options.max}`));
+    infoParts.push(Text({ color: theme.foreground.muted }, ` ${options.value}/${options.max}`));
   }
 
   if (showEta && !indeterminate) {
     const eta = state.getEta();
     if (isFinite(eta) && eta > 0) {
-      infoParts.push(Text({ color: themeColor('mutedForeground'), dim: true }, ` ETA: ${formatTime(eta)}`));
+      infoParts.push(Text({ color: theme.foreground.muted, dim: true }, ` ETA: ${formatTime(eta)}`));
     }
   }
 
   if (showSpeed) {
     const speed = options.speed ?? state.getSpeed();
     if (speed > 0) {
-      infoParts.push(Text({ color: themeColor('mutedForeground'), dim: true }, ` ${formatNumber(speed)}${speedUnit}`));
+      infoParts.push(Text({ color: theme.foreground.muted, dim: true }, ` ${formatNumber(speed)}${speedUnit}`));
     }
   }
 
   return Box(
     { flexDirection: 'row', gap: 1 },
-    label ? Text({ color: themeColor('foreground') }, `${label} `) : Text({}, ''),
+    label ? Text({ color: theme.foreground.primary }, `${label} `) : Text({}, ''),
     Text({}, leftBorder),
     coloredBar,
     Text({}, rightBorder),
     ...infoParts,
-    description ? Text({ color: themeColor('mutedForeground'), dim: true }, ` ${description}`) : Text({}, '')
+    description ? Text({ color: theme.foreground.muted, dim: true }, ` ${description}`) : Text({}, '')
   );
 }
 
@@ -392,14 +393,15 @@ export function renderProgressBar(
  * Simple standalone progress bar component
  */
 export function ProgressBar(options: ProgressBarOptions): VNode {
+  const theme = getTheme();
   const {
     value = 0,
     max = value > 1 ? 100 : 1,
     width = 40,
     style = 'block',
     showPercentage = true,
-    color = themeColor('info'),
-    emptyColor = themeColor('mutedForeground'),
+    color = theme.accents.info,
+    emptyColor = theme.foreground.muted,
     label,
     indeterminate = false,
     indeterminateStyle = 'classic',
@@ -512,12 +514,12 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
 
   return Box(
     { flexDirection: 'row', gap: 1 },
-    label ? Text({ color: themeColor('foreground') }, `${label} `) : Text({}, ''),
+    label ? Text({ color: theme.foreground.primary }, `${label} `) : Text({}, ''),
     Text({}, leftBorder),
     coloredBar,
     Text({}, rightBorder),
     showPercentage && !indeterminate
-      ? Text({ color: themeColor('foreground') }, ` ${(progress * 100).toFixed(0)}%`)
+      ? Text({ color: theme.foreground.primary }, ` ${(progress * 100).toFixed(0)}%`)
       : Text({}, '')
   );
 }
@@ -531,6 +533,7 @@ export function MultiProgressBar(options: {
   width?: number;
   showLegend?: boolean;
 }): VNode {
+  const theme = getTheme();
   const { segments, total, width = 40, showLegend = true } = options;
   const chars = getChars();
 
@@ -549,7 +552,7 @@ export function MultiProgressBar(options: {
   // Fill remaining with empty
   const emptyWidth = width - usedWidth;
   if (emptyWidth > 0) {
-    barParts.push(Text({ color: themeColor('mutedForeground'), dim: true }, chars.gauge.empty.repeat(emptyWidth)));
+    barParts.push(Text({ color: theme.foreground.muted, dim: true }, chars.gauge.empty.repeat(emptyWidth)));
   }
 
   // Build legend
@@ -561,7 +564,7 @@ export function MultiProgressBar(options: {
           Box(
             { flexDirection: 'row', marginRight: 2 },
             Text({ color: segment.color }, `${chars.bullet} `),
-            Text({ color: themeColor('mutedForeground') }, `${segment.label}: ${segment.value}`)
+            Text({ color: theme.foreground.muted }, `${segment.label}: ${segment.value}`)
           )
         );
       }

@@ -48,19 +48,19 @@ export interface MarkdownOptions {
 }
 
 const DEFAULT_THEME = {
-  h1: 'magenta',
-  h2: 'cyan',
-  h3: 'blue',
-  h4: 'green',
-  h5: 'yellow',
-  h6: 'white',
-  bold: 'white',
-  italic: 'white',
-  link: 'blue',
-  code: 'cyan',
-  blockquote: 'gray',
-  listMarker: 'cyan',
-  hr: 'gray',
+  h1: 'accent',
+  h2: 'primary',
+  h3: 'info',
+  h4: 'success',
+  h5: 'warning',
+  h6: 'foreground',
+  bold: 'foreground',
+  italic: 'foreground',
+  link: 'info',
+  code: 'primary',
+  blockquote: 'mutedForeground',
+  listMarker: 'primary',
+  hr: 'border',
 };
 
 interface ParsedNode {
@@ -245,9 +245,9 @@ function parseInline(text: string, theme: typeof DEFAULT_THEME): VNode[] {
     // Inline code
     { regex: /`([^`]+)`/g, render: (m: string) => Text({ color: theme.code, backgroundColor: 'black' }, ` ${m} `) },
     // Links
-    { regex: /\[([^\]]+)\]\(([^)]+)\)/g, render: (m: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: theme.link, underline: true }, m), Text({ color: 'gray', dim: true }, ` (${url})`)) },
+    { regex: /\[([^\]]+)\]\(([^)]+)\)/g, render: (m: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: theme.link, underline: true }, m), Text({ color: 'mutedForeground', dim: true }, ` (${url})`)) },
     // Images
-    { regex: /!\[([^\]]*)\]\(([^)]+)\)/g, render: (alt: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: 'yellow' }, '🖼️ '), Text({ color: 'gray' }, alt || 'image'), Text({ color: 'gray', dim: true }, ` (${url})`)) },
+    { regex: /!\[([^\]]*)\]\(([^)]+)\)/g, render: (alt: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: 'warning' }, '🖼️ '), Text({ color: 'mutedForeground' }, alt || 'image'), Text({ color: 'mutedForeground', dim: true }, ` (${url})`)) },
   ];
 
   // Simple approach: process text linearly
@@ -405,10 +405,10 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
       tableRows.push(
         Box(
           { flexDirection: 'row' },
-          Text({ color: 'gray' }, '│'),
+          Text({ color: 'border' }, '│'),
           ...headers.map((h, i) => [
-            Text({ color: 'white', bold: true }, ` ${h.padEnd(widths[i] - 1)}`),
-            Text({ color: 'gray' }, '│'),
+            Text({ color: 'foreground', bold: true }, ` ${h.padEnd(widths[i] - 1)}`),
+            Text({ color: 'border' }, '│'),
           ]).flat()
         )
       );
@@ -417,10 +417,10 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
       tableRows.push(
         Box(
           { flexDirection: 'row' },
-          Text({ color: 'gray' }, '├'),
+          Text({ color: 'border' }, '├'),
           ...widths.map((w, i) => [
-            Text({ color: 'gray' }, '─'.repeat(w)),
-            Text({ color: 'gray' }, i < widths.length - 1 ? '┼' : '┤'),
+            Text({ color: 'border' }, '─'.repeat(w)),
+            Text({ color: 'border' }, i < widths.length - 1 ? '┼' : '┤'),
           ]).flat()
         )
       );
@@ -430,10 +430,10 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
         tableRows.push(
           Box(
             { flexDirection: 'row' },
-            Text({ color: 'gray' }, '│'),
+            Text({ color: 'border' }, '│'),
             ...headers.map((_, i) => [
               Text({}, ` ${(row[i] || '').padEnd(widths[i] - 1)}`),
-              Text({ color: 'gray' }, '│'),
+              Text({ color: 'border' }, '│'),
             ]).flat()
           )
         );

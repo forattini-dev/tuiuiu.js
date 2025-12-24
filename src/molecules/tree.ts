@@ -374,9 +374,9 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
   const {
     showGuides = true,
     indentSize = 2,
-    activeColor = 'cyan',
-    selectedColor = 'green',
-    guideColor = 'gray',
+    activeColor = 'primary',
+    selectedColor = 'success',
+    guideColor = 'mutedForeground',
     selectionMode = 'single',
     isActive = true,
     label,
@@ -471,12 +471,12 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
 
     // Determine colors
     const labelColor = node.disabled
-      ? 'gray'
+      ? 'mutedForeground'
       : isCursor
         ? activeColor
         : isSelected
           ? selectedColor
-          : node.color ?? 'white';
+          : node.color ?? 'foreground';
 
     // Selection indicator
     let selectionIndicator = '';
@@ -493,11 +493,11 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
 
     return Box(
       { flexDirection: 'row' },
-      Text({ color: isCursor ? activeColor : 'gray' }, cursorIndicator),
+      Text({ color: isCursor ? activeColor : 'mutedForeground' }, cursorIndicator),
       showGuides ? Text({ color: guideColor, dim: true }, prefix) : null,
-      Text({ color: hasChildren ? (isExpanded ? 'yellow' : 'blue') : 'gray' }, expandIndicator),
+      Text({ color: hasChildren ? (isExpanded ? 'warning' : 'info') : 'mutedForeground' }, expandIndicator),
       selectionMode !== 'none'
-        ? Text({ color: isSelected ? selectedColor : 'gray' }, selectionIndicator)
+        ? Text({ color: isSelected ? selectedColor : 'mutedForeground' }, selectionIndicator)
         : null,
       icon ? Text({}, icon) : null,
       Text({ color: labelColor, bold: isCursor, dim: node.disabled }, node.label)

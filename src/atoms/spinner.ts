@@ -18,7 +18,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal, createEffect } from '../primitives/signal.js';
-import { themeColor } from '../core/theme.js';
+import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 /** Available spinner styles - 60+ options */
@@ -712,15 +712,16 @@ export function renderSpinner(
   state: ReturnType<typeof createSpinner>,
   options: SpinnerOptions = {}
 ): VNode {
+  const theme = getTheme();
   const {
     showTime = true,
     showTokens = false,
     tokens = 0,
     showProgress = false,
     progress = 0,
-    color = themeColor('info'),
-    textColor = themeColor('foreground'),
-    infoColor = themeColor('mutedForeground'),
+    color = theme.accents.info,
+    textColor = theme.foreground.primary,
+    infoColor = theme.foreground.muted,
     hint = 'esc to interrupt',
   } = options;
 

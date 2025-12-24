@@ -271,11 +271,11 @@ export function Table(options: TableOptions): VNode {
     columns,
     data,
     borderStyle = 'single',
-    borderColor = 'gray',
+    borderColor = 'border',
     showHeader = true,
-    headerStyle = { color: 'white', bold: true },
+    headerStyle = { color: 'foreground', bold: true },
     striped = false,
-    stripeColor = 'gray',
+    stripeColor = 'mutedForeground',
     padding = 1,
     rowSeparator = false,
     maxWidth,
@@ -338,7 +338,7 @@ export function Table(options: TableOptions): VNode {
       headerCells.push(
         Text({ color: borderColor }, padStr),
         Text({
-          color: headerStyle.color ?? col.headerColor ?? 'white',
+          color: headerStyle.color ?? col.headerColor ?? 'foreground',
           bold: headerStyle.bold,
           backgroundColor: headerStyle.backgroundColor,
         }, cellContent),
@@ -489,8 +489,8 @@ export function KeyValueTable(options: {
     entries,
     keyWidth,
     borderStyle = 'none',
-    keyColor = 'cyan',
-    valueColor = 'white',
+    keyColor = 'primary',
+    valueColor = 'foreground',
   } = options;
 
   // Convert object to array if needed

@@ -11,6 +11,21 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { VStack, HStack, Spacer, Divider } from './stack.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
+import type { SemanticVariant } from '../core/theme-types.js';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+/** Variant type for Header component */
+export type HeaderVariant = SemanticVariant;
+
+/** Variant type for StatusBar component */
+export type StatusBarVariant = 'primary' | 'info' | 'success' | 'warning' | 'danger' | 'default';
+
+/** Variant type for Page component */
+export type PageVariant = 'primary' | 'secondary' | 'default';
 
 // =============================================================================
 // PAGE - Single page layout
@@ -19,16 +34,16 @@ import { VStack, HStack, Spacer, Divider } from './stack.js';
 export interface PageProps {
   /** Page title (displayed at top) */
   title?: string;
-  /** Title color */
-  titleColor?: string;
   /** Subtitle or description */
   subtitle?: string;
+  /** Semantic variant for theming */
+  variant?: PageVariant;
+  /** Custom background color (overrides variant) */
+  color?: string;
   /** Show border around page */
   border?: boolean;
   /** Border style */
   borderStyle?: 'single' | 'double' | 'round' | 'bold';
-  /** Border color */
-  borderColor?: string;
   /** Header content (overrides title) */
   header?: VNode;
   /** Footer content */
@@ -70,13 +85,14 @@ export interface PageProps {
  * ```
  */
 export function Page(props: PageProps): VNode {
+  const theme = getTheme();
   const {
     title,
-    titleColor = 'cyan',
     subtitle,
+    variant = 'default',
+    color,
     border = false,
     borderStyle = 'single',
-    borderColor = 'gray',
     header,
     footer,
     divider = true,
@@ -86,6 +102,27 @@ export function Page(props: PageProps): VNode {
     height,
     children,
   } = props;
+
+  // Resolve colors from theme tokens or custom color
+  let titleColor: string;
+  let subtitleColor: string;
+  let borderColor: string;
+  let backgroundColor: string | undefined;
+
+  if (color) {
+    // Custom color: use getContrastColor for text
+    backgroundColor = color;
+    titleColor = getContrastColor(color);
+    subtitleColor = getContrastColor(color); // Will use dim in the Text component
+    borderColor = color;
+  } else {
+    // Use theme tokens based on variant
+    const tokens = theme.components.page[variant] ?? theme.components.page.default;
+    backgroundColor = tokens.bg;
+    titleColor = tokens.titleFg;
+    subtitleColor = tokens.subtitleFg;
+    borderColor = tokens.border;
+  }
 
   const termWidth = process.stdout.columns || 80;
   const termHeight = process.stdout.rows || 24;
@@ -106,7 +143,7 @@ export function Page(props: PageProps): VNode {
       Text({ color: titleColor, bold: true }, title),
     ];
     if (subtitle) {
-      headerContent.push(Text({ color: 'gray', dim: true }, ` - ${subtitle}`));
+      headerContent.push(Text({ color: subtitleColor, dim: true }, ` - ${subtitle}`));
     }
     parts.push(HStack({ children: headerContent }));
     if (divider) {
@@ -144,6 +181,7 @@ export function Page(props: PageProps): VNode {
       {
         borderStyle,
         borderColor,
+        backgroundColor,
         padding,
         width: pageWidth,
         height: pageHeight,
@@ -153,7 +191,10 @@ export function Page(props: PageProps): VNode {
     );
   }
 
-  return pageContent;
+  return Box(
+    { backgroundColor, flexDirection: 'column' },
+    pageContent
+  );
 }
 
 // =============================================================================
@@ -215,6 +256,9 @@ export interface AppShellProps {
  * ```
  */
 export function AppShell(props: AppShellProps): VNode {
+  const theme = getTheme();
+  const tokens = theme.components.appshell;
+
   const {
     header,
     headerHeight,
@@ -226,7 +270,7 @@ export function AppShell(props: AppShellProps): VNode {
     footerHeight = 1,
     dividers = true,
     dividerStyle = 'line',
-    dividerColor = 'gray',
+    dividerColor = props.dividerColor ?? tokens.dividerFg,
     padding = 0,
     children,
   } = props;
@@ -339,15 +383,15 @@ export function AppShell(props: AppShellProps): VNode {
 // =============================================================================
 
 export interface StatusBarProps {
-  /** Left section content */
-  left?: VNode;
-  /** Center section content */
-  center?: VNode;
-  /** Right section content */
-  right?: VNode;
-  /** Background color */
-  backgroundColor?: string;
-  /** Text color */
+  /** Left section content (string auto-colored, VNode used as-is) */
+  left?: string | VNode;
+  /** Center section content (string auto-colored, VNode used as-is) */
+  center?: string | VNode;
+  /** Right section content (string auto-colored, VNode used as-is) */
+  right?: string | VNode;
+  /** Semantic variant for theming */
+  variant?: StatusBarVariant;
+  /** Custom background color (overrides variant) */
   color?: string;
   /** Separator character between items */
   separator?: string;
@@ -367,32 +411,60 @@ export interface StatusBarProps {
  * ```
  */
 export function StatusBar(props: StatusBarProps): VNode {
+  const theme = getTheme();
   const {
     left,
     center,
     right,
-    backgroundColor,
-    color = 'white',
+    variant = 'default',
+    color,
     separator = ' │ ',
   } = props;
 
+  // Resolve colors from theme tokens or custom color
+  let backgroundColor: string;
+  let textColor: string;
+
+  if (color) {
+    // Custom color: use getContrastColor for text
+    backgroundColor = color;
+    textColor = getContrastColor(color);
+  } else {
+    // Use theme tokens based on variant
+    const tokens = theme.components.statusbar[variant] ?? theme.components.statusbar.default;
+    backgroundColor = tokens.bg;
+    textColor = tokens.fg;
+  }
+
   const termWidth = process.stdout.columns || 80;
+
+  // Helper to convert string to Text with correct color, or pass VNode through
+  const toNode = (content: string | VNode | undefined): VNode | null => {
+    if (content === undefined) return null;
+    if (typeof content === 'string') {
+      return Text({ color: textColor }, content);
+    }
+    return content;
+  };
 
   const parts: VNode[] = [];
 
-  if (left) {
-    parts.push(left);
+  const leftNode = toNode(left);
+  if (leftNode) {
+    parts.push(leftNode);
   }
 
   parts.push(Spacer());
 
-  if (center) {
-    parts.push(center);
+  const centerNode = toNode(center);
+  if (centerNode) {
+    parts.push(centerNode);
     parts.push(Spacer());
   }
 
-  if (right) {
-    parts.push(right);
+  const rightNode = toNode(right);
+  if (rightNode) {
+    parts.push(rightNode);
   }
 
   return Box(
@@ -414,20 +486,18 @@ export function StatusBar(props: StatusBarProps): VNode {
 export interface HeaderProps {
   /** App title */
   title: string;
-  /** Title color */
-  titleColor?: string;
   /** Subtitle/version */
   subtitle?: string;
-  /** Left actions/icons */
-  leftActions?: VNode;
-  /** Right actions/menu */
-  rightActions?: VNode;
-  /** Background color */
-  backgroundColor?: string;
+  /** Semantic variant for theming */
+  variant?: HeaderVariant;
+  /** Custom background color (overrides variant) */
+  color?: string;
+  /** Left actions/icons (string auto-colored, VNode used as-is) */
+  leftActions?: string | VNode;
+  /** Right actions/menu (string auto-colored, VNode used as-is) */
+  rightActions?: string | VNode;
   /** Show bottom border */
   border?: boolean;
-  /** Border color */
-  borderColor?: string;
 }
 
 /**
@@ -447,37 +517,72 @@ export interface HeaderProps {
  * ```
  */
 export function Header(props: HeaderProps): VNode {
+  const theme = getTheme();
   const {
     title,
-    titleColor = 'white',
     subtitle,
+    variant = 'default',
+    color,
     leftActions,
     rightActions,
-    backgroundColor,
     border = false,
-    borderColor = 'gray',
   } = props;
 
+  // Resolve colors from theme tokens or custom color
+  let backgroundColor: string;
+  let titleColor: string;
+  let subtitleColor: string;
+  let borderColor: string;
+  let actionColor: string;
+
+  if (color) {
+    // Custom color: use getContrastColor for text
+    backgroundColor = color;
+    titleColor = getContrastColor(color);
+    subtitleColor = getContrastColor(color); // Will use dim in the Text component
+    actionColor = getContrastColor(color);
+    borderColor = color;
+  } else {
+    // Use theme tokens based on variant
+    const tokens = theme.components.header[variant] ?? theme.components.header.default;
+    backgroundColor = tokens.bg;
+    titleColor = tokens.titleFg;
+    subtitleColor = tokens.subtitleFg;
+    actionColor = tokens.fg;
+    borderColor = tokens.border;
+  }
+
   const termWidth = process.stdout.columns || 80;
+
+  // Helper to convert string to Text with correct color, or pass VNode through
+  const toNode = (content: string | VNode | undefined): VNode | null => {
+    if (content === undefined) return null;
+    if (typeof content === 'string') {
+      return Text({ color: actionColor }, content);
+    }
+    return content;
+  };
 
   const titleNode = Box(
     { flexDirection: 'row' },
     Text({ color: titleColor, bold: true }, title),
-    subtitle ? Text({ color: 'gray', dim: true }, ` ${subtitle}`) : Box({})
+    subtitle ? Text({ color: subtitleColor, dim: true }, ` ${subtitle}`) : Box({})
   );
 
   const parts: VNode[] = [];
 
-  if (leftActions) {
-    parts.push(leftActions);
+  const leftNode = toNode(leftActions);
+  if (leftNode) {
+    parts.push(leftNode);
     parts.push(Box({ width: 2 }));
   }
 
   parts.push(titleNode);
   parts.push(Spacer());
 
-  if (rightActions) {
-    parts.push(rightActions);
+  const rightNode = toNode(rightActions);
+  if (rightNode) {
+    parts.push(rightNode);
   }
 
   const headerContent = Box(

@@ -91,8 +91,8 @@ export function Tooltip(props: TooltipOptions): VNode | null {
     position = 'top',
     arrow = true,
     borderStyle = 'round',
-    borderColor = 'gray',
-    color = 'white',
+    borderColor = 'border',
+    color = 'foreground',
     backgroundColor,
     visible = true,
     maxWidth,
@@ -271,7 +271,7 @@ export function HelpTooltip(props: HelpTooltipOptions): VNode {
     position = 'right',
     active = false,
     icon = '?',
-    iconColor = 'cyan',
+    iconColor = 'primary',
   } = props;
 
   const iconNode = Text({ color: iconColor }, `[${icon}]`);
@@ -308,19 +308,19 @@ export interface InfoBoxOptions {
 }
 
 const INFO_BOX_STYLES: Record<InfoBoxType, { icon: string; color: ColorValue }> = {
-  info: { icon: 'ℹ', color: 'blue' },
-  warning: { icon: '⚠', color: 'yellow' },
-  error: { icon: '✖', color: 'red' },
-  success: { icon: '✔', color: 'green' },
-  tip: { icon: '💡', color: 'cyan' },
+  info: { icon: 'ℹ', color: 'info' },
+  warning: { icon: '⚠', color: 'warning' },
+  error: { icon: '✖', color: 'destructive' },
+  success: { icon: '✔', color: 'success' },
+  tip: { icon: '💡', color: 'primary' },
 };
 
 const INFO_BOX_STYLES_ASCII: Record<InfoBoxType, { icon: string; color: ColorValue }> = {
-  info: { icon: 'i', color: 'blue' },
-  warning: { icon: '!', color: 'yellow' },
-  error: { icon: 'x', color: 'red' },
-  success: { icon: '*', color: 'green' },
-  tip: { icon: '>', color: 'cyan' },
+  info: { icon: 'i', color: 'info' },
+  warning: { icon: '!', color: 'warning' },
+  error: { icon: 'x', color: 'destructive' },
+  success: { icon: '*', color: 'success' },
+  tip: { icon: '>', color: 'primary' },
 };
 
 /**
@@ -423,7 +423,7 @@ export function Popover(props: PopoverOptions): VNode | null {
     position = 'bottom',
     visible = true,
     borderStyle = 'round',
-    borderColor = 'gray',
+    borderColor = 'border',
     width,
     arrow = true,
   } = props;
@@ -512,12 +512,12 @@ export interface BadgeOptions {
  * Badge({ text: '5', color: 'red', variant: 'solid' })
  */
 export function Badge(props: BadgeOptions): VNode {
-  const { text, color = 'gray', variant = 'subtle' } = props;
+  const { text, color = 'mutedForeground', variant = 'subtle' } = props;
 
   switch (variant) {
     case 'solid':
       return Text(
-        { color: 'black', backgroundColor: color, bold: true },
+        { color: 'background', backgroundColor: color, bold: true },
         ` ${text} `
       );
 
@@ -556,7 +556,7 @@ export interface TagOptions {
  * Tag({ label: 'React', color: 'cyan', removable: true })
  */
 export function Tag(props: TagOptions): VNode {
-  const { label, color = 'gray', removable = false } = props;
+  const { label, color = 'mutedForeground', removable = false } = props;
 
   return Box(
     { flexDirection: 'row' },

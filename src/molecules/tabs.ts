@@ -18,7 +18,10 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { getContrastColor } from '../core/theme.js';
+import { getContrastColor, getTheme } from '../core/theme.js';
+
+/** Variant type for Tabs component */
+export type TabsVariant = 'primary' | 'secondary' | 'default';
 
 // =============================================================================
 // Types
@@ -48,9 +51,11 @@ export interface TabsOptions<T = string> {
   position?: 'top' | 'bottom';
   /** Visual style */
   style?: 'line' | 'box' | 'pills';
-  /** Active tab color */
+  /** Semantic variant for theming */
+  variant?: TabsVariant;
+  /** Custom active tab color (overrides variant) */
   activeColor?: ColorValue;
-  /** Inactive tab color */
+  /** Custom inactive tab color (overrides variant) */
   inactiveColor?: ColorValue;
   /** Allow closing tabs */
   closable?: boolean;
@@ -206,11 +211,13 @@ export interface TabsProps<T = string> extends TabsOptions<T> {
  * })
  */
 export function Tabs<T = string>(props: TabsProps<T>): VNode {
+  const theme = getTheme();
   const {
     position = 'top',
     style = 'line',
-    activeColor = 'cyan',
-    inactiveColor = 'gray',
+    variant = 'default',
+    activeColor: customActiveColor,
+    inactiveColor: customInactiveColor,
     closable = false,
     showCount = false,
     isActive = true,
@@ -218,6 +225,13 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
     width,
     state: externalState,
   } = props;
+
+  // Resolve colors from theme tokens or custom colors
+  const tabTokens = theme.components.tabs;
+  const activeColor = customActiveColor ?? tabTokens.tab.indicator;
+  const inactiveColor = customInactiveColor ?? tabTokens.tab.fg;
+  const activeFg = tabTokens.tab.activeFg;
+  const activeBg = tabTokens.tab.activeBg;
 
   const state = externalState || createTabs(props);
   const chars = getChars();
@@ -271,20 +285,20 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
           const borderColor = isTabActive
             ? activeColor
             : isFocused
-              ? 'white'
+              ? 'foreground'
               : inactiveColor;
           const bgColor = isTabActive ? activeColor : undefined;
           // Use contrast color when tab is active with background
           const textColor = isTabActive
             ? getContrastColor(activeColor as string)
             : isDisabled
-              ? 'gray'
-              : 'white';
+              ? 'mutedForeground'
+              : 'foreground';
 
           if (isAscii) {
             const wrapper = isTabActive ? '[' + tab.label + ']' : ' ' + tab.label + ' ';
             tabContent = Text(
-              { color: isDisabled ? 'gray' : borderColor, dim: isDisabled },
+              { color: isDisabled ? 'mutedForeground' : borderColor, dim: isDisabled },
               wrapper
             );
           } else {
@@ -314,8 +328,8 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
           const pillColor = isTabActive
             ? getContrastColor(activeColor as string)
             : isDisabled
-              ? 'gray'
-              : 'white';
+              ? 'mutedForeground'
+              : 'foreground';
 
           if (isAscii) {
             const wrapper = isTabActive
@@ -323,7 +337,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
               : ` ${tab.label} `;
             tabContent = Text(
               {
-                color: isTabActive ? activeColor : isDisabled ? 'gray' : 'white',
+                color: isTabActive ? activeColor : isDisabled ? 'mutedForeground' : 'foreground',
                 dim: isDisabled,
               },
               wrapper
@@ -352,7 +366,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
           const lineColor = isTabActive
             ? activeColor
             : isFocused
-              ? 'white'
+              ? 'foreground'
               : inactiveColor;
 
           const underline = isTabActive
@@ -415,7 +429,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
       tabNodes.push(
         Box(
           { marginLeft: 2 },
-          Text({ color: 'gray', dim: true }, `(${currentTabs.length})`)
+          Text({ color: 'mutedForeground', dim: true }, `(${currentTabs.length})`)
         )
       );
     }
@@ -506,14 +520,20 @@ export interface VerticalTabsOptions<T = string> extends TabsOptions<T> {
  * VerticalTabs - Tabs with vertical tab bar on the left
  */
 export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
+  const theme = getTheme();
   const {
     tabs,
     tabWidth = 20,
     contentWidth,
-    activeColor = 'cyan',
-    inactiveColor = 'gray',
+    activeColor: customActiveColor,
+    inactiveColor: customInactiveColor,
     isActive = true,
   } = props;
+
+  // Resolve colors from theme tokens or custom colors
+  const tabTokens = theme.components.tabs;
+  const activeColor = customActiveColor ?? tabTokens.tab.indicator;
+  const inactiveColor = customInactiveColor ?? tabTokens.tab.fg;
 
   const state = createTabs(props);
   const chars = getChars();
@@ -541,7 +561,7 @@ export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
     const color = isTabActive
       ? activeColor
       : isFocused
-        ? 'white'
+        ? 'foreground'
         : inactiveColor;
 
     return Box(

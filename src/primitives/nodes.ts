@@ -59,10 +59,12 @@ export function Box(props: BoxProps, ...children: ReckChild[]): VNode {
  * Text({ color: 'red', bold: true }, 'Error!')
  */
 export function Text(props: TextProps, ...children: (string | number)[]): VNode {
-  const content = children.length > 0
-    ? children.join('')
+  // Filter out null/undefined values to prevent "undefined" or "null" being rendered
+  const filteredChildren = children.filter(c => c != null);
+  const content = filteredChildren.length > 0
+    ? filteredChildren.join('')
     : Array.isArray(props.children)
-      ? props.children.join('')
+      ? props.children.filter(c => c != null).join('')
       : String(props.children ?? '');
 
   return {

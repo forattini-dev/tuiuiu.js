@@ -34,7 +34,7 @@
 
 import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { themeColor } from '../core/theme.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 /**
@@ -249,6 +249,7 @@ function renderBorder(
     return [];
   }
 
+  const theme = getTheme();
   const borderChars = getBorderChars();
   const chars = borderChars[style] || borderChars.single;
   const lines: VNode[] = [];
@@ -276,7 +277,7 @@ function renderBorder(
         ? Box(
             { flexDirection: 'row' },
             Text({ color }, chars.horizontal.repeat(leftPadding)),
-            Text({ color: titleColor || 'cyan', bold: true }, titleText),
+            Text({ color: titleColor || theme.palette.primary[500], bold: true }, titleText),
             Text({ color }, chars.horizontal.repeat(rightPadding))
           )
         : Text({ color }, chars.horizontal.repeat(width - 2)),
@@ -306,14 +307,15 @@ function renderBorder(
  * ```
  */
 export function Modal(props: ModalProps): VNode {
+  const theme = getTheme();
   const {
     title,
     content,
     size = 'medium',
     position = 'center',
     borderStyle = 'round',
-    borderColor = themeColor('info'),
-    titleColor = themeColor('info'),
+    borderColor = theme.accents.info,
+    titleColor = theme.accents.info,
     backdrop = true,
     backdropChar = ' ',
     showCloseHint = true,
@@ -357,7 +359,7 @@ export function Modal(props: ModalProps): VNode {
       titleBarParts.push(
         Box(
           { onClick: onClose },
-          Text({ color: themeColor('error') }, closeButtonChar)
+          Text({ color: theme.accents.critical }, closeButtonChar)
         )
       );
     }
@@ -388,7 +390,7 @@ export function Modal(props: ModalProps): VNode {
         { flexDirection: 'row' },
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
         Text({}, paddingStr),
-        Text({ color: themeColor('mutedForeground'), dim: true }, closeHint),
+        Text({ color: theme.foreground.muted, dim: true }, closeHint),
         Text({}, ' '.repeat(hintPadding)),
         Text({}, paddingStr),
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
@@ -477,13 +479,14 @@ export interface ConfirmDialogProps {
  * ```
  */
 export function ConfirmDialog(props: ConfirmDialogProps): VNode {
+  const theme = getTheme();
   const {
     title,
     message,
     confirmText = 'Confirm',
     cancelText = 'Cancel',
-    confirmColor = themeColor('success'),
-    cancelColor = themeColor('mutedForeground'),
+    confirmColor = theme.accents.positive,
+    cancelColor = theme.foreground.muted,
     selected = 0,
     type = 'info',
     onConfirm,
@@ -492,12 +495,12 @@ export function ConfirmDialog(props: ConfirmDialogProps): VNode {
 
   // Type-based colors
   const titleColors: Record<string, string> = {
-    info: themeColor('info'),
-    warning: themeColor('warning'),
-    danger: themeColor('error'),
+    info: theme.accents.info,
+    warning: theme.accents.warning,
+    danger: theme.accents.critical,
   };
 
-  const inactiveColor = themeColor('mutedForeground');
+  const inactiveColor = theme.foreground.muted;
 
   const buttonRow = Box(
     { flexDirection: 'row', marginTop: 1 },
@@ -624,31 +627,27 @@ export interface ToastProps {
  * ```
  */
 export function Toast(props: ToastProps): VNode {
+  const theme = getTheme();
   const { message, type = 'info', position = 'bottom', showIcon = true, fullWidth = false } = props;
 
   const icons = getIcons();
 
-  const colors: Record<ToastType, string> = {
-    success: themeColor('success'),
-    error: themeColor('error'),
-    warning: themeColor('warning'),
-    info: themeColor('info'),
-  };
-
+  // Use theme tokens for intelligent coloring
+  const tokens = theme.components.toast[type];
   const icon = icons[type];
-  const color = colors[type];
 
   return Box(
     {
       flexDirection: 'row',
       borderStyle: 'round',
-      borderColor: color,
+      borderColor: tokens.border,
+      backgroundColor: tokens.bg,
       paddingX: 2,
       paddingY: 0,
       flexGrow: fullWidth ? 1 : 0,
     },
-    showIcon ? Text({ color, bold: true }, `${icon} `) : Text({}, ''),
-    Box({ flexGrow: fullWidth ? 1 : 0 }, Text({ color: themeColor('foreground') }, message))
+    showIcon ? Text({ color: tokens.iconFg, bold: true }, `${icon} `) : Text({}, ''),
+    Box({ flexGrow: fullWidth ? 1 : 0 }, Text({ color: tokens.fg }, message))
   );
 }
 
@@ -683,24 +682,21 @@ export interface AlertBoxProps {
  * ```
  */
 export function AlertBox(props: AlertBoxProps): VNode {
+  const theme = getTheme();
   const { title, message, type = 'info', showIcon = true, fullWidth = false } = props;
 
   const icons = getIcons();
 
-  const colors: Record<string, string> = {
-    success: themeColor('success'),
-    error: themeColor('error'),
-    warning: themeColor('warning'),
-    info: themeColor('info'),
-  };
-
+  // Map AlertBox types to Toast tokens
+  const toastType = type as ToastType;
+  const tokens = theme.components.toast[toastType];
   const icon = icons[type];
-  const color = colors[type];
 
   return Box(
     {
       borderStyle: 'round',
-      borderColor: color,
+      borderColor: tokens.border,
+      backgroundColor: tokens.bg,
       padding: 1,
       flexDirection: 'column',
       flexGrow: fullWidth ? 1 : 0,
@@ -708,11 +704,11 @@ export function AlertBox(props: AlertBoxProps): VNode {
     title
       ? Box(
           { flexDirection: 'row', marginBottom: 1 },
-          showIcon ? Text({ color, bold: true }, `${icon} `) : Text({}, ''),
-          Text({ color, bold: true }, title)
+          showIcon ? Text({ color: tokens.iconFg, bold: true }, `${icon} `) : Text({}, ''),
+          Text({ color: tokens.iconFg, bold: true }, title)
         )
       : Box({}),
-    Text({}, message)
+    Text({ color: tokens.fg }, message)
   );
 }
 
@@ -746,6 +742,146 @@ export function createModal(): ModalState {
       isOpen = !isOpen;
     },
   };
+}
+
+// =============================================================================
+// Window Component
+// =============================================================================
+
+/**
+ * Window variant type
+ */
+export type WindowVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger';
+
+/**
+ * Window Props
+ */
+export interface WindowProps {
+  /** Window title */
+  title: string;
+  /** Window variant for semantic coloring */
+  variant?: WindowVariant;
+  /** Custom color override (uses getContrastColor for text) */
+  color?: string;
+  /** Window width */
+  width?: number;
+  /** Window height (content area) */
+  height?: number;
+  /** Show close button */
+  showClose?: boolean;
+  /** Show minimize button */
+  showMinimize?: boolean;
+  /** Show maximize button */
+  showMaximize?: boolean;
+  /** Close button callback */
+  onClose?: () => void;
+  /** Window content */
+  children?: VNode | VNode[];
+}
+
+/**
+ * Window Component
+ *
+ * Desktop-style window with title bar and optional buttons.
+ * Supports semantic variants with intelligent theming.
+ *
+ * @example
+ * ```typescript
+ * Window({
+ *   title: 'Settings',
+ *   variant: 'primary',
+ *   showClose: true,
+ *   children: Text({}, 'Window content')
+ * })
+ * ```
+ */
+export function Window(props: WindowProps): VNode {
+  const theme = getTheme();
+  const {
+    title,
+    variant = 'default',
+    color,
+    width,
+    height,
+    showClose = true,
+    showMinimize = false,
+    showMaximize = false,
+    onClose,
+    children,
+  } = props;
+
+  // Get colors from theme tokens or custom color
+  let titleBarBg: string;
+  let titleBarFg: string;
+  let bg: string;
+  let fg: string;
+  let border: string;
+  let buttonFg: string;
+  let closeFg: string;
+
+  if (color) {
+    // Custom color - use getContrastColor for text
+    titleBarBg = color;
+    titleBarFg = getContrastColor(color);
+    bg = theme.background.base;
+    fg = theme.foreground.primary;
+    border = color;
+    buttonFg = titleBarFg;
+    closeFg = titleBarFg;
+  } else {
+    // Use theme tokens based on variant
+    const tokens = theme.components.window[variant];
+    titleBarBg = tokens.titleBarBg;
+    titleBarFg = tokens.titleBarFg;
+    bg = tokens.bg;
+    fg = tokens.fg;
+    border = tokens.border;
+    buttonFg = tokens.buttonFg;
+    closeFg = tokens.closeFg;
+  }
+
+  // Build title bar buttons
+  const buttons: VNode[] = [];
+  if (showMinimize) {
+    buttons.push(Text({ color: buttonFg }, ' ─ '));
+  }
+  if (showMaximize) {
+    buttons.push(Text({ color: buttonFg }, ' □ '));
+  }
+  if (showClose) {
+    buttons.push(Text({ color: closeFg }, ' × '));
+  }
+
+  return Box(
+    {
+      flexDirection: 'column',
+      borderStyle: 'round',
+      borderColor: border,
+      width,
+      backgroundColor: bg,
+    },
+    // Title bar
+    Box(
+      {
+        flexDirection: 'row',
+        backgroundColor: titleBarBg,
+        paddingX: 1,
+      },
+      // Title
+      Box({ flexGrow: 1 }, Text({ color: titleBarFg, bold: true }, title)),
+      // Buttons
+      Box({ flexDirection: 'row' }, ...buttons)
+    ),
+    // Content area
+    Box(
+      {
+        flexDirection: 'column',
+        padding: 1,
+        height,
+      },
+      ...(Array.isArray(children) ? children : children ? [children] : [])
+    )
+  );
 }
 
 export type { VNode };

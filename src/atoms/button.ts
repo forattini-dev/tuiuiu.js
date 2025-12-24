@@ -15,7 +15,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { themeColor, getContrastColor } from '../core/theme.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -74,7 +74,7 @@ export interface ButtonProps {
  *   label: 'Save',
  *   icon: '💾',
  *   variant: 'solid',
- *   color: 'green',
+ *   color: 'success',
  *   onClick: handleSave,
  * })
  *
@@ -87,12 +87,13 @@ export interface ButtonProps {
  * })
  */
 export function Button(props: ButtonProps): VNode {
+  const theme = getTheme();
   const {
     label,
     onClick,
     variant = 'solid',
     size = 'medium',
-    color = themeColor('info'),
+    color = theme.accents.info,
     disabled = false,
     loading = false,
     loadingText,
@@ -122,9 +123,9 @@ export function Button(props: ButtonProps): VNode {
   switch (variant) {
     case 'solid':
       if (disabled) {
-        textColor = 'gray';
+        textColor = 'mutedForeground';
         bgColor = undefined;
-        borderColor = 'gray';
+        borderColor = 'border';
       } else if (isHighlighted) {
         // Use automatic contrast color for text on solid background
         textColor = getContrastColor(color as string);
@@ -138,9 +139,9 @@ export function Button(props: ButtonProps): VNode {
       break;
 
     case 'outline':
-      textColor = disabled ? 'gray' : isHighlighted ? color : color;
+      textColor = disabled ? 'mutedForeground' : isHighlighted ? color : color;
       bgColor = undefined;
-      borderColor = disabled ? 'gray' : color;
+      borderColor = disabled ? 'border' : color;
       break;
 
     case 'ghost':
@@ -149,7 +150,7 @@ export function Button(props: ButtonProps): VNode {
         textColor = getContrastColor(color as string);
         bgColor = color;
       } else {
-        textColor = disabled ? 'gray' : 'white';
+        textColor = disabled ? 'mutedForeground' : 'foreground';
         bgColor = undefined;
       }
       borderColor = undefined;
@@ -157,7 +158,7 @@ export function Button(props: ButtonProps): VNode {
       break;
 
     case 'link':
-      textColor = disabled ? 'gray' : color;
+      textColor = disabled ? 'mutedForeground' : color;
       bgColor = undefined;
       borderColor = undefined;
       borderStyle = 'none';
@@ -244,10 +245,11 @@ export interface IconButtonProps {
  * IconButton - Button with just an icon
  */
 export function IconButton(props: IconButtonProps): VNode {
+  const theme = getTheme();
   const {
     icon,
     onClick,
-    color = themeColor('info'),
+    color = theme.accents.info,
     disabled = false,
     focused = false,
     hovered = false,
@@ -268,7 +270,7 @@ export function IconButton(props: IconButtonProps): VNode {
     boxProps,
     Text(
       {
-        color: disabled ? 'gray' : isHighlighted ? color : 'white',
+        color: disabled ? 'mutedForeground' : isHighlighted ? color : 'foreground',
         bold: isHighlighted,
         dim: disabled,
       },

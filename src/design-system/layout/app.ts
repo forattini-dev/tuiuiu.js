@@ -72,11 +72,11 @@ export interface PageProps {
 export function Page(props: PageProps): VNode {
   const {
     title,
-    titleColor = 'cyan',
+    titleColor = 'primary',
     subtitle,
     border = false,
     borderStyle = 'single',
-    borderColor = 'gray',
+    borderColor = 'border',
     header,
     footer,
     divider = true,
@@ -106,7 +106,7 @@ export function Page(props: PageProps): VNode {
       Text({ color: titleColor, bold: true }, title),
     ];
     if (subtitle) {
-      headerContent.push(Text({ color: 'gray', dim: true }, ` - ${subtitle}`));
+      headerContent.push(Text({ color: 'mutedForeground', dim: true }, ` - ${subtitle}`));
     }
     parts.push(HStack({ children: headerContent }));
     if (divider) {
@@ -226,7 +226,7 @@ export function AppShell(props: AppShellProps): VNode {
     footerHeight = 1,
     dividers = true,
     dividerStyle = 'line',
-    dividerColor = 'gray',
+    dividerColor = 'border',
     padding = 0,
     children,
   } = props;
@@ -372,7 +372,7 @@ export function StatusBar(props: StatusBarProps): VNode {
     center,
     right,
     backgroundColor,
-    color = 'white',
+    color = 'foreground',
     separator = ' │ ',
   } = props;
 
@@ -449,13 +449,13 @@ export interface HeaderProps {
 export function Header(props: HeaderProps): VNode {
   const {
     title,
-    titleColor = 'white',
+    titleColor = 'foreground',
     subtitle,
     leftActions,
     rightActions,
     backgroundColor,
     border = false,
-    borderColor = 'gray',
+    borderColor = 'border',
   } = props;
 
   const termWidth = process.stdout.columns || 80;
@@ -463,7 +463,7 @@ export function Header(props: HeaderProps): VNode {
   const titleNode = Box(
     { flexDirection: 'row' },
     Text({ color: titleColor, bold: true }, title),
-    subtitle ? Text({ color: 'gray', dim: true }, ` ${subtitle}`) : Box({})
+    subtitle ? Text({ color: 'mutedForeground', dim: true }, ` ${subtitle}`) : Box({})
   );
 
   const parts: VNode[] = [];

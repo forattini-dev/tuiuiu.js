@@ -8,7 +8,7 @@
 
 import { Box, Text, Spacer } from '../../primitives/nodes.js';
 import { storybookStore, type LogEntry } from '../store.js';
-import { themeColor } from '../../core/theme.js';
+import { getTheme } from '../../core/theme.js';
 
 /** Height of log viewer in lines (including border) */
 const LOG_VIEWER_HEIGHT = 6;
@@ -17,6 +17,7 @@ const LOG_VIEWER_HEIGHT = 6;
 const VISIBLE_LOG_COUNT = LOG_VIEWER_HEIGHT - 2;
 
 export function LogViewer() {
+  const theme = getTheme();
   const state = storybookStore.state();
 
   if (!state.isLogOpen) {
@@ -26,10 +27,10 @@ export function LogViewer() {
   // Styles based on log level
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'error': return themeColor('error');
-      case 'warn': return themeColor('warning');
-      case 'debug': return themeColor('mutedForeground');
-      default: return themeColor('foreground');
+      case 'error': return theme.accents.critical;
+      case 'warn': return theme.accents.warning;
+      case 'debug': return theme.foreground.muted;
+      default: return theme.foreground.primary;
     }
   };
 
@@ -44,17 +45,17 @@ export function LogViewer() {
       right: 0,
       height: LOG_VIEWER_HEIGHT,
       borderStyle: 'single',
-      borderColor: themeColor('border'),
-      backgroundColor: themeColor('background'),
+      borderColor: theme.borders.default,
+      backgroundColor: theme.background.base,
       flexDirection: 'column'
     },
     // Header
     Box(
-      { flexDirection: 'row', borderBottom: true, borderStyle: 'single', borderColor: themeColor('border'), paddingX: 1 },
-      Text({ bold: true, color: themeColor('primary') }, 'Console'),
+      { flexDirection: 'row', borderBottom: true, borderStyle: 'single', borderColor: theme.borders.default, paddingX: 1 },
+      Text({ bold: true, color: theme.palette.primary[500] }, 'Console'),
       Spacer(),
-      Text({ color: themeColor('mutedForeground'), dim: true }, `${state.logs.length} logs`),
-      Text({ color: themeColor('mutedForeground'), dim: true }, ' | F12 close | C clear')
+      Text({ color: theme.foreground.muted, dim: true }, `${state.logs.length} logs`),
+      Text({ color: theme.foreground.muted, dim: true }, ' | F12 close | C clear')
     ),
     // Logs Content
     Box(
@@ -62,9 +63,9 @@ export function LogViewer() {
       ...visibleLogs.map((log) =>
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: themeColor('mutedForeground'), dim: true }, new Date(log.timestamp).toLocaleTimeString().split(' ')[0]),
+          Text({ color: theme.foreground.muted, dim: true }, new Date(log.timestamp).toLocaleTimeString().split(' ')[0]),
           Text({ color: getLevelColor(log.level), bold: log.level === 'error' }, `[${log.level.toUpperCase().padEnd(5)}]`),
-          Text({ color: themeColor('foreground') }, log.message.join(' '))
+          Text({ color: theme.foreground.primary }, log.message.join(' '))
         )
       )
     )

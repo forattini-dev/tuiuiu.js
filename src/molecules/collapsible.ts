@@ -17,6 +17,10 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
+
+/** Variant type for Collapsible component */
+export type CollapsibleVariant = 'primary' | 'secondary' | 'default';
 
 // =============================================================================
 // Types
@@ -31,8 +35,10 @@ export interface CollapsibleOptions {
   collapsedIcon?: string;
   /** Title icon (when expanded) */
   expandedIcon?: string;
-  /** Title color */
-  titleColor?: ColorValue;
+  /** Semantic variant for theming */
+  variant?: CollapsibleVariant;
+  /** Custom header color (overrides variant) */
+  color?: string;
   /** Indent content */
   indent?: number;
   /** Is disabled */
@@ -125,17 +131,43 @@ export interface CollapsibleProps extends CollapsibleOptions {
  * })
  */
 export function Collapsible(props: CollapsibleProps): VNode {
+  const theme = getTheme();
   const {
     title,
     collapsedIcon,
     expandedIcon,
-    titleColor = 'white',
+    variant = 'default',
+    color,
     indent = 2,
     disabled = false,
     isActive = true,
     children,
     state: externalState,
   } = props;
+
+  // Resolve colors from theme tokens or custom color
+  let headerBg: string | undefined;
+  let headerFg: string;
+  let iconFg: string;
+  let contentBg: string | undefined;
+  let borderColor: string | undefined;
+
+  if (color) {
+    // Custom color
+    headerBg = color;
+    headerFg = getContrastColor(color);
+    iconFg = headerFg;
+    contentBg = undefined;
+    borderColor = color;
+  } else {
+    // Use theme tokens based on variant
+    const tokens = theme.components.collapsible[variant] ?? theme.components.collapsible.default;
+    headerBg = tokens.headerBg;
+    headerFg = tokens.headerFg;
+    iconFg = tokens.iconFg;
+    contentBg = tokens.contentBg;
+    borderColor = tokens.border;
+  }
 
   const state = externalState || createCollapsible(props);
   const chars = getChars();
@@ -169,15 +201,15 @@ export function Collapsible(props: CollapsibleProps): VNode {
 
   // Header
   const header = Box(
-    { flexDirection: 'row', gap: 1 },
-    Text({ color: titleColor, dim: disabled }, icon),
-    Text({ color: titleColor, bold: true, dim: disabled }, title || 'Untitled')
+    { flexDirection: 'row', gap: 1, backgroundColor: headerBg, paddingX: 1 },
+    Text({ color: iconFg, dim: disabled }, icon),
+    Text({ color: headerFg, bold: true, dim: disabled }, title || 'Untitled')
   );
 
   // Content (only shown when expanded)
   const content = isExpanded
     ? Box(
-        { marginLeft: indent, marginTop: 1 },
+        { marginLeft: indent, marginTop: 1, backgroundColor: contentBg },
         ...(Array.isArray(children) ? children : [children])
       )
     : null;
@@ -215,9 +247,9 @@ export interface AccordionOptions {
   multiple?: boolean;
   /** Section gap */
   gap?: number;
-  /** Title color */
-  titleColor?: ColorValue;
-  /** Active color */
+  /** Semantic variant for theming */
+  variant?: CollapsibleVariant;
+  /** Custom active color (overrides variant) */
   activeColor?: ColorValue;
   /** Callbacks */
   onChange?: (expanded: string[]) => void;
@@ -354,14 +386,22 @@ export interface AccordionProps extends AccordionOptions {
  * })
  */
 export function Accordion(props: AccordionProps): VNode {
+  const theme = getTheme();
   const {
     sections,
     gap = 0,
-    titleColor = 'white',
-    activeColor = 'cyan',
+    variant = 'default',
+    activeColor: customActiveColor,
     isActive = true,
     state: externalState,
   } = props;
+
+  // Resolve colors from theme tokens
+  const tokens = theme.components.collapsible[variant] ?? theme.components.collapsible.default;
+  const activeColor = customActiveColor ?? tokens.headerFg;
+  const titleColor = tokens.headerFg;
+  const iconFg = tokens.iconFg;
+  const headerBg = tokens.headerBg;
 
   const state = externalState || createAccordion(props);
   const chars = getChars();
@@ -398,8 +438,8 @@ export function Accordion(props: AccordionProps): VNode {
 
     // Header
     const header = Box(
-      { flexDirection: 'row', gap: 1 },
-      Text({ color: headerColor }, section.icon ?? icon),
+      { flexDirection: 'row', gap: 1, backgroundColor: isFocused ? headerBg : undefined, paddingX: 1 },
+      Text({ color: isFocused ? iconFg : headerColor }, section.icon ?? icon),
       Text({ color: headerColor, bold: isFocused, dim: section.disabled }, section.title)
     );
 
@@ -486,7 +526,7 @@ export function ExpandableText(props: ExpandableTextProps): VNode {
     maxLines = 3,
     showMoreLabel = 'Show more',
     showLessLabel = 'Show less',
-    color = 'white',
+    color = 'foreground',
   } = props;
 
   const [expanded, setExpanded] = createSignal(false);
@@ -517,6 +557,6 @@ export function ExpandableText(props: ExpandableTextProps): VNode {
   return Box(
     { flexDirection: 'column' },
     Text({ color }, displayText),
-    Text({ color: 'cyan', dim: !isExpanded }, `[${toggleLabel}]`)
+    Text({ color: 'primary', dim: !isExpanded }, `[${toggleLabel}]`)
   );
 }

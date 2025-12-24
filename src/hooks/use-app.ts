@@ -221,3 +221,14 @@ export function cleanupApp(): void {
   setFocusManager(null);
   setAppContext(null);
 }
+
+/**
+ * Set the clearScreen method on the app context.
+ * Called by render-loop after logUpdate is created.
+ */
+export function setClearScreen(clearScreen: () => void): void {
+  const appContext = getAppContext();
+  if (appContext) {
+    appContext.clearScreen = clearScreen;
+  }
+}

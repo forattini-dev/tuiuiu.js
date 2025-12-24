@@ -219,7 +219,7 @@ export function Sparkline(options: SparklineOptions): VNode {
     color,
     label,
     showLabels = false,
-    labelColor = 'gray',
+    labelColor = 'mutedForeground',
     emptyChar = ' ',
   } = options;
 

@@ -197,7 +197,7 @@ export function Timer(props: TimerProps): VNode {
   const {
     time,
     format = 'mm:ss',
-    color = 'white',
+    color = 'foreground',
     running = false,
     paused = false,
     runningIndicator = '●',
@@ -210,12 +210,12 @@ export function Timer(props: TimerProps): VNode {
 
   const timeStr = formatTime(time, format);
   const indicator = running ? runningIndicator : paused ? pausedIndicator : '';
-  const indicatorColor = running ? 'green' : paused ? 'yellow' : 'gray';
+  const indicatorColor = running ? 'success' : paused ? 'warning' : 'mutedForeground';
 
   const children: VNode[] = [];
 
   if (label) {
-    children.push(Text({ color: 'gray' }, `${label} `));
+    children.push(Text({ color: 'mutedForeground' }, `${label} `));
   }
 
   if (showIndicator && indicator) {

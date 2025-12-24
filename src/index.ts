@@ -349,10 +349,26 @@ export {
   pushTheme,
   popTheme,
   createTheme,
-  themeColor,
-  themeColorPair,
+  // Theme mode helpers
+  useThemeMode,
+  useIsDark,
+  // Component tokens
+  useComponentTokens,
+  // Convenience accessors
+  th,
+  useBg,
+  useFg,
+  usePalette,
+  useAccents,
+  useStates,
+  useBorders,
+  useOpacity,
+  // Color utilities
   getContrastColor,
-  themeSpacing,
+  getColor,
+  getDarker,
+  getLighter,
+  getBorderRadiusChars,
   resolveColor,
   detectColorScheme,
   useSystemTheme,
@@ -368,11 +384,12 @@ export {
   gruvboxTheme,
   tokyoNightTheme,
   catppuccinTheme,
-  // Theme utilities
+  // Theme collection
   themes,
   themeNames,
+  getThemeByName,
   getNextTheme,
-  tw,
+  getPreviousTheme,
   // Colors - Tailwind CSS palette
   colors,
   color,
@@ -439,8 +456,18 @@ export {
 export type {
   // Theme
   Theme,
-  ThemeColors,
-  ThemeSpacing,
+  ThemeMode,
+  ThemePalette,
+  ThemeBackground,
+  ThemeForeground,
+  ThemeAccent,
+  ThemeStates,
+  ThemeBorders,
+  ThemeOpacity,
+  ComponentTokens,
+  ComponentName,
+  ColorScale,
+  ShadeValue,
   BorderRadius,
   // Colors (Tailwind palette)
   ColorShade,
@@ -540,7 +567,7 @@ export type {
   // Heatmap
   HeatmapCell,
   HeatmapData,
-  ColorScale,
+  ColorScale as HeatmapColorScale,
   HeatmapOptions,
   HeatmapState,
   HeatmapProps,

@@ -12,7 +12,7 @@
 import type { VNode } from '../utils/types.js';
 import { Box, Text } from './nodes.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { themeColor } from '../core/theme.js';
+import { getTheme } from '../core/theme.js';
 
 /**
  * Divider props
@@ -55,6 +55,7 @@ export interface DividerProps {
  * ```
  */
 export function Divider(props: DividerProps = {}): VNode {
+  const theme = getTheme();
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 
@@ -62,7 +63,7 @@ export function Divider(props: DividerProps = {}): VNode {
     direction = 'horizontal',
     char,
     width = '100%',
-    color = themeColor('border'),
+    color = theme.borders.default,
     dim = false,
     title,
     titleColor,
@@ -82,7 +83,7 @@ export function Divider(props: DividerProps = {}): VNode {
       return Box(
         { flexDirection: 'row', width, marginY: margin },
         Text({ color, dim }, divChar.repeat(3) + ' '),
-        Text({ color: titleColor ?? themeColor('foreground'), bold: true }, title),
+        Text({ color: titleColor ?? theme.foreground.primary, bold: true }, title),
         Text({ color, dim }, ' ' + divChar.repeat(3))
       );
     }

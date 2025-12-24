@@ -307,7 +307,7 @@ await waitUntilExit();
 1. **Components**: Use \`Box\` for layout, \`Text\` for content
 2. **Signals**: Use \`useState\` or \`createSignal\` for reactive state
 3. **Hooks**: Use \`useInput\` for keyboard, \`useEffect\` for side effects
-4. **Theming**: Use \`setTheme\` and \`themeColor\` for consistent styling
+4. **Theming**: Use \`setTheme\`, \`getTheme\`, and \`resolveColor\` for consistent styling
 
 ## Explore Components
 

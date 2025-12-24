@@ -17,7 +17,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getRenderMode } from '../core/capabilities.js';
-import { themeColor, getContrastColor } from '../core/theme.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -457,11 +457,11 @@ export function Calendar(props: CalendarProps): VNode {
   const {
     firstDayOfWeek = 0,
     showWeekNumbers = false,
-    todayColor = 'green',
-    selectedColor = 'cyan',
-    eventColor = 'yellow',
-    weekendColor = 'gray',
-    headerColor = 'blue',
+    todayColor = 'success',
+    selectedColor = 'primary',
+    eventColor = 'warning',
+    weekendColor = 'mutedForeground',
+    headerColor = 'accent',
     cellWidth = 4,
     isActive = true,
     state: externalState,
@@ -469,6 +469,7 @@ export function Calendar(props: CalendarProps): VNode {
 
   const state = externalState || createCalendar(props);
   const isAscii = getRenderMode() === 'ascii';
+  const theme = getTheme();
 
   // Setup keyboard handling
   useInput(
@@ -515,12 +516,12 @@ export function Calendar(props: CalendarProps): VNode {
   const weekdayNodes = weekdays.map((wd) =>
     Box(
       { width: cellWidth, justifyContent: 'center' },
-      Text({ color: 'gray', bold: true }, wd)
+      Text({ color: 'mutedForeground', bold: true }, wd)
     )
   );
 
   if (showWeekNumbers) {
-    weekdayNodes.unshift(Box({ width: 3 }, Text({ color: 'gray', dim: true }, 'Wk')));
+    weekdayNodes.unshift(Box({ width: 3 }, Text({ color: 'mutedForeground', dim: true }, 'Wk')));
   }
 
   const weekdayHeader = Box({ flexDirection: 'row', marginBottom: 1 }, ...weekdayNodes);
@@ -537,7 +538,7 @@ export function Calendar(props: CalendarProps): VNode {
     if (showWeekNumbers) {
       const weekNum = getWeekNumber(weekDays[0]!.date);
       weekCells.push(
-        Box({ width: 3 }, Text({ color: 'gray', dim: true }, String(weekNum)))
+        Box({ width: 3 }, Text({ color: 'mutedForeground', dim: true }, String(weekNum)))
       );
     }
 
@@ -546,13 +547,13 @@ export function Calendar(props: CalendarProps): VNode {
       const isCursor = isSameDay(day.date, cursor);
 
       // Determine cell color
-      let color: ColorValue = 'white';
+      let color: ColorValue = 'foreground';
       let dim = false;
       let bold = false;
       let bgColor: ColorValue | undefined;
 
       if (day.isDisabled) {
-        color = 'gray';
+        color = 'mutedForeground';
         dim = true;
       } else if (day.isSelected || day.isRangeStart || day.isRangeEnd) {
         bgColor = selectedColor;
@@ -565,7 +566,7 @@ export function Calendar(props: CalendarProps): VNode {
         color = todayColor;
         bold = true;
       } else if (!day.isCurrentMonth) {
-        color = 'gray';
+        color = 'mutedForeground';
         dim = true;
       } else if (day.isWeekend) {
         color = weekendColor;
@@ -582,7 +583,7 @@ export function Calendar(props: CalendarProps): VNode {
         bold = true;
         if (!bgColor) {
           // Use theme-based cursor colors
-          bgColor = themeColor('foreground');
+          bgColor = theme.foreground.primary;
           color = getContrastColor(bgColor);
         }
       }
@@ -613,7 +614,7 @@ export function Calendar(props: CalendarProps): VNode {
   const footer = Box(
     { marginTop: 1 },
     Text(
-      { color: 'gray', dim: true },
+      { color: 'mutedForeground', dim: true },
       isAscii
         ? 'hjkl: nav  <>: month  Enter: select  t: today'
         : '←↓↑→: nav  ⇧←⇧→: month  ↵: select  t: today'
@@ -748,10 +749,10 @@ export function DatePicker(props: DatePickerOptions): VNode {
     {
       width: inputWidth,
       borderStyle: 'single',
-      borderColor: isOpen ? 'cyan' : 'gray',
+      borderColor: isOpen ? 'primary' : 'border',
       paddingX: 1,
     },
-    Text({ color: value ? 'white' : 'gray', dim: !value }, value || placeholder)
+    Text({ color: value ? 'foreground' : 'mutedForeground', dim: !value }, value || placeholder)
   );
 
   // Calendar dropdown

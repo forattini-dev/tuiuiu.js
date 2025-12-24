@@ -340,8 +340,8 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
     placeholder = '',
     width = 30,
     fullWidth = false,
-    activeColor = 'cyan',
-    selectedColor = 'green',
+    activeColor = 'primary',
+    selectedColor = 'success',
     isActive = true,
     label,
     state: externalState,
@@ -416,7 +416,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
       paddingX: 1,
     },
     isPlaceholder
-      ? Text({ color: 'gray', dim: true }, placeholder)
+      ? Text({ color: 'mutedForeground', dim: true }, placeholder)
       : Box(
           { flexDirection: 'row' },
           Text({}, beforeCursor),
@@ -434,13 +434,13 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
 
       return Box(
         { flexDirection: 'row', paddingX: 1 },
-        Text({ color: isSelected ? activeColor : 'gray' }, prefix + ' '),
+        Text({ color: isSelected ? activeColor : 'mutedForeground' }, prefix + ' '),
         Text(
-          { color: isSelected ? selectedColor : 'white', bold: isSelected },
+          { color: isSelected ? selectedColor : 'foreground', bold: isSelected },
           item.label
         ),
         item.description
-          ? Text({ color: 'gray', dim: true }, ` - ${item.description}`)
+          ? Text({ color: 'mutedForeground', dim: true }, ` - ${item.description}`)
           : null
       );
     });
@@ -450,7 +450,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
         width: fullWidth ? undefined : width,
         flexGrow: fullWidth ? 1 : 0,
         borderStyle: 'single',
-        borderColor: 'gray',
+        borderColor: 'border',
         flexDirection: 'column',
       },
       ...suggestionItems
@@ -461,7 +461,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
   const parts: (VNode | null)[] = [];
 
   if (label) {
-    parts.push(Box({ marginBottom: 1 }, Text({ color: 'gray' }, label)));
+    parts.push(Box({ marginBottom: 1 }, Text({ color: 'mutedForeground' }, label)));
   }
 
   parts.push(inputNode);
@@ -629,8 +629,8 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     placeholder = 'Add tag...',
     width = 40,
     fullWidth = false,
-    tagColor = 'cyan',
-    activeColor = 'yellow',
+    tagColor = 'primary',
+    activeColor = 'warning',
     isActive = true,
   } = props;
 
@@ -684,7 +684,7 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
   // Input area
   const inputNode = Box(
     { flexDirection: 'row' },
-    Text({ color: input ? 'white' : 'gray', dim: !input }, input || placeholder)
+    Text({ color: input ? 'foreground' : 'mutedForeground', dim: !input }, input || placeholder)
   );
 
   // Suggestions
@@ -693,11 +693,11 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     const suggItems = suggs.map((item, i) =>
       Box(
         { paddingX: 1 },
-        Text({ color: i === 0 ? activeColor : 'gray' }, item.label)
+        Text({ color: i === 0 ? activeColor : 'mutedForeground' }, item.label)
       )
     );
     suggestionsNode = Box(
-      { borderStyle: 'single', borderColor: 'gray', flexDirection: 'column' },
+      { borderStyle: 'single', borderColor: 'border', flexDirection: 'column' },
       ...suggItems
     );
   }

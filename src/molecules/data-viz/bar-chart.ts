@@ -270,9 +270,9 @@ export function BarChart(options: BarChartOptions): VNode {
     height,
     showValues = true,
     showPercentage = false,
-    barColor = 'cyan',
-    labelColor = 'gray',
-    valueColor = 'white',
+    barColor = 'primary',
+    labelColor = 'mutedForeground',
+    valueColor = 'foreground',
     min,
     max,
     gap = 0,
@@ -299,7 +299,7 @@ export function BarChart(options: BarChartOptions): VNode {
   }
 
   if (data.length === 0) {
-    return Text({ color: 'gray', dim: true }, 'No data');
+    return Text({ color: 'mutedForeground', dim: true }, 'No data');
   }
 
   const chars = getBarChars();
@@ -350,7 +350,7 @@ export function BarChart(options: BarChartOptions): VNode {
       Box({ width: maxLabelLen }, Text({ color: labelColor }, item.label)),
       Text({ color: itemColor }, bar),
       showBackground
-        ? Text({ color: 'gray', dim: true }, chars.empty.repeat(emptyLen))
+        ? Text({ color: 'mutedForeground', dim: true }, chars.empty.repeat(emptyLen))
         : null,
       showValues ? Text({ color: valueColor, dim: true }, valueStr) : null
     );
@@ -384,16 +384,16 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
     width,
     height = 10,
     showValues = true,
-    barColor = 'cyan',
-    labelColor = 'gray',
-    valueColor = 'white',
+    barColor = 'primary',
+    labelColor = 'mutedForeground',
+    valueColor = 'foreground',
     min,
     max,
     gap = 1,
   } = options;
 
   if (data.length === 0) {
-    return Text({ color: 'gray', dim: true }, 'No data');
+    return Text({ color: 'mutedForeground', dim: true }, 'No data');
   }
 
   const isAscii = getRenderMode() === 'ascii';
@@ -542,12 +542,12 @@ export function StackedBarChart(options: StackedBarChartOptions): VNode {
     maxBarLength = 40,
     colors = ['cyan', 'green', 'yellow', 'magenta', 'blue', 'red'],
     showTotal = true,
-    labelColor = 'gray',
+    labelColor = 'mutedForeground',
     labelWidth,
   } = options;
 
   if (data.length === 0) {
-    return Text({ color: 'gray', dim: true }, 'No data');
+    return Text({ color: 'mutedForeground', dim: true }, 'No data');
   }
 
   const isAscii = getRenderMode() === 'ascii';
@@ -595,7 +595,7 @@ export function StackedBarChart(options: StackedBarChartOptions): VNode {
       Box({ width: maxLabelLen }, Text({ color: labelColor }, item.label)),
       ...segmentNodes,
       showTotal
-        ? Text({ color: 'white', dim: true }, ` ${total}`)
+        ? Text({ color: 'foreground', dim: true }, ` ${total}`)
         : null
     );
   });

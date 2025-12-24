@@ -392,14 +392,14 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     searchPlaceholder = 'Search...',
     pageSize = 10,
     borderStyle = 'single',
-    borderColor = 'gray',
-    headerColor = 'white',
+    borderColor = 'border',
+    headerColor = 'foreground',
     headerBold = true,
-    selectedColor = 'cyan',
-    cursorColor = 'yellow',
+    selectedColor = 'primary',
+    cursorColor = 'warning',
     selectionMode = 'single',
     striped = false,
-    stripeColor = 'gray',
+    stripeColor = 'mutedForeground',
     isActive = true,
     state: externalState,
   } = props;
@@ -460,10 +460,10 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     const searchIcon = isAscii ? '[?]' : '🔍';
     searchNode = Box(
       { marginBottom: 1, flexDirection: 'row', gap: 1 },
-      Text({ color: 'gray' }, searchIcon),
+      Text({ color: 'mutedForeground' }, searchIcon),
       Box(
-        { borderStyle: 'single', borderColor: 'gray', paddingX: 1, minWidth: 20 },
-        Text({ color: filter ? 'white' : 'gray', dim: !filter }, filter || searchPlaceholder)
+        { borderStyle: 'single', borderColor: 'border', paddingX: 1, minWidth: 20 },
+        Text({ color: filter ? 'foreground' : 'mutedForeground', dim: !filter }, filter || searchPlaceholder)
       )
     );
   }
@@ -556,7 +556,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
             value = col.format(value, row);
           }
           const strValue = String(value ?? '').slice(0, width);
-          const color = isCursor ? 'black' : isSelectedRow ? 'black' : col.color ?? 'white';
+          const color = isCursor ? 'background' : isSelectedRow ? 'background' : col.color ?? 'foreground';
 
           return Box(
             { width, marginRight: 1 },
@@ -575,10 +575,10 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 
     paginationNode = Box(
       { marginTop: 1, flexDirection: 'row', gap: 2 },
-      Text({ color: currentPageNum > 0 ? 'cyan' : 'gray', dim: currentPageNum === 0 }, `${prevArrow} Prev`),
-      Text({ color: 'white' }, `Page ${currentPageNum + 1} of ${totalPagesNum}`),
-      Text({ color: currentPageNum < totalPagesNum - 1 ? 'cyan' : 'gray', dim: currentPageNum >= totalPagesNum - 1 }, `Next ${nextArrow}`),
-      Text({ color: 'gray', dim: true }, `(${state.sortedData().length} total)`)
+      Text({ color: currentPageNum > 0 ? 'primary' : 'mutedForeground', dim: currentPageNum === 0 }, `${prevArrow} Prev`),
+      Text({ color: 'foreground' }, `Page ${currentPageNum + 1} of ${totalPagesNum}`),
+      Text({ color: currentPageNum < totalPagesNum - 1 ? 'primary' : 'mutedForeground', dim: currentPageNum >= totalPagesNum - 1 }, `Next ${nextArrow}`),
+      Text({ color: 'mutedForeground', dim: true }, `(${state.sortedData().length} total)`)
     );
   }
 
@@ -586,7 +586,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   const hintsNode = Box(
     { marginTop: 1 },
     Text(
-      { color: 'gray', dim: true },
+      { color: 'mutedForeground', dim: true },
       isAscii
         ? 'jk: nav  hl: page  Enter/Space: select  s: sort  Ctrl+A: all'
         : '↓↑: nav  ←→: page  ↵/␣: select  s: sort  ^A: all'

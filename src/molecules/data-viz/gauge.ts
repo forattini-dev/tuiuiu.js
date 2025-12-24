@@ -114,9 +114,9 @@ function getGaugeChars() {
 // =============================================================================
 
 const DEFAULT_ZONES: GaugeZone[] = [
-  { start: 0, end: 60, color: 'green' },
-  { start: 60, end: 85, color: 'yellow' },
-  { start: 85, end: 100, color: 'red' },
+  { start: 0, end: 60, color: 'success' },
+  { start: 60, end: 85, color: 'warning' },
+  { start: 85, end: 100, color: 'destructive' },
 ];
 
 /**
@@ -138,7 +138,7 @@ function resolveZones(zones: GaugeZone[] | boolean | undefined): GaugeZone[] | u
 function getZoneColor(
   value: number,
   zones: GaugeZone[],
-  defaultColor: ColorValue = 'cyan'
+  defaultColor: ColorValue = 'primary'
 ): ColorValue {
   for (const zone of zones) {
     if (value >= zone.start && value <= zone.end) {
@@ -205,11 +205,11 @@ export function LinearGauge(options: GaugeOptions): VNode {
     formatValue,
     valuePosition = 'right',
     showMinMax = false,
-    color = 'cyan',
-    backgroundColor = 'gray',
+    color = 'primary',
+    backgroundColor = 'mutedForeground',
     zones,
     label,
-    labelColor = 'white',
+    labelColor = 'foreground',
   } = options;
 
   const chars = getGaugeChars();
@@ -282,7 +282,7 @@ export function LinearGauge(options: GaugeOptions): VNode {
 
   // Min label
   if (showMinMax) {
-    parts.push(Box({ marginRight: 1 }, Text({ color: 'gray', dim: true }, String(min))));
+    parts.push(Box({ marginRight: 1 }, Text({ color: 'mutedForeground', dim: true }, String(min))));
   }
 
   // Value left
@@ -300,13 +300,13 @@ export function LinearGauge(options: GaugeOptions): VNode {
 
   // Max label
   if (showMinMax) {
-    parts.push(Box({ marginLeft: 1 }, Text({ color: 'gray', dim: true }, String(max))));
+    parts.push(Box({ marginLeft: 1 }, Text({ color: 'mutedForeground', dim: true }, String(max))));
   }
 
   // Value inside (overlay - show at end of filled section)
   if (showValue && valuePosition === 'inside') {
     // Not ideal for terminals, fallback to right
-    parts.push(Box({ marginLeft: 1 }, Text({ color: 'white' }, valueStr)));
+    parts.push(Box({ marginLeft: 1 }, Text({ color: 'foreground' }, valueStr)));
   }
 
   const mainRow = Box({ flexDirection: 'row', alignItems: 'center' }, ...parts);
@@ -359,11 +359,11 @@ export function MeterGauge(options: MeterOptions): VNode {
     segments = 10,
     showValue = true,
     formatValue,
-    color = 'cyan',
-    backgroundColor = 'gray',
+    color = 'primary',
+    backgroundColor = 'mutedForeground',
     zones,
     label,
-    labelColor = 'white',
+    labelColor = 'foreground',
     segmentChar,
     emptyChar,
   } = options;
@@ -489,10 +489,10 @@ export function ArcGauge(options: GaugeOptions): VNode {
     width = 15,
     showValue = true,
     formatValue,
-    color = 'cyan',
+    color = 'primary',
     zones,
     label,
-    labelColor = 'white',
+    labelColor = 'foreground',
   } = options;
 
   const normalized = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
@@ -553,10 +553,10 @@ export function DialGauge(options: GaugeOptions): VNode {
     showValue = true,
     formatValue,
     showMinMax = true,
-    color = 'cyan',
+    color = 'primary',
     zones = DEFAULT_ZONES,
     label,
-    labelColor = 'white',
+    labelColor = 'foreground',
   } = options;
 
   const resolvedZones = resolveZones(zones) ?? DEFAULT_ZONES;
@@ -616,8 +616,8 @@ export function DialGauge(options: GaugeOptions): VNode {
     parts.push(
       Box(
         { flexDirection: 'row', justifyContent: 'space-between', width: segments },
-        Text({ color: 'gray', dim: true }, String(min)),
-        Text({ color: 'gray', dim: true }, String(max))
+        Text({ color: 'mutedForeground', dim: true }, String(min)),
+        Text({ color: 'mutedForeground', dim: true }, String(max))
       )
     );
   }
@@ -705,9 +705,9 @@ export function BatteryGauge(options: BatteryGaugeOptions): VNode {
   const chars = getGaugeChars();
 
   // Determine color based on level
-  let color: ColorValue = 'green';
-  if (level <= 20) color = 'red';
-  else if (level <= 50) color = 'yellow';
+  let color: ColorValue = 'success';
+  if (level <= 20) color = 'destructive';
+  else if (level <= 50) color = 'warning';
 
   const innerWidth = width - 2; // Account for battery borders
   const filledWidth = Math.round(normalized * innerWidth);
@@ -727,14 +727,14 @@ export function BatteryGauge(options: BatteryGaugeOptions): VNode {
     parts.push(Text({}, '▐'));
     parts.push(
       Text({ color }, chars.filled.repeat(filledWidth)),
-      Text({ color: 'gray', dim: true }, chars.empty.repeat(emptyWidth))
+      Text({ color: 'mutedForeground', dim: true }, chars.empty.repeat(emptyWidth))
     );
     parts.push(Text({}, '▌'));
     parts.push(Text({ dim: true }, '╸')); // Battery tip
   }
 
   if (charging) {
-    parts.push(Text({ color: 'yellow' }, ' ⚡'));
+    parts.push(Text({ color: 'warning' }, ' ⚡'));
   }
 
   if (showLevel) {

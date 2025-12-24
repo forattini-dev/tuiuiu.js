@@ -19,7 +19,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal, createEffect } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
-import { themeColor, getContrastColor } from '../core/theme.js';
+import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 export interface TextInputState {
@@ -533,16 +533,17 @@ export function renderTextInput(
   state: ReturnType<typeof createTextInput>,
   options: TextInputOptions = {}
 ): VNode {
+  const theme = getTheme();
   const {
     placeholder = 'Type here...',
     password = false,
     maskChar = '*',
     cursorStyle = 'block',
     borderStyle = 'round',
-    focusedBorderColor = themeColor('info'),
-    unfocusedBorderColor = themeColor('border'),
+    focusedBorderColor = theme.accents.info,
+    unfocusedBorderColor = theme.borders.default,
     prompt = getChars().arrows.right,
-    promptColor = themeColor('info'),
+    promptColor = theme.accents.info,
     isActive = true,
     fullWidth = false,
   } = options;
@@ -569,7 +570,7 @@ export function renderTextInput(
   const showPlaceholder = isEmpty && placeholder;
 
   // Cursor colors based on theme
-  const cursorBg = themeColor('foreground');
+  const cursorBg = theme.foreground.primary;
   const cursorFg = getContrastColor(cursorBg);
 
   // Box style based on borderStyle
@@ -664,7 +665,7 @@ export function renderTextInput(
       renderedLines.push(
         Box(
           { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 0 },
-          Text({ color: 'gray', dim: true }, countText)
+          Text({ color: 'mutedForeground', dim: true }, countText)
         )
       );
     }
@@ -695,7 +696,7 @@ export function renderTextInput(
     showPlaceholder
       ? Box(
         { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
-        Text({ color: 'gray', dim: true }, placeholder),
+        Text({ color: 'mutedForeground', dim: true }, placeholder),
         isActive ? Text({ backgroundColor: cursorBg, color: cursorFg }, ' ') : Text({}, '')
       )
       : Box(

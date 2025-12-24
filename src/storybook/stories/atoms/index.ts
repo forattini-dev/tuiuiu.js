@@ -13,8 +13,9 @@
 
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
+import { Badge } from '../../../design-system/feedback/badge.js';
 import { story, defaultControls } from '../../core/registry.js';
-import { themeColor } from '../../../core/theme.js';
+import { getTheme } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
 // Spinner frame definitions - All available spinner types
@@ -109,9 +110,9 @@ export const boxStories: Story[] = [
     .render((props) =>
       Box(
         { flexDirection: props.direction, gap: 1 },
-        Text({ color: 'cyan' }, 'First'),
-        Text({ color: 'green' }, 'Second'),
-        Text({ color: 'yellow' }, 'Third')
+        Text({ color: 'primary' }, 'First'),
+        Text({ color: 'success' }, 'Second'),
+        Text({ color: 'warning' }, 'Third')
       )
     ),
 
@@ -143,15 +144,15 @@ export const boxStories: Story[] = [
     })
     .render((props) =>
       Box(
-        { borderStyle: 'single', borderColor: 'gray' },
+        { borderStyle: 'single', borderColor: 'border' },
         Box(
           {
             padding: props.padding,
             paddingX: props.paddingX || undefined,
             paddingY: props.paddingY || undefined,
-            backgroundColor: 'blue',
+            backgroundColor: 'primary',
           },
-          Text({ color: 'white' }, 'Content')
+          Text({ color: 'primaryForeground' }, 'Content')
         )
       )
     ),
@@ -171,15 +172,15 @@ export const boxStories: Story[] = [
           justifyContent: props.justifyContent,
           alignItems: props.alignItems,
           borderStyle: 'single',
-          borderColor: 'gray',
+          borderColor: 'border',
         },
         Box(
-          { backgroundColor: 'blue', padding: 1 },
-          Text({ color: 'white' }, 'A')
+          { backgroundColor: 'primary', padding: 1 },
+          Text({ color: 'primaryForeground' }, 'A')
         ),
         Box(
-          { backgroundColor: 'green', padding: 1 },
-          Text({ color: 'white' }, 'B')
+          { backgroundColor: 'success', padding: 1 },
+          Text({ color: 'successForeground' }, 'B')
         )
       )
     ),
@@ -197,7 +198,7 @@ export const boxStories: Story[] = [
           width: props.width,
           height: props.height,
           borderStyle: 'single',
-          borderColor: 'cyan',
+          borderColor: 'primary',
           justifyContent: 'center',
           alignItems: 'center',
         },
@@ -238,20 +239,20 @@ export const textStories: Story[] = [
     .render(() =>
       Box(
         { flexDirection: 'column' },
-        Text({ color: 'white' }, 'white'),
-        Text({ color: 'gray' }, 'gray'),
-        Text({ color: 'red' }, 'red'),
-        Text({ color: 'green' }, 'green'),
-        Text({ color: 'yellow' }, 'yellow'),
-        Text({ color: 'blue' }, 'blue'),
-        Text({ color: 'magenta' }, 'magenta'),
-        Text({ color: 'cyan' }, 'cyan'),
-        Text({ color: 'redBright' }, 'redBright'),
-        Text({ color: 'greenBright' }, 'greenBright'),
-        Text({ color: 'yellowBright' }, 'yellowBright'),
-        Text({ color: 'blueBright' }, 'blueBright'),
-        Text({ color: 'magentaBright' }, 'magentaBright'),
-        Text({ color: 'cyanBright' }, 'cyanBright')
+        Text({ color: 'foreground' }, 'white'),
+        Text({ color: 'mutedForeground' }, 'gray'),
+        Text({ color: 'destructive' }, 'red'),
+        Text({ color: 'success' }, 'green'),
+        Text({ color: 'warning' }, 'yellow'),
+        Text({ color: 'accent' }, 'blue'),
+        Text({ color: 'accent' }, 'magenta'),
+        Text({ color: 'primary' }, 'cyan'),
+        Text({ color: 'red-400' }, 'red-400'),
+        Text({ color: 'green-400' }, 'green-400'),
+        Text({ color: 'yellow-400' }, 'yellow-400'),
+        Text({ color: 'blue-400' }, 'blue-400'),
+        Text({ color: 'fuchsia-400' }, 'fuchsia-400'),
+        Text({ color: 'cyan-400' }, 'cyan-400')
       )
     ),
 
@@ -266,7 +267,7 @@ export const textStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Text({}, 'Normal text'),
         Text({ dim: props.dim }, 'Dimmed text'),
-        Text({ color: 'cyan', dim: props.dim }, 'Dimmed colored text')
+        Text({ color: 'primary', dim: props.dim }, 'Dimmed colored text')
       )
     ),
 
@@ -279,9 +280,9 @@ export const textStories: Story[] = [
     .render((props) =>
       Box(
         { flexDirection: 'column', gap: 1 },
-        Text({ color: 'cyan', inverse: props.inverse }, ' Selected Item '),
-        Text({ color: 'green', inverse: props.inverse }, ' Active '),
-        Text({ color: 'red', inverse: props.inverse }, ' Error ')
+        Text({ color: 'primary', inverse: props.inverse }, ' Selected Item '),
+        Text({ color: 'success', inverse: props.inverse }, ' Active '),
+        Text({ color: 'destructive', inverse: props.inverse }, ' Error ')
       )
     ),
 
@@ -295,7 +296,7 @@ export const textStories: Story[] = [
       Box(
         { flexDirection: 'column' },
         Text({ strikethrough: props.strikethrough }, 'Completed task'),
-        Text({ strikethrough: props.strikethrough, color: 'red' }, 'Deleted item'),
+        Text({ strikethrough: props.strikethrough, color: 'destructive' }, 'Deleted item'),
         Text({}, 'Normal text')
       )
     ),
@@ -308,7 +309,7 @@ export const textStories: Story[] = [
     })
     .render((props) =>
       Box(
-        { width: 30, borderStyle: 'single', borderColor: 'gray' },
+        { width: 30, borderStyle: 'single', borderColor: 'border' },
         Text(
           { wrap: props.wrap },
           'This is a very long text that will demonstrate different wrapping behaviors in a narrow container.'
@@ -326,10 +327,10 @@ export const spacerStories: Story[] = [
     .description('Flexible space between elements')
     .render(() =>
       Box(
-        { flexDirection: 'row', width: 40, borderStyle: 'single', borderColor: 'gray' },
-        Text({ color: 'cyan' }, 'Left'),
+        { flexDirection: 'row', width: 40, borderStyle: 'single', borderColor: 'border' },
+        Text({ color: 'primary' }, 'Left'),
         Spacer({}),
-        Text({ color: 'yellow' }, 'Right')
+        Text({ color: 'warning' }, 'Right')
       )
     ),
 
@@ -338,7 +339,7 @@ export const spacerStories: Story[] = [
     .description('Multiple spacers for even distribution')
     .render(() =>
       Box(
-        { flexDirection: 'row', width: 50, borderStyle: 'single', borderColor: 'gray' },
+        { flexDirection: 'row', width: 50, borderStyle: 'single', borderColor: 'border' },
         Text({}, 'A'),
         Spacer({}),
         Text({}, 'B'),
@@ -354,10 +355,10 @@ export const spacerStories: Story[] = [
     .description('Spacer in vertical layout')
     .render(() =>
       Box(
-        { flexDirection: 'column', height: 10, borderStyle: 'single', borderColor: 'gray' },
-        Text({ color: 'cyan' }, 'Header'),
+        { flexDirection: 'column', height: 10, borderStyle: 'single', borderColor: 'border' },
+        Text({ color: 'primary' }, 'Header'),
         Spacer({}),
-        Text({ color: 'gray' }, 'Footer')
+        Text({ color: 'mutedForeground' }, 'Footer')
       )
     ),
 ];
@@ -408,75 +409,69 @@ export const badgeStories: Story[] = [
     .description('Simple status badge')
     .controls({
       label: defaultControls.text('Label', 'NEW'),
-      color: defaultControls.color('Color', 'cyan'),
+      variant: defaultControls.select('Variant', ['default', 'primary', 'secondary', 'success', 'warning', 'danger'], 'primary'),
     })
     .render((props) =>
-      Text({ color: props.color, inverse: true }, ` ${props.label} `)
+      Badge({ label: props.label, variant: props.variant })
     ),
 
-  story('Badge - Status Types')
+  story('Badge - Variants')
     .category('Atoms')
-    .description('Different status badge types')
+    .description('All badge variant types')
     .render(() =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'green', inverse: true }, ' SUCCESS '),
-        Text({ color: 'yellow', inverse: true }, ' WARNING '),
-        Text({ color: 'red', inverse: true }, ' ERROR '),
-        Text({ color: 'blue', inverse: true }, ' INFO '),
-        Text({ color: 'gray', inverse: true }, ' DISABLED ')
+        Badge({ label: 'DEFAULT', variant: 'default' }),
+        Badge({ label: 'PRIMARY', variant: 'primary' }),
+        Badge({ label: 'SECONDARY', variant: 'secondary' }),
+        Badge({ label: 'SUCCESS', variant: 'success' }),
+        Badge({ label: 'WARNING', variant: 'warning' }),
+        Badge({ label: 'DANGER', variant: 'danger' })
       )
     ),
 
-  story('Badge - Outline')
+  story('Badge - Custom Colors')
     .category('Atoms')
-    .description('Outline style badges')
+    .description('Badges with custom colors')
     .render(() =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Box(
-          { borderStyle: 'single', borderColor: 'green', paddingX: 1 },
-          Text({ color: 'green' }, 'Success')
-        ),
-        Box(
-          { borderStyle: 'single', borderColor: 'yellow', paddingX: 1 },
-          Text({ color: 'yellow' }, 'Warning')
-        ),
-        Box(
-          { borderStyle: 'single', borderColor: 'red', paddingX: 1 },
-          Text({ color: 'red' }, 'Error')
-        )
+        Badge({ label: 'ORANGE', color: '#ff6600' }),
+        Badge({ label: 'PURPLE', color: '#9b59b6' }),
+        Badge({ label: 'TEAL', color: '#1abc9c' }),
+        Badge({ label: 'PINK', color: '#e91e63' })
       )
     ),
 
   story('Badge - With Icons')
     .category('Atoms')
     .description('Badges with status icons')
-    .render(() =>
-      Box(
+    .render(() => {
+      const theme = getTheme();
+      return Box(
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'green' }, '✓'),
-          Text({ color: 'green', inverse: true }, ' PASSED ')
+          Text({ color: theme.accents.positive }, '✓'),
+          Badge({ label: 'PASSED', variant: 'success' })
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'red' }, '✗'),
-          Text({ color: 'red', inverse: true }, ' FAILED ')
+          Text({ color: theme.accents.critical }, '✗'),
+          Badge({ label: 'FAILED', variant: 'danger' })
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'yellow' }, '⚠'),
-          Text({ color: 'yellow', inverse: true }, ' PENDING ')
+          Text({ color: theme.accents.warning }, '⚠'),
+          Badge({ label: 'PENDING', variant: 'warning' })
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'cyan' }, '●'),
-          Text({ color: 'cyan', inverse: true }, ' RUNNING ')
+          Text({ color: theme.palette.primary[500] }, '●'),
+          Badge({ label: 'RUNNING', variant: 'primary' })
         )
-      )
-    ),
+      );
+    }),
 ];
 
 /**
@@ -503,8 +498,8 @@ export const spinnerStories: Story[] = [
       const currentFrame = frames[frame % frames.length];
       return Box(
         { flexDirection: 'row', gap: 1 },
-        Text({ color: 'cyan' }, currentFrame),
-        Text({ color: 'gray' }, 'Loading...')
+        Text({ color: 'primary' }, currentFrame),
+        Text({ color: 'mutedForeground' }, 'Loading...')
       );
     }),
 
@@ -517,18 +512,18 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'cyan' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
-          Text({ color: 'gray' }, 'dots')
+          Text({ color: 'primary' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
+          Text({ color: 'mutedForeground' }, 'dots')
         ),
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'green' }, spinnerFrames.dots2[frame % spinnerFrames.dots2.length]),
-          Text({ color: 'gray' }, 'dots2')
+          Text({ color: 'success' }, spinnerFrames.dots2[frame % spinnerFrames.dots2.length]),
+          Text({ color: 'mutedForeground' }, 'dots2')
         ),
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'yellow' }, spinnerFrames.dots3[frame % spinnerFrames.dots3.length]),
-          Text({ color: 'gray' }, 'dots3')
+          Text({ color: 'warning' }, spinnerFrames.dots3[frame % spinnerFrames.dots3.length]),
+          Text({ color: 'mutedForeground' }, 'dots3')
         )
       )
     ),
@@ -542,23 +537,23 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'cyan' }, spinnerFrames.circle[frame % spinnerFrames.circle.length]),
-          Text({ color: 'gray' }, 'circle')
+          Text({ color: 'primary' }, spinnerFrames.circle[frame % spinnerFrames.circle.length]),
+          Text({ color: 'mutedForeground' }, 'circle')
         ),
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'magenta' }, spinnerFrames.square[frame % spinnerFrames.square.length]),
-          Text({ color: 'gray' }, 'square')
+          Text({ color: 'accent' }, spinnerFrames.square[frame % spinnerFrames.square.length]),
+          Text({ color: 'mutedForeground' }, 'square')
         ),
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'yellow' }, spinnerFrames.arc[frame % spinnerFrames.arc.length]),
-          Text({ color: 'gray' }, 'arc')
+          Text({ color: 'warning' }, spinnerFrames.arc[frame % spinnerFrames.arc.length]),
+          Text({ color: 'mutedForeground' }, 'arc')
         ),
         Box(
           { flexDirection: 'row', gap: 2, width: 20 },
-          Text({ color: 'green' }, spinnerFrames.line[frame % spinnerFrames.line.length]),
-          Text({ color: 'gray' }, 'line')
+          Text({ color: 'success' }, spinnerFrames.line[frame % spinnerFrames.line.length]),
+          Text({ color: 'mutedForeground' }, 'line')
         )
       )
     ),
@@ -572,13 +567,13 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'cyan' }, spinnerFrames.arrow[frame % spinnerFrames.arrow.length]),
-          Text({ color: 'gray' }, 'arrow (rotating)')
+          Text({ color: 'primary' }, spinnerFrames.arrow[frame % spinnerFrames.arrow.length]),
+          Text({ color: 'mutedForeground' }, 'arrow (rotating)')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'green' }, spinnerFrames.arrowPulse[frame % spinnerFrames.arrowPulse.length]),
-          Text({ color: 'gray' }, 'arrowPulse')
+          Text({ color: 'success' }, spinnerFrames.arrowPulse[frame % spinnerFrames.arrowPulse.length]),
+          Text({ color: 'mutedForeground' }, 'arrowPulse')
         )
       )
     ),
@@ -592,7 +587,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.clock[frame % spinnerFrames.clock.length]),
-        Text({ color: 'gray' }, 'Time is passing...')
+        Text({ color: 'mutedForeground' }, 'Time is passing...')
       )
     ),
 
@@ -604,7 +599,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.earth[frame % spinnerFrames.earth.length]),
-        Text({ color: 'gray' }, 'Connecting worldwide...')
+        Text({ color: 'mutedForeground' }, 'Connecting worldwide...')
       )
     ),
 
@@ -616,7 +611,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.moon[frame % spinnerFrames.moon.length]),
-        Text({ color: 'gray' }, 'Night mode loading...')
+        Text({ color: 'mutedForeground' }, 'Night mode loading...')
       )
     ),
 
@@ -628,7 +623,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.hearts[frame % spinnerFrames.hearts.length]),
-        Text({ color: 'gray' }, 'Sending love...')
+        Text({ color: 'mutedForeground' }, 'Sending love...')
       )
     ),
 
@@ -640,7 +635,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.weather[frame % spinnerFrames.weather.length]),
-        Text({ color: 'gray' }, 'Fetching forecast...')
+        Text({ color: 'mutedForeground' }, 'Fetching forecast...')
       )
     ),
 
@@ -652,7 +647,7 @@ export const spinnerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.runner[frame % spinnerFrames.runner.length]),
-        Text({ color: 'gray' }, 'Processing...')
+        Text({ color: 'mutedForeground' }, 'Processing...')
       )
     ),
 
@@ -664,8 +659,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'cyan' }, spinnerFrames.bouncingBar[frame % spinnerFrames.bouncingBar.length]),
-        Text({ color: 'gray' }, 'Working...')
+        Text({ color: 'primary' }, spinnerFrames.bouncingBar[frame % spinnerFrames.bouncingBar.length]),
+        Text({ color: 'mutedForeground' }, 'Working...')
       )
     ),
 
@@ -676,8 +671,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'magenta' }, spinnerFrames.aesthetic[frame % spinnerFrames.aesthetic.length]),
-        Text({ color: 'gray' }, 'Loading...')
+        Text({ color: 'accent' }, spinnerFrames.aesthetic[frame % spinnerFrames.aesthetic.length]),
+        Text({ color: 'mutedForeground' }, 'Loading...')
       )
     ),
 
@@ -688,8 +683,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'green' }, spinnerFrames.bar[frame % spinnerFrames.bar.length]),
-        Text({ color: 'gray' }, 'Filling...')
+        Text({ color: 'success' }, spinnerFrames.bar[frame % spinnerFrames.bar.length]),
+        Text({ color: 'mutedForeground' }, 'Filling...')
       )
     ),
 
@@ -700,8 +695,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'red' }, spinnerFrames.pulse[frame % spinnerFrames.pulse.length]),
-        Text({ color: 'gray' }, 'Heartbeat...')
+        Text({ color: 'destructive' }, spinnerFrames.pulse[frame % spinnerFrames.pulse.length]),
+        Text({ color: 'mutedForeground' }, 'Heartbeat...')
       )
     ),
 
@@ -713,8 +708,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
-        Text({ color: 'cyan' }, spinnerFrames.pong[frame % spinnerFrames.pong.length]),
-        Text({ color: 'gray', dim: true }, 'Playing Pong while waiting...')
+        Text({ color: 'primary' }, spinnerFrames.pong[frame % spinnerFrames.pong.length]),
+        Text({ color: 'mutedForeground', dim: true }, 'Playing Pong while waiting...')
       )
     ),
 
@@ -725,8 +720,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'green' }, spinnerFrames.binary[frame % spinnerFrames.binary.length]),
-        Text({ color: 'green', dim: true }, 'Decoding...')
+        Text({ color: 'success' }, spinnerFrames.binary[frame % spinnerFrames.binary.length]),
+        Text({ color: 'success', dim: true }, 'Decoding...')
       )
     ),
 
@@ -749,8 +744,8 @@ export const spinnerStories: Story[] = [
       
       return Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'green' }, binaryStr),
-        Text({ color: 'green', dim: true }, `Decoding (${width} bits)...`)
+        Text({ color: 'success' }, binaryStr),
+        Text({ color: 'success', dim: true }, `Decoding (${width} bits)...`)
       );
     }),
 
@@ -761,8 +756,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'yellow' }, spinnerFrames.star[frame % spinnerFrames.star.length]),
-        Text({ color: 'gray' }, 'Sparkling...')
+        Text({ color: 'warning' }, spinnerFrames.star[frame % spinnerFrames.star.length]),
+        Text({ color: 'mutedForeground' }, 'Sparkling...')
       )
     ),
 
@@ -773,8 +768,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'cyan' }, spinnerFrames.grow[frame % spinnerFrames.grow.length]),
-        Text({ color: 'gray' }, 'Breathing...')
+        Text({ color: 'primary' }, spinnerFrames.grow[frame % spinnerFrames.grow.length]),
+        Text({ color: 'mutedForeground' }, 'Breathing...')
       )
     ),
 
@@ -788,13 +783,13 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'cyan' }, spinnerFrames.boxBounce[frame % spinnerFrames.boxBounce.length]),
-          Text({ color: 'gray' }, 'boxBounce')
+          Text({ color: 'primary' }, spinnerFrames.boxBounce[frame % spinnerFrames.boxBounce.length]),
+          Text({ color: 'mutedForeground' }, 'boxBounce')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'magenta' }, spinnerFrames.boxBounce2[frame % spinnerFrames.boxBounce2.length]),
-          Text({ color: 'gray' }, 'boxBounce2')
+          Text({ color: 'accent' }, spinnerFrames.boxBounce2[frame % spinnerFrames.boxBounce2.length]),
+          Text({ color: 'mutedForeground' }, 'boxBounce2')
         )
       )
     ),
@@ -806,8 +801,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'cyan' }, spinnerFrames.pipe[frame % spinnerFrames.pipe.length]),
-        Text({ color: 'gray' }, 'Building...')
+        Text({ color: 'primary' }, spinnerFrames.pipe[frame % spinnerFrames.pipe.length]),
+        Text({ color: 'mutedForeground' }, 'Building...')
       )
     ),
 
@@ -821,13 +816,13 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'cyan' }, spinnerFrames.toggle[frame % spinnerFrames.toggle.length]),
-          Text({ color: 'gray' }, 'toggle')
+          Text({ color: 'primary' }, spinnerFrames.toggle[frame % spinnerFrames.toggle.length]),
+          Text({ color: 'mutedForeground' }, 'toggle')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'white' }, spinnerFrames.toggle2[frame % spinnerFrames.toggle2.length]),
-          Text({ color: 'gray' }, 'toggle2')
+          Text({ color: 'foreground' }, spinnerFrames.toggle2[frame % spinnerFrames.toggle2.length]),
+          Text({ color: 'mutedForeground' }, 'toggle2')
         )
       )
     ),
@@ -839,8 +834,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'gray' }, spinnerFrames.noise[frame % spinnerFrames.noise.length]),
-        Text({ color: 'gray' }, 'Scanning...')
+        Text({ color: 'mutedForeground' }, spinnerFrames.noise[frame % spinnerFrames.noise.length]),
+        Text({ color: 'mutedForeground' }, 'Scanning...')
       )
     ),
 
@@ -851,8 +846,8 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
-        Text({ color: 'yellow' }, spinnerFrames.flip[frame % spinnerFrames.flip.length]),
-        Text({ color: 'gray' }, 'Flipping...')
+        Text({ color: 'warning' }, spinnerFrames.flip[frame % spinnerFrames.flip.length]),
+        Text({ color: 'mutedForeground' }, 'Flipping...')
       )
     ),
 
@@ -864,14 +859,14 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 0 },
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]), Text({ color: 'gray' }, 'dots')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.line[frame % spinnerFrames.line.length]), Text({ color: 'gray' }, 'line')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.arc[frame % spinnerFrames.arc.length]), Text({ color: 'gray' }, 'arc')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.circle[frame % spinnerFrames.circle.length]), Text({ color: 'gray' }, 'circle')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.square[frame % spinnerFrames.square.length]), Text({ color: 'gray' }, 'square')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.bounce[frame % spinnerFrames.bounce.length]), Text({ color: 'gray' }, 'bounce')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.grow[frame % spinnerFrames.grow.length]), Text({ color: 'gray' }, 'grow')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'cyan' }, spinnerFrames.star[frame % spinnerFrames.star.length]), Text({ color: 'gray' }, 'star'))
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]), Text({ color: 'mutedForeground' }, 'dots')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.line[frame % spinnerFrames.line.length]), Text({ color: 'mutedForeground' }, 'line')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.arc[frame % spinnerFrames.arc.length]), Text({ color: 'mutedForeground' }, 'arc')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.circle[frame % spinnerFrames.circle.length]), Text({ color: 'mutedForeground' }, 'circle')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.square[frame % spinnerFrames.square.length]), Text({ color: 'mutedForeground' }, 'square')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.bounce[frame % spinnerFrames.bounce.length]), Text({ color: 'mutedForeground' }, 'bounce')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.grow[frame % spinnerFrames.grow.length]), Text({ color: 'mutedForeground' }, 'grow')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.star[frame % spinnerFrames.star.length]), Text({ color: 'mutedForeground' }, 'star'))
       )
     ),
 
@@ -882,12 +877,12 @@ export const spinnerStories: Story[] = [
     .render((props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 0 },
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.clock[frame % spinnerFrames.clock.length]), Text({ color: 'gray' }, 'clock')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.earth[frame % spinnerFrames.earth.length]), Text({ color: 'gray' }, 'earth')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.moon[frame % spinnerFrames.moon.length]), Text({ color: 'gray' }, 'moon')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.hearts[frame % spinnerFrames.hearts.length]), Text({ color: 'gray' }, 'hearts')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.weather[frame % spinnerFrames.weather.length]), Text({ color: 'gray' }, 'weather')),
-        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.runner[frame % spinnerFrames.runner.length]), Text({ color: 'gray' }, 'runner'))
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.clock[frame % spinnerFrames.clock.length]), Text({ color: 'mutedForeground' }, 'clock')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.earth[frame % spinnerFrames.earth.length]), Text({ color: 'mutedForeground' }, 'earth')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.moon[frame % spinnerFrames.moon.length]), Text({ color: 'mutedForeground' }, 'moon')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.hearts[frame % spinnerFrames.hearts.length]), Text({ color: 'mutedForeground' }, 'hearts')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.weather[frame % spinnerFrames.weather.length]), Text({ color: 'mutedForeground' }, 'weather')),
+        Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.runner[frame % spinnerFrames.runner.length]), Text({ color: 'mutedForeground' }, 'runner'))
       )
     ),
 
@@ -914,31 +909,31 @@ export const spinnerStories: Story[] = [
     .animated(80)
     .render((props, frame = 0) =>
       Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'gray' },
+        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'border' },
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'green' }, '✓'),
-          Text({ color: 'green' }, 'Connected to server')
+          Text({ color: 'success' }, '✓'),
+          Text({ color: 'success' }, 'Connected to server')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'cyan' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
-          Text({ color: 'white' }, 'Downloading assets...')
+          Text({ color: 'primary' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
+          Text({ color: 'foreground' }, 'Downloading assets...')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'yellow' }, spinnerFrames.bouncingBar[frame % spinnerFrames.bouncingBar.length]),
-          Text({ color: 'white' }, 'Processing data...')
+          Text({ color: 'warning' }, spinnerFrames.bouncingBar[frame % spinnerFrames.bouncingBar.length]),
+          Text({ color: 'foreground' }, 'Processing data...')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'magenta' }, spinnerFrames.aesthetic[frame % spinnerFrames.aesthetic.length]),
-          Text({ color: 'white' }, 'Generating report...')
+          Text({ color: 'accent' }, spinnerFrames.aesthetic[frame % spinnerFrames.aesthetic.length]),
+          Text({ color: 'foreground' }, 'Generating report...')
         ),
         Box(
           { flexDirection: 'row', gap: 1 },
-          Text({ color: 'gray', dim: true }, '○'),
-          Text({ color: 'gray', dim: true }, 'Waiting: Upload files')
+          Text({ color: 'mutedForeground', dim: true }, '○'),
+          Text({ color: 'mutedForeground', dim: true }, 'Waiting: Upload files')
         )
       )
     ),
@@ -952,18 +947,18 @@ export const spinnerStories: Story[] = [
         { flexDirection: 'column', gap: 1 },
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'green' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
-          Text({ color: 'gray' }, 'Fast (50ms)')
+          Text({ color: 'success' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]),
+          Text({ color: 'mutedForeground' }, 'Fast (50ms)')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'yellow' }, spinnerFrames.dots[Math.floor(frame / 2) % spinnerFrames.dots.length]),
-          Text({ color: 'gray' }, 'Medium (100ms)')
+          Text({ color: 'warning' }, spinnerFrames.dots[Math.floor(frame / 2) % spinnerFrames.dots.length]),
+          Text({ color: 'mutedForeground' }, 'Medium (100ms)')
         ),
         Box(
           { flexDirection: 'row', gap: 2 },
-          Text({ color: 'red' }, spinnerFrames.dots[Math.floor(frame / 4) % spinnerFrames.dots.length]),
-          Text({ color: 'gray' }, 'Slow (200ms)')
+          Text({ color: 'destructive' }, spinnerFrames.dots[Math.floor(frame / 4) % spinnerFrames.dots.length]),
+          Text({ color: 'mutedForeground' }, 'Slow (200ms)')
         )
       )
     ),

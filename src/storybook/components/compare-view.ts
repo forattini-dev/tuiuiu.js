@@ -13,7 +13,7 @@ import { Divider } from '../../primitives/divider.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story } from '../types.js';
 import type { Comparatives, Variant, VariantGroup, LayoutMode } from '../core/comparatives.js';
-import { themeColor } from '../../core/theme.js';
+import { getTheme } from '../../core/theme.js';
 
 export interface CompareViewProps {
   comparatives: Comparatives;
@@ -31,6 +31,7 @@ function VariantPreview(props: {
   showLabel: boolean;
   showBorder: boolean;
 }): VNode {
+  const theme = getTheme();
   const { story, variant, baseProps, showLabel, showBorder } = props;
   const mergedProps = { ...baseProps, ...variant.props };
 
@@ -40,7 +41,7 @@ function VariantPreview(props: {
     } catch (error: any) {
       return Box(
         { padding: 1 },
-        Text({ color: themeColor('error') }, `Error: ${error.message}`)
+        Text({ color: theme.accents.critical }, `Error: ${error.message}`)
       );
     }
   })();
@@ -49,17 +50,17 @@ function VariantPreview(props: {
     {
       flexDirection: 'column',
       borderStyle: showBorder ? 'single' : undefined,
-      borderColor: themeColor('border'),
+      borderColor: theme.borders.default,
       padding: showBorder ? 1 : 0,
     },
     showLabel &&
       Box(
         { marginBottom: 1 },
-        Text({ color: themeColor('primary'), bold: true }, variant.label),
+        Text({ color: theme.palette.primary[500], bold: true }, variant.label),
         variant.description &&
           Box(
             {},
-            Text({ color: themeColor('mutedForeground'), dim: true }, ` - ${variant.description}`)
+            Text({ color: theme.foreground.muted, dim: true }, ` - ${variant.description}`)
           )
       ),
     content
@@ -170,10 +171,11 @@ function GroupTabs(props: {
   selectedIndex: number;
   isFocused: boolean;
 }): VNode {
+  const theme = getTheme();
   const { groups, selectedIndex, isFocused } = props;
 
   if (groups.length === 0) {
-    return Text({ color: themeColor('mutedForeground'), dim: true }, 'No groups defined');
+    return Text({ color: theme.foreground.muted, dim: true }, 'No groups defined');
   }
 
   return Box(
@@ -183,7 +185,7 @@ function GroupTabs(props: {
         {},
         Text(
           {
-            color: idx === selectedIndex ? themeColor('primary') : themeColor('mutedForeground'),
+            color: idx === selectedIndex ? theme.palette.primary[500] : theme.foreground.muted,
             bold: idx === selectedIndex,
             inverse: idx === selectedIndex && isFocused,
           },
@@ -201,6 +203,7 @@ function LayoutSelector(props: {
   currentMode: LayoutMode;
   gridColumns: number;
 }): VNode {
+  const theme = getTheme();
   const { currentMode, gridColumns } = props;
 
   const modes: Array<{ mode: LayoutMode; label: string; key: string }> = [
@@ -211,13 +214,13 @@ function LayoutSelector(props: {
 
   return Box(
     { flexDirection: 'row', gap: 2 },
-    Text({ color: themeColor('mutedForeground') }, 'Layout: '),
+    Text({ color: theme.foreground.muted }, 'Layout: '),
     ...modes.map(({ mode, label, key }) =>
       Box(
         {},
         Text(
           {
-            color: currentMode === mode ? themeColor('success') : themeColor('mutedForeground'),
+            color: currentMode === mode ? theme.accents.positive : theme.foreground.muted,
             bold: currentMode === mode,
           },
           `[${key}] ${label}`
@@ -231,6 +234,7 @@ function LayoutSelector(props: {
  * Main Compare View component
  */
 export function CompareView(props: CompareViewProps): VNode {
+  const theme = getTheme();
   const { comparatives, story, isFocused = false } = props;
   const state = comparatives.state();
   const variants = comparatives.getCurrentVariants();
@@ -240,10 +244,10 @@ export function CompareView(props: CompareViewProps): VNode {
   if (variants.length === 0) {
     return Box(
       { flexDirection: 'column', padding: 2 },
-      Text({ color: themeColor('mutedForeground'), dim: true }, 'No variants to compare'),
+      Text({ color: theme.foreground.muted, dim: true }, 'No variants to compare'),
       Box(
         { marginTop: 1 },
-        Text({ color: themeColor('mutedForeground') }, 'Press [A] to auto-generate variants from controls')
+        Text({ color: theme.foreground.muted }, 'Press [A] to auto-generate variants from controls')
       )
     );
   }
@@ -274,17 +278,17 @@ export function CompareView(props: CompareViewProps): VNode {
     {
       flexDirection: 'column',
       borderStyle: 'single',
-      borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+      borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
     },
     // Header
     Box(
       {
         borderStyle: 'single',
-        borderColor: isFocused ? themeColor('primary') : themeColor('border'),
+        borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
         paddingX: 1,
       },
-      Text({ color: themeColor('success'), bold: true }, 'Comparatives'),
-      Text({ color: themeColor('mutedForeground') }, ` - ${story.name}`)
+      Text({ color: theme.accents.positive, bold: true }, 'Comparatives'),
+      Text({ color: theme.foreground.muted }, ` - ${story.name}`)
     ),
     // Group tabs
     Box(
@@ -299,9 +303,9 @@ export function CompareView(props: CompareViewProps): VNode {
     currentGroup &&
       Box(
         { paddingX: 1 },
-        Text({ color: themeColor('mutedForeground') }, 'Varying: '),
-        Text({ color: themeColor('warning') }, currentGroup.varyingProp || 'multiple props'),
-        Text({ color: themeColor('mutedForeground'), dim: true }, ` (${variants.length} variants)`)
+        Text({ color: theme.foreground.muted }, 'Varying: '),
+        Text({ color: theme.accents.warning }, currentGroup.varyingProp || 'multiple props'),
+        Text({ color: theme.foreground.muted, dim: true }, ` (${variants.length} variants)`)
       ),
     Divider({}),
     // Layout selector
@@ -318,10 +322,10 @@ export function CompareView(props: CompareViewProps): VNode {
     Box(
       {
         borderStyle: 'single',
-        borderColor: themeColor('border'),
+        borderColor: theme.borders.default,
         paddingX: 1,
       },
-      Text({ color: themeColor('mutedForeground'), dim: true }, '[1-9] Select group  [H/V/G] Layout  [L] Labels  [B] Borders  [+/-] Columns')
+      Text({ color: theme.foreground.muted, dim: true }, '[1-9] Select group  [H/V/G] Layout  [L] Labels  [B] Borders  [+/-] Columns')
     )
   );
 }
@@ -368,6 +372,7 @@ export function PropertyComparison(props: {
   baseProps?: Record<string, any>;
   layout?: LayoutMode;
 }): VNode {
+  const theme = getTheme();
   const { story, propName, values, baseProps = {}, layout = 'horizontal' } = props;
 
   const variants: Variant[] = values.map((value) => ({
@@ -379,8 +384,8 @@ export function PropertyComparison(props: {
     { flexDirection: 'column' },
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('foreground'), bold: true }, `Comparing: `),
-      Text({ color: themeColor('primary') }, propName)
+      Text({ color: theme.foreground.primary, bold: true }, `Comparing: `),
+      Text({ color: theme.palette.primary[500] }, propName)
     ),
     CompactCompareView({
       story,
@@ -395,6 +400,7 @@ export function PropertyComparison(props: {
  * Help overlay for compare view
  */
 export function CompareViewHelp(): VNode {
+  const theme = getTheme();
   const shortcuts = [
     { key: '1-9', desc: 'Select variant group' },
     { key: 'H', desc: 'Horizontal layout' },
@@ -411,18 +417,18 @@ export function CompareViewHelp(): VNode {
     {
       flexDirection: 'column',
       borderStyle: 'single',
-      borderColor: themeColor('success'),
+      borderColor: theme.accents.positive,
       padding: 1,
     },
     Box(
       { marginBottom: 1 },
-      Text({ color: themeColor('success'), bold: true }, 'Compare View Shortcuts')
+      Text({ color: theme.accents.positive, bold: true }, 'Compare View Shortcuts')
     ),
     ...shortcuts.map(({ key, desc }) =>
       Box(
         {},
-        Text({ color: themeColor('primary') }, `[${key}]`.padEnd(8)),
-        Text({ color: themeColor('mutedForeground') }, desc)
+        Text({ color: theme.palette.primary[500] }, `[${key}]`.padEnd(8)),
+        Text({ color: theme.foreground.muted }, desc)
       )
     )
   );
