@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Button, IconButton, ButtonGroup } from '../../src/atoms/button.js';
+import { Button, IconButton, ButtonGroup, createButtonGroup } from '../../src/atoms/button.js';
+import type { Key } from '../../src/hooks/index.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/design-system/core/layout.js';
 import { renderToString } from '../../src/design-system/core/renderer.js';
@@ -298,5 +299,542 @@ describe('ButtonGroup Component', () => {
 
     expect(onClick1).toHaveBeenCalledTimes(1);
     expect(onClick2).not.toHaveBeenCalled();
+  });
+});
+
+describe('createButtonGroup - Keyboard Navigation', () => {
+  // Helper to create a mock key event
+  const mockKey = (overrides: Partial<Key> = {}): Key => ({
+    upArrow: false,
+    downArrow: false,
+    leftArrow: false,
+    rightArrow: false,
+    return: false,
+    escape: false,
+    tab: false,
+    backspace: false,
+    delete: false,
+    meta: false,
+    ctrl: false,
+    shift: false,
+    pageUp: false,
+    pageDown: false,
+    home: false,
+    end: false,
+    ...overrides,
+  });
+
+  it('should initialize with first button focused', () => {
+    const state = createButtonGroup({
+      buttons: [
+        { label: 'One' },
+        { label: 'Two' },
+        { label: 'Three' },
+      ],
+    });
+
+    expect(state.focusedIndex()).toBe(0);
+  });
+
+  it('should initialize with specified index focused', () => {
+    const state = createButtonGroup({
+      buttons: [
+        { label: 'One' },
+        { label: 'Two' },
+        { label: 'Three' },
+      ],
+      initialFocusedIndex: 2,
+    });
+
+    expect(state.focusedIndex()).toBe(2);
+  });
+
+  it('should skip disabled buttons on initial focus', () => {
+    const state = createButtonGroup({
+      buttons: [
+        { label: 'One', disabled: true },
+        { label: 'Two' },
+        { label: 'Three' },
+      ],
+      initialFocusedIndex: 0, // Points to disabled button
+    });
+
+    expect(state.focusedIndex()).toBe(1); // Should skip to first enabled
+  });
+
+  describe('Horizontal Navigation', () => {
+    it('should navigate right with arrow key', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+      });
+
+      expect(state.focusedIndex()).toBe(0);
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(1);
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(2);
+    });
+
+    it('should navigate left with arrow key', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+        initialFocusedIndex: 2,
+      });
+
+      expect(state.focusedIndex()).toBe(2);
+
+      state.handleInput('', mockKey({ leftArrow: true }));
+      expect(state.focusedIndex()).toBe(1);
+
+      state.handleInput('', mockKey({ leftArrow: true }));
+      expect(state.focusedIndex()).toBe(0);
+    });
+
+    it('should wrap around when reaching end', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+        wrap: true,
+        initialFocusedIndex: 2,
+      });
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(0); // Wrapped to start
+    });
+
+    it('should wrap around when reaching start', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+        wrap: true,
+        initialFocusedIndex: 0,
+      });
+
+      state.handleInput('', mockKey({ leftArrow: true }));
+      expect(state.focusedIndex()).toBe(2); // Wrapped to end
+    });
+
+    it('should not wrap when wrap is false', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+        wrap: false,
+        initialFocusedIndex: 2,
+      });
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(2); // Stayed at end
+    });
+
+    it('should support vim-style h/l navigation', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+      });
+
+      state.handleInput('l', mockKey());
+      expect(state.focusedIndex()).toBe(1);
+
+      state.handleInput('l', mockKey());
+      expect(state.focusedIndex()).toBe(2);
+
+      state.handleInput('h', mockKey());
+      expect(state.focusedIndex()).toBe(1);
+    });
+  });
+
+  describe('Vertical Navigation', () => {
+    it('should navigate down with arrow key', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'vertical',
+      });
+
+      expect(state.focusedIndex()).toBe(0);
+
+      state.handleInput('', mockKey({ downArrow: true }));
+      expect(state.focusedIndex()).toBe(1);
+    });
+
+    it('should navigate up with arrow key', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'vertical',
+        initialFocusedIndex: 2,
+      });
+
+      state.handleInput('', mockKey({ upArrow: true }));
+      expect(state.focusedIndex()).toBe(1);
+    });
+
+    it('should support vim-style j/k navigation', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        direction: 'vertical',
+      });
+
+      state.handleInput('j', mockKey());
+      expect(state.focusedIndex()).toBe(1);
+
+      state.handleInput('k', mockKey());
+      expect(state.focusedIndex()).toBe(0);
+    });
+  });
+
+  describe('Click Triggering', () => {
+    it('should trigger onClick with Enter key', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick },
+          { label: 'Two' },
+        ],
+      });
+
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('should trigger onClick with Space key', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick },
+          { label: 'Two' },
+        ],
+      });
+
+      state.handleInput(' ', mockKey());
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('should trigger correct button onClick', () => {
+      const onClick1 = vi.fn();
+      const onClick2 = vi.fn();
+      const onClick3 = vi.fn();
+
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick: onClick1 },
+          { label: 'Two', onClick: onClick2 },
+          { label: 'Three', onClick: onClick3 },
+        ],
+      });
+
+      // Navigate to second button and press Enter
+      state.handleInput('', mockKey({ rightArrow: true }));
+      state.handleInput('', mockKey({ return: true }));
+
+      expect(onClick1).not.toHaveBeenCalled();
+      expect(onClick2).toHaveBeenCalledTimes(1);
+      expect(onClick3).not.toHaveBeenCalled();
+    });
+
+    it('should not trigger onClick on disabled button', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick, disabled: true },
+          { label: 'Two' },
+        ],
+        initialFocusedIndex: 0,
+      });
+
+      // Even though first button is "focused", it's disabled
+      // so triggerClick should not work
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it('should not trigger onClick on loading button', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick, loading: true },
+          { label: 'Two' },
+        ],
+        initialFocusedIndex: 0,
+      });
+
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Disabled Button Skipping', () => {
+    it('should skip disabled buttons when navigating', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two', disabled: true },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+      });
+
+      expect(state.focusedIndex()).toBe(0);
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(2); // Skipped disabled button at index 1
+    });
+
+    it('should skip loading buttons when navigating', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two', loading: true },
+          { label: 'Three' },
+        ],
+        direction: 'horizontal',
+      });
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(2); // Skipped loading button
+    });
+
+    it('should handle all buttons disabled gracefully', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', disabled: true },
+          { label: 'Two', disabled: true },
+        ],
+      });
+
+      // Should not throw, just stay at current position
+      state.handleInput('', mockKey({ rightArrow: true }));
+      state.handleInput('', mockKey({ leftArrow: true }));
+    });
+  });
+
+  describe('Number Key Quick Access', () => {
+    it('should focus button with number key 1-9', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+      });
+
+      state.handleInput('2', mockKey());
+      expect(state.focusedIndex()).toBe(1); // Index 1 (button 2)
+
+      state.handleInput('3', mockKey());
+      expect(state.focusedIndex()).toBe(2); // Index 2 (button 3)
+
+      state.handleInput('1', mockKey());
+      expect(state.focusedIndex()).toBe(0); // Index 0 (button 1)
+    });
+
+    it('should not focus disabled button with number key', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two', disabled: true },
+          { label: 'Three' },
+        ],
+      });
+
+      state.handleInput('2', mockKey()); // Try to focus disabled button 2
+      expect(state.focusedIndex()).toBe(0); // Should stay at 0
+    });
+
+    it('should ignore number keys beyond button count', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+        ],
+      });
+
+      state.handleInput('5', mockKey()); // No button 5
+      expect(state.focusedIndex()).toBe(0); // Should stay at 0
+    });
+  });
+
+  describe('isActive Control', () => {
+    it('should not handle input when isActive is false', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick },
+          { label: 'Two' },
+        ],
+        isActive: false,
+      });
+
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).not.toHaveBeenCalled();
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(state.focusedIndex()).toBe(0); // Didn't move
+    });
+
+    it('should support reactive isActive getter', () => {
+      let active = true;
+      const onClick = vi.fn();
+
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One', onClick },
+          { label: 'Two' },
+        ],
+        isActive: () => active,
+      });
+
+      // Should work when active
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).toHaveBeenCalledTimes(1);
+
+      // Disable and try again
+      active = false;
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).toHaveBeenCalledTimes(1); // Still 1, not called again
+
+      // Re-enable
+      active = true;
+      state.handleInput('', mockKey({ return: true }));
+      expect(onClick).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('Focus Change Callback', () => {
+    it('should call onFocusChange when focus changes', () => {
+      const onFocusChange = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        onFocusChange,
+      });
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(onFocusChange).toHaveBeenCalledWith(1);
+
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(onFocusChange).toHaveBeenCalledWith(2);
+    });
+
+    it('should not call onFocusChange when focus stays same', () => {
+      const onFocusChange = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+        ],
+        wrap: false,
+        initialFocusedIndex: 1,
+        onFocusChange,
+      });
+
+      // Try to go right at end with no wrap - should stay at 1
+      state.handleInput('', mockKey({ rightArrow: true }));
+      expect(onFocusChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Programmatic Control', () => {
+    it('should allow setting focus index directly', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+      });
+
+      state.setFocusedIndex(2);
+      expect(state.focusedIndex()).toBe(2);
+    });
+
+    it('should allow setting focus with updater function', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+      });
+
+      state.setFocusedIndex((prev) => prev + 1);
+      expect(state.focusedIndex()).toBe(1);
+    });
+
+    it('should allow programmatic click trigger', () => {
+      const onClick = vi.fn();
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two', onClick },
+          { label: 'Three' },
+        ],
+        initialFocusedIndex: 1,
+      });
+
+      state.triggerClick();
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('should allow focusPrev and focusNext methods', () => {
+      const state = createButtonGroup({
+        buttons: [
+          { label: 'One' },
+          { label: 'Two' },
+          { label: 'Three' },
+        ],
+        initialFocusedIndex: 1,
+      });
+
+      state.focusNext();
+      expect(state.focusedIndex()).toBe(2);
+
+      state.focusPrev();
+      expect(state.focusedIndex()).toBe(1);
+
+      state.focusPrev();
+      expect(state.focusedIndex()).toBe(0);
+    });
   });
 });

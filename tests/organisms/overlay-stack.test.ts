@@ -300,10 +300,13 @@ describe('Overlay Stack', () => {
       expect(stack.current()?.id).toBe('critical');
     });
 
-    it('should order same-priority overlays by push time', async () => {
+    it('should order same-priority overlays by push time', () => {
+      // Mock Date.now to control timestamps
+      let now = 1000;
+      const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
       stack.push({ id: 'first', component: () => Box({}), priority: 'normal' });
-      // Small delay to ensure different timestamps
-      await new Promise(resolve => setTimeout(resolve, 5));
+      now = 2000; // Advance time
       stack.push({ id: 'second', component: () => Box({}), priority: 'normal' });
 
       const all = stack.all();
@@ -311,23 +314,29 @@ describe('Overlay Stack', () => {
       expect(all[0]?.id).toBe('first');
       expect(all[1]?.id).toBe('second');
       expect(stack.current()?.id).toBe('second');
+
+      dateSpy.mockRestore();
     });
   });
 
   describe('bringToTop()', () => {
-    it('should bring overlay to top within same priority', async () => {
+    it('should bring overlay to top within same priority', () => {
+      // Mock Date.now to control timestamps
+      let now = 1000;
+      const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
       stack.push({ id: 'first', component: () => Box({}), priority: 'normal' });
-      await new Promise(resolve => setTimeout(resolve, 10));
+      now = 2000;
       stack.push({ id: 'second', component: () => Box({}), priority: 'normal' });
 
-      // Wait to ensure different timestamps
-      await new Promise(resolve => setTimeout(resolve, 10));
-
+      now = 3000;
       const result = stack.bringToTop('first');
 
       expect(result).toBe(true);
       // After bringToTop, 'first' has the newest timestamp so should be current
       expect(stack.current()?.id).toBe('first');
+
+      dateSpy.mockRestore();
     });
 
     it('should return false for non-existent ID', () => {
@@ -365,15 +374,21 @@ describe('Overlay Stack', () => {
       expect(stack.replace('non-existent', { id: 'new', component: () => Box({}) })).toBe(false);
     });
 
-    it('should keep original pushedAt timestamp', async () => {
+    it('should keep original pushedAt timestamp', () => {
+      // Mock Date.now to control timestamps
+      let now = 1000;
+      const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
       stack.push({ id: 'test', component: () => Box({}) });
       const originalPushedAt = stack.get('test')?.pushedAt;
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      now = 2000; // Advance time
 
       stack.replace('test', { id: 'test', component: () => Text({}, 'Updated') });
 
       expect(stack.get('test')?.pushedAt).toBe(originalPushedAt);
+
+      dateSpy.mockRestore();
     });
   });
 

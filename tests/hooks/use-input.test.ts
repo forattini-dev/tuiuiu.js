@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { parseKeypress, useInput } from '../../src/hooks/use-input.js';
+import { parseKeypress, useInput, useModalInput, useCriticalInput } from '../../src/hooks/use-input.js';
 import {
   beginRender,
   endRender,
@@ -483,5 +483,101 @@ describe('useInput hook', () => {
     useInput(handler, { isActive: true });
     endRender();
     expect(getInputHandlerCount()).toBe(1);
+  });
+
+  it('re-registers when priority changes', () => {
+    const handler = vi.fn();
+
+    // Start with normal priority
+    beginRender();
+    useInput(handler, { isActive: true, priority: 'normal' });
+    endRender();
+    expect(getInputHandlerCount()).toBe(1);
+
+    // Change to modal priority
+    beginRender();
+    useInput(handler, { isActive: true, priority: 'modal' });
+    endRender();
+    expect(getInputHandlerCount()).toBe(1);
+  });
+
+  it('re-registers when stopPropagation changes', () => {
+    const handler = vi.fn();
+
+    // Start without stopPropagation
+    beginRender();
+    useInput(handler, { isActive: true, stopPropagation: false });
+    endRender();
+    expect(getInputHandlerCount()).toBe(1);
+
+    // Enable stopPropagation
+    beginRender();
+    useInput(handler, { isActive: true, stopPropagation: true });
+    endRender();
+    expect(getInputHandlerCount()).toBe(1);
+  });
+});
+
+describe('useModalInput hook', () => {
+  beforeEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  afterEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  it('registers handler with modal priority', () => {
+    const handler = vi.fn();
+
+    beginRender();
+    useModalInput(handler);
+    endRender();
+
+    expect(getInputHandlerCount()).toBe(1);
+  });
+
+  it('respects isActive option', () => {
+    const handler = vi.fn();
+
+    beginRender();
+    useModalInput(handler, { isActive: false });
+    endRender();
+
+    expect(getInputHandlerCount()).toBe(0);
+  });
+});
+
+describe('useCriticalInput hook', () => {
+  beforeEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  afterEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  it('registers handler with critical priority', () => {
+    const handler = vi.fn();
+
+    beginRender();
+    useCriticalInput(handler);
+    endRender();
+
+    expect(getInputHandlerCount()).toBe(1);
+  });
+
+  it('respects isActive option', () => {
+    const handler = vi.fn();
+
+    beginRender();
+    useCriticalInput(handler, { isActive: false });
+    endRender();
+
+    expect(getInputHandlerCount()).toBe(0);
   });
 });
