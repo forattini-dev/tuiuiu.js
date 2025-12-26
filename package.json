@@ -1,6 +1,6 @@
 {
   "name": "tuiuiu.js",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Zero-dependency Terminal UI library with Component-based experience for Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
