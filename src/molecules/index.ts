@@ -142,5 +142,13 @@ export {
   type ExpandableTextProps,
 } from './collapsible.js';
 
+// Form helpers
+export {
+  FormField,
+  FormGroup,
+  type FormFieldProps,
+  type FormGroupProps,
+} from './form-field.js';
+
 // Data Visualization
 export * from './data-viz/index.js';

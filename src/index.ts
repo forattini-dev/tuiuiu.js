@@ -109,6 +109,18 @@ export {
   isMac,
   // FPS tracking
   useFps,
+  // Form management
+  useForm,
+  createFormValidator,
+  required,
+  minLength,
+  maxLength,
+  email,
+  pattern,
+  min,
+  max,
+  matchField,
+  custom,
 } from './hooks/index.js';
 
 export type {
@@ -121,6 +133,14 @@ export type {
   HotkeyOptions,
   HotkeyHandler,
   UseFpsResult,
+  // Form types
+  FormValues,
+  FormErrors,
+  UseFormOptions,
+  UseFormResult,
+  FieldBinding,
+  ValidationRule,
+  FieldValidators,
 } from './hooks/index.js';
 
 // =============================================================================
@@ -167,12 +187,21 @@ export {
   drawSparkline,
   drawBarChart,
   drawScatterPlot,
+  // Scroll (primitive)
+  Scroll,
+  createScroll,
+  useScroll,
 } from './primitives/index.js';
 
 export type {
   TransformProps,
   StaticProps,
   DividerProps,
+  // Scroll types
+  ScrollProps,
+  ScrollState,
+  UseScrollOptions,
+  UseScrollReturn,
   SlotProps,
   SplitBoxProps,
   SplitBoxSection,
@@ -1327,3 +1356,43 @@ export type {
   TestHarnessOptions,
   TestHarness,
 } from './dev-tools/index.js';
+
+// =============================================================================
+// Presets - Pre-configured component props for common use cases
+// =============================================================================
+
+export {
+  // Button presets
+  dangerButton,
+  successButton,
+  warningButton,
+  ghostButton,
+  linkButton,
+  primaryButton,
+  outlineButton,
+  smallButton,
+  largeButton,
+  // Modal presets
+  confirmModal,
+  alertModal,
+  formModal,
+  largeModal,
+  fullscreenModal,
+  // Badge presets
+  statusSuccess,
+  statusWarning,
+  statusError,
+  statusInfo,
+  statusNeutral,
+  statusPending,
+  outlineSuccess,
+  outlineWarning,
+  outlineError,
+  // Aggregate object
+  presets,
+  // Utilities
+  getPreset,
+  listPresets,
+  listPresetsByCategory,
+  type PresetName,
+} from './presets/index.js';

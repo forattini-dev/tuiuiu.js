@@ -105,3 +105,29 @@ export type {
 
 // FPS tracking hook
 export { useFps, type UseFpsResult } from './use-fps.js';
+
+// Form hook
+export {
+  useForm,
+  createFormValidator,
+  // Built-in validators
+  required,
+  minLength,
+  maxLength,
+  email,
+  pattern,
+  min,
+  max,
+  matchField,
+  custom,
+} from './use-form.js';
+
+export type {
+  FormValues,
+  FormErrors,
+  UseFormOptions,
+  UseFormResult,
+  FieldBinding,
+  ValidationRule,
+  FieldValidators,
+} from './use-form.js';
