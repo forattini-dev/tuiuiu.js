@@ -4,6 +4,8 @@ Tuiuiu implements a simplified **Flexbox** layout engine optimized for terminals
 
 The layout system is built into the `Box` component, which serves as the fundamental building block for all UI elements.
 
+![Box Model Demo](../recordings/core/layout-boxmodel.gif)
+
 ## The Box Model
 
 Every visual element in Tuiuiu is a rectangular box. The layout engine calculates the size and position of these boxes based on the CSS Box Model:

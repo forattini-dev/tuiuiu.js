@@ -2,6 +2,8 @@
 
 Tuiuiu includes a robust theming system powered by **Signals**, allowing for instant, reactive theme switching without reloading the application.
 
+![Theme Showcase](../recordings/core/theme-showcase.gif)
+
 ## Quick Start
 
 ```typescript
@@ -35,6 +37,21 @@ Tuiuiu comes with **11 professionally designed themes**:
 | `themes.catppuccin` | Soothing pastel (Mocha variant) | Dark |
 | `themes['high-contrast-dark']` | High contrast for accessibility | Dark |
 | `themes.monochrome` | Grayscale only, no colors | Dark |
+
+### Theme Color Palette
+
+Each theme defines semantic colors that adapt automatically:
+
+| Theme | Primary | Success | Warning | Error | Info |
+|-------|---------|---------|---------|-------|------|
+| **dark** | ![#3B82F6](https://via.placeholder.com/15/3B82F6/3B82F6.png) `#3B82F6` | ![#22C55E](https://via.placeholder.com/15/22C55E/22C55E.png) `#22C55E` | ![#F59E0B](https://via.placeholder.com/15/F59E0B/F59E0B.png) `#F59E0B` | ![#EF4444](https://via.placeholder.com/15/EF4444/EF4444.png) `#EF4444` | ![#06B6D4](https://via.placeholder.com/15/06B6D4/06B6D4.png) `#06B6D4` |
+| **light** | ![#2563EB](https://via.placeholder.com/15/2563EB/2563EB.png) `#2563EB` | ![#16A34A](https://via.placeholder.com/15/16A34A/16A34A.png) `#16A34A` | ![#D97706](https://via.placeholder.com/15/D97706/D97706.png) `#D97706` | ![#DC2626](https://via.placeholder.com/15/DC2626/DC2626.png) `#DC2626` | ![#0891B2](https://via.placeholder.com/15/0891B2/0891B2.png) `#0891B2` |
+| **dracula** | ![#BD93F9](https://via.placeholder.com/15/BD93F9/BD93F9.png) `#BD93F9` | ![#50FA7B](https://via.placeholder.com/15/50FA7B/50FA7B.png) `#50FA7B` | ![#F1FA8C](https://via.placeholder.com/15/F1FA8C/F1FA8C.png) `#F1FA8C` | ![#FF5555](https://via.placeholder.com/15/FF5555/FF5555.png) `#FF5555` | ![#8BE9FD](https://via.placeholder.com/15/8BE9FD/8BE9FD.png) `#8BE9FD` |
+| **nord** | ![#88C0D0](https://via.placeholder.com/15/88C0D0/88C0D0.png) `#88C0D0` | ![#A3BE8C](https://via.placeholder.com/15/A3BE8C/A3BE8C.png) `#A3BE8C` | ![#EBCB8B](https://via.placeholder.com/15/EBCB8B/EBCB8B.png) `#EBCB8B` | ![#BF616A](https://via.placeholder.com/15/BF616A/BF616A.png) `#BF616A` | ![#81A1C1](https://via.placeholder.com/15/81A1C1/81A1C1.png) `#81A1C1` |
+| **gruvbox** | ![#83A598](https://via.placeholder.com/15/83A598/83A598.png) `#83A598` | ![#B8BB26](https://via.placeholder.com/15/B8BB26/B8BB26.png) `#B8BB26` | ![#FABD2F](https://via.placeholder.com/15/FABD2F/FABD2F.png) `#FABD2F` | ![#FB4934](https://via.placeholder.com/15/FB4934/FB4934.png) `#FB4934` | ![#8EC07C](https://via.placeholder.com/15/8EC07C/8EC07C.png) `#8EC07C` |
+| **tokyo-night** | ![#7AA2F7](https://via.placeholder.com/15/7AA2F7/7AA2F7.png) `#7AA2F7` | ![#9ECE6A](https://via.placeholder.com/15/9ECE6A/9ECE6A.png) `#9ECE6A` | ![#E0AF68](https://via.placeholder.com/15/E0AF68/E0AF68.png) `#E0AF68` | ![#F7768E](https://via.placeholder.com/15/F7768E/F7768E.png) `#F7768E` | ![#7DCFFF](https://via.placeholder.com/15/7DCFFF/7DCFFF.png) `#7DCFFF` |
+| **catppuccin** | ![#CBA6F7](https://via.placeholder.com/15/CBA6F7/CBA6F7.png) `#CBA6F7` | ![#A6E3A1](https://via.placeholder.com/15/A6E3A1/A6E3A1.png) `#A6E3A1` | ![#F9E2AF](https://via.placeholder.com/15/F9E2AF/F9E2AF.png) `#F9E2AF` | ![#F38BA8](https://via.placeholder.com/15/F38BA8/F38BA8.png) `#F38BA8` | ![#89DCEB](https://via.placeholder.com/15/89DCEB/89DCEB.png) `#89DCEB` |
+| **monokai** | ![#A6E22E](https://via.placeholder.com/15/A6E22E/A6E22E.png) `#A6E22E` | ![#A6E22E](https://via.placeholder.com/15/A6E22E/A6E22E.png) `#A6E22E` | ![#E6DB74](https://via.placeholder.com/15/E6DB74/E6DB74.png) `#E6DB74` | ![#F92672](https://via.placeholder.com/15/F92672/F92672.png) `#F92672` | ![#66D9EF](https://via.placeholder.com/15/66D9EF/66D9EF.png) `#66D9EF` |
 
 ### Switching Themes
 

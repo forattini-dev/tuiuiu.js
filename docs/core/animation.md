@@ -455,17 +455,17 @@ For animating colored pixel art and ASCII graphics, use `AnimatedPicture` or `cr
 
 ### Available Animation Types
 
-| Animation | Description | Use Case |
-|-----------|-------------|----------|
-| `pulse` | Fast sine wave oscillation | Attention-grabbing alerts |
-| `breathe` | Slow, smooth breathing | Ambient, idle states |
-| `blink` | Hard on/off toggle | Warnings, critical |
-| `fadeIn` | Gradual appearance | Entry animations, splash screens |
-| `fadeOut` | Gradual disappearance | Exit animations |
-| `glow` | Subtle brightness variation | Ambient highlights |
-| `shimmer` | Wave of brightness across image | Loading, progress |
-| `rainbow` | Cycle through spectrum colors | Celebration, fun |
-| `glitch` | Random distortion/scrambling | Error states, retro |
+| Animation | Demo | Description | Use Case |
+|-----------|------|-------------|----------|
+| `pulse` | ![pulse](../recordings/animations/pulse.gif) | Fast sine wave oscillation | Attention-grabbing alerts |
+| `breathe` | ![breathe](../recordings/animations/breathe.gif) | Slow, smooth breathing | Ambient, idle states |
+| `blink` | ![blink](../recordings/animations/blink.gif) | Hard on/off toggle | Warnings, critical |
+| `fadeIn` | ![fadeIn](../recordings/animations/fadeIn.gif) | Gradual appearance | Entry animations, splash screens |
+| `fadeOut` | ![fadeOut](../recordings/animations/fadeOut.gif) | Gradual disappearance | Exit animations |
+| `glow` | ![glow](../recordings/animations/glow.gif) | Subtle brightness variation | Ambient highlights |
+| `shimmer` | ![shimmer](../recordings/animations/shimmer.gif) | Wave of brightness across image | Loading, progress |
+| `rainbow` | ![rainbow](../recordings/animations/rainbow.gif) | Cycle through spectrum colors | Celebration, fun |
+| `glitch` | ![glitch](../recordings/animations/glitch.gif) | Random distortion/scrambling | Error states, retro |
 
 ### Basic Usage
 
