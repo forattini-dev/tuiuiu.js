@@ -636,7 +636,7 @@ export interface SpinnerOptions {
   /** Spinner color */
   color?: string;
   /** Text color */
-  textColor?: string;
+  foreground?: string;
   /** Secondary info color */
   infoColor?: string;
   /** Custom speed multiplier */
@@ -739,7 +739,7 @@ export function renderSpinner(
     showProgress = false,
     progress = 0,
     color = theme.accents.info,
-    textColor = theme.foreground.primary,
+    foreground = theme.foreground.primary,
     infoColor = theme.foreground.muted,
     hint = 'esc to interrupt',
   } = options;
@@ -776,7 +776,7 @@ export function renderSpinner(
   return Box(
     { flexDirection: 'row', gap: 1 },
     Text({ color }, frame),
-    Text({ color: textColor }, text),
+    Text({ color: foreground }, text),
     infoText ? Text({ color: infoColor, dim: true }, infoText) : Text({}, '')
   );
 }
@@ -839,7 +839,7 @@ export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode
   return Box(
     { flexDirection: 'row', gap: 1 },
     Text({ color: options.color || 'primary' }, frame),
-    Text({ color: options.textColor || 'foreground' }, text),
+    Text({ color: options.foreground || 'foreground' }, text),
     infoText ? Text({ color: options.infoColor || 'mutedForeground', dim: true }, infoText) : Text({}, '')
   );
 }

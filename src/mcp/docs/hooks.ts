@@ -100,27 +100,91 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
-    name: 'useScroll',
-    description: 'Hook for controlling Scroll component programmatically.',
-    signature: 'useScroll(options?: UseScrollOptions): UseScrollReturn',
+    name: 'useModalInput',
+    description: 'Convenience hook for modal-like components with higher input priority. Handlers with stopPropagation prevent input from reaching lower-priority handlers.',
+    signature: 'useModalInput(handler: InputHandler, options?: Omit<UseInputOptions, "priority">): void',
     params: [
-      { name: 'options.height', type: 'number', required: false, description: 'Initial height hint' },
+      { name: 'handler', type: '(input: string, key: Key) => boolean | void', required: true, description: 'Input handler. Return true to stop propagation.' },
+      { name: 'options.stopPropagation', type: 'boolean', required: false, default: 'true', description: 'Block lower-priority handlers when returning truthy' },
+      { name: 'options.isActive', type: 'boolean', required: false, default: 'true', description: 'Enable/disable handler dynamically' },
     ],
-    returns: 'Object with scroll control methods and bind property for Scroll component',
+    returns: 'void',
     examples: [
-      `const scroll = useScroll();\n\n// Control\nscroll.scrollToBottom();\nscroll.scrollToTop();\nscroll.scrollTo(10);\nscroll.scrollBy(5);\n\n// Read state\nconst pos = scroll.scrollTop();\nconst max = scroll.maxScroll();\n\n// Bind to component\nScroll({ ...scroll.bind, height: 20 },\n  ...content\n)`,
+      `// Modal that blocks background input\nuseModalInput((input, key) => {\n  if (key.escape) {\n    closeModal();\n    return true; // Stop propagation\n  }\n  if (key.return) {\n    confirm();\n    return true;\n  }\n});`,
     ],
   },
   {
-    name: 'useScrollList',
-    description: 'Hook for controlling ScrollList/ChatList components programmatically.',
-    signature: 'useScrollList(options?: UseScrollListOptions): UseScrollListReturn',
+    name: 'useCriticalInput',
+    description: 'Convenience hook for critical dialogs (highest priority). Use for error dialogs, system confirmations, etc.',
+    signature: 'useCriticalInput(handler: InputHandler, options?: Omit<UseInputOptions, "priority">): void',
     params: [
-      { name: 'options.inverted', type: 'boolean', required: false, default: 'false', description: 'Inverted scroll mode' },
+      { name: 'handler', type: '(input: string, key: Key) => boolean | void', required: true, description: 'Input handler. Return true to stop propagation.' },
+      { name: 'options.stopPropagation', type: 'boolean', required: false, default: 'true', description: 'Block lower-priority handlers' },
     ],
-    returns: 'Object with scroll control methods and bind property for ScrollList/ChatList',
+    returns: 'void',
     examples: [
-      `const list = useScrollList({ inverted: true });\n\n// Control\nlist.scrollToBottom();\nlist.scrollToTop();\nlist.scrollTo(10);\nlist.scrollBy(5);\n\n// Auto-scroll when adding items\nconst addItem = (item) => {\n  items.push(item);\n  list.scrollToBottom();\n};\n\n// Bind to component\nScrollList({\n  ...list.bind,\n  items: items(),\n  children: (item) => Item({ item }),\n  height: 20,\n})`,
+      `// Critical error dialog - highest priority\nuseCriticalInput((input, key) => {\n  if (key.return) {\n    acknowledgeError();\n    return true;\n  }\n});`,
+    ],
+  },
+  {
+    name: 'useThemeOverride',
+    description: 'Temporarily override the theme and automatically restore when component unmounts. Essential for modals or overlays that need a different theme.',
+    signature: 'useThemeOverride(theme: Theme): void',
+    params: [
+      { name: 'theme', type: 'Theme', required: true, description: 'Theme to apply temporarily' },
+    ],
+    returns: 'void',
+    examples: [
+      `import { lightTheme } from 'tuiuiu.js/themes';\n\nfunction HighContrastModal() {\n  useThemeOverride(lightTheme); // Pushes theme, pops on unmount\n  return Modal({}, Text({}, 'High contrast content'));\n}`,
+    ],
+  },
+  {
+    name: 'useHotkeyScope',
+    description: 'Temporarily set a hotkey scope and automatically restore when component unmounts. Essential for modals that should only respond to their own hotkeys.',
+    signature: 'useHotkeyScope(scope: string): void',
+    params: [
+      { name: 'scope', type: 'string', required: true, description: 'Hotkey scope to activate' },
+    ],
+    returns: 'void',
+    examples: [
+      `function SettingsModal() {\n  useHotkeyScope('settings-modal'); // Pushes scope, pops on unmount\n  // Now only 'settings-modal' and 'global' hotkeys work\n  return Modal({}, Text({}, 'Settings...'));\n}`,
+    ],
+  },
+  {
+    name: 'useCurrentHotkeyScope',
+    description: 'Get the current hotkey scope as a reactive accessor.',
+    signature: 'useCurrentHotkeyScope(): Accessor<string>',
+    params: [],
+    returns: 'Reactive accessor returning current scope name',
+    examples: [
+      `function ScopeIndicator() {\n  const scope = useCurrentHotkeyScope();\n  return Text({}, \`Current scope: \${scope()}\`);\n}`,
+    ],
+  },
+  {
+    name: 'useNavigation',
+    description: 'Hook for linked list navigation (previous/next). Useful for wizards, carousels, and step-based UIs.',
+    signature: 'useNavigation<T>(nodes: T[], options?: NavigationOptions): NavigationState<T>',
+    params: [
+      { name: 'nodes', type: 'T[]', required: true, description: 'Array of navigation nodes' },
+      { name: 'options.loop', type: 'boolean', required: false, default: 'false', description: 'Loop from last to first' },
+      { name: 'options.initialIndex', type: 'number', required: false, default: '0', description: 'Starting index' },
+    ],
+    returns: 'Object with current(), next(), previous(), goTo(), canGoNext(), canGoPrevious()',
+    examples: [
+      `const nav = useNavigation(['step1', 'step2', 'step3']);\n\n// Navigate\nnav.next();\nnav.previous();\nnav.goTo(2);\n\n// Check state\nnav.current(); // 'step2'\nnav.canGoNext(); // true\nnav.canGoPrevious(); // true`,
+    ],
+  },
+  {
+    name: 'useFocusManager',
+    description: 'Create and manage a focus zone with multiple focusable elements.',
+    signature: 'useFocusManager(options?: FocusManagerOptions): FocusManager',
+    params: [
+      { name: 'options.loop', type: 'boolean', required: false, default: 'true', description: 'Loop focus from last to first' },
+      { name: 'options.orientation', type: '"horizontal" | "vertical"', required: false, default: '"vertical"', description: 'Focus direction' },
+    ],
+    returns: 'FocusManager with register(), focus(), focusNext(), focusPrevious(), etc.',
+    examples: [
+      `const focus = useFocusManager({ orientation: 'vertical' });\n\n// Register focusable elements\nButton({ ...focus.register('btn1'), label: 'First' })\nButton({ ...focus.register('btn2'), label: 'Second' })\n\n// Navigate\nfocus.focusNext();\nfocus.focusPrevious();\nfocus.focus('btn2');`,
     ],
   },
   {

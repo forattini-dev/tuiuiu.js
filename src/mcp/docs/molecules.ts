@@ -557,27 +557,8 @@ export const molecules: ComponentDoc[] = [
 
   // =============================================================================
   // Layout Components
+  // Note: SplitPanel moved to organisms (src/organisms/split-panel.ts)
   // =============================================================================
-  {
-    name: 'SplitPanel',
-    category: 'molecules',
-    description: 'Resizable split panel layout with keyboard/mouse resize.',
-    props: [
-      { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Split direction' },
-      { name: 'initialSize', type: "number", required: false, default: '50', description: 'Initial size percentage' },
-      { name: 'minSize', type: "number", required: false, default: '10', description: 'Minimum size percentage' },
-      { name: 'maxSize', type: "number", required: false, default: '90', description: 'Maximum size percentage' },
-      { name: 'left', type: "VNode", required: true, description: 'Left/top panel content' },
-      { name: 'right', type: "VNode", required: true, description: 'Right/bottom panel content' },
-      { name: 'resizable', type: "boolean", required: false, default: 'true', description: 'Allow resizing' },
-      { name: 'showDivider', type: "boolean", required: false, default: 'true', description: 'Show divider line' },
-      { name: 'onResize', type: "(size: number) => void", required: false, description: 'Resize callback' },
-    ],
-    examples: [
-      `SplitPanel({\n  direction: 'horizontal',\n  initialSize: 30,\n  left: Sidebar(),\n  right: MainContent(),\n})`,
-    ],
-    relatedComponents: ['Grid'],
-  },
   {
     name: 'Grid',
     category: 'molecules',

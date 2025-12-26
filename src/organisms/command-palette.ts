@@ -48,6 +48,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { stringWidth } from '../utils/text-utils.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
+import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
+import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 
 // =============================================================================
 // Types
@@ -138,6 +140,14 @@ export interface CommandPaletteState {
   getSelected: () => CommandItem | undefined;
   /** Set items dynamically */
   setItems: (items: CommandItem[]) => void;
+  /** Focus zone ID (if focusTrap enabled) */
+  zoneId: string | null;
+  /** Activate focus trap (call when palette opens) */
+  activate: () => void;
+  /** Deactivate focus trap (call when palette closes) */
+  deactivate: () => void;
+  /** Register a focusable element in the palette's focus zone */
+  registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => () => void;
 }
 
 // =============================================================================
@@ -517,6 +527,14 @@ export interface CreateCommandPaletteOptions {
   filter?: (item: CommandItem, query: string) => number;
   /** Palette props */
   props?: Partial<Omit<CommandPaletteProps, 'query' | 'items' | 'filteredItems' | 'selectedIndex'>>;
+  /** Enable focus trap when palette opens (recommended for accessibility) */
+  focusTrap?: boolean;
+  /** Restore focus to previous element when palette closes */
+  restoreFocus?: boolean;
+  /** Auto-focus first item when palette opens */
+  autoFocus?: boolean;
+  /** Hotkey scope to activate when palette opens (auto-restored on close) */
+  hotkeyScope?: string;
 }
 
 /**
@@ -542,12 +560,29 @@ export interface CreateCommandPaletteOptions {
  * ```
  */
 export function createCommandPalette(options: CreateCommandPaletteOptions): CommandPaletteState {
-  const { onSelect, onClose, filter = (item, query) => fuzzyMatch(query, item.label) } = options;
+  const {
+    onSelect,
+    onClose,
+    filter = (item, query) => fuzzyMatch(query, item.label),
+    focusTrap = false,
+    restoreFocus = true,
+    autoFocus = true,
+    hotkeyScope,
+  } = options;
 
   let items = [...options.items];
   let query = '';
   let selectedIndex = 0;
   let filteredItems: CommandItem[] = items;
+
+  // Focus trap zone
+  let focusZone: ReturnType<typeof createFocusTrap> | null = null;
+  let zoneId: string | null = null;
+
+  if (focusTrap) {
+    focusZone = createFocusTrap({ restoreFocus, autoFocus });
+    zoneId = focusZone.zoneId;
+  }
 
   const updateFiltered = () => {
     if (!query) {
@@ -580,6 +615,10 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     query: () => query,
     filteredItems: () => filteredItems,
     selectedIndex: () => selectedIndex,
+
+    get zoneId() {
+      return zoneId;
+    },
 
     props: {
       items,
@@ -638,6 +677,12 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     },
 
     close: () => {
+      if (focusZone) {
+        focusZone.deactivate();
+      }
+      if (hotkeyScope) {
+        popHotkeyScope();
+      }
       onClose?.();
     },
 
@@ -646,6 +691,33 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     setItems: (newItems: CommandItem[]) => {
       items = [...newItems];
       updateFiltered();
+    },
+
+    activate: () => {
+      if (hotkeyScope) {
+        pushHotkeyScope(hotkeyScope);
+      }
+      if (focusZone) {
+        focusZone.activate();
+      }
+    },
+
+    deactivate: () => {
+      if (focusZone) {
+        focusZone.deactivate();
+      }
+      if (hotkeyScope) {
+        popHotkeyScope();
+      }
+    },
+
+    registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => {
+      if (!zoneId) {
+        return () => {};
+      }
+      const manager = getFocusZoneManager();
+      manager.registerElement(elementId, zoneId, { onFocus });
+      return () => manager.unregisterElement(elementId, zoneId!);
     },
   };
 }

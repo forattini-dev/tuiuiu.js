@@ -671,4 +671,59 @@ ScrollList({
 })`,
     ],
   },
+
+  // =============================================================================
+  // Scroll Components (Extended)
+  // =============================================================================
+  {
+    name: 'ScrollableText',
+    category: 'organisms',
+    description: 'Simple scrollable text container. Wraps text content in a ScrollArea with keyboard navigation.',
+    props: [
+      { name: 'text', type: 'string', required: true, description: 'Text content to display (newlines create separate lines)' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
+      { name: 'width', type: 'number', required: false, description: 'Width in columns' },
+      { name: 'color', type: 'ColorValue', required: false, default: "'foreground'", description: 'Text color' },
+      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard scrolling' },
+    ],
+    examples: [
+      `ScrollableText({\n  text: longContent,\n  height: 10,\n  showScrollbar: true,\n})`,
+    ],
+    relatedComponents: ['ScrollArea', 'LogViewer'],
+  },
+  {
+    name: 'LogViewer',
+    category: 'organisms',
+    description: 'Auto-scrolling log viewer with line numbers, pattern highlighting, and optional timestamps.',
+    props: [
+      { name: 'lines', type: 'string[]', required: true, description: 'Array of log lines' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
+      { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll to bottom when new lines added' },
+      { name: 'showLineNumbers', type: 'boolean', required: false, default: 'false', description: 'Show line numbers' },
+      { name: 'highlightPattern', type: 'RegExp', required: false, description: 'Pattern to highlight in log lines' },
+      { name: 'highlightColor', type: 'ColorValue', required: false, default: "'yellow'", description: 'Color for highlighted matches' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard scrolling' },
+    ],
+    examples: [
+      `const [logs, setLogs] = useState<string[]>([]);\n\n// Add log line\nsetLogs(l => [...l, \`[\${new Date().toISOString()}] New event\`]);\n\nLogViewer({\n  lines: logs(),\n  height: 15,\n  autoScroll: true,\n  showLineNumbers: true,\n  highlightPattern: /error|warn/i,\n  highlightColor: 'red',\n})`,
+    ],
+    relatedComponents: ['ScrollArea', 'ScrollableText'],
+  },
+  {
+    name: 'EditableDataTable',
+    category: 'organisms',
+    description: 'DataTable with inline cell editing support. Extends DataTable with editable columns.',
+    props: [
+      { name: 'data', type: 'T[]', required: true, description: 'Array of row data objects' },
+      { name: 'columns', type: 'EditableColumn<T>[]', required: true, description: 'Column definitions with edit configuration' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
+      { name: 'onCellEdit', type: '(row: T, key: string, value: any) => void', required: false, description: 'Cell edit callback' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation and editing' },
+    ],
+    examples: [
+      `EditableDataTable({\n  data: users(),\n  columns: [\n    { key: 'name', header: 'Name', editable: true },\n    { key: 'email', header: 'Email', editable: true },\n    { key: 'role', header: 'Role', editable: true, options: ['admin', 'user'] },\n  ],\n  height: 10,\n  onCellEdit: (row, key, value) => updateUser(row.id, { [key]: value }),\n})`,
+    ],
+    relatedComponents: ['DataTable'],
+  },
 ];

@@ -10,7 +10,12 @@ export type {
   FocusOptions,
   FocusResult,
   FocusManager,
+  InputPriority,
+  UseInputOptions,
+  InputHandlerEntry,
 } from './types.js';
+
+export { INPUT_PRIORITY_VALUES } from './types.js';
 
 // State hook
 export { useState } from './use-state.js';
@@ -18,8 +23,19 @@ export { useState } from './use-state.js';
 // Effect hook
 export { useEffect } from './use-effect.js';
 
-// Input hook
-export { useInput, parseKeypress } from './use-input.js';
+// Input hook with priority support
+export { useInput, useModalInput, useCriticalInput, parseKeypress } from './use-input.js';
+
+// Input handler management (for advanced use cases)
+export {
+  addInputHandler,
+  removeInputHandler,
+  removeInputHandlerById,
+  emitInput,
+  clearInputHandlers,
+  getInputHandlerCount,
+  getInputHandlers,
+} from './context.js';
 
 // Mouse hook
 export {
@@ -38,7 +54,9 @@ export {
   useFocus,
   useFocusManager,
   createFocusManager,
+  createFocusAdapter,
   FocusManagerImpl,
+  FocusZoneManagerAdapter,
 } from './use-focus.js';
 
 // App hook and lifecycle
@@ -93,6 +111,9 @@ export {
   getRegisteredHotkeys,
   getHotkeyScope,
   setHotkeyScope,
+  pushHotkeyScope,
+  popHotkeyScope,
+  getHotkeyScopeDepth,
   resetHotkeyScope,
   isMac,
 } from './use-hotkeys.js';
@@ -102,6 +123,13 @@ export type {
   HotkeyOptions,
   HotkeyHandler,
 } from './use-hotkeys.js';
+
+// State Cleanup Hooks
+export {
+  useThemeOverride,
+  useHotkeyScope,
+  useCurrentHotkeyScope,
+} from './use-state-cleanup.js';
 
 // FPS tracking hook
 export { useFps, type UseFpsResult } from './use-fps.js';

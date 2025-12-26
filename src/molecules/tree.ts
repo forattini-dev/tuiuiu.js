@@ -55,9 +55,9 @@ export interface TreeOptions<T = unknown> {
   /** Max visible depth */
   maxDepth?: number;
   /** Colors */
-  activeColor?: ColorValue;
-  selectedColor?: ColorValue;
-  guideColor?: ColorValue;
+  colorActive?: ColorValue;
+  colorSelected?: ColorValue;
+  colorGuide?: ColorValue;
   /** Callbacks */
   onSelect?: (node: TreeNode<T>) => void;
   onExpand?: (node: TreeNode<T>) => void;
@@ -374,9 +374,9 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
   const {
     showGuides = true,
     indentSize = 2,
-    activeColor = 'primary',
-    selectedColor = 'success',
-    guideColor = 'mutedForeground',
+    colorActive = 'primary',
+    colorSelected = 'success',
+    colorGuide = 'mutedForeground',
     selectionMode = 'single',
     isActive = true,
     label,
@@ -473,9 +473,9 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
     const labelColor = node.disabled
       ? 'mutedForeground'
       : isCursor
-        ? activeColor
+        ? colorActive
         : isSelected
-          ? selectedColor
+          ? colorSelected
           : node.color ?? 'foreground';
 
     // Selection indicator
@@ -493,11 +493,11 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
 
     return Box(
       { flexDirection: 'row' },
-      Text({ color: isCursor ? activeColor : 'mutedForeground' }, cursorIndicator),
-      showGuides ? Text({ color: guideColor, dim: true }, prefix) : null,
+      Text({ color: isCursor ? colorActive : 'mutedForeground' }, cursorIndicator),
+      showGuides ? Text({ color: colorGuide, dim: true }, prefix) : null,
       Text({ color: hasChildren ? (isExpanded ? 'warning' : 'info') : 'mutedForeground' }, expandIndicator),
       selectionMode !== 'none'
-        ? Text({ color: isSelected ? selectedColor : 'mutedForeground' }, selectionIndicator)
+        ? Text({ color: isSelected ? colorSelected : 'mutedForeground' }, selectionIndicator)
         : null,
       icon ? Text({}, icon) : null,
       Text({ color: labelColor, bold: isCursor, dim: node.disabled }, node.label)

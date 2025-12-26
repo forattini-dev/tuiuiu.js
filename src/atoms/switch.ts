@@ -32,11 +32,11 @@ export interface SwitchOptions {
   /** Show labels */
   showLabels?: boolean;
   /** On color */
-  onColor?: ColorValue;
+  colorOn?: ColorValue;
   /** Off color */
-  offColor?: ColorValue;
-  /** Track color when off */
-  trackColor?: ColorValue;
+  colorOff?: ColorValue;
+  /** Track color (background) */
+  background?: ColorValue;
   /** Size: compact or normal */
   size?: 'compact' | 'normal';
   /** Is disabled */
@@ -127,7 +127,7 @@ export interface SwitchProps extends SwitchOptions {
  *   showLabels: true,
  *   onLabel: 'ON',
  *   offLabel: 'OFF',
- *   onColor: 'green',
+ *   colorOn: 'green',
  * })
  */
 export function Switch(props: SwitchProps): VNode {
@@ -136,9 +136,9 @@ export function Switch(props: SwitchProps): VNode {
     onLabel = 'ON',
     offLabel = 'OFF',
     showLabels = false,
-    onColor = theme.accents.positive,
-    offColor = theme.foreground.muted,
-    trackColor = theme.borders.default,
+    colorOn = theme.accents.positive,
+    colorOff = theme.foreground.muted,
+    background = theme.borders.default,
     size = 'normal',
     disabled = false,
     isActive = true,
@@ -166,7 +166,7 @@ export function Switch(props: SwitchProps): VNode {
   );
 
   const isOn = state.value();
-  const color = isOn ? onColor : offColor;
+  const color = isOn ? colorOn : colorOff;
 
   // Build switch visual
   let switchVisual: VNode;
@@ -191,13 +191,13 @@ export function Switch(props: SwitchProps): VNode {
       switchVisual = isOn
         ? Box(
             { flexDirection: 'row' },
-            Text({ color: onColor }, '●'),
-            Text({ color: trackColor, dim: true }, '━')
+            Text({ color: colorOn }, '●'),
+            Text({ color: background, dim: true }, '━')
           )
         : Box(
             { flexDirection: 'row' },
-            Text({ color: trackColor, dim: true }, '━'),
-            Text({ color: offColor }, '○')
+            Text({ color: background, dim: true }, '━'),
+            Text({ color: colorOff }, '○')
           );
     } else {
       // Normal: ━●━━ or ━━○━
@@ -208,10 +208,10 @@ export function Switch(props: SwitchProps): VNode {
       for (let i = 0; i < trackLen; i++) {
         if (i === thumbPos) {
           trackChars.push(
-            Text({ color: isOn ? onColor : offColor }, isOn ? '●' : '○')
+            Text({ color: isOn ? colorOn : colorOff }, isOn ? '●' : '○')
           );
         } else {
-          trackChars.push(Text({ color: trackColor, dim: true }, '━'));
+          trackChars.push(Text({ color: background, dim: true }, '━'));
         }
       }
 
@@ -227,13 +227,13 @@ export function Switch(props: SwitchProps): VNode {
   }
 
   if (showLabels && !isOn) {
-    parts.push(Box({ marginRight: 1 }, Text({ color: offColor, dim: true }, offLabel)));
+    parts.push(Box({ marginRight: 1 }, Text({ color: colorOff, dim: true }, offLabel)));
   }
 
   parts.push(switchVisual);
 
   if (showLabels && isOn) {
-    parts.push(Box({ marginLeft: 1 }, Text({ color: onColor }, onLabel)));
+    parts.push(Box({ marginLeft: 1 }, Text({ color: colorOn }, onLabel)));
   }
 
   return Box(

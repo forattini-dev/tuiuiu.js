@@ -40,9 +40,9 @@ export interface SliderOptions {
   /** Value formatter */
   formatValue?: (value: number) => string;
   /** Filled track color */
-  filledColor?: ColorValue;
+  color?: ColorValue;
   /** Empty track color */
-  emptyColor?: ColorValue;
+  background?: ColorValue;
   /** Thumb color */
   thumbColor?: ColorValue;
   /** Is disabled */
@@ -179,7 +179,7 @@ export interface SliderProps extends SliderOptions {
  *   max: 100,
  *   showValue: true,
  *   formatValue: (v) => `${v}%`,
- *   filledColor: 'green',
+ *   color: 'green',
  * })
  */
 export function Slider(props: SliderProps): VNode {
@@ -190,8 +190,8 @@ export function Slider(props: SliderProps): VNode {
     showValue = true,
     showMinMax = false,
     formatValue = (v) => String(Math.round(v)),
-    filledColor = 'primary',
-    emptyColor = 'border',
+    color = 'primary',
+    background = 'border',
     thumbColor = 'foreground',
     disabled = false,
     isActive = true,
@@ -235,22 +235,22 @@ export function Slider(props: SliderProps): VNode {
     // ASCII: [=====>    ]
     for (let i = 0; i < width; i++) {
       if (i < thumbPos) {
-        trackParts.push(Text({ color: filledColor }, '='));
+        trackParts.push(Text({ color }, '='));
       } else if (i === thumbPos) {
         trackParts.push(Text({ color: thumbColor, bold: true }, '>'));
       } else {
-        trackParts.push(Text({ color: emptyColor, dim: true }, '-'));
+        trackParts.push(Text({ color: background, dim: true }, '-'));
       }
     }
   } else {
     // Unicode: ━━━━●░░░░░
     for (let i = 0; i < width; i++) {
       if (i < thumbPos) {
-        trackParts.push(Text({ color: filledColor }, '━'));
+        trackParts.push(Text({ color }, '━'));
       } else if (i === thumbPos) {
         trackParts.push(Text({ color: thumbColor, bold: true }, '●'));
       } else {
-        trackParts.push(Text({ color: emptyColor, dim: true }, '░'));
+        trackParts.push(Text({ color: background, dim: true }, '░'));
       }
     }
   }
@@ -273,7 +273,7 @@ export function Slider(props: SliderProps): VNode {
   }
 
   if (showValue) {
-    parts.push(Box({ marginLeft: 1 }, Text({ color: filledColor }, formatValue(currentValue))));
+    parts.push(Box({ marginLeft: 1 }, Text({ color }, formatValue(currentValue))));
   }
 
   return Box(

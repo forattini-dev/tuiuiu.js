@@ -948,7 +948,7 @@ describe('TextInput Keyboard Interactions', () => {
 
     it('should render with custom prompt', () => {
       const ti = createTestInput({ initialValue: 'test' });
-      const vnode = renderTextInput(ti, { prompt: '>', promptColor: 'green' });
+      const vnode = renderTextInput(ti, { prompt: '>', foreground: 'green' });
       expect(vnode).toBeDefined();
     });
 

@@ -52,11 +52,11 @@ export interface CalendarOptions {
   /** Show week numbers */
   showWeekNumbers?: boolean;
   /** Colors */
-  todayColor?: ColorValue;
-  selectedColor?: ColorValue;
-  eventColor?: ColorValue;
-  weekendColor?: ColorValue;
-  headerColor?: ColorValue;
+  colorToday?: ColorValue;
+  colorSelected?: ColorValue;
+  colorEvent?: ColorValue;
+  colorWeekend?: ColorValue;
+  colorHeader?: ColorValue;
   /** Cell width (default: 4) */
   cellWidth?: number;
   /** Callbacks */
@@ -457,11 +457,11 @@ export function Calendar(props: CalendarProps): VNode {
   const {
     firstDayOfWeek = 0,
     showWeekNumbers = false,
-    todayColor = 'success',
-    selectedColor = 'primary',
-    eventColor = 'warning',
-    weekendColor = 'mutedForeground',
-    headerColor = 'accent',
+    colorToday = 'success',
+    colorSelected = 'primary',
+    colorEvent = 'warning',
+    colorWeekend = 'mutedForeground',
+    colorHeader = 'accent',
     cellWidth = 4,
     isActive = true,
     state: externalState,
@@ -509,7 +509,7 @@ export function Calendar(props: CalendarProps): VNode {
   // Header
   const header = Box(
     { flexDirection: 'row', justifyContent: 'center', marginBottom: 1 },
-    Text({ color: headerColor, bold: true }, `${getMonthName(view.getMonth())} ${view.getFullYear()}`)
+    Text({ color: colorHeader, bold: true }, `${getMonthName(view.getMonth())} ${view.getFullYear()}`)
   );
 
   // Weekday header
@@ -556,20 +556,20 @@ export function Calendar(props: CalendarProps): VNode {
         color = 'mutedForeground';
         dim = true;
       } else if (day.isSelected || day.isRangeStart || day.isRangeEnd) {
-        bgColor = selectedColor;
-        color = getContrastColor(selectedColor as string);
+        bgColor = colorSelected;
+        color = getContrastColor(colorSelected as string);
         bold = true;
       } else if (day.isInRange) {
-        color = selectedColor;
+        color = colorSelected;
         dim = true;
       } else if (day.isToday) {
-        color = todayColor;
+        color = colorToday;
         bold = true;
       } else if (!day.isCurrentMonth) {
         color = 'mutedForeground';
         dim = true;
       } else if (day.isWeekend) {
-        color = weekendColor;
+        color = colorWeekend;
       }
 
       // Event indicator

@@ -241,6 +241,9 @@ export function matchesHotkey(
 
 const [currentScope, setCurrentScope] = createSignal<string>('global');
 
+// Scope stack for nested scopes (modals within modals, etc.)
+const scopeStack: string[] = [];
+
 /**
  * Get the current active scope
  */
@@ -256,9 +259,63 @@ export function setHotkeyScope(scope: string): void {
 }
 
 /**
- * Reset scope to global
+ * Push a scope onto the stack (for nested contexts like modals).
+ *
+ * When a modal opens, it pushes its scope. When it closes, it pops
+ * and the previous scope is restored.
+ *
+ * @param scope - The scope to activate
+ *
+ * @example
+ * ```typescript
+ * // Modal opens
+ * pushHotkeyScope('modal');
+ *
+ * // Command palette opens inside modal
+ * pushHotkeyScope('command-palette');
+ *
+ * // Command palette closes - back to 'modal'
+ * popHotkeyScope();
+ *
+ * // Modal closes - back to 'global'
+ * popHotkeyScope();
+ * ```
+ */
+export function pushHotkeyScope(scope: string): void {
+  scopeStack.push(currentScope());
+  setCurrentScope(scope);
+}
+
+/**
+ * Pop the current scope and restore the previous one.
+ *
+ * Returns to 'global' if the stack is empty.
+ *
+ * @returns The scope that was popped
+ */
+export function popHotkeyScope(): string {
+  const popped = currentScope();
+  const previous = scopeStack.pop() ?? 'global';
+  setCurrentScope(previous);
+  return popped;
+}
+
+/**
+ * Get the current scope stack depth.
+ *
+ * Useful for debugging nested scope issues.
+ */
+export function getHotkeyScopeDepth(): number {
+  return scopeStack.length;
+}
+
+/**
+ * Reset scope to global and clear the stack.
+ *
+ * Use with caution - mainly for testing or error recovery.
  */
 export function resetHotkeyScope(): void {
+  scopeStack.length = 0;
   setCurrentScope('global');
 }
 

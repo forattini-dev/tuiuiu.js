@@ -250,7 +250,7 @@ export interface AccordionOptions {
   /** Semantic variant for theming */
   variant?: CollapsibleVariant;
   /** Custom active color (overrides variant) */
-  activeColor?: ColorValue;
+  colorActive?: ColorValue;
   /** Callbacks */
   onChange?: (expanded: string[]) => void;
   /** Is active */
@@ -391,14 +391,14 @@ export function Accordion(props: AccordionProps): VNode {
     sections,
     gap = 0,
     variant = 'default',
-    activeColor: customActiveColor,
+    colorActive: customColorActive,
     isActive = true,
     state: externalState,
   } = props;
 
   // Resolve colors from theme tokens
   const tokens = theme.components.collapsible[variant] ?? theme.components.collapsible.default;
-  const activeColor = customActiveColor ?? tokens.headerFg;
+  const colorActive = customColorActive ?? tokens.headerFg;
   const titleColor = tokens.headerFg;
   const iconFg = tokens.iconFg;
   const headerBg = tokens.headerBg;
@@ -431,7 +431,7 @@ export function Accordion(props: AccordionProps): VNode {
       : (isAscii ? '>' : chars.expand.collapsed);
 
     const headerColor = isFocused
-      ? activeColor
+      ? colorActive
       : section.disabled
         ? 'gray'
         : titleColor;

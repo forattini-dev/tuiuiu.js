@@ -62,11 +62,11 @@ export interface SelectOptions<T = any> {
   /** Unchecked indicator (multi) */
   uncheckedIndicator?: string;
   /** Active item color */
-  activeColor?: string;
+  colorActive?: string;
   /** Selected item color */
-  selectedColor?: string;
+  colorSelected?: string;
   /** Disabled item color */
-  disabledColor?: string;
+  colorDisabled?: string;
   /** Show item count */
   showCount?: boolean;
   /** On selection change */
@@ -226,8 +226,8 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     setScrollOffset(0);
   };
 
-  // Input handling
-  const handleInput = (input: string, key: Key) => {
+  // Input handling - returns true if input was handled (for stopPropagation)
+  const handleInput = (input: string, key: Key): boolean | void => {
     // Check isActive dynamically at input time (supports reactive getter)
     if (!checkIsActive()) return;
 
@@ -239,7 +239,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
       } else {
         options.onCancel?.();
       }
-      return;
+      return true;
     }
 
     // Enter - submit
@@ -250,67 +250,67 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
         const value = multiple ? selected() : selected()[0];
         options.onSubmit?.(value);
       }
-      return;
+      return true;
     }
 
     // Search mode handling
     if (isSearching()) {
       if (key.backspace) {
         updateSearch(searchQuery().slice(0, -1));
-        return;
+        return true;
       }
       if (input && input.length === 1 && !key.ctrl && !key.meta) {
         updateSearch(searchQuery() + input);
-        return;
+        return true;
       }
     }
 
     // Navigation
     if (key.upArrow || (key.ctrl && input === 'p')) {
       moveUp();
-      return;
+      return true;
     }
 
     if (key.downArrow || (key.ctrl && input === 'n')) {
       moveDown();
-      return;
+      return true;
     }
 
     // Vim keys (when not searching)
     if (!isSearching()) {
       if (input === 'k') {
         moveUp();
-        return;
+        return true;
       }
       if (input === 'j') {
         moveDown();
-        return;
+        return true;
       }
       if (input === 'g') {
         moveToTop();
-        return;
+        return true;
       }
       if (input === 'G') {
         moveToBottom();
-        return;
+        return true;
       }
     }
 
     // Home/End
     if (key.home) {
       moveToTop();
-      return;
+      return true;
     }
 
     if (key.end) {
       moveToBottom();
-      return;
+      return true;
     }
 
     // Space - toggle selection
     if (input === ' ') {
       toggleSelection();
-      return;
+      return true;
     }
 
     // Tab in multi-select - toggle and move
@@ -321,32 +321,36 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
       } else {
         moveDown();
       }
-      return;
+      return true;
     }
 
     // Ctrl+A - select all (multi)
     if (key.ctrl && input === 'a' && multiple) {
       selectAll();
-      return;
+      return true;
     }
 
     // Ctrl+D - deselect all
     if (key.ctrl && input === 'd') {
       selectNone();
-      return;
+      return true;
     }
 
     // / - start search
     if (input === '/' && searchable && !isSearching()) {
       setIsSearching(true);
-      return;
+      return true;
     }
 
     // Type-ahead search (when searchable and not in search mode)
     if (searchable && input && input.length === 1 && !key.ctrl && !key.meta && !isSearching()) {
       setIsSearching(true);
       updateSearch(input);
+      return true;
     }
+
+    // Input not handled - allow propagation
+    return false;
   };
 
   // handleInput is exposed to be registered during render phase
@@ -418,9 +422,9 @@ export function renderSelect<T = any>(
     selectedIndicator = chars.radio.selected,
     checkedIndicator = chars.checkbox.checked,
     uncheckedIndicator = chars.checkbox.unchecked,
-    activeColor = theme.accents.info,
-    selectedColor = theme.accents.positive,
-    disabledColor = theme.foreground.muted,
+    colorActive = theme.accents.info,
+    colorSelected = theme.accents.positive,
+    colorDisabled = theme.foreground.muted,
     showCount = true,
     searchable = false,
     searchPlaceholder = 'Type to search...',
@@ -428,7 +432,8 @@ export function renderSelect<T = any>(
   } = options;
 
   // Register input handler during render phase
-  useInput(state.handleInput);
+  // Use stopPropagation to prevent input leakage to parent components
+  useInput(state.handleInput, { stopPropagation: true });
 
   const { items: visibleItems, startIndex } = state.getVisibleItems();
   const filtered = state.getFilteredItems();
@@ -445,7 +450,7 @@ export function renderSelect<T = any>(
     rows.push(
       Box(
         { flexDirection: 'row', marginBottom: 1 },
-        Text({ color: activeColor }, `${searchIcon} `),
+        Text({ color: colorActive }, `${searchIcon} `),
         searchQuery
           ? Text({ color: theme.foreground.primary }, searchQuery)
           : Text({ color: theme.foreground.muted, dim: true }, searchPlaceholder),
@@ -481,19 +486,19 @@ export function renderSelect<T = any>(
 
     // Cursor indicator
     parts.push(
-      Text({ color: activeColor }, isActive ? cursorIndicator + ' ' : '  ')
+      Text({ color: colorActive }, isActive ? cursorIndicator + ' ' : '  ')
     );
 
     // Selection indicator
     if (multiple) {
       parts.push(
         Text(
-          { color: isSelected ? selectedColor : theme.foreground.muted },
+          { color: isSelected ? colorSelected : theme.foreground.muted },
           isSelected ? checkedIndicator + ' ' : uncheckedIndicator + ' '
         )
       );
     } else if (isSelected) {
-      parts.push(Text({ color: selectedColor }, selectedIndicator + ' '));
+      parts.push(Text({ color: colorSelected }, selectedIndicator + ' '));
     }
 
     // Icon
@@ -503,11 +508,11 @@ export function renderSelect<T = any>(
 
     // Label
     const labelColor = item.disabled
-      ? disabledColor
+      ? colorDisabled
       : isActive
-      ? activeColor
+      ? colorActive
       : isSelected
-      ? selectedColor
+      ? colorSelected
       : item.color ?? 'foreground';
 
     parts.push(

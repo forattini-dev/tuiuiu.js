@@ -64,7 +64,7 @@ export interface TextInputOptions {
   /** Prompt character */
   prompt?: string;
   /** Prompt color */
-  promptColor?: string;
+  foreground?: string;
   /** Make input full width (flex: 1) */
   fullWidth?: boolean;
   /** Fixed width in columns for wrapping calculation */
@@ -543,7 +543,7 @@ export function renderTextInput(
     focusedBorderColor = theme.accents.info,
     unfocusedBorderColor = theme.borders.default,
     prompt = getChars().arrows.right,
-    promptColor = theme.accents.info,
+    foreground = theme.accents.info,
     isActive = true,
     fullWidth = false,
   } = options;
@@ -646,7 +646,7 @@ export function renderTextInput(
 
         return Box(
           { flexDirection: 'row' },
-          Text({ color: promptColor }, `${linePrompt} `),
+          Text({ color: foreground }, `${linePrompt} `),
           Text({}, before),
           Text({ backgroundColor: cursorBg, color: cursorFg }, char),
           Text({}, after)
@@ -655,7 +655,7 @@ export function renderTextInput(
 
       return Box(
         { flexDirection: 'row' },
-        Text({ color: promptColor }, `${linePrompt} `),
+        Text({ color: foreground }, `${linePrompt} `),
         Text({}, line)
       );
     });
@@ -692,7 +692,7 @@ export function renderTextInput(
 
   return Box(
     rowStyle,
-    Text({ color: promptColor }, `${prompt} `),
+    Text({ color: foreground }, `${prompt} `),
     showPlaceholder
       ? Box(
         { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },

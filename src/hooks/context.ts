@@ -6,15 +6,27 @@
  */
 
 import { EventEmitter } from 'node:events';
-import type { Key, InputHandler, AppContext, FocusManager } from './types.js';
+import type {
+  Key,
+  InputHandler,
+  AppContext,
+  FocusManager,
+  InputHandlerEntry,
+  InputPriority,
+} from './types.js';
+import { INPUT_PRIORITY_VALUES } from './types.js';
 import type { Effect } from '../primitives/signal.js';
 
 // Global app context
 let appContext: AppContext | null = null;
 let focusManager: FocusManager | null = null;
 
-// EventEmitter for input events
-// More robust than array-based: proper on/off cleanup, no stale handlers
+// Priority-based input handler registry
+// Handlers are sorted by priority (highest first) when emitting
+const inputHandlers: InputHandlerEntry[] = [];
+let handlerIdCounter = 0;
+
+// Legacy EventEmitter for backward compatibility (deprecated)
 const inputEventEmitter = new EventEmitter();
 inputEventEmitter.setMaxListeners(100); // Allow many input handlers
 
@@ -103,37 +115,123 @@ export function setAppContext(ctx: AppContext | null): void {
 }
 
 // =============================================================================
-// INPUT HANDLER MANAGEMENT (EventEmitter-based)
+// INPUT HANDLER MANAGEMENT (Priority-based)
 // =============================================================================
 
-/** Get the internal input event emitter */
+/** Get the internal input event emitter (legacy, for backward compatibility) */
 export function getInputEventEmitter(): EventEmitter {
   return inputEventEmitter;
 }
 
-/** Register an input handler via EventEmitter */
-export function addInputHandler(handler: InputHandler): void {
-  inputEventEmitter.on('input', handler);
+/**
+ * Register an input handler with priority support
+ *
+ * @param handler - The input handler function
+ * @param options - Priority and propagation options
+ * @returns Handler ID for removal
+ */
+export function addInputHandler(
+  handler: InputHandler,
+  options: {
+    priority?: InputPriority;
+    stopPropagation?: boolean;
+  } = {}
+): number {
+  const { priority = 'normal', stopPropagation = false } = options;
+
+  const id = handlerIdCounter++;
+  const entry: InputHandlerEntry = {
+    handler,
+    priorityValue: INPUT_PRIORITY_VALUES[priority],
+    stopPropagation,
+    id,
+  };
+
+  inputHandlers.push(entry);
+
+  // Warn if we have too many handlers
+  if (inputHandlers.length > 100) {
+    console.warn(
+      `[tuiuiu] High number of input handlers (${inputHandlers.length}). ` +
+        'This may indicate a memory leak from handlers not being properly removed.'
+    );
+  }
+
+  return id;
 }
 
-/** Remove an input handler via EventEmitter */
+/**
+ * Remove an input handler by ID
+ */
+export function removeInputHandlerById(id: number): boolean {
+  const index = inputHandlers.findIndex((entry) => entry.id === id);
+  if (index !== -1) {
+    inputHandlers.splice(index, 1);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Remove an input handler by reference (legacy support)
+ * @deprecated Use removeInputHandlerById instead
+ */
 export function removeInputHandler(handler: InputHandler): void {
+  const index = inputHandlers.findIndex((entry) => entry.handler === handler);
+  if (index !== -1) {
+    inputHandlers.splice(index, 1);
+  }
+  // Also remove from legacy emitter
   inputEventEmitter.off('input', handler);
 }
 
-/** Emit input event to all handlers */
+/**
+ * Emit input event to all handlers, respecting priority
+ *
+ * Handlers are called in priority order (highest first).
+ * If a handler with stopPropagation returns truthy, lower priority handlers don't fire.
+ */
 export function emitInput(input: string, key: Key): void {
+  // Sort handlers by priority (highest first), stable sort by id for same priority
+  const sorted = [...inputHandlers].sort((a, b) => {
+    if (b.priorityValue !== a.priorityValue) {
+      return b.priorityValue - a.priorityValue;
+    }
+    return a.id - b.id; // Earlier registered first at same priority
+  });
+
+  for (const entry of sorted) {
+    try {
+      const result = entry.handler(input, key);
+      // Stop propagation if handler returned truthy and has stopPropagation flag
+      if (entry.stopPropagation && result) {
+        break;
+      }
+    } catch (error) {
+      console.error('[tuiuiu] Error in input handler:', error);
+    }
+  }
+
+  // Also emit to legacy EventEmitter for backward compatibility
+  // This will be removed in a future version
   inputEventEmitter.emit('input', input, key);
 }
 
 /** Clear all input handlers */
 export function clearInputHandlers(): void {
+  inputHandlers.length = 0;
+  handlerIdCounter = 0;
   inputEventEmitter.removeAllListeners('input');
 }
 
 /** Get count of registered input handlers (for testing/debugging) */
 export function getInputHandlerCount(): number {
-  return inputEventEmitter.listenerCount('input');
+  return inputHandlers.length;
+}
+
+/** Get all input handlers (for testing/debugging) */
+export function getInputHandlers(): readonly InputHandlerEntry[] {
+  return inputHandlers;
 }
 
 export function getFocusManager(): FocusManager | null {

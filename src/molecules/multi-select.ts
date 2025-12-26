@@ -58,8 +58,8 @@ export interface MultiSelectOptions<T = string> {
   /** Max selections allowed */
   maxSelections?: number;
   /** Colors */
-  activeColor?: ColorValue;
-  selectedColor?: ColorValue;
+  colorActive?: ColorValue;
+  colorSelected?: ColorValue;
   /** Callbacks */
   onChange?: (values: T[]) => void;
   onSubmit?: (values: T[]) => void;
@@ -337,8 +337,8 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     showCount = true,
     showTags = false,
     maxTags = 3,
-    activeColor = 'primary',
-    selectedColor = 'success',
+    colorActive = 'primary',
+    colorSelected = 'success',
     isActive = true,
     state: externalState,
   } = props;
@@ -346,32 +346,41 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
   const state = externalState || createMultiSelect(props);
   const chars = getChars();
 
-  // Setup keyboard handling
+  // Setup keyboard handling with stopPropagation to prevent input leakage
   useInput(
     (input, key) => {
       if (key.upArrow || input === 'k') {
         state.moveUp();
+        return true;
       } else if (key.downArrow || input === 'j') {
         state.moveDown();
+        return true;
       } else if (input === ' ' || key.return) {
         if (key.return && !state.isSearching()) {
           state.submit();
         } else {
           state.toggleCurrent();
         }
+        return true;
       } else if (input === 'a' && key.ctrl) {
         state.selectAll();
+        return true;
       } else if (input === 'd' && key.ctrl) {
         state.deselectAll();
+        return true;
       } else if (key.escape) {
         state.cancel();
+        return true;
       } else if (searchable && input && input.length === 1) {
         state.setSearch(state.searchQuery() + input);
+        return true;
       } else if (key.backspace && searchable) {
         state.setSearch(state.searchQuery().slice(0, -1));
+        return true;
       }
+      return false;
     },
-    { isActive }
+    { isActive, stopPropagation: true }
   );
 
   const { items: visible, startIndex } = state.visibleItems();
@@ -390,8 +399,8 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
 
     const tagNodes = displayTags.map((item) =>
       Box(
-        { paddingX: 1, borderStyle: 'round', borderColor: selectedColor },
-        Text({ color: selectedColor }, item.label)
+        { paddingX: 1, borderStyle: 'round', borderColor: colorSelected },
+        Text({ color: colorSelected }, item.label)
       )
     );
 
@@ -427,9 +436,9 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     const labelColor = item.disabled
       ? 'mutedForeground'
       : isCurrentCursor
-        ? activeColor
+        ? colorActive
         : isItemSelected
-          ? selectedColor
+          ? colorSelected
           : 'foreground';
 
     return Box(
@@ -438,8 +447,8 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
         gap: 1,
         onClick: item.disabled ? undefined : () => state.toggleIndex(globalIndex),
       },
-      Text({ color: isCurrentCursor ? activeColor : 'mutedForeground' }, cursorChar),
-      Text({ color: isItemSelected ? selectedColor : 'mutedForeground' }, checkbox),
+      Text({ color: isCurrentCursor ? colorActive : 'mutedForeground' }, cursorChar),
+      Text({ color: isItemSelected ? colorSelected : 'mutedForeground' }, checkbox),
       Text({ color: labelColor, dim: item.disabled }, item.label),
       item.description
         ? Text({ color: 'mutedForeground', dim: true }, ` - ${item.description}`)

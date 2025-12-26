@@ -59,14 +59,14 @@ export interface DataTableOptions<T = Record<string, any>> {
   borderStyle?: TableBorderStyle;
   borderColor?: ColorValue;
   /** Header style */
-  headerColor?: ColorValue;
+  colorHeader?: ColorValue;
   headerBold?: boolean;
   /** Selection colors */
-  selectedColor?: ColorValue;
-  cursorColor?: ColorValue;
+  colorSelected?: ColorValue;
+  colorCursor?: ColorValue;
   /** Zebra striping */
   striped?: boolean;
-  stripeColor?: ColorValue;
+  colorStripe?: ColorValue;
   /** Max height (rows visible) */
   maxHeight?: number;
   /** Callbacks */
@@ -393,13 +393,13 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     pageSize = 10,
     borderStyle = 'single',
     borderColor = 'border',
-    headerColor = 'foreground',
+    colorHeader = 'foreground',
     headerBold = true,
-    selectedColor = 'primary',
-    cursorColor = 'warning',
+    colorSelected = 'primary',
+    colorCursor = 'warning',
     selectionMode = 'single',
     striped = false,
-    stripeColor = 'mutedForeground',
+    colorStripe = 'mutedForeground',
     isActive = true,
     state: externalState,
   } = props;
@@ -535,7 +535,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
         const width = col.width ?? 15;
         return Box(
           { width, marginRight: 1 },
-          Text({ color: headerColor, bold: headerBold }, col.header.slice(0, width))
+          Text({ color: colorHeader, bold: headerBold }, col.header.slice(0, width))
         );
       })
     ),
@@ -547,7 +547,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
       return Box(
         {
           flexDirection: 'row',
-          backgroundColor: isCursor ? cursorColor : isSelectedRow ? selectedColor : undefined,
+          backgroundColor: isCursor ? colorCursor : isSelectedRow ? colorSelected : undefined,
         },
         ...displayColumns.map((col) => {
           const width = col.width ?? 15;

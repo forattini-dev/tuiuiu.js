@@ -207,7 +207,7 @@ describe('Spinner', () => {
 
     it('should apply custom colors', () => {
       const state = createSpinner();
-      const node = renderSpinner(state, { color: 'green', textColor: 'yellow' });
+      const node = renderSpinner(state, { color: 'green', foreground: 'yellow' });
       const output = renderToString(node, 80);
       expect(output).toContain('\x1b[32m'); // Green
       state.stop();

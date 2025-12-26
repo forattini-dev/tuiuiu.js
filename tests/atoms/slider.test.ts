@@ -255,8 +255,8 @@ describe('Slider Component', () => {
     expect(output).toContain('Volume');
   });
 
-  it('should apply filled color', () => {
-    const vnode = Slider({ filledColor: 'green' });
+  it('should apply color', () => {
+    const vnode = Slider({ color: 'green' });
 
     const output = JSON.stringify(vnode);
     expect(output).toContain('green');

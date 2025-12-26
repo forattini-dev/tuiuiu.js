@@ -36,6 +36,8 @@ import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
+import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 
 /**
  * Border styles for modals - Unicode
@@ -713,33 +715,127 @@ export function AlertBox(props: AlertBoxProps): VNode {
 }
 
 /**
- * Modal state manager
+ * Modal options for createModal
  */
-export interface ModalState {
-  isOpen: boolean;
-  open: () => void;
-  close: () => void;
-  toggle: () => void;
+export interface CreateModalOptions {
+  /** Enable focus trap when modal opens */
+  focusTrap?: boolean;
+  /** Restore focus to previous element when modal closes */
+  restoreFocus?: boolean;
+  /** Auto-focus first focusable element when modal opens */
+  autoFocus?: boolean;
+  /** Hotkey scope to activate when modal opens (auto-restored on close) */
+  hotkeyScope?: string;
 }
 
 /**
- * Create modal state
+ * Modal state manager
  */
-export function createModal(): ModalState {
+export interface ModalState {
+  /** Whether modal is open */
+  isOpen: boolean;
+  /** Open the modal */
+  open: () => void;
+  /** Close the modal */
+  close: () => void;
+  /** Toggle modal open/closed */
+  toggle: () => void;
+  /** Focus zone ID (if focusTrap enabled) */
+  zoneId: string | null;
+  /** Register a focusable element in the modal's focus zone */
+  registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => () => void;
+}
+
+/**
+ * Create modal state with optional focus trap
+ *
+ * @example
+ * ```typescript
+ * // Basic modal without focus management
+ * const modal = createModal();
+ *
+ * // Modal with focus trap (recommended for accessibility)
+ * const modal = createModal({ focusTrap: true });
+ *
+ * // In your render
+ * When(modal.isOpen,
+ *   Modal({ content: MyContent(), onClose: modal.close })
+ * )
+ *
+ * // Register focusable elements in modal
+ * const unregister = modal.registerFocusable('my-input', setFocused);
+ * ```
+ */
+export function createModal(options: CreateModalOptions = {}): ModalState {
+  const {
+    focusTrap = false,
+    restoreFocus = true,
+    autoFocus = true,
+    hotkeyScope,
+  } = options;
+
   let isOpen = false;
+  let focusZone: ReturnType<typeof createFocusTrap> | null = null;
+  let zoneId: string | null = null;
+
+  // Create focus trap zone if enabled
+  if (focusTrap) {
+    focusZone = createFocusTrap({ restoreFocus, autoFocus });
+    zoneId = focusZone.zoneId;
+  }
 
   return {
     get isOpen() {
       return isOpen;
     },
+    get zoneId() {
+      return zoneId;
+    },
     open: () => {
       isOpen = true;
+      if (hotkeyScope) {
+        pushHotkeyScope(hotkeyScope);
+      }
+      if (focusZone) {
+        focusZone.activate();
+      }
     },
     close: () => {
       isOpen = false;
+      if (focusZone) {
+        focusZone.deactivate();
+      }
+      if (hotkeyScope) {
+        popHotkeyScope();
+      }
     },
     toggle: () => {
-      isOpen = !isOpen;
+      if (isOpen) {
+        isOpen = false;
+        if (focusZone) {
+          focusZone.deactivate();
+        }
+        if (hotkeyScope) {
+          popHotkeyScope();
+        }
+      } else {
+        isOpen = true;
+        if (hotkeyScope) {
+          pushHotkeyScope(hotkeyScope);
+        }
+        if (focusZone) {
+          focusZone.activate();
+        }
+      }
+    },
+    registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => {
+      if (!zoneId) {
+        // No focus zone - return no-op cleanup
+        return () => {};
+      }
+      const manager = getFocusZoneManager();
+      manager.registerElement(elementId, zoneId, { onFocus });
+      return () => manager.unregisterElement(elementId, zoneId!);
     },
   };
 }

@@ -42,9 +42,9 @@ export interface RadioGroupOptions<T = string> {
   /** Gap between items */
   gap?: number;
   /** Active/focused color */
-  activeColor?: ColorValue;
+  colorActive?: ColorValue;
   /** Selected indicator color */
-  selectedColor?: ColorValue;
+  colorSelected?: ColorValue;
   /** Callbacks */
   onChange?: (value: T) => void;
   /** Is active */
@@ -157,8 +157,8 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
     options,
     direction = 'vertical',
     gap = direction === 'vertical' ? 0 : 2,
-    activeColor = 'primary',
-    selectedColor = 'success',
+    colorActive = 'primary',
+    colorSelected = 'success',
     isActive = true,
     fullWidth = false,
     state: externalState,
@@ -199,9 +199,9 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
     const labelColor = opt.disabled
       ? 'mutedForeground'
       : isFocused
-        ? activeColor
+        ? colorActive
         : isSelected
-          ? selectedColor
+          ? colorSelected
           : 'foreground';
 
     return Box(
@@ -210,7 +210,7 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
         gap: 1,
         onClick: opt.disabled ? undefined : () => state.select(opt.value),
       },
-      Text({ color: isSelected ? selectedColor : 'mutedForeground' }, radio),
+      Text({ color: isSelected ? colorSelected : 'mutedForeground' }, radio),
       Text({ color: labelColor, dim: opt.disabled }, opt.label),
       opt.description
         ? Text({ color: 'mutedForeground', dim: true }, ` ${opt.description}`)

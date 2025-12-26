@@ -6,7 +6,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-echo "🎬 Generating Tuiuiu demo GIFs..."
+echo "🎬 Generating Tuiuiu GIFs..."
 echo ""
 
 # Check if vhs is installed
@@ -18,36 +18,68 @@ if ! command -v vhs &> /dev/null; then
     exit 1
 fi
 
+# Parse arguments
+CATEGORY="${1:-all}"
+
 # Build first to ensure examples work
 echo "📦 Building project..."
 pnpm build
 
-# Generate each GIF
-TAPES=(
-    "demo-hero"
-    "demo-storybook"
-    "demo-dashboard"
-    "demo-forms"
-    "demo-charts"
-    "demo-chat"
-    "demo-spinners"
-    "demo-layout"
-    "demo-mouse"
-    "demo-counter"
-    "demo-counter-interactive"
-)
+generate_category() {
+    local category=$1
+    local dir="docs/recordings/${category}"
 
-for tape in "${TAPES[@]}"; do
-    if [ -f "docs/recordings/${tape}.tape" ]; then
-        echo ""
-        echo "🎥 Recording ${tape}..."
-        vhs "docs/recordings/${tape}.tape"
-        echo "✅ Generated docs/assets/${tape}.gif"
+    if [ ! -d "$dir" ]; then
+        echo "⚠️  Directory $dir not found, skipping..."
+        return
     fi
-done
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📁 Generating ${category} GIFs..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    for tape in "$dir"/*.tape; do
+        if [ -f "$tape" ]; then
+            name=$(basename "$tape" .tape)
+            echo ""
+            echo "🎥 Recording ${name}..."
+            vhs "$tape"
+            echo "✅ Generated"
+        fi
+    done
+}
+
+case "$CATEGORY" in
+    examples)
+        generate_category "examples"
+        ;;
+    components)
+        generate_category "components"
+        ;;
+    all)
+        generate_category "examples"
+        generate_category "components"
+        ;;
+    *)
+        echo "Usage: $0 [examples|components|all]"
+        echo ""
+        echo "  examples   - Generate full app demo GIFs"
+        echo "  components - Generate component documentation GIFs"
+        echo "  all        - Generate all GIFs (default)"
+        exit 1
+        ;;
+esac
 
 echo ""
-echo "🎉 All GIFs generated successfully!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🎉 Done!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Generated files:"
-ls -lh docs/assets/*.gif 2>/dev/null || echo "No GIFs found"
+echo ""
+echo "📁 Examples:"
+ls -lh docs/assets/examples/*.gif 2>/dev/null || echo "   (none)"
+echo ""
+echo "📁 Components:"
+ls -lh docs/assets/components/*.gif 2>/dev/null || echo "   (none)"

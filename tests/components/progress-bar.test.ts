@@ -588,8 +588,8 @@ describe('ProgressBar', () => {
       expect(output).toBeDefined();
     });
 
-    it('should render with emptyColor', () => {
-      const node = ProgressBar({ value: 25, max: 100, emptyColor: 'gray' });
+    it('should render with background', () => {
+      const node = ProgressBar({ value: 25, max: 100, background: 'gray' });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
     });

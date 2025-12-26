@@ -116,7 +116,7 @@ export interface ProgressBarOptions {
   /** Progress bar color */
   color?: string;
   /** Empty bar color */
-  emptyColor?: string;
+  background?: string;
   /** Use gradient (multiple colors) */
   gradient?: string[];
   /** Label (left side) */
@@ -192,7 +192,7 @@ export function renderProgressBar(
     showSpeed = false,
     speedUnit = '/s',
     color = theme.accents.info,
-    emptyColor = theme.foreground.muted,
+    background = theme.foreground.muted,
     gradient,
     label,
     description,
@@ -296,7 +296,7 @@ export function renderProgressBar(
       const char = barContent[i];
       const isFilled = char !== barStyle.empty;
       segments.push(
-        Text({ color: isFilled ? gradient[segmentIndex] : emptyColor }, char)
+        Text({ color: isFilled ? gradient[segmentIndex] : background }, char)
       );
     }
     coloredBar = Box({ flexDirection: 'row' }, ...segments);
@@ -315,14 +315,14 @@ export function renderProgressBar(
         const segments: VNode[] = [];
         for (const char of barContent) {
             const isFilled = char !== barStyle.empty;
-            segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+            segments.push(Text({ color: isFilled ? color : background, dim: !isFilled }, char));
         }
         coloredBar = Box({ flexDirection: 'row' }, ...segments);
     } else if (indeterminate && indeterminateStyle === 'marquee') {
          const segments: VNode[] = [];
         for (const char of barContent) {
             const isFilled = char !== barStyle.empty;
-            segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+            segments.push(Text({ color: isFilled ? color : background, dim: !isFilled }, char));
         }
         coloredBar = Box({ flexDirection: 'row' }, ...segments);
     } else {
@@ -332,7 +332,7 @@ export function renderProgressBar(
         coloredBar = Box(
         { flexDirection: 'row' },
         Text({ color: indeterminate ? color : color }, filledPart),
-        Text({ color: emptyColor, dim: true }, emptyPart)
+        Text({ color: background, dim: true }, emptyPart)
         );
     }
   }
@@ -404,7 +404,7 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
     style = 'block',
     showPercentage = true,
     color = theme.accents.info,
-    emptyColor = theme.foreground.muted,
+    background = theme.foreground.muted,
     label,
     indeterminate = false,
     indeterminateStyle = 'classic',
@@ -490,7 +490,7 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
     const segments: VNode[] = [];
     for (const char of barContent) {
         const isFilled = char !== barStyle.empty;
-        segments.push(Text({ color: isFilled ? color : emptyColor, dim: !isFilled }, char));
+        segments.push(Text({ color: isFilled ? color : background, dim: !isFilled }, char));
     }
     coloredBar = Box({ flexDirection: 'row' }, ...segments);
   } else {
@@ -510,7 +510,7 @@ export function ProgressBar(options: ProgressBarOptions): VNode {
          coloredBar = Box(
             { flexDirection: 'row' },
             Text({ color }, filledPart),
-            Text({ color: emptyColor, dim: true }, emptyPart)
+            Text({ color: background, dim: true }, emptyPart)
          );
     }
   }

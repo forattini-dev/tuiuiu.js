@@ -54,8 +54,8 @@ export interface AutocompleteOptions<T = string> {
   /** Expand to fill available width */
   fullWidth?: boolean;
   /** Colors */
-  activeColor?: ColorValue;
-  selectedColor?: ColorValue;
+  colorActive?: ColorValue;
+  colorSelected?: ColorValue;
   /** Callbacks */
   onChange?: (value: string) => void;
   onSelect?: (item: AutocompleteItem<T>) => void;
@@ -340,8 +340,8 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
     placeholder = '',
     width = 30,
     fullWidth = false,
-    activeColor = 'primary',
-    selectedColor = 'success',
+    colorActive = 'primary',
+    colorSelected = 'success',
     isActive = true,
     label,
     state: externalState,
@@ -412,7 +412,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
       width: fullWidth ? undefined : width,
       flexGrow: fullWidth ? 1 : 0,
       borderStyle: inputBorder,
-      borderColor: activeColor,
+      borderColor: colorActive,
       paddingX: 1,
     },
     isPlaceholder
@@ -420,7 +420,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
       : Box(
           { flexDirection: 'row' },
           Text({}, beforeCursor),
-          Text({ backgroundColor: activeColor, color: getContrastColor(activeColor as string) }, cursorChar),
+          Text({ backgroundColor: colorActive, color: getContrastColor(colorActive as string) }, cursorChar),
           Text({}, afterCursor)
         )
   );
@@ -434,9 +434,9 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
 
       return Box(
         { flexDirection: 'row', paddingX: 1 },
-        Text({ color: isSelected ? activeColor : 'mutedForeground' }, prefix + ' '),
+        Text({ color: isSelected ? colorActive : 'mutedForeground' }, prefix + ' '),
         Text(
-          { color: isSelected ? selectedColor : 'foreground', bold: isSelected },
+          { color: isSelected ? colorSelected : 'foreground', bold: isSelected },
           item.label
         ),
         item.description
@@ -513,8 +513,8 @@ export interface TagInputOptions<T = string> {
   /** Expand to fill available width */
   fullWidth?: boolean;
   /** Colors */
-  tagColor?: ColorValue;
-  activeColor?: ColorValue;
+  colorTag?: ColorValue;
+  colorActive?: ColorValue;
   /** Callbacks */
   onChange?: (values: T[]) => void;
   /** Is active */
@@ -629,8 +629,8 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     placeholder = 'Add tag...',
     width = 40,
     fullWidth = false,
-    tagColor = 'primary',
-    activeColor = 'warning',
+    colorTag = 'primary',
+    colorActive = 'warning',
     isActive = true,
   } = props;
 
@@ -675,7 +675,7 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     const label = item?.label || String(tagValue);
 
     return Box(
-      { paddingX: 1, backgroundColor: tagColor, marginRight: 1 },
+      { paddingX: 1, backgroundColor: colorTag, marginRight: 1 },
       Text({ color: 'black' }, label),
       Text({ color: 'black', dim: true }, ' x')
     );
@@ -693,7 +693,7 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     const suggItems = suggs.map((item, i) =>
       Box(
         { paddingX: 1 },
-        Text({ color: i === 0 ? activeColor : 'mutedForeground' }, item.label)
+        Text({ color: i === 0 ? colorActive : 'mutedForeground' }, item.label)
       )
     );
     suggestionsNode = Box(
@@ -709,7 +709,7 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
         flexDirection: 'row',
         flexWrap: 'wrap',
         borderStyle: 'single',
-        borderColor: activeColor,
+        borderColor: colorActive,
         padding: 1,
         gap: 1,
         flexGrow: fullWidth ? 1 : 0,

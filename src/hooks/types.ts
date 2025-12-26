@@ -38,7 +38,64 @@ export interface Key {
   f12: boolean;
 }
 
-export type InputHandler = (input: string, key: Key) => void;
+export type InputHandler = (input: string, key: Key) => void | boolean;
+
+// =============================================================================
+// Input Priority System
+// =============================================================================
+
+/**
+ * Input priority levels (higher = fires first)
+ *
+ * - `background`: Ambient listeners (analytics, debugging) - fires last
+ * - `normal`: Regular components - default priority
+ * - `modal`: Modals, command palette, overlays - fires before normal
+ * - `critical`: Error dialogs, system alerts - fires first
+ */
+export type InputPriority = 'background' | 'normal' | 'modal' | 'critical';
+
+/** Numeric values for priority sorting (higher = fires first) */
+export const INPUT_PRIORITY_VALUES: Record<InputPriority, number> = {
+  background: 0,
+  normal: 1,
+  modal: 2,
+  critical: 3,
+};
+
+/** Options for useInput hook */
+export interface UseInputOptions {
+  /**
+   * Whether the handler is active (receives events)
+   * @default true
+   */
+  isActive?: boolean;
+
+  /**
+   * Priority level for this handler
+   * Higher priority handlers fire before lower priority ones
+   * @default 'normal'
+   */
+  priority?: InputPriority;
+
+  /**
+   * If true, prevents lower priority handlers from firing
+   * when this handler returns a truthy value
+   * @default false
+   */
+  stopPropagation?: boolean;
+}
+
+/** Internal entry for a registered input handler */
+export interface InputHandlerEntry {
+  /** The actual handler function */
+  handler: InputHandler;
+  /** Priority value for sorting */
+  priorityValue: number;
+  /** Whether to stop propagation when handler returns truthy */
+  stopPropagation: boolean;
+  /** Unique ID for removal */
+  id: number;
+}
 
 export interface AppContext {
   exit: (error?: Error) => void;
