@@ -6,11 +6,13 @@
 
 import { Writable } from 'node:stream';
 import { hideCursor, showCursor } from './cursor.js';
+import { stringWidth } from './text-utils.js';
 
 // ANSI escape sequences
 const ESC = '\u001B[';
 const cursorHome = `${ESC}H`; // Move cursor to home (0,0)
 const clearFromCursor = `${ESC}J`; // Clear from cursor to end of screen
+const clearToEndOfLine = `${ESC}K`; // Clear from cursor to end of line
 
 const eraseLines = (count: number): string => {
   let result = '';
@@ -49,12 +51,13 @@ export interface LogUpdate {
 }
 
 /**
- * Create a standard log updater (full redraw)
- * Uses cursor home + clear to ensure no ghost lines accumulate
+ * Create a standard log updater with delta clearing
+ * Tracks line widths and clears only what's necessary when content shrinks
  */
 function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
   const { showCursor: showCursorOption = false } = options;
   let previousOutput = '';
+  let previousLineWidths: number[] = [];
   let hasHiddenCursor = false;
 
   const render = (content: string) => {
@@ -68,18 +71,44 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
       return;
     }
 
+    // Split into lines and calculate widths
+    const lines = content.split('\n');
+    const lineWidths = lines.map((line) => stringWidth(line));
+
+    // Build output with delta clearing
+    // For each line, if the new line is shorter than the previous,
+    // append ESC[K to clear to end of line
+    const outputLines: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const newWidth = lineWidths[i];
+      const prevWidth = previousLineWidths[i] ?? 0;
+
+      // Clear to end of line if new content is shorter
+      if (newWidth < prevWidth) {
+        outputLines.push(line + clearToEndOfLine);
+      } else {
+        outputLines.push(line);
+      }
+    }
+
+    // Store for next frame
     previousOutput = output;
-    // Move cursor to home (0,0), write output, then clear any remaining content below
-    stream.write(cursorHome + output + clearFromCursor);
+    previousLineWidths = lineWidths;
+
+    // Move cursor to home, write output with line clears, then clear remaining lines below
+    stream.write(cursorHome + outputLines.join('\n') + '\n' + clearFromCursor);
   };
 
   render.clear = () => {
     stream.write(cursorHome + clearFromCursor);
     previousOutput = '';
+    previousLineWidths = [];
   };
 
   render.done = () => {
     previousOutput = '';
+    previousLineWidths = [];
 
     if (!showCursorOption && hasHiddenCursor) {
       showCursor(stream);
@@ -89,6 +118,7 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
 
   render.sync = (content: string) => {
     previousOutput = content + '\n';
+    previousLineWidths = content.split('\n').map((line) => stringWidth(line));
   };
 
   return render;
