@@ -38,9 +38,19 @@
   - [Typography](/components/typography.md)
   - [Static](/components/static.md)
 
+- **Atoms**
+  - [Button](/components/atoms/button.md)
+
+- **Organisms**
+  - [Modal](/components/organisms/modal.md)
+
 - **Data Visualization**
-  - [BarChart](/components/viz/bar-chart.md)
-  - [Sparkline](/components/viz/sparkline.md)
+  - [Overview](/components/viz/index.md)
+  - [Bar Charts](/components/viz/bar-chart.md)
+  - [Sparklines](/components/viz/sparkline.md)
+  - [Charts](/components/viz/charts.md)
+  - [Gauges](/components/viz/gauges.md)
+  - [Heatmaps](/components/viz/heatmaps.md)
 
 - **Hooks**
   - [useState](/hooks/use-state.md)
@@ -51,6 +61,7 @@
   - [useApp](/hooks/use-app.md)
   - [useNavigation](/hooks/use-navigation.md)
   - [useFps](/hooks/use-fps.md)
+  - [useForm](/hooks/use-form.md)
   - [Context API](/hooks/context.md)
 
 - **Guides**

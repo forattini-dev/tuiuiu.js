@@ -132,3 +132,26 @@ Gauge({
   color: 'blue'
 });
 ```
+
+## Heatmaps
+
+For time-based and correlation visualizations, see the [Heatmaps documentation](/components/viz/heatmaps.md):
+
+- **ContributionGraph** - GitHub-style activity graph
+- **CalendarHeatmap** - Year-view calendar with intensity
+- **TimeHeatmap** - Hour × Day matrix
+- **CorrelationMatrix** - Statistical correlation display
+
+## Detailed Documentation
+
+For comprehensive documentation including all props, examples, and dashboard recipes:
+
+- [**Charts**](/components/viz/charts.md) - LineChart, AreaChart, ScatterPlot, RadarChart, GanttChart
+- [**Gauges**](/components/viz/gauges.md) - MeterGauge, ArcGauge, DialGauge, BatteryGauge
+- [**Heatmaps**](/components/viz/heatmaps.md) - ContributionGraph, CalendarHeatmap, TimeHeatmap, CorrelationMatrix
+- [**Overview**](/components/viz/index.md) - Quick reference for all visualization components
+
+## Related
+
+- [Feedback Components](/components/feedback.md) - Progress bars, spinners
+- [Tables](/components/data-display.md#tables) - Tabular data display

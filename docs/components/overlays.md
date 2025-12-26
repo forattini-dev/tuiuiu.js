@@ -78,3 +78,19 @@ GoToDialog({
   prompt: 'Go to line:'
 });
 ```
+
+## Modal
+
+See the [Modal](/components/organisms/modal.md) documentation for comprehensive coverage of:
+
+- **Modal** - Centered modal dialog with backdrop
+- **ConfirmDialog** - Pre-built Yes/No confirmation
+- **Toast** - Temporary notifications
+- **AlertBox** - Inline alert messages
+- **Window** - Floating draggable windows
+
+## Related
+
+- [Modal Documentation](/components/organisms/modal.md) - Full modal component reference
+- [Forms](/components/forms.md) - Form components for modal content
+- [Button](/components/atoms/button.md) - Button components for modal actions
