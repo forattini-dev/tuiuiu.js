@@ -37,6 +37,10 @@
   - [Typography](/components/typography.md)
   - [Static](/components/static.md)
 
+- **Media**
+  - [Picture](/components/media/picture.md)
+  - [AnimatedPicture](/components/media/animated-picture.md)
+
 - **Atoms**
   - [Button](/components/atoms/button.md)
   - [Spinner](/components/atoms/spinner.md)

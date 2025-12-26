@@ -1003,3 +1003,588 @@ export function createShadowedText(
   // Combine (simplified - just returns both)
   return [...result.slice(0, -1), ...mainLines];
 }
+
+// =============================================================================
+// ANIMATED PICTURE - Pulse, Breathe, and more animations
+// =============================================================================
+
+/**
+ * Supported picture animations
+ */
+export type PictureAnimation =
+  | 'none'
+  | 'pulse'      // Fast brightness oscillation
+  | 'breathe'    // Slow, smooth breathing effect
+  | 'blink'      // On/off blinking
+  | 'fadeIn'     // Fade from dim to bright
+  | 'fadeOut'    // Fade from bright to dim
+  | 'glow'       // Subtle pulsing glow
+  | 'shimmer'    // Wave of brightness across image
+  | 'rainbow'    // Cycle through rainbow colors
+  | 'glitch';    // Random distortion effect
+
+/**
+ * Animation easing types
+ */
+export type AnimationEasing =
+  | 'linear'
+  | 'ease-in'
+  | 'ease-out'
+  | 'ease-in-out'
+  | 'sine';
+
+/**
+ * Props for AnimatedPicture component
+ */
+export interface AnimatedPictureProps {
+  /** Pixel grid to animate */
+  pixels: PixelGrid;
+
+  /** Animation type */
+  animation?: PictureAnimation;
+
+  /** Duration of one animation cycle in ms */
+  duration?: number;
+
+  /** Minimum brightness (0-1), default 0.2 */
+  minBrightness?: number;
+
+  /** Maximum brightness (0-1), default 1.0 */
+  maxBrightness?: number;
+
+  /** Easing function for animation */
+  easing?: AnimationEasing;
+
+  /** Whether to loop the animation */
+  loop?: boolean;
+
+  /** Start animation automatically */
+  autoPlay?: boolean;
+
+  /** Callback when animation cycle completes */
+  onCycleComplete?: () => void;
+
+  /** Fixed width */
+  width?: number;
+
+  /** Fixed height */
+  height?: number;
+
+  /** Horizontal alignment */
+  alignX?: PictureAlignX;
+
+  /** Vertical alignment */
+  alignY?: PictureAlignY;
+
+  /** Border style */
+  borderStyle?: 'none' | 'single' | 'double' | 'round' | 'bold';
+
+  /** Border color */
+  borderColor?: string;
+
+  /** Padding */
+  padding?: number;
+}
+
+// =============================================================================
+// COLOR UTILITIES FOR ANIMATION
+// =============================================================================
+
+/**
+ * Parse a color string to RGB values
+ */
+function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {
+  // Handle hex colors
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    if (hex.length === 3) {
+      // Short hex (#RGB)
+      return {
+        r: parseInt(hex[0] + hex[0], 16),
+        g: parseInt(hex[1] + hex[1], 16),
+        b: parseInt(hex[2] + hex[2], 16),
+      };
+    } else if (hex.length === 6) {
+      // Full hex (#RRGGBB)
+      return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+      };
+    }
+    return null;
+  }
+
+  // Handle rgb() format
+  const rgbMatch = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgbMatch) {
+    return {
+      r: parseInt(rgbMatch[1], 10),
+      g: parseInt(rgbMatch[2], 10),
+      b: parseInt(rgbMatch[3], 10),
+    };
+  }
+
+  // Named colors - common ones
+  const namedColors: Record<string, { r: number; g: number; b: number }> = {
+    red: { r: 255, g: 0, b: 0 },
+    green: { r: 0, g: 255, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+    yellow: { r: 255, g: 255, b: 0 },
+    cyan: { r: 0, g: 255, b: 255 },
+    magenta: { r: 255, g: 0, b: 255 },
+    white: { r: 255, g: 255, b: 255 },
+    black: { r: 0, g: 0, b: 0 },
+    gray: { r: 128, g: 128, b: 128 },
+    grey: { r: 128, g: 128, b: 128 },
+    orange: { r: 255, g: 165, b: 0 },
+    pink: { r: 255, g: 192, b: 203 },
+    purple: { r: 128, g: 0, b: 128 },
+    brown: { r: 139, g: 69, b: 19 },
+  };
+
+  return namedColors[color.toLowerCase()] || null;
+}
+
+/**
+ * Convert RGB values to hex color string
+ */
+function rgbToHexColor(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return '#' + [r, g, b].map(v => clamp(v).toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Adjust color brightness
+ * @param color - Color string (hex, rgb, or named)
+ * @param brightness - Brightness multiplier (0-1 dims, >1 brightens)
+ */
+export function adjustBrightness(color: string, brightness: number): string {
+  const rgb = parseColorToRgb(color);
+  if (!rgb) return color;
+
+  return rgbToHexColor(
+    rgb.r * brightness,
+    rgb.g * brightness,
+    rgb.b * brightness
+  );
+}
+
+/**
+ * Interpolate between two colors
+ * @param color1 - Start color
+ * @param color2 - End color
+ * @param t - Progress (0-1)
+ */
+export function interpolateColor(color1: string, color2: string, t: number): string {
+  const rgb1 = parseColorToRgb(color1);
+  const rgb2 = parseColorToRgb(color2);
+
+  if (!rgb1 || !rgb2) return color1;
+
+  return rgbToHexColor(
+    rgb1.r + (rgb2.r - rgb1.r) * t,
+    rgb1.g + (rgb2.g - rgb1.g) * t,
+    rgb1.b + (rgb2.b - rgb1.b) * t
+  );
+}
+
+/**
+ * Apply brightness to entire pixel grid
+ */
+export function applyBrightnessToGrid(grid: PixelGrid, brightness: number): PixelGrid {
+  return grid.map(row =>
+    row.map(pixel => ({
+      ...pixel,
+      fg: pixel.fg ? adjustBrightness(pixel.fg, brightness) : undefined,
+      bg: pixel.bg ? adjustBrightness(pixel.bg, brightness) : undefined,
+    }))
+  );
+}
+
+/**
+ * Apply shimmer effect to grid (wave of brightness)
+ * @param grid - Pixel grid
+ * @param progress - Animation progress (0-1)
+ * @param minBrightness - Minimum brightness
+ * @param waveWidth - Width of the shimmer wave (0-1)
+ */
+export function applyShimmerToGrid(
+  grid: PixelGrid,
+  progress: number,
+  minBrightness: number = 0.3,
+  waveWidth: number = 0.3
+): PixelGrid {
+  const gridWidth = grid.length > 0 ? Math.max(...grid.map(r => r.length)) : 0;
+
+  return grid.map(row =>
+    row.map((pixel, x) => {
+      const normalizedX = gridWidth > 1 ? x / (gridWidth - 1) : 0;
+      const distance = Math.abs(normalizedX - progress);
+      const waveEffect = Math.max(0, 1 - distance / waveWidth);
+      const brightness = minBrightness + (1 - minBrightness) * waveEffect;
+
+      return {
+        ...pixel,
+        fg: pixel.fg ? adjustBrightness(pixel.fg, brightness) : undefined,
+        bg: pixel.bg ? adjustBrightness(pixel.bg, brightness) : undefined,
+      };
+    })
+  );
+}
+
+/**
+ * Apply rainbow effect to grid
+ * @param grid - Pixel grid
+ * @param progress - Animation progress (0-1)
+ */
+export function applyRainbowToGrid(grid: PixelGrid, progress: number): PixelGrid {
+  const rainbowColors = [
+    '#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#9400d3'
+  ];
+
+  return grid.map((row, y) =>
+    row.map((pixel, x) => {
+      if (!pixel.fg) return pixel;
+
+      const colorIndex = (progress * rainbowColors.length + (x + y) * 0.1) % rainbowColors.length;
+      const colorIdx1 = Math.floor(colorIndex);
+      const colorIdx2 = (colorIdx1 + 1) % rainbowColors.length;
+      const colorT = colorIndex - colorIdx1;
+
+      const newColor = interpolateColor(
+        rainbowColors[colorIdx1],
+        rainbowColors[colorIdx2],
+        colorT
+      );
+
+      return { ...pixel, fg: newColor };
+    })
+  );
+}
+
+/**
+ * Apply glitch effect to grid
+ * @param grid - Pixel grid
+ * @param intensity - Glitch intensity (0-1)
+ */
+export function applyGlitchToGrid(grid: PixelGrid, intensity: number): PixelGrid {
+  if (intensity < 0.1) return grid;
+
+  return grid.map((row, y) => {
+    // Random horizontal shift for some rows
+    if (Math.random() < intensity * 0.3) {
+      const shift = Math.floor((Math.random() - 0.5) * 6 * intensity);
+      if (shift > 0) {
+        return [...row.slice(shift), ...row.slice(0, shift)];
+      } else if (shift < 0) {
+        return [...row.slice(shift), ...row.slice(0, row.length + shift)];
+      }
+    }
+
+    // Random character corruption
+    return row.map(pixel => {
+      if (Math.random() < intensity * 0.1) {
+        const glitchChars = '░▒▓█▀▄▌▐';
+        return {
+          ...pixel,
+          char: glitchChars[Math.floor(Math.random() * glitchChars.length)],
+        };
+      }
+      return pixel;
+    });
+  });
+}
+
+// =============================================================================
+// EASING FUNCTIONS
+// =============================================================================
+
+const easingFunctions: Record<AnimationEasing, (t: number) => number> = {
+  linear: (t) => t,
+  'ease-in': (t) => t * t,
+  'ease-out': (t) => t * (2 - t),
+  'ease-in-out': (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
+  sine: (t) => (Math.sin((t - 0.5) * Math.PI) + 1) / 2,
+};
+
+// =============================================================================
+// ANIMATED PICTURE STATE FACTORY
+// =============================================================================
+
+export interface AnimatedPictureControls {
+  /** Start or resume animation */
+  play: () => void;
+  /** Pause animation */
+  pause: () => void;
+  /** Stop and reset animation */
+  stop: () => void;
+  /** Set animation type */
+  setAnimation: (animation: PictureAnimation) => void;
+  /** Set brightness directly (0-1) */
+  setBrightness: (brightness: number) => void;
+  /** Get current brightness */
+  brightness: () => number;
+  /** Get processed pixels for current frame */
+  pixels: () => PixelGrid;
+  /** Check if animation is playing */
+  isPlaying: () => boolean;
+  /** Get animation progress (0-1) */
+  progress: () => number;
+  /** Component props for rendering */
+  props: AnimatedPictureProps;
+}
+
+import { createSignal, createEffect } from '../../primitives/signal.js';
+
+/**
+ * Create an animated picture controller for programmatic control
+ *
+ * @example
+ * ```typescript
+ * const anim = createAnimatedPicture({
+ *   pixels: myGrid,
+ *   animation: 'pulse',
+ *   duration: 2000,
+ *   minBrightness: 0.3,
+ * })
+ *
+ * // Control
+ * anim.play()
+ * anim.pause()
+ * anim.setAnimation('breathe')
+ *
+ * // Render
+ * ColoredPicture({ pixels: anim.pixels() })
+ * ```
+ */
+export function createAnimatedPicture(
+  props: AnimatedPictureProps
+): AnimatedPictureControls {
+  const {
+    pixels: sourcePixels,
+    animation: initialAnimation = 'pulse',
+    duration = 1500,
+    minBrightness = 0.2,
+    maxBrightness = 1.0,
+    easing = 'sine',
+    loop = true,
+    autoPlay = true,
+    onCycleComplete,
+  } = props;
+
+  // State
+  const [animation, setAnimation] = createSignal<PictureAnimation>(initialAnimation);
+  const [brightness, setBrightness] = createSignal(maxBrightness);
+  const [progress, setProgress] = createSignal(0);
+  const [isPlaying, setIsPlaying] = createSignal(autoPlay);
+
+  // Timer for animation
+  let animationTimer: ReturnType<typeof setInterval> | null = null;
+  let startTime = 0;
+
+  const easingFn = easingFunctions[easing];
+
+  /**
+   * Calculate brightness based on animation type and progress
+   */
+  function calculateBrightness(animType: PictureAnimation, prog: number): number {
+    switch (animType) {
+      case 'pulse':
+        // Fast sine wave oscillation
+        return minBrightness + (maxBrightness - minBrightness) * ((Math.sin(prog * Math.PI * 2) + 1) / 2);
+
+      case 'breathe':
+        // Slower, smoother breathing (uses easing)
+        const breatheT = easingFn(prog < 0.5 ? prog * 2 : (1 - prog) * 2);
+        return minBrightness + (maxBrightness - minBrightness) * breatheT;
+
+      case 'blink':
+        // Hard on/off
+        return prog < 0.5 ? maxBrightness : minBrightness;
+
+      case 'fadeIn':
+        return minBrightness + (maxBrightness - minBrightness) * easingFn(prog);
+
+      case 'fadeOut':
+        return maxBrightness - (maxBrightness - minBrightness) * easingFn(prog);
+
+      case 'glow':
+        // Subtle pulsing
+        const glowRange = (maxBrightness - minBrightness) * 0.3;
+        return maxBrightness - glowRange + glowRange * ((Math.sin(prog * Math.PI * 2) + 1) / 2);
+
+      default:
+        return maxBrightness;
+    }
+  }
+
+  /**
+   * Get current processed pixels based on animation state
+   */
+  function getPixels(): PixelGrid {
+    const animType = animation();
+    const prog = progress();
+    const bright = brightness();
+
+    switch (animType) {
+      case 'shimmer':
+        return applyShimmerToGrid(sourcePixels, prog, minBrightness);
+
+      case 'rainbow':
+        return applyRainbowToGrid(sourcePixels, prog);
+
+      case 'glitch':
+        // Glitch intensity varies with progress
+        const intensity = Math.sin(prog * Math.PI * 4) * 0.5 + 0.5;
+        return applyGlitchToGrid(sourcePixels, intensity * 0.5);
+
+      case 'none':
+        return sourcePixels;
+
+      default:
+        // Brightness-based animations (pulse, breathe, blink, fadeIn, fadeOut, glow)
+        return applyBrightnessToGrid(sourcePixels, bright);
+    }
+  }
+
+  /**
+   * Animation tick
+   */
+  function tick() {
+    if (!isPlaying()) return;
+
+    const elapsed = Date.now() - startTime;
+    let prog = (elapsed % duration) / duration;
+
+    // Check for cycle completion
+    if (elapsed >= duration) {
+      if (!loop) {
+        stop();
+        onCycleComplete?.();
+        return;
+      }
+      startTime = Date.now();
+      onCycleComplete?.();
+    }
+
+    setProgress(prog);
+    setBrightness(calculateBrightness(animation(), prog));
+  }
+
+  /**
+   * Start animation loop
+   */
+  function play() {
+    if (isPlaying()) return;
+
+    setIsPlaying(true);
+    startTime = Date.now() - progress() * duration;
+
+    animationTimer = setInterval(tick, 16); // ~60fps
+  }
+
+  /**
+   * Pause animation
+   */
+  function pause() {
+    setIsPlaying(false);
+    if (animationTimer) {
+      clearInterval(animationTimer);
+      animationTimer = null;
+    }
+  }
+
+  /**
+   * Stop and reset animation
+   */
+  function stop() {
+    pause();
+    setProgress(0);
+    setBrightness(maxBrightness);
+  }
+
+  /**
+   * Change animation type
+   */
+  function changeAnimation(newAnimation: PictureAnimation) {
+    setAnimation(newAnimation);
+    setProgress(0);
+    startTime = Date.now();
+  }
+
+  // Auto-start if enabled
+  if (autoPlay) {
+    // Use setTimeout to defer start until after render setup
+    setTimeout(play, 0);
+  }
+
+  return {
+    play,
+    pause,
+    stop,
+    setAnimation: changeAnimation,
+    setBrightness,
+    brightness,
+    pixels: getPixels,
+    isPlaying,
+    progress,
+    props,
+  };
+}
+
+/**
+ * AnimatedPicture - Display animated pixel art
+ *
+ * @example
+ * ```typescript
+ * // Simple pulse animation
+ * const anim = createAnimatedPicture({
+ *   pixels: myGrid,
+ *   animation: 'pulse',
+ *   duration: 2000,
+ *   minBrightness: 0.3,
+ * })
+ *
+ * // In render loop
+ * ColoredPicture({
+ *   pixels: anim.pixels(),
+ *   width: 20,
+ *   height: 10,
+ * })
+ * ```
+ *
+ * Animations:
+ * - `pulse` - Fast brightness oscillation
+ * - `breathe` - Slow, smooth breathing effect
+ * - `blink` - On/off blinking
+ * - `fadeIn` - Fade from dim to bright
+ * - `fadeOut` - Fade from bright to dim
+ * - `glow` - Subtle pulsing glow
+ * - `shimmer` - Wave of brightness across image
+ * - `rainbow` - Cycle through rainbow colors
+ * - `glitch` - Random distortion effect
+ */
+export function AnimatedPicture(props: AnimatedPictureProps): VNode {
+  const controller = createAnimatedPicture(props);
+
+  // Effect to start animation
+  createEffect(() => {
+    if (props.autoPlay !== false) {
+      controller.play();
+    }
+    // Cleanup on unmount
+    return () => controller.stop();
+  });
+
+  return ColoredPicture({
+    pixels: controller.pixels(),
+    width: props.width,
+    height: props.height,
+    alignX: props.alignX,
+    alignY: props.alignY,
+    borderStyle: props.borderStyle,
+    borderColor: props.borderColor,
+    padding: props.padding,
+  });
+}

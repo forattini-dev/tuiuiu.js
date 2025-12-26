@@ -308,6 +308,7 @@ export {
   Picture,
   FramedPicture,
   ColoredPicture,
+  AnimatedPicture,
 
   // Pixel grid utilities
   createPixelGrid,
@@ -318,6 +319,17 @@ export {
   createSprite,
   getSpriteFrame,
   nextSpriteFrame,
+
+  // Animated picture control
+  createAnimatedPicture,
+
+  // Color/brightness utilities
+  adjustBrightness,
+  interpolateColor,
+  applyBrightnessToGrid,
+  applyShimmerToGrid,
+  applyRainbowToGrid,
+  applyGlitchToGrid,
 
   // Effects
   createGradientBar,
@@ -336,6 +348,10 @@ export type {
   PictureProps,
   FramedPictureProps,
   ColoredPictureProps,
+  AnimatedPictureProps,
+  AnimatedPictureControls,
+  PictureAnimation,
+  AnimationEasing,
   PictureFit,
   PictureAlignX,
   PictureAlignY,
