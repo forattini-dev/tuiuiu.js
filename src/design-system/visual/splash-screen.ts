@@ -15,7 +15,12 @@ import { createSignal, createEffect } from '../../primitives/signal.js';
 import { Spinner, type SpinnerStyle } from '../../design-system/feedback/spinner.js';
 import { ProgressBar } from '../../design-system/feedback/progress-bar.js';
 import { BigText, type BigTextFont } from './big-text.js';
-import { ColoredPicture, type PixelGrid } from '../media/picture.js';
+import {
+  ColoredPicture,
+  createAnimatedPicture,
+  type PixelGrid,
+  type AnimatedPictureControls,
+} from '../media/picture.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 
 // Re-export useful types and functions from Picture for convenience
@@ -46,8 +51,10 @@ export interface SplashScreenOptions {
   loadingMessage?: string;
   /** Auto-dismiss after ms (0 = manual) */
   duration?: number;
-  /** Fade-in duration in ms */
+  /** Fade-in duration in ms (for colored art animation) */
   fadeInDuration?: number;
+  /** Starting brightness for fade-in (0-1, default: 0.5) */
+  fadeInStartBrightness?: number;
   /** Callback when splash completes */
   onComplete?: () => void;
   /** Show version */
@@ -67,6 +74,10 @@ export interface SplashScreenState {
   dismiss: () => void;
   /** Current frame for animations */
   frame: () => number;
+  /** Animated picture controller (if using colored art) */
+  animatedPicture: AnimatedPictureControls | null;
+  /** Set the animated picture controller */
+  setAnimatedPicture: (ctrl: AnimatedPictureControls) => void;
 }
 
 // =============================================================================
@@ -82,7 +93,7 @@ const MIN_DURATION = 700;
 export function createSplashScreen(options: SplashScreenOptions = {}): SplashScreenState {
   const {
     duration = MIN_DURATION,
-    fadeInDuration = 500,
+    fadeInDuration = 300,
     onComplete,
   } = options;
 
@@ -94,11 +105,14 @@ export function createSplashScreen(options: SplashScreenOptions = {}): SplashScr
   const [isVisible, setIsVisible] = createSignal(true);
   const [frame, setFrame] = createSignal(0);
 
+  // Animated picture controller (will be set by component if using colored art)
+  let animatedPictureCtrl: AnimatedPictureControls | null = null;
+
   let fadeInTimer: NodeJS.Timeout | null = null;
   let dismissTimer: NodeJS.Timeout | null = null;
   let frameTimer: NodeJS.Timeout | null = null;
 
-  // Fade-in animation
+  // Fade-in animation (for non-colored art fallback)
   const fadeSteps = Math.max(1, Math.floor(fadeInDuration / 50));
   let currentStep = 0;
 
@@ -139,6 +153,10 @@ export function createSplashScreen(options: SplashScreenOptions = {}): SplashScr
     if (fadeInTimer) clearInterval(fadeInTimer);
     if (dismissTimer) clearTimeout(dismissTimer);
     if (frameTimer) clearInterval(frameTimer);
+    // Stop animated picture if active
+    if (animatedPictureCtrl) {
+      animatedPictureCtrl.stop();
+    }
     setIsVisible(false);
     onComplete?.();
   }
@@ -150,6 +168,12 @@ export function createSplashScreen(options: SplashScreenOptions = {}): SplashScr
     isVisible,
     dismiss,
     frame,
+    get animatedPicture() {
+      return animatedPictureCtrl;
+    },
+    setAnimatedPicture(ctrl: AnimatedPictureControls) {
+      animatedPictureCtrl = ctrl;
+    },
   };
 }
 
@@ -166,6 +190,8 @@ export interface SplashScreenProps extends SplashScreenOptions {
   height?: number | string;
   /** Colored pixel grid (overrides asciiArt and title) - use parseColoredBBCode() */
   coloredArt?: PixelGrid;
+  /** Enable fade-in animation for colored art (default: true) */
+  animateFadeIn?: boolean;
 }
 
 /**
@@ -191,6 +217,9 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
     state,
     width,
     height,
+    fadeInDuration = 300,
+    fadeInStartBrightness = 0.5,
+    animateFadeIn = true,
   } = props;
 
   // Use provided state or create a simple visible state
@@ -200,6 +229,31 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
 
   if (!isVisible) return null;
 
+  // Create animated picture for colored art if enabled
+  let animatedPictureCtrl: AnimatedPictureControls | null = null;
+  if (coloredArt && animateFadeIn) {
+    // Check if we already have a controller from state
+    if (state?.animatedPicture) {
+      animatedPictureCtrl = state.animatedPicture;
+    } else {
+      // Create new controller with fadeIn animation
+      animatedPictureCtrl = createAnimatedPicture({
+        pixels: coloredArt,
+        animation: 'fadeIn',
+        duration: fadeInDuration,
+        minBrightness: fadeInStartBrightness,
+        maxBrightness: 1.0,
+        loop: false,
+        autoPlay: true,
+        easing: 'ease-out',
+      });
+      // Store in state if available
+      if (state) {
+        state.setAnimatedPicture(animatedPictureCtrl);
+      }
+    }
+  }
+
   // Build center content (image + subtitle + version)
   // Centering uses flexGrow spacers pattern for reliable horizontal centering
   const centerContent: VNode[] = [];
@@ -207,10 +261,12 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
   // Colored pixel grid (highest priority)
   // Use flexGrow spacers for horizontal centering (more reliable than justifyContent)
   if (coloredArt) {
+    // Use animated pixels if animation is enabled
+    const displayPixels = animatedPictureCtrl ? animatedPictureCtrl.pixels() : coloredArt;
     centerContent.push(
       Box({ flexDirection: 'row', width: '100%' },
         Box({ flexGrow: 1 }),
-        ColoredPicture({ pixels: coloredArt }),
+        ColoredPicture({ pixels: displayPixels }),
         Box({ flexGrow: 1 })
       )
     );
@@ -402,6 +458,8 @@ export interface ImpactSplashProps extends Omit<SplashScreenProps, 'coloredArt' 
   showLogo?: boolean;
   /** Logo color */
   logoColor?: ColorValue;
+  /** Enable fade-in animation for bird art (default: true) */
+  animateFadeIn?: boolean;
 }
 
 /**
@@ -428,6 +486,9 @@ export function ImpactSplashScreen(props: ImpactSplashProps): VNode | null {
     state,
     width,
     height,
+    fadeInDuration = 300,
+    fadeInStartBrightness = 0.5,
+    animateFadeIn = true,
   } = props;
 
   // Use provided state or create a simple visible state
@@ -436,6 +497,31 @@ export function ImpactSplashScreen(props: ImpactSplashProps): VNode | null {
   const progress = state?.progress?.() ?? 0;
 
   if (!isVisible) return null;
+
+  // Create animated picture for bird art if enabled
+  let animatedPictureCtrl: AnimatedPictureControls | null = null;
+  if (birdArt && animateFadeIn) {
+    // Check if we already have a controller from state
+    if (state?.animatedPicture) {
+      animatedPictureCtrl = state.animatedPicture;
+    } else {
+      // Create new controller with fadeIn animation
+      animatedPictureCtrl = createAnimatedPicture({
+        pixels: birdArt,
+        animation: 'fadeIn',
+        duration: fadeInDuration,
+        minBrightness: fadeInStartBrightness,
+        maxBrightness: 1.0,
+        loop: false,
+        autoPlay: true,
+        easing: 'ease-out',
+      });
+      // Store in state if available
+      if (state) {
+        state.setAnimatedPicture(animatedPictureCtrl);
+      }
+    }
+  }
 
   // Get terminal dimensions
   const termWidth = process.stdout.columns || 80;
@@ -454,11 +540,12 @@ export function ImpactSplashScreen(props: ImpactSplashProps): VNode | null {
   // Build center content
   const centerContent: VNode[] = [];
 
-  // Bird (centered)
+  // Bird (centered) - use animated pixels if animation is enabled
+  const displayPixels = animatedPictureCtrl ? animatedPictureCtrl.pixels() : birdArt;
   centerContent.push(
     Box({ flexDirection: 'row', width: '100%' },
       Box({ flexGrow: 1 }),
-      ColoredPicture({ pixels: birdArt }),
+      ColoredPicture({ pixels: displayPixels }),
       Box({ flexGrow: 1 })
     )
   );

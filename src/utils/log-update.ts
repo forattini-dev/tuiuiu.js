@@ -57,6 +57,7 @@ export interface LogUpdate {
 function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
   const { showCursor: showCursorOption = false } = options;
   let previousOutput = '';
+  let previousLineCount = 0;
   let previousLineWidths: number[] = [];
   let hasHiddenCursor = false;
 
@@ -74,6 +75,7 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
     // Split into lines and calculate widths
     const lines = content.split('\n');
     const lineWidths = lines.map((line) => stringWidth(line));
+    const newLineCount = lines.length;
 
     // Build output with delta clearing
     // For each line, if the new line is shorter than the previous,
@@ -84,30 +86,43 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
       const newWidth = lineWidths[i];
       const prevWidth = previousLineWidths[i] ?? 0;
 
-      // Clear to end of line if new content is shorter
-      if (newWidth < prevWidth) {
+      // Clear to end of line if new content is shorter OR if this line had content before
+      if (newWidth < prevWidth || i < previousLineCount) {
         outputLines.push(line + clearToEndOfLine);
       } else {
         outputLines.push(line);
       }
     }
 
+    // If previous content had more lines, explicitly clear them
+    // This ensures ghost content is removed even if clearFromCursor doesn't work properly
+    const extraLinesToClear = previousLineCount - newLineCount;
+    let clearExtraLines = '';
+    if (extraLinesToClear > 0) {
+      for (let i = 0; i < extraLinesToClear; i++) {
+        clearExtraLines += '\n' + clearToEndOfLine;
+      }
+    }
+
     // Store for next frame
     previousOutput = output;
+    previousLineCount = newLineCount;
     previousLineWidths = lineWidths;
 
-    // Move cursor to home, write output with line clears, then clear remaining lines below
-    stream.write(cursorHome + outputLines.join('\n') + '\n' + clearFromCursor);
+    // Move cursor to home, write output with line clears, clear extra lines, then clear remaining
+    stream.write(cursorHome + outputLines.join('\n') + clearExtraLines + '\n' + clearFromCursor);
   };
 
   render.clear = () => {
     stream.write(cursorHome + clearFromCursor);
     previousOutput = '';
+    previousLineCount = 0;
     previousLineWidths = [];
   };
 
   render.done = () => {
     previousOutput = '';
+    previousLineCount = 0;
     previousLineWidths = [];
 
     if (!showCursorOption && hasHiddenCursor) {
@@ -117,8 +132,10 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
   };
 
   render.sync = (content: string) => {
+    const lines = content.split('\n');
     previousOutput = content + '\n';
-    previousLineWidths = content.split('\n').map((line) => stringWidth(line));
+    previousLineCount = lines.length;
+    previousLineWidths = lines.map((line) => stringWidth(line));
   };
 
   return render;
