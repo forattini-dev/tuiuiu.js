@@ -451,6 +451,8 @@ function BouncyButton({ label, onPress }) {
 
 For animating colored pixel art and ASCII graphics, use `AnimatedPicture` or `createAnimatedPicture`.
 
+![AnimatedPicture Demo](../recordings/components/animated-picture.gif)
+
 ### Available Animation Types
 
 | Animation | Description | Use Case |
