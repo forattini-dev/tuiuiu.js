@@ -122,8 +122,7 @@
     "example:09": "tsx examples/09-visual-components.ts",
     "example:chat": "tsx examples/chat.ts",
     "example:enhanced-chat": "tsx examples/enhanced-chat.ts",
-    "example:store": "tsx examples/07-redux-store.ts",
-    "docs:record": "for f in docs/recordings/*.tape; do vhs \"$f\"; done"
+    "example:store": "tsx examples/07-redux-store.ts"
   },
   "engines": {
     "node": ">=18"

@@ -405,6 +405,11 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
 
 let exitHandlersRegistered = false;
 
+// Store handler references for cleanup
+let mouseExitHandler: (() => void) | null = null;
+let mouseSigintHandler: (() => void) | null = null;
+let mouseSigtermHandler: (() => void) | null = null;
+
 /**
  * Setup exit handlers to ensure mouse tracking is disabled on exit.
  * Uses a flag to prevent registering multiple listeners.
@@ -413,19 +418,39 @@ function setupExitHandlers(): void {
   if (exitHandlersRegistered) return;
   exitHandlersRegistered = true;
 
-  process.on('exit', () => {
+  mouseExitHandler = () => {
     forceDisableMouseTracking();
-  });
+  };
 
-  process.on('SIGINT', () => {
+  mouseSigintHandler = () => {
     forceDisableMouseTracking();
     process.exit(0);
-  });
+  };
 
-  process.on('SIGTERM', () => {
+  mouseSigtermHandler = () => {
     forceDisableMouseTracking();
     process.exit(0);
-  });
+  };
+
+  process.on('exit', mouseExitHandler);
+  process.on('SIGINT', mouseSigintHandler);
+  process.on('SIGTERM', mouseSigtermHandler);
+}
+
+/**
+ * Remove mouse exit handlers (useful for tests)
+ */
+export function removeMouseExitHandlers(): void {
+  if (!exitHandlersRegistered) return;
+
+  if (mouseExitHandler) process.off('exit', mouseExitHandler);
+  if (mouseSigintHandler) process.off('SIGINT', mouseSigintHandler);
+  if (mouseSigtermHandler) process.off('SIGTERM', mouseSigtermHandler);
+
+  mouseExitHandler = null;
+  mouseSigintHandler = null;
+  mouseSigtermHandler = null;
+  exitHandlersRegistered = false;
 }
 
 // Setup handlers when module is loaded

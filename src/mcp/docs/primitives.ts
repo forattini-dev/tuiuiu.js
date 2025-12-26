@@ -8,7 +8,7 @@ export const primitives: ComponentDoc[] = [
   {
     name: 'Box',
     category: 'primitives',
-    description: 'Flexbox container for layout. The fundamental building block for all layouts.',
+    description: 'Flexbox container for layout. **API Pattern: Variadic Children** - pass children as ADDITIONAL ARGUMENTS after props, NOT inside props. Example: `Box({}, child1, child2)`',
     props: [
       { name: 'flexDirection', type: "'row' | 'column'", required: false, default: "'row'", description: 'Main axis direction' },
       { name: 'justifyContent', type: "'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around'", required: false, default: "'flex-start'", description: 'Alignment along main axis' },
@@ -27,14 +27,15 @@ export const primitives: ComponentDoc[] = [
       { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
     ],
     examples: [
-      `Box({ flexDirection: 'column', padding: 1 },\n  Text({}, 'Hello'),\n  Text({}, 'World')\n)`,
+      `// ✅ CORRECT - children after props object\nBox({ flexDirection: 'column', padding: 1 },\n  Text({}, 'Hello'),\n  Text({}, 'World')\n)`,
+      `// ❌ WRONG - do NOT use children prop\nBox({ padding: 1, children: Text({}, 'Hello') })  // NOT the intended API!`,
       `Box({ borderStyle: 'round', borderColor: 'cyan', padding: 2 },\n  Text({ bold: true }, 'Bordered Box')\n)`,
     ],
   },
   {
     name: 'Text',
     category: 'primitives',
-    description: 'Text element with styling support. Renders styled text content.',
+    description: 'Text element with styling support. **API Pattern: Variadic Children** - pass text strings as ADDITIONAL ARGUMENTS after props. Example: `Text({}, "Hello", "World")`',
     props: [
       { name: 'color', type: "ColorValue", required: false, description: 'Text color (named, hex, or rgb)' },
       { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
@@ -46,7 +47,8 @@ export const primitives: ComponentDoc[] = [
       { name: 'inverse', type: "boolean", required: false, default: 'false', description: 'Inverted colors' },
     ],
     examples: [
-      `Text({ color: 'cyan', bold: true }, 'Hello World')`,
+      `// ✅ CORRECT - strings after props object\nText({ color: 'cyan', bold: true }, 'Hello World')`,
+      `// ✅ Multiple strings concatenated\nText({}, 'Count: ', count(), ' items')`,
       `Text({ color: '#ff6b6b', backgroundColor: 'black' }, 'Custom colors')`,
     ],
   },

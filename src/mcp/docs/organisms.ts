@@ -452,10 +452,10 @@ DataTable({
   {
     name: 'ScrollList',
     category: 'organisms',
-    description: 'Scroll list with automatic height estimation, caching, and keyboard navigation. Efficient for large lists.',
+    description: 'Scroll list with automatic height estimation, caching, and keyboard navigation. **API Pattern: Render Function** - children is a FUNCTION that receives each item. Items can be reactive (signal/store) for auto-updates.',
     props: [
-      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items to display (array or accessor)' },
-      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render function for each item' },
+      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items to display - supports signals, stores, or static arrays. When reactive, list auto-updates!' },
+      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render FUNCTION (NOT VNode!) - called for each item' },
       { name: 'height', type: 'number', required: true, description: 'Visible height in lines' },
       { name: 'width', type: 'number', required: false, default: '80', description: 'Width for layout' },
       { name: 'itemHeight', type: 'number | ((item: T) => number)', required: false, description: 'Item height (auto-estimated if omitted)' },
@@ -466,22 +466,9 @@ DataTable({
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control via useScrollList()' },
     ],
     examples: [
-      `// Simple list with auto-height
-ScrollList({
-  items: files(),
-  children: (file) => FileRow({ file }),
-  height: 20,
-})`,
-      `// With control hook for chat
-const list = useScrollList({ inverted: true })
-list.scrollToBottom()
-
-ScrollList({
-  ...list.bind,
-  items: messages(),
-  children: (msg) => Message({ msg }),
-  height: 20,
-})`,
+      `// ✅ CORRECT - children is a function\nScrollList({\n  items: files(),  // Reactive signal\n  children: (file) => FileRow({ file }),  // Function!\n  height: 20,\n})`,
+      `// ✅ With Redux-like store - auto-updates on dispatch!\nconst store = createStore(todoReducer, { items: [] })\n\nScrollList({\n  items: () => store.getState().items,  // Derived from store\n  children: (item) => TodoItem({ item }),\n  height: 15,\n})\n\nstore.dispatch({ type: 'ADD', payload: newItem }) // List updates!`,
+      `// ❌ WRONG - children must be function, not VNode\nScrollList({\n  items: data,\n  children: Item({ data: data[0] })  // WRONG! Must be function\n})`,
     ],
   },
   {

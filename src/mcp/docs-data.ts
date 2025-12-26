@@ -21,6 +21,12 @@ import { media } from './docs/media.js';
 import { hooks } from './docs/hooks.js';
 import { signals } from './docs/signals.js';
 import { themeSystem, availableThemes, customThemeGuide } from './docs/themes.js';
+import {
+  apiPatterns,
+  quickReference as apiPatternsQuickReference,
+  componentPatternMap,
+  getComponentPattern,
+} from './docs/api-patterns.js';
 
 // Re-export everything for backwards compatibility
 export { primitives } from './docs/primitives.js';
@@ -33,6 +39,13 @@ export { media } from './docs/media.js';
 export { hooks } from './docs/hooks.js';
 export { signals } from './docs/signals.js';
 export { themeSystem, availableThemes, customThemeGuide } from './docs/themes.js';
+export {
+  apiPatterns,
+  quickReference as apiPatternsQuickReference,
+  componentPatternMap,
+  getComponentPattern,
+  type ApiPatternDoc,
+} from './docs/api-patterns.js';
 
 // =============================================================================
 // All Documentation Combined

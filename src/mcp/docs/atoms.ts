@@ -58,15 +58,18 @@ export const atoms: ComponentDoc[] = [
   {
     name: 'ButtonGroup',
     category: 'atoms',
-    description: 'Group of buttons with shared styling and keyboard navigation support.',
+    description: 'Group of buttons with **built-in keyboard navigation** - no useInput needed! **API Pattern: Data-Driven** - buttons are defined in a buttons array, NOT as children.',
     props: [
-      { name: 'buttons', type: "ButtonProps[]", required: true, description: 'Array of button configurations' },
+      { name: 'buttons', type: "ButtonProps[]", required: true, description: 'Array of { label, onClick, variant?, color?, disabled? }' },
       { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Layout direction' },
       { name: 'gap', type: "number", required: false, default: '1', description: 'Gap between buttons' },
-      { name: 'focusedIndex', type: "number", required: false, description: 'Currently focused button index' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard navigation' },
+      { name: 'wrap', type: "boolean", required: false, default: 'true', description: 'Wrap around at edges' },
+      { name: 'onFocusChange', type: "(index: number) => void", required: false, description: 'Called when focus changes' },
     ],
     examples: [
-      `ButtonGroup({\n  buttons: [\n    { label: 'Yes', variant: 'solid', color: 'success' },\n    { label: 'No', variant: 'outline' },\n  ],\n  focusedIndex: selectedIndex(),\n})`,
+      `// ✅ Out-of-the-box keyboard navigation\nButtonGroup({\n  buttons: [\n    { label: 'Save', onClick: save, variant: 'solid', color: 'success' },\n    { label: 'Cancel', onClick: cancel, variant: 'outline' },\n  ],\n})\n// Arrow keys navigate, Enter/Space triggers onClick!`,
+      `// Keyboard: ← → (or ↑ ↓ for vertical), Enter/Space to click, h/j/k/l vim keys`,
     ],
     relatedComponents: ['Button', 'IconButton'],
   },

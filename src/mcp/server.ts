@@ -5,7 +5,7 @@
  * to AI assistants like Claude.
  *
  * Features:
- * - Tools: 9 documentation tools
+ * - Tools: 10 documentation tools (including tuiuiu_api_patterns)
  * - Resources: Component, hook, theme, and guide resources
  * - Resource Templates: Dynamic URIs for flexible access
  * - Prompts: 15+ pre-defined prompts for common tasks
@@ -26,6 +26,9 @@ import {
   allThemes,
   categories,
   customThemeGuide,
+  apiPatterns,
+  apiPatternsQuickReference,
+  getComponentPattern,
 } from './docs-data.js';
 import { prompts, getPromptResult } from './prompts.js';
 import {
@@ -178,6 +181,23 @@ const tools: MCPTool[] = [
         projectVersion: {
           type: 'string',
           description: 'The Tuiuiu version used by the project (e.g., "1.0.5"). If provided, checks compatibility with the MCP server version.',
+        },
+      },
+    },
+  },
+  {
+    name: 'tuiuiu_api_patterns',
+    description: 'CRITICAL: Get documentation on the 4 API patterns for passing children/content to Tuiuiu components. Different components use different patterns - using the wrong one causes failures. Use this to understand why a user\'s code isn\'t working or to write correct component code.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        component: {
+          type: 'string',
+          description: 'Optional: component name to get the specific pattern for that component (e.g., "Tabs", "Box", "Page")',
+        },
+        pattern: {
+          type: 'string',
+          description: 'Optional: filter by pattern type: "variadic", "props", "data", "render"',
         },
       },
     },
@@ -924,6 +944,90 @@ function formatHookDoc(hook: HookDoc): string {
 }
 
 // =============================================================================
+// API Patterns Handler
+// =============================================================================
+
+function handleApiPatterns(args: Record<string, unknown>): MCPToolResult {
+  const componentName = args.component as string | undefined;
+  const patternFilter = args.pattern as string | undefined;
+
+  // If component name provided, return pattern for that specific component
+  if (componentName) {
+    const pattern = getComponentPattern(componentName);
+    if (!pattern) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Component "${componentName}" not found. Use tuiuiu_list_components to see available components.\n\n` +
+            `**Tip:** Common patterns are:\n` +
+            `- Variadic: Box, Text, VStack, HStack\n` +
+            `- Props: Page, AppShell, Modal, FormField\n` +
+            `- Data: Tabs, Select, ButtonGroup, Tree\n` +
+            `- Render: ScrollList, Static, Each`,
+        }],
+        isError: true,
+      };
+    }
+
+    let output = `# API Pattern for ${componentName}\n\n`;
+    output += `**Pattern:** ${pattern.name}\n\n`;
+    output += `${pattern.description}\n\n`;
+    output += `## Signature\n\n\`${pattern.signature}\`\n\n`;
+    output += `## Correct Usage\n\n`;
+    for (const example of pattern.correctExamples.slice(0, 2)) {
+      output += '```typescript\n' + example + '\n```\n\n';
+    }
+    output += `## Common Mistakes\n\n`;
+    for (const example of pattern.wrongExamples) {
+      output += '```typescript\n' + example + '\n```\n\n';
+    }
+    output += `## Why This Pattern?\n\n${pattern.why}\n`;
+
+    return { content: [{ type: 'text', text: output }] };
+  }
+
+  // Filter by pattern type if specified
+  let patterns = apiPatterns;
+  if (patternFilter) {
+    const filterMap: Record<string, string> = {
+      variadic: 'Variadic Children',
+      props: 'Props Children',
+      data: 'Data-Driven Content',
+      render: 'Render Function',
+    };
+    const patternName = filterMap[patternFilter.toLowerCase()];
+    if (patternName) {
+      patterns = patterns.filter(p => p.name === patternName);
+    }
+  }
+
+  // Return all patterns or filtered subset
+  let output = `# Tuiuiu API Patterns\n\n`;
+  output += `**CRITICAL:** Different components use different patterns for children/content.\n`;
+  output += `Using the wrong pattern will cause your app to fail!\n\n`;
+
+  for (const pattern of patterns) {
+    output += `## ${pattern.name}\n\n`;
+    output += `**Components:** ${pattern.components.slice(0, 5).join(', ')}${pattern.components.length > 5 ? '...' : ''}\n\n`;
+    output += `**Signature:** \`${pattern.signature}\`\n\n`;
+    output += `${pattern.description}\n\n`;
+
+    output += `### Correct\n\n`;
+    output += '```typescript\n' + pattern.correctExamples[0] + '\n```\n\n';
+
+    output += `### Wrong\n\n`;
+    output += '```typescript\n' + pattern.wrongExamples[0] + '\n```\n\n';
+
+    output += `**Why:** ${pattern.why}\n\n`;
+    output += '---\n\n';
+  }
+
+  output += apiPatternsQuickReference;
+
+  return { content: [{ type: 'text', text: output }] };
+}
+
+// =============================================================================
 // Tool Handler Map
 // =============================================================================
 
@@ -937,6 +1041,7 @@ const toolHandlers: Record<string, MCPToolHandler> = {
   tuiuiu_getting_started: handleGettingStarted,
   tuiuiu_quickstart: handleQuickstart,
   tuiuiu_version: handleVersion,
+  tuiuiu_api_patterns: handleApiPatterns,
 };
 
 // =============================================================================

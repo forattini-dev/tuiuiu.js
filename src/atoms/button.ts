@@ -17,6 +17,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { createSignal } from '../primitives/signal.js';
+import { useInput, type Key } from '../hooks/index.js';
 
 // =============================================================================
 // Types
@@ -280,35 +282,344 @@ export function IconButton(props: IconButtonProps): VNode {
 }
 
 // =============================================================================
-// ButtonGroup - Group of buttons
+// ButtonGroup - Group of buttons with keyboard navigation
 // =============================================================================
 
-export interface ButtonGroupProps {
-  /** Buttons to render */
+export interface ButtonGroupState {
+  /** Current focused button index */
+  focusedIndex: () => number;
+  /** Set focused button index */
+  setFocusedIndex: (index: number | ((prev: number) => number)) => void;
+  /** Move focus to previous button */
+  focusPrev: () => void;
+  /** Move focus to next button */
+  focusNext: () => void;
+  /** Trigger click on currently focused button */
+  triggerClick: () => void;
+  /** Handle keyboard input - returns true if handled */
+  handleInput: (input: string, key: Key) => boolean | void;
+}
+
+export interface ButtonGroupOptions {
+  /** Button configurations */
   buttons: ButtonProps[];
+  /** Initial focused index */
+  initialFocusedIndex?: number;
+  /** Orientation for keyboard navigation */
+  direction?: 'horizontal' | 'vertical';
+  /** Wrap around when reaching ends */
+  wrap?: boolean;
+  /** Is group active/focused - can be boolean or getter function */
+  isActive?: boolean | (() => boolean);
+  /** Called when focused index changes */
+  onFocusChange?: (index: number) => void;
+}
+
+/**
+ * Create a ButtonGroup state manager with keyboard navigation
+ *
+ * @example
+ * ```typescript
+ * const buttons = createButtonGroup({
+ *   buttons: [
+ *     { label: 'Save', onClick: save },
+ *     { label: 'Cancel', onClick: cancel },
+ *   ],
+ *   direction: 'horizontal',
+ * });
+ *
+ * // Render with built-in keyboard handling
+ * renderButtonGroup(buttons)
+ *
+ * // Or access state manually
+ * buttons.focusedIndex()  // Current focus
+ * buttons.triggerClick()  // Programmatic click
+ * ```
+ */
+export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState {
+  const {
+    buttons,
+    initialFocusedIndex = 0,
+    direction = 'horizontal',
+    wrap = true,
+    isActive: isActiveProp = true,
+    onFocusChange,
+  } = options;
+
+  const checkIsActive = (): boolean => {
+    return typeof isActiveProp === 'function' ? isActiveProp() : isActiveProp;
+  };
+
+  // Find first non-disabled button for initial focus
+  const findFirstEnabled = (): number => {
+    const idx = buttons.findIndex((b) => !b.disabled && !b.loading);
+    return idx >= 0 ? idx : 0;
+  };
+
+  const [focusedIndex, setFocusedIndex] = createSignal(
+    buttons[initialFocusedIndex]?.disabled ? findFirstEnabled() : initialFocusedIndex
+  );
+
+  const getEnabledCount = (): number => {
+    return buttons.filter((b) => !b.disabled && !b.loading).length;
+  };
+
+  const focusPrev = () => {
+    if (getEnabledCount() === 0) return;
+
+    setFocusedIndex((current) => {
+      let newIndex = current - 1;
+
+      // Skip disabled buttons
+      while (newIndex >= 0 && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+        newIndex--;
+      }
+
+      // Handle wrap or clamp
+      if (newIndex < 0) {
+        if (wrap) {
+          newIndex = buttons.length - 1;
+          while (newIndex > current && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+            newIndex--;
+          }
+        } else {
+          return current; // Stay at current if no wrap
+        }
+      }
+
+      if (newIndex !== current) onFocusChange?.(newIndex);
+      return newIndex;
+    });
+  };
+
+  const focusNext = () => {
+    if (getEnabledCount() === 0) return;
+
+    setFocusedIndex((current) => {
+      let newIndex = current + 1;
+
+      // Skip disabled buttons
+      while (newIndex < buttons.length && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+        newIndex++;
+      }
+
+      // Handle wrap or clamp
+      if (newIndex >= buttons.length) {
+        if (wrap) {
+          newIndex = 0;
+          while (newIndex < current && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+            newIndex++;
+          }
+        } else {
+          return current; // Stay at current if no wrap
+        }
+      }
+
+      if (newIndex !== current) onFocusChange?.(newIndex);
+      return newIndex;
+    });
+  };
+
+  const triggerClick = () => {
+    const index = focusedIndex();
+    const button = buttons[index];
+    if (button && !button.disabled && !button.loading && button.onClick) {
+      button.onClick();
+    }
+  };
+
+  const handleInput = (input: string, key: Key): boolean | void => {
+    if (!checkIsActive()) return;
+
+    // Enter/Space = trigger click on focused button
+    if (key.return || input === ' ') {
+      triggerClick();
+      return true;
+    }
+
+    // Navigation based on direction
+    if (direction === 'horizontal') {
+      if (key.leftArrow || (key.shift && key.tab)) {
+        focusPrev();
+        return true;
+      }
+      if (key.rightArrow || key.tab) {
+        focusNext();
+        return true;
+      }
+    } else {
+      // Vertical
+      if (key.upArrow || (key.shift && key.tab)) {
+        focusPrev();
+        return true;
+      }
+      if (key.downArrow || key.tab) {
+        focusNext();
+        return true;
+      }
+    }
+
+    // Vim-style navigation
+    if (direction === 'horizontal') {
+      if (input === 'h') {
+        focusPrev();
+        return true;
+      }
+      if (input === 'l') {
+        focusNext();
+        return true;
+      }
+    } else {
+      if (input === 'k') {
+        focusPrev();
+        return true;
+      }
+      if (input === 'j') {
+        focusNext();
+        return true;
+      }
+    }
+
+    // Number keys for quick access (1-9)
+    if (/^[1-9]$/.test(input)) {
+      const targetIndex = parseInt(input, 10) - 1;
+      if (targetIndex < buttons.length && !buttons[targetIndex]?.disabled && !buttons[targetIndex]?.loading) {
+        setFocusedIndex(targetIndex);
+        onFocusChange?.(targetIndex);
+        return true;
+      }
+    }
+  };
+
+  return {
+    focusedIndex,
+    setFocusedIndex: (indexOrFn) => {
+      if (typeof indexOrFn === 'function') {
+        setFocusedIndex(indexOrFn);
+      } else {
+        setFocusedIndex(indexOrFn);
+      }
+    },
+    focusPrev,
+    focusNext,
+    triggerClick,
+    handleInput,
+  };
+}
+
+export interface ButtonGroupProps {
+  /** Button configurations (required if no state provided) */
+  buttons?: ButtonProps[];
+  /** State from createButtonGroup() */
+  state?: ButtonGroupState;
   /** Orientation */
   direction?: 'horizontal' | 'vertical';
   /** Gap between buttons */
   gap?: number;
-  /** Currently focused index */
+  /** Currently focused index (for manual control, ignored if state provided) */
   focusedIndex?: number;
+  /** Is group active for keyboard input */
+  isActive?: boolean | (() => boolean);
+  /** Wrap around when reaching ends */
+  wrap?: boolean;
+  /** Called when focused index changes */
+  onFocusChange?: (index: number) => void;
 }
 
 /**
- * ButtonGroup - Group of buttons with shared styling
+ * Render a ButtonGroup with keyboard navigation
+ *
+ * Uses the state from createButtonGroup() and registers keyboard handlers.
  */
-export function ButtonGroup(props: ButtonGroupProps): VNode {
-  const {
-    buttons,
-    direction = 'horizontal',
-    gap = 1,
-    focusedIndex,
-  } = props;
+export function renderButtonGroup(
+  state: ButtonGroupState,
+  buttons: ButtonProps[],
+  options: Omit<ButtonGroupProps, 'state' | 'buttons'> = {}
+): VNode {
+  const { direction = 'horizontal', gap = 1 } = options;
+
+  // Register input handler during render phase with stopPropagation
+  useInput(state.handleInput, { stopPropagation: true });
 
   const buttonNodes = buttons.map((buttonProps, i) =>
     Button({
       ...buttonProps,
-      focused: i === focusedIndex,
+      focused: i === state.focusedIndex(),
+    })
+  );
+
+  return Box(
+    {
+      flexDirection: direction === 'horizontal' ? 'row' : 'column',
+      gap,
+    },
+    ...buttonNodes
+  );
+}
+
+/**
+ * ButtonGroup - Group of buttons with optional keyboard navigation
+ *
+ * @example
+ * ```typescript
+ * // Simple usage with manual focus control
+ * ButtonGroup({
+ *   buttons: [
+ *     { label: 'Save', onClick: save },
+ *     { label: 'Cancel', onClick: cancel },
+ *   ],
+ *   focusedIndex: 0,
+ * })
+ *
+ * // With built-in keyboard navigation (recommended)
+ * const group = createButtonGroup({
+ *   buttons: [
+ *     { label: 'Save', onClick: save },
+ *     { label: 'Cancel', onClick: cancel },
+ *   ],
+ * });
+ * ButtonGroup({ state: group, buttons: [...] })
+ * // Arrow keys navigate, Enter/Space triggers click!
+ * ```
+ */
+export function ButtonGroup(props: ButtonGroupProps): VNode {
+  const {
+    buttons = [],
+    state,
+    direction = 'horizontal',
+    gap = 1,
+    focusedIndex: manualFocusedIndex,
+    isActive = true,
+    wrap = true,
+    onFocusChange,
+  } = props;
+
+  // If state is provided, use renderButtonGroup for full keyboard support
+  if (state) {
+    return renderButtonGroup(state, buttons, { direction, gap });
+  }
+
+  // If isActive is true and no state provided, create internal state for keyboard nav
+  const isActiveValue = typeof isActive === 'function' ? isActive() : isActive;
+  if (isActiveValue && buttons.length > 0) {
+    // Create inline state for keyboard handling
+    const internalState = createButtonGroup({
+      buttons,
+      initialFocusedIndex: manualFocusedIndex ?? 0,
+      direction,
+      wrap,
+      isActive,
+      onFocusChange,
+    });
+
+    return renderButtonGroup(internalState, buttons, { direction, gap });
+  }
+
+  // Fallback: Simple render without keyboard handling (isActive: false)
+  const buttonNodes = buttons.map((buttonProps, i) =>
+    Button({
+      ...buttonProps,
+      focused: i === manualFocusedIndex,
     })
   );
 

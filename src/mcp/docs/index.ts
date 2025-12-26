@@ -21,5 +21,14 @@ export { signals } from './signals.js';
 // Theme documentation
 export { themeSystem, availableThemes, customThemeGuide } from './themes.js';
 
+// API Patterns documentation (CRITICAL for AI agents)
+export {
+  apiPatterns,
+  quickReference as apiPatternsQuickReference,
+  componentPatternMap,
+  getComponentPattern,
+  type ApiPatternDoc,
+} from './api-patterns.js';
+
 // Re-export types for convenience
 export type { ComponentDoc, HookDoc, ThemeDoc, PropDefinition } from '../types.js';

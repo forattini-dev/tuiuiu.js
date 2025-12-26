@@ -9,37 +9,69 @@ const SHOW_CURSOR = '\u001B[?25h';
 const HIDE_CURSOR = '\u001B[?25l';
 
 let isHidden = false;
-let restoreOnExit = false;
+let handlersRegistered = false;
+
+// Store handler references for potential cleanup
+let exitHandler: (() => void) | null = null;
+let sigintHandler: (() => void) | null = null;
+let sigtermHandler: (() => void) | null = null;
+let uncaughtHandler: ((err: Error) => void) | null = null;
+
+/**
+ * Restore cursor visibility
+ */
+function restoreCursor(): void {
+  if (isHidden) {
+    process.stdout.write(SHOW_CURSOR);
+    isHidden = false;
+  }
+}
 
 /**
  * Ensure cursor is restored on process exit
  */
 function setupExitHandler(): void {
-  if (restoreOnExit) return;
-  restoreOnExit = true;
+  if (handlersRegistered) return;
+  handlersRegistered = true;
 
-  const restore = () => {
-    if (isHidden) {
-      process.stdout.write(SHOW_CURSOR);
-      isHidden = false;
-    }
+  exitHandler = restoreCursor;
+  sigintHandler = () => {
+    restoreCursor();
+    process.exit(128 + 2);
+  };
+  sigtermHandler = () => {
+    restoreCursor();
+    process.exit(128 + 15);
+  };
+  uncaughtHandler = (err: Error) => {
+    restoreCursor();
+    console.error(err);
+    process.exit(1);
   };
 
   // Handle various exit scenarios
-  process.on('exit', restore);
-  process.on('SIGINT', () => {
-    restore();
-    process.exit(128 + 2);
-  });
-  process.on('SIGTERM', () => {
-    restore();
-    process.exit(128 + 15);
-  });
-  process.on('uncaughtException', (err) => {
-    restore();
-    console.error(err);
-    process.exit(1);
-  });
+  process.on('exit', exitHandler);
+  process.on('SIGINT', sigintHandler);
+  process.on('SIGTERM', sigtermHandler);
+  process.on('uncaughtException', uncaughtHandler);
+}
+
+/**
+ * Remove exit handlers (useful for tests)
+ */
+export function removeExitHandlers(): void {
+  if (!handlersRegistered) return;
+
+  if (exitHandler) process.off('exit', exitHandler);
+  if (sigintHandler) process.off('SIGINT', sigintHandler);
+  if (sigtermHandler) process.off('SIGTERM', sigtermHandler);
+  if (uncaughtHandler) process.off('uncaughtException', uncaughtHandler);
+
+  exitHandler = null;
+  sigintHandler = null;
+  sigtermHandler = null;
+  uncaughtHandler = null;
+  handlersRegistered = false;
 }
 
 /**
@@ -91,6 +123,7 @@ export const cursor = {
   hide: hideCursor,
   toggle: toggleCursor,
   isHidden: isCursorHidden,
+  removeExitHandlers,
 };
 
 export default cursor;

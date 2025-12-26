@@ -51,17 +51,21 @@ export {
 } from './timer.js';
 
 // =============================================================================
-// Button - Clickable actions
+// Button - Clickable actions with keyboard navigation
 // =============================================================================
 export {
   Button,
   IconButton,
   ButtonGroup,
+  createButtonGroup,
+  renderButtonGroup,
   type ButtonProps,
   type ButtonVariant,
   type ButtonSize,
   type IconButtonProps,
   type ButtonGroupProps,
+  type ButtonGroupState,
+  type ButtonGroupOptions,
 } from './button.js';
 
 // =============================================================================
