@@ -1373,11 +1373,16 @@ export function createAnimatedPicture(
     onCycleComplete,
   } = props;
 
+  // Calculate initial brightness based on animation type
+  // For fadeIn, start at minBrightness; for fadeOut, start at maxBrightness
+  const initialBrightness = initialAnimation === 'fadeIn' ? minBrightness : maxBrightness;
+
   // State
+  // Note: isPlaying starts false even with autoPlay=true - play() will set it true
   const [animation, setAnimation] = createSignal<PictureAnimation>(initialAnimation);
-  const [brightness, setBrightness] = createSignal(maxBrightness);
+  const [brightness, setBrightness] = createSignal(initialBrightness);
   const [progress, setProgress] = createSignal(0);
-  const [isPlaying, setIsPlaying] = createSignal(autoPlay);
+  const [isPlaying, setIsPlaying] = createSignal(false);
 
   // Timer for animation
   let animationTimer: ReturnType<typeof setInterval> | null = null;

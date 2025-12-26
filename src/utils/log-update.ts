@@ -86,8 +86,8 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
       const newWidth = lineWidths[i];
       const prevWidth = previousLineWidths[i] ?? 0;
 
-      // Clear to end of line if new content is shorter OR if this line had content before
-      if (newWidth < prevWidth || i < previousLineCount) {
+      // Clear to end of line only if new content is shorter than previous
+      if (newWidth < prevWidth) {
         outputLines.push(line + clearToEndOfLine);
       } else {
         outputLines.push(line);

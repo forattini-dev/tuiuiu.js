@@ -51,9 +51,9 @@ export interface SplashScreenOptions {
   loadingMessage?: string;
   /** Auto-dismiss after ms (0 = manual) */
   duration?: number;
-  /** Fade-in duration in ms (for colored art animation) */
+  /** Fade-in duration in ms (for colored art animation, default: 800) */
   fadeInDuration?: number;
-  /** Starting brightness for fade-in (0-1, default: 0.5) */
+  /** Starting brightness for fade-in (0-1, default: 0.3) */
   fadeInStartBrightness?: number;
   /** Callback when splash completes */
   onComplete?: () => void;
@@ -93,7 +93,7 @@ const MIN_DURATION = 700;
 export function createSplashScreen(options: SplashScreenOptions = {}): SplashScreenState {
   const {
     duration = MIN_DURATION,
-    fadeInDuration = 300,
+    fadeInDuration = 800,
     onComplete,
   } = options;
 
@@ -217,8 +217,8 @@ export function SplashScreen(props: SplashScreenProps): VNode | null {
     state,
     width,
     height,
-    fadeInDuration = 300,
-    fadeInStartBrightness = 0.5,
+    fadeInDuration = 800,
+    fadeInStartBrightness = 0.3,
     animateFadeIn = true,
   } = props;
 
@@ -486,8 +486,8 @@ export function ImpactSplashScreen(props: ImpactSplashProps): VNode | null {
     state,
     width,
     height,
-    fadeInDuration = 300,
-    fadeInStartBrightness = 0.5,
+    fadeInDuration = 800,
+    fadeInStartBrightness = 0.3,
     animateFadeIn = true,
   } = props;
 
