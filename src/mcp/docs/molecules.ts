@@ -1,10 +1,14 @@
 /**
  * Molecules Documentation
+ * Complete documentation for all molecule-level components
  */
 
 import type { ComponentDoc } from '../types.js';
 
 export const molecules: ComponentDoc[] = [
+  // =============================================================================
+  // Collapsible Components
+  // =============================================================================
   {
     name: 'Collapsible',
     category: 'molecules',
@@ -25,8 +29,8 @@ export const molecules: ComponentDoc[] = [
     examples: [
       `Collapsible({\n  title: 'Advanced Options',\n  children: Box({}, Text({}, 'Hidden content'))\n})`,
       `// With custom icons\nCollapsible({\n  title: 'Details',\n  collapsedIcon: '📁',\n  expandedIcon: '📂',\n  children: detailsContent\n})`,
-      `// With external control\nconst state = createCollapsible({ initialExpanded: true });\nstate.toggle(); // programmatic control\n\nCollapsible({ state, title: 'Controlled', children: content })`,
     ],
+    relatedComponents: ['Accordion', 'Details', 'ExpandableText'],
   },
   {
     name: 'Accordion',
@@ -45,8 +49,8 @@ export const molecules: ComponentDoc[] = [
     ],
     examples: [
       `Accordion({\n  sections: [\n    { key: 'general', title: 'General', content: GeneralContent() },\n    { key: 'advanced', title: 'Advanced', content: AdvancedContent() },\n  ],\n})`,
-      `// With multiple open + hotkeys\nconst accordion = createAccordion({ sections, multiple: true });\n\nuseHotkeys('1', () => accordion.toggle('section-1'));\nuseHotkeys('2', () => accordion.toggle('section-2'));\nuseHotkeys('ctrl+e', () => accordion.expandAll());\n\nAccordion({ state: accordion, sections })`,
     ],
+    relatedComponents: ['Collapsible', 'Tabs'],
   },
   {
     name: 'Details',
@@ -61,6 +65,7 @@ export const molecules: ComponentDoc[] = [
     examples: [
       `Details({\n  summary: 'Click to see more',\n  children: Text({}, 'Hidden details here')\n})`,
     ],
+    relatedComponents: ['Collapsible', 'ExpandableText'],
   },
   {
     name: 'ExpandableText',
@@ -76,64 +81,52 @@ export const molecules: ComponentDoc[] = [
     examples: [
       `ExpandableText({\n  text: veryLongText,\n  maxLines: 5,\n  showMoreLabel: 'Read more...',\n})`,
     ],
+    relatedComponents: ['Details', 'Collapsible'],
   },
+
+  // =============================================================================
+  // Selection Components
+  // =============================================================================
   {
     name: 'Select',
     category: 'molecules',
-    description: 'Dropdown selection with keyboard navigation.',
+    description: 'Dropdown selection with keyboard navigation, search, and grouping.',
     props: [
-      { name: 'options', type: "SelectOption[]", required: true, description: 'Array of { value, label } options' },
-      { name: 'value', type: "string", required: true, description: 'Selected value' },
-      { name: 'onChange', type: "(value: string) => void", required: true, description: 'Change handler' },
-      { name: 'placeholder', type: "string", required: false, description: 'Placeholder text' },
-      { name: 'focused', type: "boolean", required: false, default: 'false', description: 'Focus state' },
-    ],
-    examples: [
-      `Select({\n  options: [{ value: 'a', label: 'Option A' }, { value: 'b', label: 'Option B' }],\n  value: selected(),\n  onChange: setSelected\n})`,
-    ],
-  },
-  {
-    name: 'RadioGroup',
-    category: 'molecules',
-    description: 'Single selection radio buttons with keyboard navigation.',
-    props: [
-      { name: 'options', type: "RadioOption[]", required: true, description: 'Array of { value, label, description?, disabled? }' },
+      { name: 'items', type: "SelectItem[]", required: true, description: 'Array of { value, label, description?, disabled?, group? }' },
       { name: 'initialValue', type: "T", required: false, description: 'Initially selected value' },
-      { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'vertical'", description: 'Layout direction' },
-      { name: 'gap', type: "number", required: false, description: 'Gap between options' },
-      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Focused option color' },
-      { name: 'selectedColor', type: "ColorValue", required: false, default: "'green'", description: 'Selected option color' },
+      { name: 'placeholder', type: "string", required: false, default: "'Select...'", description: 'Placeholder when no selection' },
+      { name: 'maxVisible', type: "number", required: false, default: '10', description: 'Max visible items' },
+      { name: 'searchable', type: "boolean", required: false, default: 'true', description: 'Enable fuzzy search' },
+      { name: 'width', type: "number", required: false, default: '30', description: 'Component width' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Focused item color' },
+      { name: 'selectedColor', type: "ColorValue", required: false, default: "'green'", description: 'Selected item color' },
       { name: 'onChange', type: "(value: T) => void", required: false, description: 'Selection change handler' },
+      { name: 'onSubmit', type: "(value: T) => void", required: false, description: 'Submit handler (Enter)' },
       { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
-      { name: 'state', type: "RadioGroupState", required: false, description: 'External state from createRadioGroup()' },
+      { name: 'state', type: "SelectState", required: false, description: 'External state from createSelect()' },
     ],
     examples: [
-      `RadioGroup({\n  options: [\n    { value: 'small', label: 'Small' },\n    { value: 'medium', label: 'Medium' },\n    { value: 'large', label: 'Large' },\n  ],\n  initialValue: 'medium',\n  onChange: (size) => console.log(size),\n})`,
-      `// Horizontal layout\nRadioGroup({\n  options: themes,\n  direction: 'horizontal',\n  gap: 4,\n})`,
+      `Select({\n  items: [\n    { value: 'us', label: 'United States' },\n    { value: 'uk', label: 'United Kingdom' },\n  ],\n  onChange: (country) => setCountry(country),\n})`,
     ],
+    relatedComponents: ['MultiSelect', 'RadioGroup', 'Combobox'],
   },
   {
-    name: 'Autocomplete',
+    name: 'Confirm',
     category: 'molecules',
-    description: 'Text input with fuzzy search suggestions. Supports custom filtering and free text.',
+    description: 'Yes/No confirmation prompt. Quick way to get boolean confirmation.',
     props: [
-      { name: 'items', type: "AutocompleteItem[]", required: true, description: 'Array of { value, label, description?, disabled? }' },
-      { name: 'placeholder', type: "string", required: false, description: 'Input placeholder' },
-      { name: 'maxSuggestions', type: "number", required: false, default: '5', description: 'Max suggestions shown' },
-      { name: 'minChars', type: "number", required: false, default: '1', description: 'Min chars to trigger suggestions' },
-      { name: 'filter', type: "(query: string, item: AutocompleteItem) => boolean", required: false, description: 'Custom filter function' },
-      { name: 'allowFreeText', type: "boolean", required: false, default: 'false', description: 'Allow non-matching input' },
-      { name: 'width', type: "number", required: false, default: '30', description: 'Input width' },
-      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Active suggestion color' },
-      { name: 'onChange', type: "(value: string) => void", required: false, description: 'Value change handler' },
-      { name: 'onSelect', type: "(item: AutocompleteItem) => void", required: false, description: 'Item selection handler' },
+      { name: 'message', type: "string", required: true, description: 'Confirmation message' },
+      { name: 'yesLabel', type: "string", required: false, default: "'Yes'", description: 'Yes button label' },
+      { name: 'noLabel', type: "string", required: false, default: "'No'", description: 'No button label' },
+      { name: 'defaultValue', type: "boolean", required: false, default: 'true', description: 'Default selection (Yes)' },
+      { name: 'onConfirm', type: "(result: boolean) => void", required: true, description: 'Confirmation callback' },
       { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
-      { name: 'state', type: "AutocompleteState", required: false, description: 'External state from createAutocomplete()' },
     ],
     examples: [
-      `Autocomplete({\n  items: countries,\n  placeholder: 'Search country...',\n  onSelect: (country) => setCountry(country.value),\n})`,
-      `// With free text\nAutocomplete({\n  items: suggestions,\n  allowFreeText: true,\n  onChange: (text) => setQuery(text),\n})`,
+      `Confirm({\n  message: 'Delete this file?',\n  onConfirm: (yes) => yes && deleteFile(),\n})`,
+      `// Custom labels\nConfirm({\n  message: 'Save changes?',\n  yesLabel: 'Save',\n  noLabel: 'Discard',\n  onConfirm: handleSave,\n})`,
     ],
+    relatedComponents: ['Select', 'Modal'],
   },
   {
     name: 'MultiSelect',
@@ -159,50 +152,238 @@ export const molecules: ComponentDoc[] = [
     ],
     examples: [
       `MultiSelect({\n  items: [\n    { value: 'react', label: 'React' },\n    { value: 'vue', label: 'Vue' },\n    { value: 'angular', label: 'Angular' },\n  ],\n  showTags: true,\n  onChange: (frameworks) => setSelected(frameworks),\n})`,
-      `// With limits\nMultiSelect({\n  items: features,\n  minSelections: 1,\n  maxSelections: 3,\n  searchable: true,\n})`,
     ],
+    relatedComponents: ['Select', 'TagInput'],
   },
+  {
+    name: 'RadioGroup',
+    category: 'molecules',
+    description: 'Single selection radio buttons with keyboard navigation.',
+    props: [
+      { name: 'options', type: "RadioOption[]", required: true, description: 'Array of { value, label, description?, disabled? }' },
+      { name: 'initialValue', type: "T", required: false, description: 'Initially selected value' },
+      { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'vertical'", description: 'Layout direction' },
+      { name: 'gap', type: "number", required: false, description: 'Gap between options' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Focused option color' },
+      { name: 'selectedColor', type: "ColorValue", required: false, default: "'green'", description: 'Selected option color' },
+      { name: 'onChange', type: "(value: T) => void", required: false, description: 'Selection change handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "RadioGroupState", required: false, description: 'External state from createRadioGroup()' },
+    ],
+    examples: [
+      `RadioGroup({\n  options: [\n    { value: 'small', label: 'Small' },\n    { value: 'medium', label: 'Medium' },\n    { value: 'large', label: 'Large' },\n  ],\n  initialValue: 'medium',\n  onChange: (size) => console.log(size),\n})`,
+    ],
+    relatedComponents: ['InlineRadio', 'Select', 'ToggleGroup'],
+  },
+  {
+    name: 'InlineRadio',
+    category: 'molecules',
+    description: 'Compact inline radio selector. Single row display for quick choices.',
+    props: [
+      { name: 'options', type: "RadioOption[]", required: true, description: 'Array of { value, label }' },
+      { name: 'value', type: "T", required: false, description: 'Currently selected value' },
+      { name: 'separator', type: "string", required: false, default: "' | '", description: 'Separator between options' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Selected option color' },
+      { name: 'onChange', type: "(value: T) => void", required: false, description: 'Selection handler' },
+    ],
+    examples: [
+      `InlineRadio({\n  options: [\n    { value: 'asc', label: 'A-Z' },\n    { value: 'desc', label: 'Z-A' },\n  ],\n  value: sortOrder(),\n  onChange: setSortOrder,\n})`,
+    ],
+    relatedComponents: ['RadioGroup'],
+  },
+  {
+    name: 'Autocomplete',
+    category: 'molecules',
+    description: 'Text input with fuzzy search suggestions. Supports custom filtering and free text.',
+    props: [
+      { name: 'items', type: "AutocompleteItem[]", required: true, description: 'Array of { value, label, description?, disabled? }' },
+      { name: 'placeholder', type: "string", required: false, description: 'Input placeholder' },
+      { name: 'maxSuggestions', type: "number", required: false, default: '5', description: 'Max suggestions shown' },
+      { name: 'minChars', type: "number", required: false, default: '1', description: 'Min chars to trigger suggestions' },
+      { name: 'filter', type: "(query: string, item: AutocompleteItem) => boolean", required: false, description: 'Custom filter function' },
+      { name: 'allowFreeText', type: "boolean", required: false, default: 'false', description: 'Allow non-matching input' },
+      { name: 'width', type: "number", required: false, default: '30', description: 'Input width' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Active suggestion color' },
+      { name: 'onChange', type: "(value: string) => void", required: false, description: 'Value change handler' },
+      { name: 'onSelect', type: "(item: AutocompleteItem) => void", required: false, description: 'Item selection handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "AutocompleteState", required: false, description: 'External state from createAutocomplete()' },
+    ],
+    examples: [
+      `Autocomplete({\n  items: countries,\n  placeholder: 'Search country...',\n  onSelect: (country) => setCountry(country.value),\n})`,
+    ],
+    relatedComponents: ['Combobox', 'TagInput', 'TextInput'],
+  },
+  {
+    name: 'Combobox',
+    category: 'molecules',
+    description: 'Autocomplete with dropdown visibility control. Opens on focus, closes on select.',
+    props: [
+      { name: 'items', type: "AutocompleteItem[]", required: true, description: 'Array of { value, label }' },
+      { name: 'placeholder', type: "string", required: false, description: 'Input placeholder' },
+      { name: 'width', type: "number", required: false, default: '30', description: 'Input width' },
+      { name: 'maxSuggestions', type: "number", required: false, default: '5', description: 'Max suggestions shown' },
+      { name: 'allowFreeText', type: "boolean", required: false, default: 'false', description: 'Allow custom values' },
+      { name: 'onChange', type: "(value: string) => void", required: false, description: 'Value change handler' },
+      { name: 'onSelect', type: "(item: AutocompleteItem) => void", required: false, description: 'Selection handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+    ],
+    examples: [
+      `Combobox({\n  items: cities,\n  placeholder: 'Select or type city...',\n  allowFreeText: true,\n  onSelect: (city) => setCity(city.value),\n})`,
+    ],
+    relatedComponents: ['Autocomplete', 'Select'],
+  },
+  {
+    name: 'TagInput',
+    category: 'molecules',
+    description: 'Input for adding multiple tags with autocomplete suggestions.',
+    props: [
+      { name: 'suggestions', type: "TagItem[]", required: false, default: '[]', description: 'Autocomplete suggestions' },
+      { name: 'initialTags', type: "T[]", required: false, default: '[]', description: 'Initially added tags' },
+      { name: 'placeholder', type: "string", required: false, default: "'Add tag...'", description: 'Input placeholder' },
+      { name: 'width', type: "number", required: false, default: '40', description: 'Component width' },
+      { name: 'maxTags', type: "number", required: false, description: 'Maximum allowed tags' },
+      { name: 'allowDuplicates', type: "boolean", required: false, default: 'false', description: 'Allow duplicate tags' },
+      { name: 'allowCustom', type: "boolean", required: false, default: 'true', description: 'Allow custom (non-suggestion) tags' },
+      { name: 'tagColor', type: "ColorValue", required: false, default: "'primary'", description: 'Tag color' },
+      { name: 'onChange', type: "(tags: T[]) => void", required: false, description: 'Tags change handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "TagInputState", required: false, description: 'External state from createTagInput()' },
+    ],
+    examples: [
+      `TagInput({\n  suggestions: [\n    { value: 'react', label: 'React' },\n    { value: 'vue', label: 'Vue' },\n  ],\n  placeholder: 'Add framework...',\n  onChange: (tags) => setTags(tags),\n})`,
+    ],
+    relatedComponents: ['Autocomplete', 'Tag', 'MultiSelect'],
+  },
+
+  // =============================================================================
+  // Table Components
+  // =============================================================================
   {
     name: 'Table',
     category: 'molecules',
-    description: 'Data table with headers and rows.',
+    description: 'Data table with headers, sorting, alignment, and borders.',
     props: [
-      { name: 'columns', type: "TableColumn[]", required: true, description: 'Column definitions { key, header, width }' },
-      { name: 'data', type: "Record<string, unknown>[]", required: true, description: 'Row data' },
-      { name: 'borderStyle', type: "BorderStyle", required: false, default: "'single'", description: 'Table border style' },
+      { name: 'columns', type: "TableColumn[]", required: true, description: 'Column definitions { key, header, width?, align?, format? }' },
+      { name: 'data', type: "Record<string, unknown>[]", required: true, description: 'Row data array' },
+      { name: 'borderStyle', type: "'single' | 'double' | 'round' | 'bold' | 'none'", required: false, default: "'single'", description: 'Table border style' },
+      { name: 'headerColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Header text color' },
+      { name: 'borderColor', type: "ColorValue", required: false, description: 'Border color' },
+      { name: 'alternateRows', type: "boolean", required: false, default: 'false', description: 'Alternate row colors' },
+      { name: 'compact', type: "boolean", required: false, default: 'false', description: 'Remove padding' },
     ],
     examples: [
-      `Table({\n  columns: [\n    { key: 'name', header: 'Name', width: 20 },\n    { key: 'age', header: 'Age', width: 5 }\n  ],\n  data: [{ name: 'Alice', age: 30 }]\n})`,
+      `Table({\n  columns: [\n    { key: 'name', header: 'Name', width: 20 },\n    { key: 'age', header: 'Age', width: 5, align: 'right' },\n  ],\n  data: [\n    { name: 'Alice', age: 30 },\n    { name: 'Bob', age: 25 },\n  ],\n})`,
     ],
+    relatedComponents: ['SimpleTable', 'KeyValueTable', 'DataTable'],
   },
+  {
+    name: 'SimpleTable',
+    category: 'molecules',
+    description: 'Minimal table from 2D array. No configuration needed.',
+    props: [
+      { name: 'rows', type: "string[][]", required: true, description: '2D array of cell values' },
+      { name: 'headers', type: "string[]", required: false, description: 'Optional header row' },
+      { name: 'borderStyle', type: "BorderStyle", required: false, default: "'single'", description: 'Border style' },
+    ],
+    examples: [
+      `SimpleTable({\n  headers: ['Name', 'Value'],\n  rows: [\n    ['CPU', '45%'],\n    ['Memory', '2.1 GB'],\n    ['Disk', '120 GB'],\n  ],\n})`,
+    ],
+    relatedComponents: ['Table', 'KeyValueTable'],
+  },
+  {
+    name: 'KeyValueTable',
+    category: 'molecules',
+    description: 'Two-column key-value display. Perfect for details/properties.',
+    props: [
+      { name: 'data', type: "Record<string, string | number>", required: true, description: 'Key-value pairs object' },
+      { name: 'keyWidth', type: "number", required: false, default: '15', description: 'Key column width' },
+      { name: 'valueWidth', type: "number", required: false, description: 'Value column width' },
+      { name: 'keyColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Key text color' },
+      { name: 'separator', type: "string", required: false, default: "': '", description: 'Key-value separator' },
+      { name: 'borderStyle', type: "BorderStyle", required: false, default: "'none'", description: 'Border style' },
+    ],
+    examples: [
+      `KeyValueTable({\n  data: {\n    'Name': 'John Doe',\n    'Email': 'john@example.com',\n    'Role': 'Admin',\n    'Status': 'Active',\n  },\n})`,
+    ],
+    relatedComponents: ['Table', 'SimpleTable'],
+  },
+
+  // =============================================================================
+  // Tab Components
+  // =============================================================================
   {
     name: 'Tabs',
     category: 'molecules',
-    description: 'Tabbed navigation container.',
+    description: 'Tabbed navigation with keyboard support. Use with TabPanel for content.',
     props: [
-      { name: 'tabs', type: "Tab[]", required: true, description: 'Array of { id, label, content } tabs' },
-      { name: 'activeTab', type: "string", required: true, description: 'Active tab id' },
-      { name: 'onChange', type: "(id: string) => void", required: true, description: 'Tab change handler' },
+      { name: 'tabs', type: "Tab[]", required: true, description: 'Array of { id, label, icon?, disabled? }' },
+      { name: 'initialTab', type: "T", required: false, description: 'Initially active tab id' },
+      { name: 'variant', type: "'underline' | 'boxed' | 'pills'", required: false, default: "'underline'", description: 'Tab style variant' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Active tab color' },
+      { name: 'gap', type: "number", required: false, default: '2', description: 'Gap between tabs' },
+      { name: 'onChange', type: "(id: T) => void", required: false, description: 'Tab change handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "TabsState", required: false, description: 'External state from createTabs()' },
     ],
     examples: [
-      `Tabs({\n  tabs: [\n    { id: 'home', label: 'Home', content: HomePanel },\n    { id: 'settings', label: 'Settings', content: SettingsPanel }\n  ],\n  activeTab: tab(),\n  onChange: setTab\n})`,
+      `const tabs = createTabs({\n  tabs: [\n    { id: 'home', label: 'Home' },\n    { id: 'settings', label: 'Settings' },\n  ],\n});\n\nTabs({ state: tabs, tabs: tabDefs })\nTabPanel({ tabs: tabs, id: 'home' }, HomeContent())\nTabPanel({ tabs: tabs, id: 'settings' }, SettingsContent())`,
     ],
+    relatedComponents: ['TabPanel', 'VerticalTabs', 'LazyTabs'],
   },
   {
-    name: 'Modal',
+    name: 'TabPanel',
     category: 'molecules',
-    description: 'Modal dialog overlay.',
+    description: 'Content panel for a specific tab. Renders only when tab is active.',
     props: [
-      { name: 'title', type: "string", required: false, description: 'Modal title' },
-      { name: 'visible', type: "boolean", required: true, description: 'Visibility state' },
-      { name: 'onClose', type: "() => void", required: false, description: 'Close handler' },
-      { name: 'width', type: "number", required: false, default: '50', description: 'Modal width' },
-      { name: 'children', type: "VNode", required: true, description: 'Modal content' },
+      { name: 'tabs', type: "TabsState", required: true, description: 'Tabs state from createTabs()' },
+      { name: 'id', type: "T", required: true, description: 'Tab id this panel belongs to' },
+      { name: 'children', type: "VNode | VNode[]", required: true, description: 'Panel content' },
     ],
     examples: [
-      `Modal({\n  title: 'Confirm',\n  visible: showModal(),\n  onClose: () => setShowModal(false)\n}, Text({}, 'Are you sure?'))`,
+      `TabPanel({ tabs: tabsState, id: 'home' },\n  Text({}, 'Home content')\n)`,
     ],
+    relatedComponents: ['Tabs'],
   },
+  {
+    name: 'VerticalTabs',
+    category: 'molecules',
+    description: 'Vertical tab layout with tabs on the left side.',
+    props: [
+      { name: 'tabs', type: "Tab[]", required: true, description: 'Array of { id, label, icon? }' },
+      { name: 'initialTab', type: "T", required: false, description: 'Initially active tab' },
+      { name: 'tabWidth', type: "number", required: false, default: '20', description: 'Tab column width' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Active tab color' },
+      { name: 'children', type: "VNode | VNode[]", required: true, description: 'Content area' },
+      { name: 'onChange', type: "(id: T) => void", required: false, description: 'Tab change handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+    ],
+    examples: [
+      `VerticalTabs({\n  tabs: [\n    { id: 'general', label: '⚙️ General' },\n    { id: 'appearance', label: '🎨 Appearance' },\n    { id: 'advanced', label: '🔧 Advanced' },\n  ],\n  tabWidth: 18,\n  children: TabContent(),\n})`,
+    ],
+    relatedComponents: ['Tabs', 'LazyTabs'],
+  },
+  {
+    name: 'LazyTabs',
+    category: 'molecules',
+    description: 'Tabs with lazy-loaded content. Panels only render when first activated.',
+    props: [
+      { name: 'tabs', type: "Tab[]", required: true, description: 'Array of { id, label, render: () => VNode }' },
+      { name: 'initialTab', type: "T", required: false, description: 'Initially active tab' },
+      { name: 'keepMounted', type: "boolean", required: false, default: 'true', description: 'Keep panels mounted after first render' },
+      { name: 'variant', type: "'underline' | 'boxed' | 'pills'", required: false, default: "'underline'", description: 'Tab style' },
+      { name: 'onChange', type: "(id: T) => void", required: false, description: 'Tab change handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+    ],
+    examples: [
+      `LazyTabs({\n  tabs: [\n    { id: 'logs', label: 'Logs', render: () => LogsPanel() },\n    { id: 'metrics', label: 'Metrics', render: () => MetricsPanel() },\n  ],\n  keepMounted: true,\n})`,
+    ],
+    relatedComponents: ['Tabs', 'VerticalTabs'],
+  },
+
+  // =============================================================================
+  // Tree Components
+  // =============================================================================
   {
     name: 'Tree',
     category: 'molecules',
@@ -226,10 +407,31 @@ export const molecules: ComponentDoc[] = [
       { name: 'state', type: "TreeState", required: false, description: 'External state from createTree()' },
     ],
     examples: [
-      `Tree({\n  nodes: [\n    {\n      id: 'src',\n      label: 'src',\n      icon: '📁',\n      children: [\n        { id: 'index.ts', label: 'index.ts', icon: '📄' },\n        { id: 'utils.ts', label: 'utils.ts', icon: '📄' },\n      ],\n    },\n  ],\n  showGuides: true,\n  onSelect: (node) => openFile(node.id),\n})`,
-      `// With programmatic control\nconst tree = createTree({ nodes, selectionMode: 'multiple' });\ntree.expandAll();\ntree.select('my-node-id');\n\nTree({ state: tree, nodes })`,
+      `Tree({\n  nodes: [\n    {\n      id: 'src',\n      label: 'src',\n      icon: '📁',\n      children: [\n        { id: 'index.ts', label: 'index.ts', icon: '📄' },\n      ],\n    },\n  ],\n  onSelect: (node) => openFile(node.id),\n})`,
     ],
+    relatedComponents: ['DirectoryTree', 'Accordion'],
   },
+  {
+    name: 'DirectoryTree',
+    category: 'molecules',
+    description: 'File system directory tree with folder/file icons.',
+    props: [
+      { name: 'root', type: "DirectoryNode", required: true, description: 'Root directory { name, type: "directory", children: [...] }' },
+      { name: 'showHidden', type: "boolean", required: false, default: 'false', description: 'Show hidden files (.)' },
+      { name: 'showIcons', type: "boolean", required: false, default: 'true', description: 'Show file type icons' },
+      { name: 'activeColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Active item color' },
+      { name: 'onSelect', type: "(node: DirectoryNode) => void", required: false, description: 'Selection handler' },
+      { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+    ],
+    examples: [
+      `DirectoryTree({\n  root: {\n    name: 'project',\n    type: 'directory',\n    children: [\n      { name: 'src', type: 'directory', children: [...] },\n      { name: 'package.json', type: 'file' },\n    ],\n  },\n  onSelect: (node) => openFile(node.name),\n})`,
+    ],
+    relatedComponents: ['Tree', 'FileManager'],
+  },
+
+  // =============================================================================
+  // Calendar Components
+  // =============================================================================
   {
     name: 'Calendar',
     category: 'molecules',
@@ -254,8 +456,24 @@ export const molecules: ComponentDoc[] = [
     ],
     examples: [
       `Calendar({\n  onDateSelect: (date) => console.log(date),\n})`,
-      `// With events and range selection\nCalendar({\n  events: [\n    { date: '2024-03-15', label: 'Meeting', color: 'blue' },\n    { date: '2024-03-20', label: 'Deadline', color: 'red' },\n  ],\n  selectionMode: 'range',\n  showWeekNumbers: true,\n})`,
+      `// With events\nCalendar({\n  events: [\n    { date: '2024-03-15', label: 'Meeting', color: 'blue' },\n  ],\n  selectionMode: 'range',\n})`,
     ],
+    relatedComponents: ['MiniCalendar', 'DatePicker'],
+  },
+  {
+    name: 'MiniCalendar',
+    category: 'molecules',
+    description: 'Compact calendar for space-constrained layouts.',
+    props: [
+      { name: 'date', type: "Date", required: false, description: 'Displayed month/year' },
+      { name: 'selectedDate', type: "Date", required: false, description: 'Selected date' },
+      { name: 'cellWidth', type: "number", required: false, default: '2', description: 'Day cell width' },
+      { name: 'onDateSelect', type: "(date: Date) => void", required: false, description: 'Selection handler' },
+    ],
+    examples: [
+      `MiniCalendar({\n  selectedDate: today,\n  onDateSelect: setDate,\n})`,
+    ],
+    relatedComponents: ['Calendar', 'DatePicker'],
   },
   {
     name: 'DatePicker',
@@ -268,38 +486,157 @@ export const molecules: ComponentDoc[] = [
       { name: 'selectionMode', type: "'single' | 'range'", required: false, default: "'single'", description: 'Selection mode' },
       { name: 'minDate', type: "Date", required: false, description: 'Minimum date' },
       { name: 'maxDate', type: "Date", required: false, description: 'Maximum date' },
+      { name: 'onDateSelect', type: "(date: Date) => void", required: false, description: 'Selection handler' },
       { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "DatePickerState", required: false, description: 'External state from createDatePicker()' },
     ],
     examples: [
       `DatePicker({\n  placeholder: 'Pick a date',\n  onDateSelect: (date) => setSelectedDate(date),\n})`,
     ],
+    relatedComponents: ['Calendar', 'MiniCalendar'],
   },
+
+  // =============================================================================
+  // Code & Text Components
+  // =============================================================================
+  {
+    name: 'CodeBlock',
+    category: 'molecules',
+    description: 'Syntax-highlighted code block with line numbers and theme support.',
+    props: [
+      { name: 'code', type: "string", required: true, description: 'Code content' },
+      { name: 'language', type: "Language", required: false, default: "'plaintext'", description: 'Programming language (typescript, javascript, python, rust, go, etc.)' },
+      { name: 'theme', type: "CodeTheme", required: false, description: 'Syntax highlighting theme' },
+      { name: 'showLineNumbers', type: "boolean", required: false, default: 'true', description: 'Show line numbers' },
+      { name: 'startLine', type: "number", required: false, default: '1', description: 'Starting line number' },
+      { name: 'highlightLines', type: "number[]", required: false, description: 'Lines to highlight' },
+      { name: 'maxWidth', type: "number", required: false, description: 'Max width (wrap long lines)' },
+      { name: 'wrap', type: "boolean", required: false, default: 'false', description: 'Wrap long lines' },
+      { name: 'borderStyle', type: "BorderStyle", required: false, default: "'round'", description: 'Border style' },
+      { name: 'borderColor', type: "ColorValue", required: false, description: 'Border color' },
+      { name: 'title', type: "string", required: false, description: 'Code block title/filename' },
+    ],
+    examples: [
+      `CodeBlock({\n  code: 'const x = 1;\\nconst y = 2;',\n  language: 'typescript',\n  showLineNumbers: true,\n})`,
+      `// With highlighted lines\nCodeBlock({\n  code: codeString,\n  language: 'python',\n  highlightLines: [3, 4, 5],\n  title: 'example.py',\n})`,
+    ],
+    relatedComponents: ['InlineCode', 'Markdown'],
+  },
+  {
+    name: 'InlineCode',
+    category: 'molecules',
+    description: 'Inline code snippet with syntax highlighting. For code within text.',
+    props: [
+      { name: 'code', type: "string", required: true, description: 'Code content' },
+      { name: 'language', type: "Language", required: false, description: 'Programming language' },
+      { name: 'color', type: "ColorValue", required: false, default: "'cyan'", description: 'Code color' },
+    ],
+    examples: [
+      `Box({ flexDirection: 'row' },\n  Text({}, 'Use '),\n  InlineCode({ code: 'useState()' }),\n  Text({}, ' for state'),\n)`,
+    ],
+    relatedComponents: ['CodeBlock', 'Markdown'],
+  },
+  {
+    name: 'Markdown',
+    category: 'molecules',
+    description: 'Markdown renderer with support for headings, lists, code, and formatting.',
+    props: [
+      { name: 'content', type: "string", required: true, description: 'Markdown content' },
+      { name: 'width', type: "number", required: false, description: 'Max width for wrapping' },
+      { name: 'codeTheme', type: "CodeTheme", required: false, description: 'Code block theme' },
+      { name: 'headingColors', type: "ColorValue[]", required: false, description: 'Colors for h1-h6' },
+      { name: 'linkColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Link color' },
+      { name: 'codeColor', type: "ColorValue", required: false, default: "'yellow'", description: 'Inline code color' },
+    ],
+    examples: [
+      `Markdown({ content: '# Hello\\n\\nThis is **bold** and _italic_.' })`,
+      `// From file\nMarkdown({ content: readmeContent, width: 80 })`,
+    ],
+    relatedComponents: ['CodeBlock', 'InlineCode'],
+  },
+
+  // =============================================================================
+  // Layout Components
+  // =============================================================================
   {
     name: 'SplitPanel',
     category: 'molecules',
-    description: 'Resizable split panel layout.',
+    description: 'Resizable split panel layout with keyboard/mouse resize.',
     props: [
       { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Split direction' },
       { name: 'initialSize', type: "number", required: false, default: '50', description: 'Initial size percentage' },
       { name: 'minSize', type: "number", required: false, default: '10', description: 'Minimum size percentage' },
+      { name: 'maxSize', type: "number", required: false, default: '90', description: 'Maximum size percentage' },
       { name: 'left', type: "VNode", required: true, description: 'Left/top panel content' },
       { name: 'right', type: "VNode", required: true, description: 'Right/bottom panel content' },
+      { name: 'resizable', type: "boolean", required: false, default: 'true', description: 'Allow resizing' },
+      { name: 'showDivider', type: "boolean", required: false, default: 'true', description: 'Show divider line' },
+      { name: 'onResize', type: "(size: number) => void", required: false, description: 'Resize callback' },
     ],
     examples: [
-      `SplitPanel({\n  direction: 'horizontal',\n  initialSize: 30,\n  left: Sidebar(),\n  right: MainContent()\n})`,
+      `SplitPanel({\n  direction: 'horizontal',\n  initialSize: 30,\n  left: Sidebar(),\n  right: MainContent(),\n})`,
     ],
+    relatedComponents: ['Grid'],
   },
   {
     name: 'Grid',
     category: 'molecules',
-    description: 'CSS Grid-like layout for terminal.',
+    description: 'CSS Grid-like layout for terminal with columns and rows.',
     props: [
-      { name: 'columns', type: "number | string", required: true, description: 'Number of columns or template' },
-      { name: 'rows', type: "number | string", required: false, description: 'Number of rows or template' },
+      { name: 'columns', type: "number | string", required: true, description: 'Number of columns or template string' },
+      { name: 'rows', type: "number | string", required: false, description: 'Number of rows or template string' },
       { name: 'gap', type: "number", required: false, default: '0', description: 'Gap between cells' },
+      { name: 'rowGap', type: "number", required: false, description: 'Vertical gap between rows' },
+      { name: 'columnGap', type: "number", required: false, description: 'Horizontal gap between columns' },
     ],
     examples: [
       `Grid({ columns: 3, gap: 1 },\n  ...cards.map(card => Card(card))\n)`,
+      `// With template\nGrid({ columns: '1fr 2fr 1fr', gap: 2 },\n  Left(),\n  Center(),\n  Right(),\n)`,
     ],
+    relatedComponents: ['SplitPanel'],
+  },
+
+  // =============================================================================
+  // Form Components (DevX)
+  // =============================================================================
+  {
+    name: 'FormField',
+    category: 'molecules',
+    description: 'Wraps any input with label and error display. Supports vertical and horizontal layouts.',
+    props: [
+      { name: 'label', type: 'string', required: true, description: 'Field label text' },
+      { name: 'required', type: 'boolean', required: false, default: 'false', description: 'Show required asterisk' },
+      { name: 'error', type: 'string', required: false, description: 'Error message to display' },
+      { name: 'helperText', type: 'string', required: false, description: 'Helper text (shown when no error)' },
+      { name: 'labelColor', type: 'string', required: false, description: 'Label color' },
+      { name: 'errorColor', type: 'string', required: false, description: 'Error color' },
+      { name: 'children', type: 'VNode | VNode[]', required: true, description: 'Input component(s)' },
+      { name: 'gap', type: 'number', required: false, default: '0', description: 'Gap between elements' },
+      { name: 'fullWidth', type: 'boolean', required: false, default: 'false', description: 'Full width' },
+      { name: 'direction', type: "'vertical' | 'horizontal'", required: false, default: "'vertical'", description: 'Layout direction' },
+      { name: 'labelWidth', type: 'number', required: false, description: 'Label width (horizontal layout)' },
+    ],
+    examples: [
+      `FormField({\n  label: 'Email',\n  required: true,\n  error: emailError(),\n  children: TextInput({ state: emailInput }),\n})`,
+      `// Horizontal layout\nFormField({\n  label: 'Name',\n  direction: 'horizontal',\n  labelWidth: 15,\n  children: TextInput({ state: nameInput }),\n})`,
+    ],
+    relatedComponents: ['FormGroup', 'TextInput'],
+  },
+  {
+    name: 'FormGroup',
+    category: 'molecules',
+    description: 'Groups multiple form fields together with optional title and description.',
+    props: [
+      { name: 'title', type: 'string', required: false, description: 'Group title' },
+      { name: 'description', type: 'string', required: false, description: 'Group description' },
+      { name: 'children', type: 'VNode | VNode[]', required: true, description: 'Form fields' },
+      { name: 'gap', type: 'number', required: false, default: '1', description: 'Gap between fields' },
+      { name: 'borderStyle', type: "'none' | 'single' | 'round' | 'double'", required: false, default: "'none'", description: 'Border style' },
+      { name: 'padding', type: 'number', required: false, default: '0', description: 'Padding' },
+    ],
+    examples: [
+      `FormGroup({\n  title: 'Account Settings',\n  description: 'Update your account information',\n  gap: 1,\n  children: [\n    FormField({ label: 'Name', children: TextInput({ ... }) }),\n    FormField({ label: 'Email', children: TextInput({ ... }) }),\n  ],\n})`,
+    ],
+    relatedComponents: ['FormField'],
   },
 ];

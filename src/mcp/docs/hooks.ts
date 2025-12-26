@@ -134,4 +134,33 @@ export const hooks: HookDoc[] = [
       `// FpsMetrics includes:\n// - fps: current FPS\n// - avgFps: rolling average (10s)\n// - minFps: minimum recorded\n// - maxFps: maximum recorded\n// - totalFrames: total frames rendered\n// - uptime: time since tracking started (ms)\n// - frameTime: ms per frame (1000/fps)`,
     ],
   },
+  {
+    name: 'useForm',
+    description: 'Form state management hook with validation, submission, and field binding.',
+    signature: 'useForm<T extends FormValues>(options: UseFormOptions<T>): UseFormResult<T>',
+    params: [
+      { name: 'options.initialValues', type: 'T', required: true, description: 'Initial form values object' },
+      { name: 'options.validate', type: '(values: T) => FormErrors<T>', required: false, description: 'Validation function returning field errors' },
+      { name: 'options.onSubmit', type: '(values: T) => void | Promise<void>', required: false, description: 'Submit handler' },
+      { name: 'options.onError', type: '(errors: FormErrors<T>) => void', required: false, description: 'Called when validation fails' },
+      { name: 'options.validateOnChange', type: 'boolean', required: false, default: 'false', description: 'Validate on value change' },
+      { name: 'options.validateOnBlur', type: 'boolean', required: false, default: 'true', description: 'Validate on field blur' },
+    ],
+    returns: `Object with:
+- values() - accessor for current values
+- errors() - accessor for validation errors
+- touched() - accessor for touched fields
+- setValue(key, value) - set field value
+- setError(key, error) - set field error
+- isValid() - check if form is valid
+- isDirty() - check if form has changes
+- isSubmitting() - check if submitting
+- submit() - validate and submit
+- reset() - reset to initial values
+- field(key) - get binding props for TextInput`,
+    examples: [
+      `const form = useForm({\n  initialValues: { email: '', password: '' },\n  validate: (values) => {\n    const errors = {};\n    if (!values.email) errors.email = 'Required';\n    if (!values.email.includes('@')) errors.email = 'Invalid';\n    return errors;\n  },\n  onSubmit: async (values) => {\n    await login(values);\n  },\n});\n\n// Use in components\nFormField({\n  label: 'Email',\n  error: form.errors().email,\n  children: TextInput({ ...form.field('email') }),\n})\n\nButton({\n  label: 'Submit',\n  loading: form.isSubmitting(),\n  onClick: () => form.submit(),\n})`,
+      `// Built-in validators\nconst validate = createFormValidator({\n  email: [required(), email()],\n  password: [required(), minLength(8)],\n  confirmPassword: [required(), matchField('password', 'Passwords must match')],\n});`,
+    ],
+  },
 ];

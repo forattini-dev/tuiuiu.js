@@ -261,7 +261,7 @@ export function getToolCompletions(
 function filterCompletions(
   options: string[],
   prefix: string,
-  limit = 10
+  limit = 50
 ): MCPCompletionResult {
   const filtered = options.filter(opt =>
     opt.toLowerCase().startsWith(prefix) ||
