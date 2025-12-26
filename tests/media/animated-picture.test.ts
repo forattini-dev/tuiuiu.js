@@ -516,3 +516,173 @@ describe('Animation types', () => {
     });
   });
 });
+
+// =============================================================================
+// FadeIn / FadeOut Specific Tests
+// =============================================================================
+
+describe('fadeIn animation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const testGrid: PixelGrid = [
+    [{ char: '█', fg: '#ffffff' }],
+  ];
+
+  it('should start at minBrightness', () => {
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeIn',
+      duration: 1000,
+      minBrightness: 0.3,
+      maxBrightness: 1.0,
+      autoPlay: false,
+    });
+
+    // Before playing, brightness should be minBrightness for fadeIn
+    expect(anim.brightness()).toBe(0.3);
+
+    anim.stop();
+  });
+
+  it('should progress from minBrightness to maxBrightness', () => {
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeIn',
+      duration: 1000,
+      minBrightness: 0.2,
+      maxBrightness: 1.0,
+      autoPlay: false,
+    });
+
+    anim.play();
+
+    // At start
+    const startBrightness = anim.brightness();
+    expect(startBrightness).toBeCloseTo(0.2, 1);
+
+    // At 50%
+    vi.advanceTimersByTime(500);
+    const midBrightness = anim.brightness();
+    expect(midBrightness).toBeGreaterThan(startBrightness);
+    expect(midBrightness).toBeLessThan(1.0);
+
+    // At 100%
+    vi.advanceTimersByTime(500);
+    const endBrightness = anim.brightness();
+    expect(endBrightness).toBeCloseTo(1.0, 1);
+
+    anim.stop();
+  });
+
+  it('should stop at maxBrightness when loop is false', () => {
+    const onComplete = vi.fn();
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeIn',
+      duration: 500,
+      minBrightness: 0.3,
+      maxBrightness: 1.0,
+      loop: false,
+      autoPlay: false,
+      onCycleComplete: onComplete,
+    });
+
+    anim.play();
+    vi.advanceTimersByTime(600);
+
+    expect(onComplete).toHaveBeenCalled();
+    expect(anim.isPlaying()).toBe(false);
+    // After stop(), brightness resets to maxBrightness
+    expect(anim.brightness()).toBe(1.0);
+  });
+
+  it('should apply correct brightness to pixels', () => {
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeIn',
+      duration: 1000,
+      minBrightness: 0.5,
+      maxBrightness: 1.0,
+      autoPlay: false,
+    });
+
+    // At start (minBrightness = 0.5), white (#ffffff) should become #808080
+    const pixels = anim.pixels();
+    expect(pixels[0][0].fg).toBe('#808080');
+
+    anim.play();
+    vi.advanceTimersByTime(1000);
+
+    // At end (maxBrightness = 1.0), should be #ffffff
+    const endPixels = anim.pixels();
+    expect(endPixels[0][0].fg).toBe('#ffffff');
+
+    anim.stop();
+  });
+});
+
+describe('fadeOut animation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const testGrid: PixelGrid = [
+    [{ char: '█', fg: '#ffffff' }],
+  ];
+
+  it('should start at maxBrightness', () => {
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeOut',
+      duration: 1000,
+      minBrightness: 0.2,
+      maxBrightness: 1.0,
+      autoPlay: false,
+    });
+
+    // Before playing, brightness should be maxBrightness for fadeOut
+    expect(anim.brightness()).toBe(1.0);
+
+    anim.stop();
+  });
+
+  it('should progress from maxBrightness to minBrightness', () => {
+    const anim = createAnimatedPicture({
+      pixels: testGrid,
+      animation: 'fadeOut',
+      duration: 1000,
+      minBrightness: 0.2,
+      maxBrightness: 1.0,
+      autoPlay: false,
+    });
+
+    anim.play();
+
+    // At start
+    const startBrightness = anim.brightness();
+    expect(startBrightness).toBeCloseTo(1.0, 1);
+
+    // At 50%
+    vi.advanceTimersByTime(500);
+    const midBrightness = anim.brightness();
+    expect(midBrightness).toBeLessThan(startBrightness);
+    expect(midBrightness).toBeGreaterThan(0.2);
+
+    // At 100%
+    vi.advanceTimersByTime(500);
+    const endBrightness = anim.brightness();
+    expect(endBrightness).toBeCloseTo(0.2, 1);
+
+    anim.stop();
+  });
+});
