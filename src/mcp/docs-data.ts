@@ -18,6 +18,7 @@ import { dataViz } from './docs/data-viz.js';
 import { organisms } from './docs/organisms.js';
 import { layouts } from './docs/layouts.js';
 import { media } from './docs/media.js';
+import { animation, animationTimingGuide } from './docs/animation.js';
 import { hooks } from './docs/hooks.js';
 import { signals } from './docs/signals.js';
 import { themeSystem, availableThemes, customThemeGuide } from './docs/themes.js';
@@ -36,6 +37,7 @@ export { dataViz } from './docs/data-viz.js';
 export { organisms } from './docs/organisms.js';
 export { layouts } from './docs/layouts.js';
 export { media } from './docs/media.js';
+export { animation, animationTimingGuide } from './docs/animation.js';
 export { hooks } from './docs/hooks.js';
 export { signals } from './docs/signals.js';
 export { themeSystem, availableThemes, customThemeGuide } from './docs/themes.js';
@@ -59,6 +61,7 @@ export const allComponents: ComponentDoc[] = [
   ...organisms,
   ...layouts,
   ...media,
+  ...animation,
   themeSystem,
 ];
 
@@ -77,6 +80,7 @@ export const categories = {
   organisms: organisms.map(c => c.name),
   layouts: layouts.map(c => c.name),
   media: media.map(c => c.name),
+  animation: animation.map(c => c.name),
   hooks: hooks.map(h => h.name),
   signals: signals.map(s => s.name),
   themes: availableThemes.map(t => t.name),

@@ -219,7 +219,7 @@ export interface PropDefinition {
 
 export interface ComponentDoc {
   name: string;
-  category: 'atoms' | 'molecules' | 'organisms' | 'templates' | 'primitives' | 'hooks' | 'utils' | 'media';
+  category: 'atoms' | 'molecules' | 'organisms' | 'templates' | 'primitives' | 'hooks' | 'utils' | 'media' | 'animation';
   description: string;
   props: PropDefinition[];
   examples: string[];

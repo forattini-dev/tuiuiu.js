@@ -447,6 +447,134 @@ function BouncyButton({ label, onPress }) {
 
 ---
 
+## Pixel Art Animation
+
+For animating colored pixel art and ASCII graphics, use `AnimatedPicture` or `createAnimatedPicture`.
+
+### Available Animation Types
+
+| Animation | Description | Use Case |
+|-----------|-------------|----------|
+| `pulse` | Fast sine wave oscillation | Attention-grabbing alerts |
+| `breathe` | Slow, smooth breathing | Ambient, idle states |
+| `blink` | Hard on/off toggle | Warnings, critical |
+| `fadeIn` | Gradual appearance | Entry animations, splash screens |
+| `fadeOut` | Gradual disappearance | Exit animations |
+| `glow` | Subtle brightness variation | Ambient highlights |
+| `shimmer` | Wave of brightness across image | Loading, progress |
+| `rainbow` | Cycle through spectrum colors | Celebration, fun |
+| `glitch` | Random distortion/scrambling | Error states, retro |
+
+### Basic Usage
+
+```typescript
+import { createAnimatedPicture, createPixelGridFromColors, ColoredPicture } from 'tuiuiu.js';
+
+// Create pixel art
+const logo = createPixelGridFromColors([
+  ['cyan', 'cyan', 'cyan'],
+  ['cyan', null, 'cyan'],
+  ['cyan', 'cyan', 'cyan'],
+]);
+
+// Create animation controller
+const anim = createAnimatedPicture({
+  pixels: logo,
+  animation: 'pulse',
+  duration: 1500,
+  minBrightness: 0.3,
+  maxBrightness: 1.0,
+});
+
+// Render (call in render loop)
+ColoredPicture({ pixels: anim.pixels() })
+```
+
+### Splash Screen with Fade-In
+
+```typescript
+import { createAnimatedPicture, ImpactSplashScreen } from 'tuiuiu.js';
+
+// The splash screen has built-in fade-in support
+ImpactSplashScreen({
+  birdArt: TUIUIU_BIRD_COLORED,
+  fadeInDuration: 800,          // Duration in ms
+  fadeInStartBrightness: 0.3,   // Start at 30% brightness
+  animateFadeIn: true,          // Enable animation
+})
+
+// Or manually with createAnimatedPicture
+const splash = createAnimatedPicture({
+  pixels: myLogo,
+  animation: 'fadeIn',
+  duration: 800,
+  minBrightness: 0.3,
+  maxBrightness: 1.0,
+  loop: false,
+  autoPlay: true,
+  easing: 'ease-out',
+  onCycleComplete: () => showMainApp(),
+});
+```
+
+### Programmatic Control
+
+```typescript
+const anim = createAnimatedPicture({
+  pixels: myGrid,
+  animation: 'breathe',
+  autoPlay: false,  // Don't start automatically
+});
+
+// Control methods
+anim.play();              // Start animation
+anim.pause();             // Pause
+anim.stop();              // Stop and reset
+
+// Change animation type on the fly
+anim.setAnimation('shimmer');
+
+// Manual brightness control (0-1)
+anim.setBrightness(0.5);
+
+// State queries
+anim.isPlaying();         // boolean
+anim.progress();          // 0-1
+anim.brightness();        // current brightness
+anim.pixels();            // current processed PixelGrid
+```
+
+### Animation Timing Guidelines
+
+| Effect | Recommended Duration | Min Brightness |
+|--------|---------------------|----------------|
+| `pulse` | 1000-2000ms | 0.3-0.5 |
+| `breathe` | 3000-5000ms | 0.5-0.7 |
+| `blink` | 500-1000ms | 0.1 |
+| `fadeIn/fadeOut` | 500-1000ms | 0.2-0.4 |
+| `shimmer` | 1000-2000ms | 0.3 |
+| `rainbow` | 2000-4000ms | N/A |
+| `glitch` | 300-800ms | N/A |
+
+### Color Utilities
+
+```typescript
+import { adjustBrightness, interpolateColor, applyBrightnessToGrid } from 'tuiuiu.js';
+
+// Dim a color
+adjustBrightness('#ff0000', 0.5);  // '#800000'
+
+// Blend colors
+interpolateColor('red', 'blue', 0.5);  // purple
+
+// Apply to entire grid
+const dimmed = applyBrightnessToGrid(grid, 0.5);
+```
+
+See [AnimatedPicture](/components/media/animated-picture.md) for full documentation.
+
+---
+
 ## Performance Tips
 
 1. **Use springs for interactions** - They feel more natural than easing
@@ -454,6 +582,7 @@ function BouncyButton({ label, onPress }) {
 3. **Avoid animating many elements** - Terminals have limited refresh rates
 4. **Use `none` effect for instant** - When animation isn't needed
 5. **Stop animations on cleanup** - Prevent memory leaks
+6. **AnimatedPicture runs at ~60fps** - Use `autoPlay: false` and call `play()` when visible
 
 ```typescript
 useEffect(() => {

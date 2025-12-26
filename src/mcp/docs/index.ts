@@ -13,6 +13,7 @@ export { dataViz } from './data-viz.js';
 export { organisms } from './organisms.js';
 export { layouts } from './layouts.js';
 export { media } from './media.js';
+export { animation, animationTimingGuide } from './animation.js';
 
 // Hook documentation
 export { hooks } from './hooks.js';
