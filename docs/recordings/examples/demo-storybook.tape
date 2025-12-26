@@ -1,7 +1,7 @@
 # Tuiuiu Storybook - Developer Playground
 # The component explorer experience: navigate, preview, discover
 
-Output docs/assets/demo-storybook.gif
+Output docs/recordings/examples/demo-storybook.gif
 
 Set Shell bash
 Set FontSize 16

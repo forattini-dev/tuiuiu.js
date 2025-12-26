@@ -1,7 +1,7 @@
 # Button Component - Clean documentation GIF
 # Shows button variants and focus states
 
-Output docs/assets/components/button.gif
+Output docs/recordings/components/button.gif
 
 Set Shell bash
 Set FontSize 18

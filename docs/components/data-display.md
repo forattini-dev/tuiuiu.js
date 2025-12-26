@@ -1,157 +1,144 @@
-# Data Visualization
+# Data Display
 
-Tuiuiu includes a suite of terminal-based charting components for building dashboards, monitoring tools, and analytics displays.
+Components for displaying structured data in tables, trees, and lists.
 
-## Sparkline
+> For charts and gauges, see [Data Visualization](/components/viz/index.md).
 
-Compact inline charts for showing trends.
+## Table
 
-### Usage
-
-```typescript
-import { Sparkline } from 'tuiuiu.js';
-
-// Basic
-Sparkline({
-  data: [1, 5, 2, 8, 3, 9, 4, 7],
-  color: 'green'
-});
-
-// Braille (High Resolution)
-Sparkline({
-  data: [/* ... */],
-  style: 'braille',
-  color: 'cyan'
-});
-```
-
-### SparklineBuffer
-
-For streaming data, use `SparklineBuffer` to manage the rolling window.
+Basic table for displaying tabular data.
 
 ```typescript
-import { createSparklineBuffer } from 'tuiuiu.js';
+import { Table } from 'tuiuiu.js'
 
-const buffer = createSparklineBuffer({ maxPoints: 40 });
-
-// Add data point
-buffer.push(cpuUsage);
-
-// Render
-return buffer.toVNode({ color: 'yellow' });
-```
-
-## BarChart
-
-Horizontal or vertical bar charts.
-
-### Usage
-
-```typescript
-import { BarChart } from 'tuiuiu.js';
-
-BarChart({
-  data: [
-    { label: 'Q1', value: 120 },
-    { label: 'Q2', value: 150 },
-    { label: 'Q3', value: 180, color: 'green' }
+Table({
+  columns: [
+    { key: 'name', label: 'Name', width: 20 },
+    { key: 'role', label: 'Role', width: 15 },
+    { key: 'status', label: 'Status', width: 10 },
   ],
-  maxBarLength: 30
-});
+  data: [
+    { name: 'Alice Johnson', role: 'Engineer', status: 'Active' },
+    { name: 'Bob Smith', role: 'Designer', status: 'Away' },
+    { name: 'Carol White', role: 'Manager', status: 'Active' },
+  ],
+})
 ```
 
-### Stacked Bar Chart
+### Table Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `columns` | `TableColumn[]` | required | Column definitions |
+| `data` | `Record<string, any>[]` | required | Data rows |
+| `borderStyle` | `'single' \| 'double' \| 'round' \| 'none'` | `'single'` | Border style |
+| `borderColor` | `ColorValue` | `'gray'` | Border color |
+| `headerColor` | `ColorValue` | `'cyan'` | Header text color |
+| `showHeader` | `boolean` | `true` | Show column headers |
+| `striped` | `boolean` | `false` | Alternating row colors |
+
+See also: [DataTable (Organism)](/components/organisms/data-table.md) for interactive tables with sorting, filtering, and pagination.
+
+## Tree
+
+Hierarchical data display with expand/collapse.
 
 ```typescript
-import { StackedBarChart } from 'tuiuiu.js';
+import { Tree } from 'tuiuiu.js'
 
-StackedBarChart({
-  data: [
+Tree({
+  nodes: [
     {
-      label: 'Server 1',
-      segments: [
-        { value: 40, color: 'blue' },  // Used
-        { value: 60, color: 'gray' }   // Free
-      ]
-    }
-  ]
-});
-```
-
-## LineChart
-
-Multi-series line charts with axes and legends. Supports Braille (high res) and ASCII modes.
-
-### Usage
-
-```typescript
-import { LineChart } from 'tuiuiu.js';
-
-LineChart({
-  width: 60,
-  height: 15,
-  series: [
-    { name: 'Requests', data: [10, 45, 30, 70], color: 'cyan' },
-    { name: 'Errors', data: [2, 5, 1, 8], color: 'red' }
+      id: 'src',
+      label: 'src',
+      icon: '📁',
+      children: [
+        { id: 'index', label: 'index.ts', icon: '📄' },
+        { id: 'utils', label: 'utils.ts', icon: '📄' },
+        {
+          id: 'components',
+          label: 'components',
+          icon: '📁',
+          children: [
+            { id: 'button', label: 'Button.ts', icon: '📄' },
+          ],
+        },
+      ],
+    },
+    { id: 'readme', label: 'README.md', icon: '📝' },
   ],
-  yAxis: { label: 'Req/s', min: 0 },
-  showLegend: true
-});
+})
 ```
 
-## Gauge
+### Tree Props
 
-Visual indicators for single values or progress.
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `nodes` | `TreeNode[]` | required | Tree data |
+| `initialExpanded` | `string[]` | `[]` | Initially expanded node IDs |
+| `indentSize` | `number` | `2` | Indentation per level |
+| `colorSelected` | `ColorValue` | `'cyan'` | Selected node color |
+| `showGuides` | `boolean` | `true` | Show tree guide lines |
+| `onSelect` | `(node: TreeNode) => void` | - | Selection callback |
+| `onExpand` | `(node: TreeNode) => void` | - | Expand callback |
 
-### Styles
+See also: [Tree (Molecule)](/components/molecules/tree.md) for full API documentation.
 
-- **Linear**: Standard progress bar style.
-- **Arc**: Semicircle gauge.
-- **Dial**: Circular dial with pointer.
-- **Meter**: Segmented LED-style meter.
+## CodeBlock
 
-### Usage
+Syntax-highlighted code display.
 
 ```typescript
-import { Gauge } from 'tuiuiu.js';
+import { CodeBlock } from 'tuiuiu.js'
 
-// Linear
-Gauge({
-  value: 75,
-  style: 'linear',
-  label: 'CPU',
-  zones: [
-    { start: 80, end: 100, color: 'red' } // Warning zone
-  ]
-});
-
-// Arc
-Gauge({
-  value: 60,
-  style: 'arc',
-  color: 'blue'
-});
+CodeBlock({
+  code: `function greet(name: string) {
+  return \`Hello, \${name}!\`;
+}`,
+  language: 'typescript',
+  showLineNumbers: true,
+})
 ```
 
-## Heatmaps
+### CodeBlock Props
 
-For time-based and correlation visualizations, see the [Heatmaps documentation](/components/viz/heatmaps.md):
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `code` | `string` | required | Source code |
+| `language` | `string` | `'text'` | Language for highlighting |
+| `showLineNumbers` | `boolean` | `false` | Show line numbers |
+| `startLine` | `number` | `1` | Starting line number |
+| `highlightLines` | `number[]` | `[]` | Lines to highlight |
 
-- **ContributionGraph** - GitHub-style activity graph
-- **CalendarHeatmap** - Year-view calendar with intensity
-- **TimeHeatmap** - Hour × Day matrix
-- **CorrelationMatrix** - Statistical correlation display
+See also: [CodeBlock (Molecule)](/components/molecules/code-block.md) for full API documentation.
 
-## Detailed Documentation
+## Markdown
 
-For comprehensive documentation including all props, examples, and dashboard recipes:
+Render markdown content.
 
-- [**Charts**](/components/viz/charts.md) - LineChart, AreaChart, ScatterPlot, RadarChart, GanttChart
-- [**Gauges**](/components/viz/gauges.md) - MeterGauge, ArcGauge, DialGauge, BatteryGauge
-- [**Heatmaps**](/components/viz/heatmaps.md) - ContributionGraph, CalendarHeatmap, TimeHeatmap, CorrelationMatrix
-- [**Overview**](/components/viz/index.md) - Quick reference for all visualization components
+```typescript
+import { Markdown } from 'tuiuiu.js'
+
+Markdown({
+  content: `# Hello
+
+This is **bold** and _italic_ text.
+
+- Item 1
+- Item 2
+
+\`\`\`typescript
+const x = 1;
+\`\`\`
+`,
+})
+```
+
+See also: [Markdown (Molecule)](/components/molecules/markdown.md) for full API documentation.
 
 ## Related
 
-- [Feedback Components](/components/feedback.md) - Progress bars, spinners
-- [Tables](/components/data-display.md#tables) - Tabular data display
+- [DataTable](/components/organisms/data-table.md) - Interactive tables with sorting/filtering
+- [Tree](/components/molecules/tree.md) - Full tree documentation
+- [CodeBlock](/components/molecules/code-block.md) - Full code block documentation
+- [Data Visualization](/components/viz/index.md) - Charts, gauges, and heatmaps

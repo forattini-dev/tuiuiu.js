@@ -1,7 +1,7 @@
 # Tuiuiu Chat - Beautiful Bubbles & Theme Showcase
 # WhatsApp-style chat interface with live theme switching
 
-Output docs/assets/demo-chat.gif
+Output docs/recordings/examples/demo-chat.gif
 
 Set Shell bash
 Set FontSize 16

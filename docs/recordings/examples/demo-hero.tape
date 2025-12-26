@@ -1,7 +1,7 @@
 # Tuiuiu Storybook - Component Showcase (Hero)
 # A curated tour of the most visually impressive components
 
-Output docs/assets/demo-hero.gif
+Output docs/recordings/examples/demo-hero.gif
 
 Set Shell bash
 Set FontSize 16

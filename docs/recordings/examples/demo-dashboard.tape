@@ -1,7 +1,7 @@
 # Tuiuiu dashboard - Real-time Metrics Dashboard
 # Live data visualization with LCD displays, sparklines, and animated jobs
 
-Output docs/assets/demo-dashboard.gif
+Output docs/recordings/examples/demo-dashboard.gif
 
 Set Shell bash
 Set FontSize 16

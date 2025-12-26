@@ -2,6 +2,13 @@
 
 Components that provide status updates and feedback to the user.
 
+<div align="center">
+
+![Spinner Demo](../recordings/components/spinner.gif)
+![Progress Bar Demo](../recordings/components/progress-bar.gif)
+
+</div>
+
 ## ProgressBar
 
 Visual indicator of progress with multiple styles.

@@ -1,7 +1,7 @@
 # Tuiuiu Counter - Reactive Signals Demo
 # Feel the speed: instant reactive updates with zero lag
 
-Output docs/assets/demo-counter.gif
+Output docs/recordings/examples/demo-counter.gif
 
 Set Shell bash
 Set FontSize 16

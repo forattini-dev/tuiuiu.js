@@ -2,6 +2,12 @@
 
 Interactive button component with multiple variants, sizes, loading states, and icon support.
 
+<div align="center">
+
+![Button Demo](../../recordings/components/button.gif)
+
+</div>
+
 ## Import
 
 ```typescript
@@ -114,17 +120,18 @@ Box({ flexDirection: 'row', gap: 1 },
 
 ## ButtonGroup
 
-Group of buttons with shared styling and keyboard navigation.
+Group of buttons with **built-in keyboard navigation** - no `useInput` needed!
 
 ```typescript
+// Out-of-the-box keyboard navigation
 ButtonGroup({
   buttons: [
-    { label: 'Yes', variant: 'solid', color: 'success' },
-    { label: 'No', variant: 'outline' },
-    { label: 'Cancel', variant: 'ghost' },
+    { label: 'Yes', onClick: handleYes, variant: 'solid', color: 'success' },
+    { label: 'No', onClick: handleNo, variant: 'outline' },
+    { label: 'Cancel', onClick: handleCancel, variant: 'ghost' },
   ],
-  focusedIndex: selectedIndex(),
 })
+// Arrow keys navigate, Enter/Space triggers onClick!
 ```
 
 ### Props
@@ -134,7 +141,44 @@ ButtonGroup({
 | `buttons` | `ButtonProps[]` | required | Array of button configs |
 | `direction` | `'horizontal' \| 'vertical'` | `'horizontal'` | Layout direction |
 | `gap` | `number` | `1` | Gap between buttons |
-| `focusedIndex` | `number` | - | Currently focused index |
+| `isActive` | `boolean \| () => boolean` | `true` | Enable keyboard navigation |
+| `wrap` | `boolean` | `true` | Wrap around at edges |
+| `onFocusChange` | `(index: number) => void` | - | Called when focus changes |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Navigate (horizontal) |
+| `↑` / `↓` | Navigate (vertical) |
+| `h` / `l` | Vim-style horizontal |
+| `j` / `k` | Vim-style vertical |
+| `Enter` / `Space` | Trigger onClick |
+| `1-9` | Quick access by number |
+
+### Advanced: createButtonGroup
+
+For programmatic control, use `createButtonGroup()`:
+
+```typescript
+import { createButtonGroup, renderButtonGroup } from 'tuiuiu.js'
+
+const group = createButtonGroup({
+  buttons: [...],
+  direction: 'horizontal',
+  wrap: true,
+  onFocusChange: (index) => console.log('Focused:', index),
+})
+
+// Programmatic control
+group.focusNext()
+group.focusPrev()
+group.triggerClick()
+group.setFocusedIndex(2)
+
+// Render with keyboard handling
+renderButtonGroup(group, buttons)
+```
 
 ## ConfirmButton
 

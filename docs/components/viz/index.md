@@ -2,6 +2,18 @@
 
 Tuiuiu provides a comprehensive set of data visualization components for building dashboards and data-driven terminal applications.
 
+<div align="center">
+
+![Charts Demo](../../recordings/components/charts.gif)
+
+*Live Sparklines and Bar Charts*
+
+![Gauges Demo](../../recordings/components/gauge.gif)
+
+*System Gauges with Zones*
+
+</div>
+
 ## Overview
 
 | Category | Components |

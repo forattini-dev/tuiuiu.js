@@ -1,7 +1,7 @@
 # Tuiuiu Forms - Wizard Journey Demo
 # Step-by-step form wizard with smooth transitions and success feedback
 
-Output docs/assets/demo-forms.gif
+Output docs/recordings/examples/demo-forms.gif
 
 Set Shell bash
 Set FontSize 16

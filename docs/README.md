@@ -2,6 +2,12 @@
 
 > Zero-dependency Terminal UI library for Node.js
 
+<div align="center">
+
+![Tuiuiu Demo](./recordings/examples/demo-hero.gif)
+
+</div>
+
 ?> **Tip:** Want to see components in action? Try our **Storybook**! Just run `npx tuiuiu` in your terminal to explore components interactively.
 
 **Tuiuiu** is a modern, reactive library for building terminal user interfaces. It brings the component-based architecture and Signal-based reactivity you love from the web to the terminal.

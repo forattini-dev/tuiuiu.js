@@ -1,7 +1,7 @@
 # Tuiuiu Ping - Zen Pulse Demo
 # The hypnotic rhythm of network latency visualization
 
-Output docs/assets/demo-ping.gif
+Output docs/recordings/examples/demo-ping.gif
 
 Set Shell bash
 Set FontSize 16

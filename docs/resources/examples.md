@@ -2,6 +2,17 @@
 
 Here are some common patterns and examples to help you build with Tuiuiu.
 
+## Featured Examples
+
+<div align="center">
+
+| Dashboard | Chat | Forms |
+|:---------:|:----:|:-----:|
+| ![Dashboard](../recordings/examples/demo-dashboard.gif) | ![Chat](../recordings/examples/demo-chat.gif) | ![Forms](../recordings/examples/demo-forms.gif) |
+| Real-time metrics | Chat interface | Form wizard |
+
+</div>
+
 ## Running Examples
 
 All examples can be run directly with `tsx`:

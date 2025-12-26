@@ -1,7 +1,7 @@
 # Tuiuiu htop - Data Mastery Demo
 # Interactive process viewer with real-time sorting and live system data
 
-Output docs/assets/demo-htop.gif
+Output docs/recordings/examples/demo-htop.gif
 
 Set Shell bash
 Set FontSize 16

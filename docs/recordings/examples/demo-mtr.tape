@@ -1,7 +1,7 @@
 # Tuiuiu MTR - Network Discovery Demo
 # Watch the route unfold as hops are progressively discovered
 
-Output docs/assets/demo-mtr.gif
+Output docs/recordings/examples/demo-mtr.gif
 
 Set Shell bash
 Set FontSize 16
