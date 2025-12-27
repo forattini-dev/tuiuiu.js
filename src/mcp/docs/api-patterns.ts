@@ -219,7 +219,85 @@ Accordion({
   },
 
   // =============================================================================
-  // Pattern 4: Render Function
+  // Pattern 4: Compound Components (State Factory)
+  // =============================================================================
+  {
+    name: 'Compound Components',
+    description:
+      'Multiple components share state via a state factory function (createX). This enables flexible positioning - you can place each piece anywhere in your component hierarchy. The state factory creates all the logic, and the components are just UI renderers.',
+    components: [
+      'AutocompleteInput + AutocompleteSuggestions',
+      'TabPanel',
+      'ScrollArea + ScrollAreaContent',
+    ],
+    signature: 'createX({ options }) → state; ComponentA({ state }); ComponentB({ state })',
+    correctExamples: [
+      `// Create shared state
+const state = createAutocomplete({
+  items: countries,
+  onSelect: (item) => console.log(item),
+})
+
+// Place components ANYWHERE in hierarchy
+Box({ flexDirection: 'row', gap: 2 },
+  // Input on the left
+  AutocompleteInput({ state, width: 20 }),
+  // Suggestions on the right
+  AutocompleteSuggestions({ state, width: 30 })
+)`,
+      `// Suggestions ABOVE input
+Box({ flexDirection: 'column' },
+  AutocompleteSuggestions({ state }),
+  AutocompleteInput({ state })
+)`,
+      `// Suggestions in a completely different panel
+Box({ flexDirection: 'row' },
+  Box({ width: 30 },
+    Text({}, 'Search:'),
+    AutocompleteInput({ state })
+  ),
+  Box({ marginLeft: 2, width: 40 },
+    Text({}, 'Results:'),
+    AutocompleteSuggestions({ state, autoHide: false })
+  )
+)`,
+      `// Tabs with TabPanel for custom layout
+const tabState = createTabs({ tabs: [...] })
+
+Box({ flexDirection: 'row' },
+  TabList({ state: tabState }),  // Tab buttons
+  Box({ flex: 1 },
+    TabPanel({ state: tabState, id: 'home' }, HomeContent()),
+    TabPanel({ state: tabState, id: 'settings' }, SettingsContent()),
+  )
+)`,
+    ],
+    wrongExamples: [
+      `// WRONG - Creating state inside render (recreates every render!)
+function MyComponent() {
+  const state = createAutocomplete({ items })  // BAD!
+  return AutocompleteInput({ state })
+}
+
+// RIGHT - Create state OUTSIDE or use useMemo-like pattern
+const state = createAutocomplete({ items })
+function MyComponent() {
+  return AutocompleteInput({ state })
+}`,
+      `// WRONG - Not sharing state between components
+AutocompleteInput({ state: createAutocomplete({ items }) })
+AutocompleteSuggestions({ state: createAutocomplete({ items }) })  // Different state!
+
+// RIGHT - Share the SAME state
+const state = createAutocomplete({ items })
+AutocompleteInput({ state })
+AutocompleteSuggestions({ state })  // Same state!`,
+    ],
+    why: 'Compound components enable maximum flexibility in layout. The state factory holds all logic (keyboard handling, filtering, selection), while the UI components just render. You can position input and dropdown anywhere, even in different parts of the component tree.',
+  },
+
+  // =============================================================================
+  // Pattern 5: Render Function
   // =============================================================================
   {
     name: 'Render Function',
@@ -287,6 +365,7 @@ export const quickReference = `
 | Variadic | Box, Text, VStack, HStack | \`Box({}, child1, child2)\` |
 | Props | Page, AppShell, Modal | \`Page({ children: content })\` |
 | Data | Tabs, Select, ButtonGroup | \`Tabs({ tabs: [{ content }] })\` |
+| Compound | AutocompleteInput/Suggestions | \`const s = createAutocomplete({}); AutocompleteInput({ state: s })\` |
 | Render | ScrollList, Static, Each | \`ScrollList({ items, children: fn })\` |
 
 ## Reactive Data Sources
@@ -368,6 +447,11 @@ export const componentPatternMap: Record<string, string> = {
   ButtonGroup: 'data',
   Accordion: 'data',
 
+  // Compound Components (State Factory)
+  AutocompleteInput: 'compound',
+  AutocompleteSuggestions: 'compound',
+  TabPanel: 'compound',
+
   // Render Function
   ScrollList: 'render',
   ChatList: 'render',
@@ -386,6 +470,7 @@ export function getComponentPattern(componentName: string): ApiPatternDoc | unde
     variadic: 'Variadic Children',
     props: 'Props Children',
     data: 'Data-Driven Content',
+    compound: 'Compound Components',
     render: 'Render Function',
   };
 
