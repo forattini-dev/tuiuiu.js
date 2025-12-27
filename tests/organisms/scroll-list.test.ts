@@ -1033,3 +1033,477 @@ describe('visible items rendering', () => {
     expect(output).toContain('Item 50');
   });
 });
+
+describe('complete navigation round-trip with content verification', () => {
+  /**
+   * Helper to render and get output
+   */
+  const renderList = (state: ReturnType<typeof createScrollList>, items: string[], height: number) => {
+    const node = ScrollList({
+      state,
+      items,
+      children: (item) => Text({}, item),
+      height,
+      width: 80,
+      itemHeight: 1,
+    });
+    return renderToString(node, 80);
+  };
+
+  it('should navigate from top to bottom and back to top', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 100 }, (_, i) => `Line_${String(i + 1).padStart(3, '0')}`);
+    // Items: Line_001, Line_002, ..., Line_100
+
+    // 1. Start at top - should see Line_001 to Line_010
+    let output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Line_001');
+    expect(output).toContain('Line_010');
+    expect(output).not.toContain('Line_011');
+    expect(output).not.toContain('Line_100');
+
+    // 2. Scroll to bottom - should see Line_091 to Line_100
+    state.scrollToBottom();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(90); // 100 - 10 = 90
+    expect(output).not.toContain('Line_001');
+    expect(output).not.toContain('Line_090');
+    expect(output).toContain('Line_091');
+    expect(output).toContain('Line_100');
+
+    // 3. Scroll back to top - should see Line_001 to Line_010 again
+    state.scrollToTop();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Line_001');
+    expect(output).toContain('Line_010');
+    expect(output).not.toContain('Line_091');
+    expect(output).not.toContain('Line_100');
+  });
+
+  it('should navigate incrementally with scrollBy', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 50 }, (_, i) => `Row_${String(i + 1).padStart(2, '0')}`);
+    // Items: Row_01, Row_02, ..., Row_50
+
+    // 1. Start at top
+    let output = renderList(state, items, 5);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Row_01');
+    expect(output).toContain('Row_05');
+    expect(output).not.toContain('Row_06');
+
+    // 2. Scroll down by 5
+    state.scrollBy(5);
+    output = renderList(state, items, 5);
+    expect(state.scrollTop()).toBe(5);
+    expect(output).not.toContain('Row_01');
+    expect(output).toContain('Row_06');
+    expect(output).toContain('Row_10');
+    expect(output).not.toContain('Row_11');
+
+    // 3. Scroll down by 10 more
+    state.scrollBy(10);
+    output = renderList(state, items, 5);
+    expect(state.scrollTop()).toBe(15);
+    expect(output).not.toContain('Row_10');
+    expect(output).toContain('Row_16');
+    expect(output).toContain('Row_20');
+
+    // 4. Scroll up by 10
+    state.scrollBy(-10);
+    output = renderList(state, items, 5);
+    expect(state.scrollTop()).toBe(5);
+    expect(output).toContain('Row_06');
+    expect(output).toContain('Row_10');
+    expect(output).not.toContain('Row_16');
+
+    // 5. Scroll up by 5 - back to top
+    state.scrollBy(-5);
+    output = renderList(state, items, 5);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Row_01');
+    expect(output).toContain('Row_05');
+  });
+
+  it('should navigate with pageUp and pageDown', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 60 }, (_, i) => `Page_${String(i + 1).padStart(2, '0')}`);
+    // Items: Page_01, Page_02, ..., Page_60
+
+    // 1. Start at top
+    let output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Page_01');
+    expect(output).toContain('Page_10');
+
+    // 2. Page down (should move by height = 10)
+    state.pageDown();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(10);
+    expect(output).not.toContain('Page_01');
+    expect(output).toContain('Page_11');
+    expect(output).toContain('Page_20');
+
+    // 3. Page down again
+    state.pageDown();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(20);
+    expect(output).toContain('Page_21');
+    expect(output).toContain('Page_30');
+
+    // 4. Page up
+    state.pageUp();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(10);
+    expect(output).toContain('Page_11');
+    expect(output).toContain('Page_20');
+
+    // 5. Page up again - back to top
+    state.pageUp();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Page_01');
+    expect(output).toContain('Page_10');
+  });
+
+  it('should handle scrollTo with content verification', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 100 }, (_, i) => `Pos_${String(i + 1).padStart(3, '0')}`);
+
+    // 1. Start at top
+    let output = renderList(state, items, 10);
+    expect(output).toContain('Pos_001');
+
+    // 2. Scroll to position 25
+    state.scrollTo(25);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(25);
+    expect(output).not.toContain('Pos_001');
+    expect(output).toContain('Pos_026');
+    expect(output).toContain('Pos_035');
+
+    // 3. Scroll to position 50
+    state.scrollTo(50);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(50);
+    expect(output).toContain('Pos_051');
+    expect(output).toContain('Pos_060');
+
+    // 4. Scroll back to 0
+    state.scrollTo(0);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Pos_001');
+    expect(output).toContain('Pos_010');
+
+    // 5. Scroll to end
+    state.scrollTo(90); // maxScroll = 100 - 10 = 90
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(90);
+    expect(output).toContain('Pos_091');
+    expect(output).toContain('Pos_100');
+  });
+
+  it('should clamp scroll positions and verify content at boundaries', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 30 }, (_, i) => `Bound_${String(i + 1).padStart(2, '0')}`);
+    // maxScroll = 30 - 10 = 20
+
+    // 1. Try to scroll to negative position - should clamp to 0
+    state.scrollTo(-100);
+    let output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Bound_01');
+    expect(output).toContain('Bound_10');
+
+    // 2. Try to scroll past end - should clamp to maxScroll
+    state.scrollTo(1000);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(20);
+    expect(output).toContain('Bound_21');
+    expect(output).toContain('Bound_30');
+
+    // 3. scrollBy past top - should clamp
+    state.scrollTo(10);
+    state.scrollBy(-100);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Bound_01');
+
+    // 4. scrollBy past bottom - should clamp
+    state.scrollBy(1000);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(20);
+    expect(output).toContain('Bound_30');
+  });
+});
+
+describe('inverted mode content verification', () => {
+  const renderList = (state: ReturnType<typeof createScrollList>, items: string[], height: number) => {
+    const node = ScrollList({
+      state,
+      items,
+      children: (item) => Text({}, item),
+      height,
+      width: 80,
+      itemHeight: 1,
+      inverted: true,
+    });
+    return renderToString(node, 80);
+  };
+
+  it('should show newest items (end of array) when at bottom in inverted mode', () => {
+    const state = createScrollList({ inverted: true });
+    const items = Array.from({ length: 50 }, (_, i) => `Msg_${String(i + 1).padStart(2, '0')}`);
+    // In inverted mode, "bottom" (newest) = scrollTop 0
+
+    // 1. At bottom (scrollTop=0) - should see newest items
+    state.scrollToBottom();
+    let output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    // In inverted mode at scrollTop=0, we see the LAST items in the array
+    expect(output).toContain('Msg_50');
+    expect(output).toContain('Msg_41');
+    expect(output).not.toContain('Msg_01');
+
+    // 2. Scroll to top (oldest) - should see first items
+    state.scrollToTop();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(40); // maxScroll = 50 - 10 = 40
+    // In inverted mode at scrollTop=40, we see the FIRST items in the array
+    expect(output).toContain('Msg_01');
+    expect(output).toContain('Msg_10');
+    expect(output).not.toContain('Msg_50');
+
+    // 3. Scroll back to bottom
+    state.scrollToBottom();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Msg_50');
+  });
+
+  it('should navigate correctly in inverted mode with scrollBy', () => {
+    const state = createScrollList({ inverted: true });
+    const items = Array.from({ length: 30 }, (_, i) => `Chat_${String(i + 1).padStart(2, '0')}`);
+    // maxScroll = 30 - 10 = 20
+
+    // 1. Start at bottom (newest)
+    state.scrollToBottom();
+    let output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Chat_30');
+    expect(output).toContain('Chat_21');
+
+    // 2. Scroll up (towards older messages) - in inverted mode, scrollBy(+) moves towards older
+    state.scrollBy(10);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(10);
+    expect(output).toContain('Chat_20');
+    expect(output).toContain('Chat_11');
+    expect(output).not.toContain('Chat_30');
+
+    // 3. Scroll down (back towards newer) - scrollBy(-) moves towards newer
+    state.scrollBy(-5);
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(5);
+    expect(output).toContain('Chat_25');
+    expect(output).toContain('Chat_16');
+
+    // 4. All the way back to bottom
+    state.scrollToBottom();
+    output = renderList(state, items, 10);
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Chat_30');
+  });
+});
+
+describe('multi-line items without overlap', () => {
+  /**
+   * This test ensures that items with multiple lines:
+   * 1. Are rendered completely (all lines visible)
+   * 2. Do not overlap with other items
+   * 3. Items that don't fit are excluded rather than truncated
+   */
+  it('should only render items that fit completely (no partial/truncated items)', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      title: `Title_${i + 1}`,
+      body: `Body_${i + 1}`,
+    }));
+
+    // Each item is 2 lines, height is 8, so we can fit 4 items
+    const node = ScrollList({
+      state,
+      items,
+      children: (item) => Box(
+        { flexDirection: 'column' },
+        Text({}, item.title),
+        Text({}, item.body),
+      ),
+      height: 8,
+      width: 40,
+      itemHeight: 2,
+    });
+
+    const output = renderToString(node, 40);
+
+    // Should see items 1-4 (4 items * 2 lines = 8 lines)
+    expect(output).toContain('Title_1');
+    expect(output).toContain('Body_1');
+    expect(output).toContain('Title_4');
+    expect(output).toContain('Body_4');
+
+    // Item 5 should NOT be visible (doesn't fit)
+    expect(output).not.toContain('Title_5');
+    expect(output).not.toContain('Body_5');
+  });
+
+  it('should not truncate items that partially fit', () => {
+    const state = createScrollList();
+    const items = [
+      { id: 1, lines: ['A1', 'A2', 'A3'] }, // 3 lines
+      { id: 2, lines: ['B1', 'B2', 'B3'] }, // 3 lines
+      { id: 3, lines: ['C1', 'C2', 'C3'] }, // 3 lines
+    ];
+
+    // Height is 7, each item is 3 lines
+    // First 2 items = 6 lines, 1 line left - not enough for item 3
+    const node = ScrollList({
+      state,
+      items,
+      children: (item) => Box(
+        { flexDirection: 'column' },
+        ...item.lines.map(line => Text({}, line)),
+      ),
+      height: 7,
+      width: 40,
+      itemHeight: 3,
+    });
+
+    const output = renderToString(node, 40);
+
+    // Should see items 1 and 2 completely
+    expect(output).toContain('A1');
+    expect(output).toContain('A2');
+    expect(output).toContain('A3');
+    expect(output).toContain('B1');
+    expect(output).toContain('B2');
+    expect(output).toContain('B3');
+
+    // Item 3 should NOT appear at all (not even partially)
+    expect(output).not.toContain('C1');
+    expect(output).not.toContain('C2');
+    expect(output).not.toContain('C3');
+  });
+
+  it('should navigate correctly with multi-line items', () => {
+    const state = createScrollList();
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      title: `Item_${String(i + 1).padStart(2, '0')}_Title`,
+      body: `Item_${String(i + 1).padStart(2, '0')}_Body`,
+    }));
+
+    const render = () => {
+      const node = ScrollList({
+        state,
+        items,
+        children: (item) => Box(
+          { flexDirection: 'column' },
+          Text({}, item.title),
+          Text({}, item.body),
+        ),
+        height: 8, // 4 items visible
+        width: 40,
+        itemHeight: 2,
+      });
+      return renderToString(node, 40);
+    };
+
+    // Initial: items 1-4
+    let output = render();
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Item_01_Title');
+    expect(output).toContain('Item_04_Body');
+    expect(output).not.toContain('Item_05');
+
+    // Scroll down 2 lines (1 item): items 2-5
+    state.scrollBy(2);
+    output = render();
+    expect(state.scrollTop()).toBe(2);
+    expect(output).not.toContain('Item_01');
+    expect(output).toContain('Item_02_Title');
+    expect(output).toContain('Item_05_Body');
+    expect(output).not.toContain('Item_06');
+
+    // Scroll to bottom: items 7-10
+    state.scrollToBottom();
+    output = render();
+    expect(state.scrollTop()).toBe(12); // 20 total lines - 8 viewport = 12
+    expect(output).toContain('Item_07_Title');
+    expect(output).toContain('Item_10_Body');
+    expect(output).not.toContain('Item_06');
+
+    // Scroll up 4 lines (2 items): items 5-8
+    state.scrollBy(-4);
+    output = render();
+    expect(state.scrollTop()).toBe(8);
+    expect(output).toContain('Item_05_Title');
+    expect(output).toContain('Item_08_Body');
+    expect(output).not.toContain('Item_04');
+    expect(output).not.toContain('Item_09');
+
+    // Scroll to top: items 1-4
+    state.scrollToTop();
+    output = render();
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Item_01_Title');
+    expect(output).toContain('Item_04_Body');
+    expect(output).not.toContain('Item_05');
+  });
+
+  it('should handle inverted mode with multi-line items', () => {
+    const state = createScrollList({ inverted: true });
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      title: `Msg_${String(i + 1).padStart(2, '0')}_Title`,
+      body: `Msg_${String(i + 1).padStart(2, '0')}_Body`,
+    }));
+
+    const render = () => {
+      const node = ScrollList({
+        state,
+        items,
+        children: (item) => Box(
+          { flexDirection: 'column' },
+          Text({}, item.title),
+          Text({}, item.body),
+        ),
+        height: 6, // 3 items visible
+        width: 40,
+        itemHeight: 2,
+        inverted: true,
+      });
+      return renderToString(node, 40);
+    };
+
+    // At bottom (newest): items 6-8
+    state.scrollToBottom();
+    let output = render();
+    expect(state.scrollTop()).toBe(0);
+    expect(output).toContain('Msg_08_Title');
+    expect(output).toContain('Msg_06_Body');
+    expect(output).not.toContain('Msg_05');
+
+    // At top (oldest): items 1-3
+    state.scrollToTop();
+    output = render();
+    expect(state.scrollTop()).toBe(10); // 16 total - 6 viewport = 10
+    expect(output).toContain('Msg_01_Title');
+    expect(output).toContain('Msg_03_Body');
+    expect(output).not.toContain('Msg_04');
+  });
+});

@@ -460,12 +460,15 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
       const item = itemList[i]!;
       const itemH = itemHeights[i]!;
 
+      // Skip items above viewport
       if (currentY + itemH <= scrollTop) {
         currentY += itemH;
         continue;
       }
 
-      if (renderedHeight < height) {
+      // Only add item if it FITS in remaining space
+      // This prevents partial/truncated items
+      if (renderedHeight + itemH <= height) {
         visibleNodes.push(children(item, i));
         renderedHeight += itemH;
       } else {
@@ -487,6 +490,7 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
       const itemH = reversedHeights[i]!;
       const originalIndex = itemList.length - 1 - i;
 
+      // Skip items below viewport (in inverted mode)
       if (linesSkipped < scrollTop) {
         if (linesSkipped + itemH <= scrollTop) {
           linesSkipped += itemH;
@@ -494,7 +498,9 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
         }
       }
 
-      if (renderedHeight < height) {
+      // Only add item if it FITS in remaining space
+      // This prevents partial/truncated items
+      if (renderedHeight + itemH <= height) {
         visibleNodes.unshift(children(item, originalIndex));
         renderedHeight += itemH;
       } else {
