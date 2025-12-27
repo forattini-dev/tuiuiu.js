@@ -968,7 +968,7 @@ function StorybookApp(): VNode {
     }
   });
 
-  // Global mouse tracking for visual feedback
+  // Global mouse tracking for visual feedback and scroll navigation
   useMouse((event) => {
     // Record mouse events for the indicator
     recordMouseClick(event);
@@ -976,6 +976,27 @@ function StorybookApp(): VNode {
     // Track clicks for metrics
     if (event.action === 'click' || event.action === 'double-click') {
       setClickCount((c) => c + 1);
+    }
+
+    // Handle scroll for story navigation (when sidebar is focused or globally)
+    if (event.button === 'scroll-up' || event.button === 'scroll-down') {
+      const focus = focusArea();
+
+      if (focus === 'sidebar') {
+        // Scroll through stories
+        if (event.button === 'scroll-up') {
+          setSelectedStoryIndex((i) => Math.max(0, i - 1));
+        } else {
+          setSelectedStoryIndex((i) => Math.min(stories.length - 1, i + 1));
+        }
+      } else if (focus === 'controls' && viewMode() === 'playground') {
+        // Scroll through controls
+        if (event.button === 'scroll-up') {
+          setFocusedControlIndex((i) => Math.max(0, i - 1));
+        } else {
+          setFocusedControlIndex((i) => Math.min(controlKeys.length - 1, i + 1));
+        }
+      }
     }
   });
 
