@@ -301,55 +301,60 @@ export function createAutocomplete<T = string>(
 }
 
 // =============================================================================
-// Component
+// Separate Components (Flexible Positioning)
 // =============================================================================
 
-export interface AutocompleteProps<T = string> extends AutocompleteOptions<T> {
-  /** Pre-created state */
-  state?: AutocompleteState<T>;
-  /** Label */
-  label?: string;
+export interface AutocompleteInputProps<T = string> {
+  /** Autocomplete state from createAutocomplete() */
+  state: AutocompleteState<T>;
+  /** Placeholder text */
+  placeholder?: string;
+  /** Input width */
+  width?: number;
+  /** Expand to fill available width */
+  fullWidth?: boolean;
+  /** Active/highlight color */
+  colorActive?: ColorValue;
+  /** Is input active for keyboard handling */
+  isActive?: boolean;
+  /** Show border */
+  showBorder?: boolean;
 }
 
 /**
- * Autocomplete - Text input with dropdown suggestions
+ * AutocompleteInput - Standalone input component for autocomplete
+ *
+ * Use with createAutocomplete() state and AutocompleteSuggestions
+ * for flexible positioning of the suggestions dropdown.
  *
  * @example
- * // Basic autocomplete
- * Autocomplete({
- *   items: [
- *     { value: 'react', label: 'React' },
- *     { value: 'vue', label: 'Vue.js' },
- *     { value: 'angular', label: 'Angular' },
- *   ],
- *   placeholder: 'Search frameworks...',
- *   onSelect: (item) => console.log(item),
- * })
+ * const state = createAutocomplete({ items: [...] })
+ *
+ * // Suggestions to the right of input
+ * Box({ flexDirection: 'row', gap: 2 },
+ *   AutocompleteInput({ state }),
+ *   AutocompleteSuggestions({ state })
+ * )
  *
  * @example
- * // With custom filter
- * Autocomplete({
- *   items: users,
- *   filter: (query, items) =>
- *     items.filter(i => i.label.toLowerCase().includes(query.toLowerCase())),
- *   onSubmit: (value, item) => console.log(value, item),
- * })
+ * // Suggestions above input
+ * Box({ flexDirection: 'column' },
+ *   AutocompleteSuggestions({ state }),
+ *   AutocompleteInput({ state })
+ * )
  */
-export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
+export function AutocompleteInput<T = string>(props: AutocompleteInputProps<T>): VNode {
   const {
+    state,
     placeholder = '',
     width = 30,
     fullWidth = false,
     colorActive = 'primary',
-    colorSelected = 'success',
     isActive = true,
-    label,
-    state: externalState,
+    showBorder = true,
   } = props;
 
-  const state = externalState || createAutocomplete(props);
   const isAscii = getRenderMode() === 'ascii';
-  const chars = getChars();
 
   // Setup keyboard handling
   useInput(
@@ -393,27 +398,21 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
 
   const value = state.inputValue();
   const cursor = state.cursorPos();
-  const suggs = state.suggestions();
-  const selIdx = state.selectedIndex();
-  const open = state.isOpen();
-
-  // Build input display with cursor
-  const displayValue = value || placeholder;
   const isPlaceholder = !value;
 
   const beforeCursor = value.slice(0, cursor);
   const cursorChar = value[cursor] || ' ';
   const afterCursor = value.slice(cursor + 1);
 
-  // Input box
   const inputBorder = isAscii ? 'single' : 'round';
-  const inputNode = Box(
+
+  return Box(
     {
       width: fullWidth ? undefined : width,
       flexGrow: fullWidth ? 1 : 0,
-      borderStyle: inputBorder,
+      borderStyle: showBorder ? inputBorder : 'none',
       borderColor: colorActive,
-      paddingX: 1,
+      paddingX: showBorder ? 1 : 0,
     },
     isPlaceholder
       ? Text({ color: 'mutedForeground', dim: true }, placeholder)
@@ -424,53 +423,229 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
           Text({}, afterCursor)
         )
   );
+}
 
-  // Suggestions dropdown
-  let suggestionsNode: VNode | null = null;
-  if (open && suggs.length > 0) {
-    const suggestionItems = suggs.map((item, i) => {
-      const isSelected = i === selIdx;
-      const prefix = isSelected ? chars.arrows.right : ' ';
+export interface AutocompleteSuggestionsProps<T = string> {
+  /** Autocomplete state from createAutocomplete() */
+  state: AutocompleteState<T>;
+  /** Suggestions width */
+  width?: number;
+  /** Expand to fill available width */
+  fullWidth?: boolean;
+  /** Active/highlight color */
+  colorActive?: ColorValue;
+  /** Selected item color */
+  colorSelected?: ColorValue;
+  /** Show border around suggestions */
+  showBorder?: boolean;
+  /** Hide when no suggestions or closed */
+  autoHide?: boolean;
+  /** Maximum height (number of visible items) */
+  maxHeight?: number;
+}
 
-      return Box(
-        { flexDirection: 'row', paddingX: 1 },
-        Text({ color: isSelected ? colorActive : 'mutedForeground' }, prefix + ' '),
-        Text(
-          { color: isSelected ? colorSelected : 'foreground', bold: isSelected },
-          item.label
-        ),
-        item.description
-          ? Text({ color: 'mutedForeground', dim: true }, ` - ${item.description}`)
-          : null
-      );
-    });
+/**
+ * AutocompleteSuggestions - Standalone suggestions dropdown
+ *
+ * Use with createAutocomplete() state and AutocompleteInput
+ * for flexible positioning of the suggestions dropdown.
+ *
+ * @example
+ * const state = createAutocomplete({ items: [...] })
+ *
+ * // Suggestions below input (default layout)
+ * Box({ flexDirection: 'column' },
+ *   AutocompleteInput({ state }),
+ *   AutocompleteSuggestions({ state })
+ * )
+ *
+ * @example
+ * // Suggestions in a sidebar
+ * Box({ flexDirection: 'row' },
+ *   Box({ flexDirection: 'column' },
+ *     Text({}, 'Search:'),
+ *     AutocompleteInput({ state, width: 20 })
+ *   ),
+ *   Box({ marginLeft: 2, width: 30 },
+ *     Text({}, 'Results:'),
+ *     AutocompleteSuggestions({ state, autoHide: false })
+ *   )
+ * )
+ */
+export function AutocompleteSuggestions<T = string>(props: AutocompleteSuggestionsProps<T>): VNode | null {
+  const {
+    state,
+    width = 30,
+    fullWidth = false,
+    colorActive = 'primary',
+    colorSelected = 'success',
+    showBorder = true,
+    autoHide = true,
+    maxHeight,
+  } = props;
 
-    suggestionsNode = Box(
+  const chars = getChars();
+  const suggs = state.suggestions();
+  const selIdx = state.selectedIndex();
+  const open = state.isOpen();
+
+  // Auto-hide when closed or no suggestions
+  if (autoHide && (!open || suggs.length === 0)) {
+    return null;
+  }
+
+  // Apply maxHeight if specified
+  const visibleSuggs = maxHeight ? suggs.slice(0, maxHeight) : suggs;
+
+  const suggestionItems = visibleSuggs.map((item, i) => {
+    const isSelected = i === selIdx;
+    const prefix = isSelected ? chars.arrows.right : ' ';
+
+    return Box(
+      { flexDirection: 'row', paddingX: showBorder ? 1 : 0 },
+      Text({ color: isSelected ? colorActive : 'mutedForeground' }, prefix + ' '),
+      Text(
+        { color: isSelected ? colorSelected : 'foreground', bold: isSelected },
+        item.label
+      ),
+      item.description
+        ? Text({ color: 'mutedForeground', dim: true }, ` - ${item.description}`)
+        : null
+    );
+  });
+
+  // Show "no results" when autoHide is false but no suggestions
+  if (suggestionItems.length === 0) {
+    return Box(
       {
         width: fullWidth ? undefined : width,
         flexGrow: fullWidth ? 1 : 0,
-        borderStyle: 'single',
+        borderStyle: showBorder ? 'single' : 'none',
         borderColor: 'border',
         flexDirection: 'column',
+        paddingX: showBorder ? 1 : 0,
       },
-      ...suggestionItems
+      Text({ color: 'mutedForeground', dim: true }, '(no matches)')
     );
   }
 
-  // Build full component
+  return Box(
+    {
+      width: fullWidth ? undefined : width,
+      flexGrow: fullWidth ? 1 : 0,
+      borderStyle: showBorder ? 'single' : 'none',
+      borderColor: 'border',
+      flexDirection: 'column',
+    },
+    ...suggestionItems
+  );
+}
+
+// =============================================================================
+// Combined Component (Convenience Wrapper)
+// =============================================================================
+
+export interface AutocompleteProps<T = string> extends AutocompleteOptions<T> {
+  /** Pre-created state */
+  state?: AutocompleteState<T>;
+  /** Label */
+  label?: string;
+  /** Dropdown position relative to input */
+  dropdownPosition?: 'top' | 'bottom' | 'left' | 'right';
+}
+
+/**
+ * Autocomplete - Text input with dropdown suggestions
+ *
+ * This is a convenience wrapper that combines AutocompleteInput and
+ * AutocompleteSuggestions. For more flexible positioning, use those
+ * components separately with createAutocomplete().
+ *
+ * @example
+ * // Basic autocomplete (suggestions below)
+ * Autocomplete({
+ *   items: [
+ *     { value: 'react', label: 'React' },
+ *     { value: 'vue', label: 'Vue.js' },
+ *     { value: 'angular', label: 'Angular' },
+ *   ],
+ *   placeholder: 'Search frameworks...',
+ *   onSelect: (item) => console.log(item),
+ * })
+ *
+ * @example
+ * // Suggestions above input
+ * Autocomplete({
+ *   items: frameworks,
+ *   dropdownPosition: 'top',
+ * })
+ *
+ * @example
+ * // For custom positioning, use separate components:
+ * const state = createAutocomplete({ items: [...] })
+ * Box({ flexDirection: 'row' },
+ *   AutocompleteInput({ state }),
+ *   AutocompleteSuggestions({ state })
+ * )
+ */
+export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
+  const {
+    placeholder = '',
+    width = 30,
+    fullWidth = false,
+    colorActive = 'primary',
+    colorSelected = 'success',
+    isActive = true,
+    label,
+    state: externalState,
+    dropdownPosition = 'bottom',
+  } = props;
+
+  const state = externalState || createAutocomplete(props);
+
+  const inputNode = AutocompleteInput({
+    state,
+    placeholder,
+    width,
+    fullWidth,
+    colorActive,
+    isActive,
+  });
+
+  const suggestionsNode = AutocompleteSuggestions({
+    state,
+    width,
+    fullWidth,
+    colorActive,
+    colorSelected,
+  });
+
+  // Build layout based on dropdown position
+  const isHorizontal = dropdownPosition === 'left' || dropdownPosition === 'right';
+  const flexDir = isHorizontal ? 'row' : 'column';
+
   const parts: (VNode | null)[] = [];
 
-  if (label) {
+  if (label && !isHorizontal) {
     parts.push(Box({ marginBottom: 1 }, Text({ color: 'mutedForeground' }, label)));
   }
 
-  parts.push(inputNode);
-
-  if (suggestionsNode) {
+  if (dropdownPosition === 'top' || dropdownPosition === 'left') {
+    parts.push(suggestionsNode);
+    parts.push(inputNode);
+  } else {
+    parts.push(inputNode);
     parts.push(suggestionsNode);
   }
 
-  return Box({ flexDirection: 'column', flexGrow: fullWidth ? 1 : 0 }, ...parts);
+  return Box(
+    {
+      flexDirection: flexDir,
+      flexGrow: fullWidth ? 1 : 0,
+      gap: isHorizontal ? 1 : 0,
+    },
+    ...parts
+  );
 }
 
 // =============================================================================

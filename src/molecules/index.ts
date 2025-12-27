@@ -41,6 +41,8 @@ export {
 
 export {
   Autocomplete,
+  AutocompleteInput,
+  AutocompleteSuggestions,
   createAutocomplete,
   Combobox,
   TagInput,
@@ -49,6 +51,8 @@ export {
   type AutocompleteOptions,
   type AutocompleteState,
   type AutocompleteProps,
+  type AutocompleteInputProps,
+  type AutocompleteSuggestionsProps,
   type ComboboxProps,
   type TagInputOptions,
   type TagInputState,
