@@ -6,14 +6,13 @@
  */
 
 import {
-  addInputHandler,
-  removeInputHandler,
+  addMouseHandler,
+  removeMouseHandlerById,
   getHookState,
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
 } from './context.js';
-import type { InputHandler } from './types.js';
 
 // =============================================================================
 // Types
@@ -328,45 +327,34 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
   // Get or create hook state for this useMouse call
   const { value: hookData, isNew } = getHookState<{
     handler: MouseHandler;
-    inputWrapper: InputHandler;
+    handlerId: number | null;
     registered: boolean;
     trackingEnabled: boolean;
   } | null>(null);
 
   if (isNew || hookData === null) {
     // First render - create wrapper and register
-    const inputWrapper: InputHandler = (input, _key) => {
-      // Check if this is a mouse event
-      const result = parseMouseEvent(input);
-      if (result) {
-        const data = getStoredHookData();
-        if (data && data.registered) {
-          // Detect double-clicks
-          const processedEvent = detectDoubleClick(result.event);
-          data.handler(processedEvent);
-        }
+    const hookIndex = getCurrentHookIndex();
+
+    // Mouse handler wrapper that detects double-clicks
+    const mouseWrapper = (event: MouseEvent) => {
+      const data = getHookStateByIndex(hookIndex) as typeof hookData;
+      if (data && data.registered) {
+        // Detect double-clicks
+        const processedEvent = detectDoubleClick(event);
+        data.handler(processedEvent);
       }
     };
 
     const data = {
       handler,
-      inputWrapper,
+      handlerId: isActive ? addMouseHandler(mouseWrapper) : null,
       registered: isActive,
       trackingEnabled: false,
     };
 
     // Store the data
-    const hookIndex = getCurrentHookIndex();
     setHookState(hookIndex, data);
-
-    // Helper to get stored data (closure over hookIndex)
-    function getStoredHookData() {
-      return getHookStateByIndex(hookIndex) as typeof data | null;
-    }
-
-    if (isActive) {
-      addInputHandler(inputWrapper);
-    }
 
     if (enableTracking && isActive) {
       enableMouseTracking();
@@ -382,9 +370,21 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
 
     // Handle activation/deactivation
     if (isActive && !prevRegistered) {
-      addInputHandler(hookData.inputWrapper);
+      // Re-register - need to create new wrapper
+      const hookIndex = getCurrentHookIndex();
+      const mouseWrapper = (event: MouseEvent) => {
+        const data = getHookStateByIndex(hookIndex) as typeof hookData;
+        if (data && data.registered) {
+          const processedEvent = detectDoubleClick(event);
+          data.handler(processedEvent);
+        }
+      };
+      hookData.handlerId = addMouseHandler(mouseWrapper);
     } else if (!isActive && prevRegistered) {
-      removeInputHandler(hookData.inputWrapper);
+      if (hookData.handlerId !== null) {
+        removeMouseHandlerById(hookData.handlerId);
+        hookData.handlerId = null;
+      }
     }
 
     // Handle mouse tracking

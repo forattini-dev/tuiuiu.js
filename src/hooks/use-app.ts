@@ -7,6 +7,7 @@ import {
   getAppContext,
   setAppContext,
   emitInput,
+  emitMouseEvent,
   clearInputHandlers,
   setFocusManager,
 } from './context.js';
@@ -102,11 +103,13 @@ export function initializeApp(
       if (isMouseEvent(rawInput)) {
         const mouseResult = parseMouseEvent(rawInput);
         if (mouseResult) {
-          // Dispatch to hit-test registry
           batch(() => {
+            // Dispatch to hit-test registry
             getHitTestRegistry().handleMouseEvent(mouseResult.event);
+            // Emit to registered mouse handlers (useMouse consumers)
+            emitMouseEvent(mouseResult.event);
           });
-          
+
           // Consume and continue
           rawInput = rawInput.slice(mouseResult.length);
           continue;

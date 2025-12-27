@@ -241,3 +241,61 @@ export function getFocusManager(): FocusManager | null {
 export function setFocusManager(fm: FocusManager | null): void {
   focusManager = fm;
 }
+
+// =============================================================================
+// MOUSE EVENT HANDLING
+// =============================================================================
+
+// Import MouseEvent type dynamically to avoid circular dependency
+type MouseEventType = import('./use-mouse.js').MouseEvent;
+type MouseHandlerType = (event: MouseEventType) => void;
+
+interface MouseHandlerEntry {
+  handler: MouseHandlerType;
+  id: number;
+}
+
+const mouseHandlers: MouseHandlerEntry[] = [];
+let mouseHandlerIdCounter = 0;
+
+/**
+ * Register a mouse event handler
+ */
+export function addMouseHandler(handler: MouseHandlerType): number {
+  const id = mouseHandlerIdCounter++;
+  mouseHandlers.push({ handler, id });
+  return id;
+}
+
+/**
+ * Remove a mouse handler by ID
+ */
+export function removeMouseHandlerById(id: number): boolean {
+  const index = mouseHandlers.findIndex((entry) => entry.id === id);
+  if (index !== -1) {
+    mouseHandlers.splice(index, 1);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Emit mouse event to all handlers
+ */
+export function emitMouseEvent(event: MouseEventType): void {
+  for (const entry of mouseHandlers) {
+    try {
+      entry.handler(event);
+    } catch (error) {
+      console.error('[tuiuiu] Error in mouse handler:', error);
+    }
+  }
+}
+
+/**
+ * Clear all mouse handlers
+ */
+export function clearMouseHandlers(): void {
+  mouseHandlers.length = 0;
+  mouseHandlerIdCounter = 0;
+}
