@@ -17,7 +17,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
-import { useHotkeys, getHotkeyScope, type HotkeyOptions } from '../hooks/use-hotkeys.js';
+import { useInput } from '../hooks/use-input.js';
+import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { renderToString } from '../core/renderer.js';
 
@@ -439,44 +440,72 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
 
   const scrollTop = state.scrollTop();
 
-  // Keyboard handling via hotkeys system
+  // Keyboard handling via single useInput with scope checking
+  // This is more efficient than 8 separate useHotkeys calls
+  //
   // Hotkeys only fire when:
   // 1. keysEnabled is true
   // 2. isActive is true
   // 3. The current scope matches hotkeyScope (or scope is 'global')
-  const hotkeyOptions: HotkeyOptions = { scope: hotkeyScope };
-
-  // Helper to conditionally execute scroll action
-  const scrollAction = (action: () => void) => () => {
-    if (keysEnabled && isActive) action();
+  //
+  // Pre-parse hotkey bindings for efficiency
+  const bindings = {
+    pageup: parseHotkey('pageup'),
+    pagedown: parseHotkey('pagedown'),
+    home: parseHotkey('home'),
+    end: parseHotkey('end'),
+    up: parseHotkey('up'),
+    down: parseHotkey('down'),
+    k: parseHotkey('k'),
+    j: parseHotkey('j'),
   };
 
-  // Navigation hotkeys
-  // Page up/down
-  useHotkeys('pageup', scrollAction(() => state.pageUp()), hotkeyOptions);
-  useHotkeys('pagedown', scrollAction(() => state.pageDown()), hotkeyOptions);
+  useInput((input, key) => {
+    // Check if keys are enabled and component is active
+    if (!keysEnabled || !isActive) return;
 
-  // Home/End - go to top/bottom
-  useHotkeys('home', scrollAction(() => state.scrollToTop()), hotkeyOptions);
-  useHotkeys('end', scrollAction(() => state.scrollToBottom()), hotkeyOptions);
+    // Check scope - only respond if scope matches or is 'global'
+    const currentScope = getHotkeyScope();
+    if (hotkeyScope !== 'global' && hotkeyScope !== currentScope) return;
 
-  // Arrow keys - direction depends on inverted mode
-  if (inverted) {
-    useHotkeys('up', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
-    useHotkeys('down', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
-  } else {
-    useHotkeys('up', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
-    useHotkeys('down', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
-  }
+    // Check each hotkey binding
+    if (matchesHotkey(input, key, bindings.pageup)) {
+      state.pageUp();
+      return;
+    }
+    if (matchesHotkey(input, key, bindings.pagedown)) {
+      state.pageDown();
+      return;
+    }
+    if (matchesHotkey(input, key, bindings.home)) {
+      state.scrollToTop();
+      return;
+    }
+    if (matchesHotkey(input, key, bindings.end)) {
+      state.scrollToBottom();
+      return;
+    }
 
-  // Vim keys - same direction logic
-  if (inverted) {
-    useHotkeys('k', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
-    useHotkeys('j', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
-  } else {
-    useHotkeys('k', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
-    useHotkeys('j', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
-  }
+    // Arrow keys - direction depends on inverted mode
+    if (matchesHotkey(input, key, bindings.up)) {
+      state.scrollBy(inverted ? 1 : -1);
+      return;
+    }
+    if (matchesHotkey(input, key, bindings.down)) {
+      state.scrollBy(inverted ? -1 : 1);
+      return;
+    }
+
+    // Vim keys - same direction logic
+    if (matchesHotkey(input, key, bindings.k)) {
+      state.scrollBy(inverted ? 1 : -1);
+      return;
+    }
+    if (matchesHotkey(input, key, bindings.j)) {
+      state.scrollBy(inverted ? -1 : 1);
+      return;
+    }
+  })
 
   // Mouse scroll
   const handleScroll = (event: { button: string }) => {

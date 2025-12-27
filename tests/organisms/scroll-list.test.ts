@@ -15,6 +15,11 @@ import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
 
 // Mock useInput to prevent actual input handling
+// Need to mock both the direct import and the index export
+vi.mock('../../src/hooks/use-input.js', () => ({
+  useInput: vi.fn(),
+}));
+
 vi.mock('../../src/hooks/index.js', () => ({
   useInput: vi.fn(),
 }));
