@@ -1,11 +1,19 @@
 # Autocomplete
 
-Text input with dropdown suggestions, fuzzy search, and type-ahead.
+Text input with dropdown suggestions, fuzzy search, and type-ahead. Supports flexible dropdown positioning with separate components.
 
 ## Import
 
 ```typescript
-import { Autocomplete, createAutocomplete, Combobox, TagInput, createTagInput } from 'tuiuiu.js'
+import {
+  Autocomplete,
+  AutocompleteInput,
+  AutocompleteSuggestions,
+  createAutocomplete,
+  Combobox,
+  TagInput,
+  createTagInput
+} from 'tuiuiu.js'
 ```
 
 ## Basic Usage
@@ -56,6 +64,7 @@ Output:
 | `allowFreeText` | `boolean` | `true` | Allow values not in list |
 | `width` | `number` | `30` | Input width |
 | `fullWidth` | `boolean` | `false` | Expand to fill width |
+| `dropdownPosition` | `'top' \| 'bottom' \| 'left' \| 'right'` | `'bottom'` | Dropdown position |
 | `colorActive` | `ColorValue` | `'primary'` | Active color |
 | `colorSelected` | `ColorValue` | `'success'` | Selected item color |
 | `onChange` | `(value: string) => void` | - | Input change callback |
@@ -116,6 +125,93 @@ state.isOpen()                // Is dropdown open
 
 // Use with component
 Autocomplete({ state, items: [...] })
+```
+
+## Flexible Positioning (Compound Components)
+
+For maximum flexibility, use `AutocompleteInput` and `AutocompleteSuggestions` separately. This allows you to position the dropdown anywhere in your component hierarchy.
+
+### Suggestions to the Right
+
+```typescript
+const state = createAutocomplete({
+  items: countries,
+  onSelect: (item) => console.log(item),
+})
+
+Box({ flexDirection: 'row', gap: 2 },
+  AutocompleteInput({ state, width: 20 }),
+  AutocompleteSuggestions({ state, width: 30 })
+)
+```
+
+### Suggestions Above
+
+```typescript
+Box({ flexDirection: 'column' },
+  AutocompleteSuggestions({ state }),
+  AutocompleteInput({ state })
+)
+```
+
+### Suggestions in Separate Panel
+
+```typescript
+Box({ flexDirection: 'row' },
+  // Left panel - search
+  Box({ width: 30 },
+    Text({}, 'Search:'),
+    AutocompleteInput({ state })
+  ),
+  // Right panel - results
+  Box({ marginLeft: 2, width: 40 },
+    Text({}, 'Results:'),
+    AutocompleteSuggestions({ state, autoHide: false })
+  )
+)
+```
+
+### AutocompleteInput Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `state` | `AutocompleteState` | required | State from createAutocomplete() |
+| `placeholder` | `string` | `''` | Placeholder text |
+| `width` | `number` | `30` | Input width |
+| `fullWidth` | `boolean` | `false` | Expand to fill |
+| `colorActive` | `ColorValue` | `'primary'` | Active color |
+| `isActive` | `boolean` | `true` | Handle keyboard |
+| `showBorder` | `boolean` | `true` | Show input border |
+
+### AutocompleteSuggestions Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `state` | `AutocompleteState` | required | State from createAutocomplete() |
+| `width` | `number` | `30` | Dropdown width |
+| `fullWidth` | `boolean` | `false` | Expand to fill |
+| `colorActive` | `ColorValue` | `'primary'` | Active indicator color |
+| `colorSelected` | `ColorValue` | `'success'` | Selected item color |
+| `showBorder` | `boolean` | `true` | Show border |
+| `autoHide` | `boolean` | `true` | Hide when closed/empty |
+| `maxHeight` | `number` | - | Max visible items |
+
+## Dropdown Position (Simple)
+
+For simple positioning without separate components:
+
+```typescript
+// Dropdown above
+Autocomplete({
+  items: cities,
+  dropdownPosition: 'top',
+})
+
+// Dropdown to the left
+Autocomplete({
+  items: cities,
+  dropdownPosition: 'left',
+})
 ```
 
 ## Fuzzy Matching

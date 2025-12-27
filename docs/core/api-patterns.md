@@ -4,14 +4,15 @@ Understanding how to pass children and content to Tuiuiu components is **essenti
 
 > **Why does this matter?** Using the wrong pattern will cause your app to fail silently or throw errors. This guide explains each pattern and when to use it.
 
-## The Four Patterns
+## The Five Patterns
 
 | Pattern | Components | When to Use |
 |---------|------------|-------------|
 | [Variadic Children](#1-variadic-children) | `Box`, `Text`, `VStack`, `HStack` | Free-form layout composition |
 | [Props Children](#2-props-children) | `Page`, `AppShell`, `Modal`, `Collapsible` | Components with named slots |
 | [Data-Driven Content](#3-data-driven-content) | `Tabs`, `Select`, `Tree`, `Table` | List-based configuration |
-| [Render Function](#4-render-function) | `ScrollList`, `Static`, `Each` | Dynamic list rendering |
+| [Compound Components](#4-compound-components) | `AutocompleteInput`, `AutocompleteSuggestions` | Flexible positioning with shared state |
+| [Render Function](#5-render-function) | `ScrollList`, `Static`, `Each` | Dynamic list rendering |
 
 ---
 
@@ -246,7 +247,95 @@ interface ButtonProps {
 
 ---
 
-## 4. Render Function
+## 4. Compound Components
+
+**Used by:** `AutocompleteInput + AutocompleteSuggestions`, `TabPanel`
+
+Multiple components **share state** via a state factory function (`createX`). This enables flexible positioning - you can place each piece anywhere in your component hierarchy.
+
+```typescript
+// ✅ CORRECT - create shared state, then use components separately
+const state = createAutocomplete({
+  items: countries,
+  onSelect: (item) => console.log(item),
+})
+
+// Position anywhere you want!
+Box({ flexDirection: 'row', gap: 2 },
+  AutocompleteInput({ state, width: 20 }),
+  AutocompleteSuggestions({ state, width: 30 })
+)
+
+// ✅ CORRECT - suggestions above input
+Box({ flexDirection: 'column' },
+  AutocompleteSuggestions({ state }),
+  AutocompleteInput({ state })
+)
+
+// ✅ CORRECT - suggestions in completely different panel
+Box({ flexDirection: 'row' },
+  Box({ width: 30 },
+    Text({}, 'Search:'),
+    AutocompleteInput({ state })
+  ),
+  Box({ marginLeft: 2, width: 40 },
+    Text({}, 'Results:'),
+    AutocompleteSuggestions({ state, autoHide: false })
+  )
+)
+```
+
+```typescript
+// ❌ WRONG - creating state inside render (recreates every render!)
+function MyComponent() {
+  const state = createAutocomplete({ items })  // BAD! New state each render
+  return AutocompleteInput({ state })
+}
+
+// ✅ CORRECT - create state outside render
+const state = createAutocomplete({ items })
+function MyComponent() {
+  return AutocompleteInput({ state })
+}
+
+// ❌ WRONG - different state for each component
+AutocompleteInput({ state: createAutocomplete({ items }) })
+AutocompleteSuggestions({ state: createAutocomplete({ items }) })  // Different state!
+
+// ✅ CORRECT - share the SAME state
+const state = createAutocomplete({ items })
+AutocompleteInput({ state })
+AutocompleteSuggestions({ state })  // Same state!
+```
+
+### Why This Pattern?
+
+- **Maximum flexibility** in positioning - input and dropdown can be anywhere
+- The **state factory** holds all logic (keyboard handling, filtering, selection)
+- The **components** are just UI renderers - they're "dumb"
+- Enables creative layouts like split panels, sidebars, etc.
+
+### Components Using This Pattern
+
+| State Factory | Components | Purpose |
+|---------------|------------|---------|
+| `createAutocomplete()` | `AutocompleteInput`, `AutocompleteSuggestions` | Flexible autocomplete positioning |
+| `createTabs()` | `TabList`, `TabPanel` | Custom tab layouts |
+
+### Signature
+
+```typescript
+// State factory creates shared state
+function createAutocomplete(options): AutocompleteState
+
+// Components receive state as prop
+function AutocompleteInput(props: { state: AutocompleteState }): VNode
+function AutocompleteSuggestions(props: { state: AutocompleteState }): VNode
+```
+
+---
+
+## 5. Render Function
 
 **Used by:** `ScrollList`, `ChatList`, `Static`, `Each`
 
@@ -360,6 +449,8 @@ interface ScrollListProps<T> {
 | `ButtonGroup` | Data | `ButtonGroup({ buttons: [...] })` |
 | `Tree` | Data | `Tree({ nodes: [...] })` |
 | `Table` | Data | `Table({ columns, data })` |
+| `AutocompleteInput` | Compound | `AutocompleteInput({ state })` |
+| `AutocompleteSuggestions` | Compound | `AutocompleteSuggestions({ state })` |
 | `ScrollList` | Render | `ScrollList({ items, children: fn })` |
 | `Static` | Render | `Static({ items, children: fn })` |
 | `Each` | Render | `Each(items, fn)` |
@@ -428,6 +519,7 @@ ScrollList({
 | **Variadic** | Layout primitives | Maximum - unlimited children |
 | **Props** | Slot-based layouts | Structured - named areas |
 | **Data** | Configuration-driven | Dynamic - array operations |
+| **Compound** | State sharing | Position anywhere |
 | **Render** | List optimization | Efficient - deferred rendering |
 
 The pattern matches the component's **purpose**:
@@ -435,6 +527,7 @@ The pattern matches the component's **purpose**:
 - **Layout primitives** (`Box`) need unlimited composition
 - **Page layouts** (`AppShell`) need organized slots
 - **Selection components** (`Tabs`) need data structures
+- **Compound components** (`AutocompleteInput`) need flexible positioning
 - **List components** (`ScrollList`) need efficient rendering
 
 ---
