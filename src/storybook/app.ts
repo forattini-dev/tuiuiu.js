@@ -33,6 +33,7 @@ import {
   HotkeysPanel,
   PressedKeysIndicator,
   recordKeyPress,
+  recordMouseClick,
   clearOldKeyPresses,
 } from './components/index.js';
 
@@ -964,6 +965,17 @@ function StorybookApp(): VNode {
       if (currentStory?.animation?.enabled && currentStory?.animation?.pausable) {
         setIsPaused((p) => !p);
       }
+    }
+  });
+
+  // Global mouse tracking for visual feedback
+  useMouse((event) => {
+    // Record mouse events for the indicator
+    recordMouseClick(event);
+
+    // Track clicks for metrics
+    if (event.action === 'click' || event.action === 'double-click') {
+      setClickCount((c) => c + 1);
     }
   });
 

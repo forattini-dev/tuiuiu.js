@@ -1,8 +1,8 @@
 /**
  * PressedKeysIndicator Component
  *
- * Shows recent key presses for visual feedback.
- * Helps users understand keyboard interactions.
+ * Shows recent key presses and mouse clicks for visual feedback.
+ * Helps users understand keyboard and mouse interactions.
  */
 
 import { Box, Text, Spacer } from '../../primitives/nodes.js';
@@ -10,6 +10,7 @@ import { createSignal } from '../../primitives/signal.js';
 import { getTheme } from '../../core/theme.js';
 import type { VNode } from '../../utils/types.js';
 import type { Key } from '../../hooks/types.js';
+import type { MouseEvent } from '../../hooks/use-mouse.js';
 
 // =============================================================================
 // Types
@@ -18,6 +19,7 @@ import type { Key } from '../../hooks/types.js';
 interface KeyPress {
   key: string;
   timestamp: number;
+  type: 'key' | 'mouse';
 }
 
 // =============================================================================
@@ -78,10 +80,80 @@ export function recordKeyPress(input: string, key: Key): void {
     // Remove old keys
     const filtered = prev.filter(k => now - k.timestamp < KEY_DISPLAY_TIME);
     // Add new key
-    const updated = [...filtered, { key: keyName, timestamp: now }];
+    const updated = [...filtered, { key: keyName, timestamp: now, type: 'key' as const }];
     // Keep only last MAX_KEYS
     return updated.slice(-MAX_KEYS);
   });
+}
+
+// =============================================================================
+// Mouse Recording
+// =============================================================================
+
+/**
+ * Record a mouse event to be displayed
+ */
+export function recordMouseClick(event: MouseEvent): void {
+  const now = Date.now();
+
+  // Only show meaningful actions (not releases or moves without drag)
+  if (event.action === 'release' || event.action === 'move') {
+    return;
+  }
+
+  // Build display name for the mouse event
+  let mouseName = '';
+
+  // Button prefix
+  const buttonPrefix = event.button === 'left' ? 'L'
+    : event.button === 'right' ? 'R'
+    : event.button === 'middle' ? 'M'
+    : '';
+
+  // Action suffix
+  switch (event.action) {
+    case 'click':
+      if (event.button === 'scroll-up') mouseName = '⇡Scroll';
+      else if (event.button === 'scroll-down') mouseName = '⇣Scroll';
+      else mouseName = `${buttonPrefix}Click`;
+      break;
+    case 'double-click':
+      mouseName = `${buttonPrefix}DblClick`;
+      break;
+    case 'drag':
+      mouseName = `${buttonPrefix}Drag`;
+      break;
+    default:
+      return;
+  }
+
+  // Add modifiers
+  if (event.modifiers.ctrl) mouseName = `C-${mouseName}`;
+  if (event.modifiers.alt) mouseName = `A-${mouseName}`;
+  if (event.modifiers.shift) mouseName = `S-${mouseName}`;
+
+  if (!mouseName) return;
+
+  setKeyPresses(prev => {
+    // Remove old entries
+    const filtered = prev.filter(k => now - k.timestamp < KEY_DISPLAY_TIME);
+    // Add new mouse event
+    const updated = [...filtered, { key: mouseName, timestamp: now, type: 'mouse' as const }];
+    // Keep only last MAX_KEYS
+    return updated.slice(-MAX_KEYS);
+  });
+}
+
+/**
+ * Creates a mouse handler that records mouse events
+ */
+export function withMouseRecording(
+  handler: (event: MouseEvent) => void
+): (event: MouseEvent) => void {
+  return (event: MouseEvent) => {
+    recordMouseClick(event);
+    handler(event);
+  };
 }
 
 /**
@@ -144,17 +216,22 @@ export function PressedKeysIndicator(): VNode {
         ? Text({ color: theme.foreground.muted, dim: true }, '(none)')
         : Box(
             { flexDirection: 'row', gap: 1 },
-            ...keys.map(({ key, timestamp }) => {
+            ...keys.map(({ key, timestamp, type }) => {
               const age = now - timestamp;
               const isFading = age > KEY_DISPLAY_TIME * 0.6;
 
+              // Different colors for keyboard vs mouse events
+              const activeColor = type === 'mouse'
+                ? theme.accents.warning  // Warm color for mouse
+                : theme.accents.highlight;  // Cool color for keys
+
               return Text(
                 {
-                  color: isFading ? theme.foreground.muted : theme.accents.highlight,
+                  color: isFading ? theme.foreground.muted : activeColor,
                   bold: !isFading,
                   dim: isFading,
                 },
-                `[${key}]`,
+                type === 'mouse' ? `🖱${key}` : `[${key}]`,
               );
             }),
           ),
