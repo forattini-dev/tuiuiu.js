@@ -1,6 +1,6 @@
 /**
  * Layout Box Model Demo - For documentation GIF
- * Shows margin, border, padding, and content visually
+ * Shows practical examples of padding, margin, border configurations
  */
 
 import {
@@ -13,130 +13,153 @@ import {
   type VNode,
 } from '../../src/index.js';
 
-function BoxModelDemo(): VNode {
+function LayoutDemo(): VNode {
   const { exit } = useApp();
   const [step, setStep] = createSignal(0);
 
   useEffect(() => {
-    // Animate through different states
     const interval = setInterval(() => {
-      setStep(s => (s + 1) % 5);
-    }, 2000);
+      setStep(s => (s + 1) % 6);
+    }, 2500);
 
-    setTimeout(() => exit(), 12000);
+    setTimeout(() => exit(), 16000);
     return () => clearInterval(interval);
   });
 
-  const currentStep = step();
+  const s = step();
+
+  // Dynamic box that changes based on step
+  const getDynamicProps = () => {
+    switch (s) {
+      case 0: return { padding: 0, margin: 0, borderStyle: undefined, label: 'No styling' };
+      case 1: return { padding: 1, margin: 0, borderStyle: undefined, label: 'padding: 1' };
+      case 2: return { padding: 2, margin: 0, borderStyle: undefined, label: 'padding: 2' };
+      case 3: return { padding: 1, margin: 0, borderStyle: 'round' as const, label: 'borderStyle: "round"' };
+      case 4: return { padding: 1, margin: 1, borderStyle: 'round' as const, label: 'margin: 1' };
+      case 5: return { padding: 2, margin: 2, borderStyle: 'double' as const, label: 'All combined' };
+      default: return { padding: 0, margin: 0, borderStyle: undefined, label: '' };
+    }
+  };
+
+  const props = getDynamicProps();
 
   return Box(
     { flexDirection: 'column', padding: 1 },
-    Text({ color: 'cyan', bold: true }, '📦 Box Model: Margin → Border → Padding → Content'),
+    Text({ color: 'cyan', bold: true }, '📦 Layout: Padding, Margin & Border'),
     Box({ height: 1 }),
 
-    // Main demonstration area
+    // Side by side comparison
     Box(
-      { flexDirection: 'row', gap: 4 },
+      { flexDirection: 'row', gap: 3 },
 
-      // Visual box model
+      // Padding examples
       Box(
-        { flexDirection: 'column', alignItems: 'center' },
-        // Outer margin area (simulated with background)
-        Box(
-          {
-            backgroundColor: currentStep >= 0 ? '#1a3a5c' : undefined,
-            padding: 1,
-          },
-          Text({ color: 'cyan', dim: true }, currentStep >= 0 ? '  margin  ' : '          '),
-          Box(
-            {
-              borderStyle: currentStep >= 1 ? 'round' : undefined,
-              borderColor: currentStep >= 1 ? 'yellow' : undefined,
-              padding: currentStep >= 2 ? 2 : 0,
-              backgroundColor: currentStep >= 2 ? '#2a2a4a' : undefined,
-            },
-            currentStep >= 2
-              ? Box(
-                  { flexDirection: 'column' },
-                  Text({ color: 'magenta', dim: true }, '  padding  '),
-                  Box(
-                    {
-                      backgroundColor: currentStep >= 3 ? '#3a5a3a' : undefined,
-                      padding: 1,
-                    },
-                    Text({ color: 'green', bold: currentStep >= 3 }, currentStep >= 3 ? ' CONTENT ' : '         ')
-                  ),
-                  Text({ color: 'magenta', dim: true }, '  padding  ')
-                )
-              : Text({}, currentStep >= 1 ? '         ' : '         ')
-          ),
-          Text({ color: 'cyan', dim: true }, currentStep >= 0 ? '  margin  ' : '          ')
-        )
-      ),
-
-      // Legend
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Text({ color: 'white', bold: true }, 'Legend:'),
+        { flexDirection: 'column' },
+        Text({ color: 'yellow', bold: true }, 'Padding'),
         Box({ height: 1 }),
         Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ backgroundColor: '#1a3a5c', width: 3 }, Text({}, '   ')),
-          Text({ color: currentStep >= 0 ? 'cyan' : 'gray' }, 'Margin (outside)')
+          { flexDirection: 'row', gap: 2 },
+          Box(
+            { backgroundColor: '#1a3a5c', padding: 0 },
+            Text({ color: 'white' }, 'p:0')
+          ),
+          Box(
+            { backgroundColor: '#1a3a5c', padding: 1 },
+            Text({ color: 'white' }, 'p:1')
+          ),
+          Box(
+            { backgroundColor: '#1a3a5c', padding: 2 },
+            Text({ color: 'white' }, 'p:2')
+          ),
         ),
+      ),
+
+      // Border examples
+      Box(
+        { flexDirection: 'column' },
+        Text({ color: 'magenta', bold: true }, 'Border Styles'),
+        Box({ height: 1 }),
         Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ borderStyle: 'round', borderColor: 'yellow', width: 3 }, Text({}, ' ')),
-          Text({ color: currentStep >= 1 ? 'yellow' : 'gray' }, 'Border (1 char)')
+          { flexDirection: 'row', gap: 2 },
+          Box(
+            { borderStyle: 'single', borderColor: 'gray', padding: 0 },
+            Text({}, 'single')
+          ),
+          Box(
+            { borderStyle: 'round', borderColor: 'cyan', padding: 0 },
+            Text({}, 'round')
+          ),
+          Box(
+            { borderStyle: 'double', borderColor: 'yellow', padding: 0 },
+            Text({}, 'double')
+          ),
         ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ backgroundColor: '#2a2a4a', width: 3 }, Text({}, '   ')),
-          Text({ color: currentStep >= 2 ? 'magenta' : 'gray' }, 'Padding (inside)')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ backgroundColor: '#3a5a3a', width: 3 }, Text({}, '   ')),
-          Text({ color: currentStep >= 3 ? 'green' : 'gray' }, 'Content')
-        ),
-      )
+      ),
     ),
 
     Box({ height: 1 }),
 
-    // Current step indicator
+    // Margin examples
     Box(
-      { flexDirection: 'row', gap: 2 },
-      Text({ color: currentStep === 0 ? 'cyan' : 'gray', bold: currentStep === 0 }, '1.Margin'),
-      Text({ color: 'gray' }, '→'),
-      Text({ color: currentStep === 1 ? 'yellow' : 'gray', bold: currentStep === 1 }, '2.Border'),
-      Text({ color: 'gray' }, '→'),
-      Text({ color: currentStep === 2 ? 'magenta' : 'gray', bold: currentStep === 2 }, '3.Padding'),
-      Text({ color: 'gray' }, '→'),
-      Text({ color: currentStep === 3 ? 'green' : 'gray', bold: currentStep === 3 }, '4.Content'),
-      Text({ color: 'gray' }, '→'),
-      Text({ color: currentStep === 4 ? 'white' : 'gray', bold: currentStep === 4 }, '5.Complete!')
+      { flexDirection: 'column' },
+      Text({ color: 'green', bold: true }, 'Margin (space between boxes)'),
+      Box({ height: 1 }),
+      Box(
+        { flexDirection: 'row', backgroundColor: '#2a2a2a' },
+        Box(
+          { backgroundColor: '#3a5a3a', margin: 0, padding: 1 },
+          Text({ color: 'white' }, 'm:0')
+        ),
+        Box(
+          { backgroundColor: '#3a5a3a', margin: 1, padding: 1 },
+          Text({ color: 'white' }, 'm:1')
+        ),
+        Box(
+          { backgroundColor: '#3a5a3a', margin: 2, padding: 1 },
+          Text({ color: 'white' }, 'm:2')
+        ),
+      ),
     ),
 
     Box({ height: 1 }),
 
-    // Code example for current step
+    // Dynamic example
     Box(
-      { borderStyle: 'round', borderColor: 'gray', padding: 1 },
-      Text(
-        { color: 'white' },
-        currentStep === 0
-          ? 'Box({ margin: 2 }, ...)'
-          : currentStep === 1
-            ? 'Box({ margin: 2, borderStyle: "round" }, ...)'
-            : currentStep === 2
-              ? 'Box({ margin: 2, borderStyle: "round", padding: 2 }, ...)'
-              : currentStep === 3
-                ? 'Box({ margin: 2, borderStyle: "round", padding: 2 }, Text({}, "Content"))'
-                : '✓ Complete Box Model!'
+      { flexDirection: 'row', gap: 3 },
+      Box(
+        { flexDirection: 'column' },
+        Text({ color: 'white', bold: true }, 'Dynamic Example:'),
+        Box({ height: 1 }),
+        Box(
+          { backgroundColor: '#2a4a6a' },
+          Box(
+            {
+              backgroundColor: '#4a6a8a',
+              padding: props.padding,
+              margin: props.margin,
+              borderStyle: props.borderStyle,
+              borderColor: 'cyan',
+            },
+            Text({ color: 'white', bold: true }, 'Content')
+          ),
+        ),
+      ),
+      Box(
+        { flexDirection: 'column', justifyContent: 'center' },
+        Text({ color: 'cyan', bold: true }, `→ ${props.label}`),
+      ),
+    ),
+
+    Box({ height: 1 }),
+
+    // Step indicator
+    Box(
+      { flexDirection: 'row', gap: 1 },
+      ...Array.from({ length: 6 }, (_, i) =>
+        Text({ color: i === s ? 'cyan' : 'gray', bold: i === s }, i === s ? '●' : '○')
       )
-    )
+    ),
   );
 }
 
-render(() => BoxModelDemo());
+render(() => LayoutDemo());

@@ -1,12 +1,12 @@
 # Layout Box Model Demo - Clean documentation GIF
-# Shows margin, border, padding, and content step by step
+# Shows padding, margin, border examples side by side
 
 Output docs/recordings/core/layout-boxmodel.gif
 
 Set Shell bash
 Set FontSize 14
-Set Width 750
-Set Height 380
+Set Width 700
+Set Height 400
 Set Padding 20
 Set PlaybackSpeed 1
 Set TypingSpeed 0
@@ -18,8 +18,8 @@ Enter
 Sleep 1s
 Show
 
-# Watch the animation cycle through all steps
-Sleep 11s
+# Watch the dynamic example cycle through configurations
+Sleep 15s
 
 Hide
 Ctrl+C

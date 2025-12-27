@@ -38,7 +38,6 @@ function ThemeShowcase(): VNode {
   });
 
   const theme = useTheme();
-  const currentThemeName = themeOrder[themeIndex()];
 
   return Box(
     { flexDirection: 'column', padding: 1, backgroundColor: resolveColor('background') },
@@ -47,7 +46,7 @@ function ThemeShowcase(): VNode {
     Box(
       { flexDirection: 'row', justifyContent: 'space-between' },
       Text({ color: resolveColor('primary'), bold: true }, '🎨 Tuiuiu Themes'),
-      Text({ color: resolveColor('mutedForeground') }, `Current: ${currentThemeName}`)
+      Text({ color: resolveColor('mutedForeground') }, `Current: ${themeOrder[themeIndex()]}`)
     ),
     Box({ height: 1 }),
 
