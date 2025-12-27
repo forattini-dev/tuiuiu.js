@@ -116,6 +116,7 @@ ScrollList({
 | `state` | `ScrollListState` | - | External state for control |
 | `autoScroll` | `boolean` | `false` | Auto-scroll to bottom when content grows |
 | `autoScrollThreshold` | `number` | `0` | Only auto-scroll if within N lines of bottom (0 = always) |
+| `hotkeyScope` | `string` | `'global'` | Hotkey scope for conflict prevention (see [Hotkeys](/core/hotkeys.md)) |
 
 ### Auto Height Estimation
 

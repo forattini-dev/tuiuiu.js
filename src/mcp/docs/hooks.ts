@@ -78,15 +78,21 @@ export const hooks: HookDoc[] = [
   },
   {
     name: 'useHotkeys',
-    description: 'Register keyboard shortcuts with human-readable syntax.',
-    signature: 'useHotkeys(bindings: HotkeyBinding[], options?: HotkeyOptions): void',
+    description: 'Register a keyboard shortcut with human-readable syntax. Supports scopes to prevent conflicts between components.',
+    signature: 'useHotkeys(hotkeys: string | string[], handler: () => void, options?: HotkeyOptions): void',
     params: [
-      { name: 'bindings', type: 'HotkeyBinding[]', required: true, description: 'Array of { key, handler, description? }' },
-      { name: 'options.scope', type: 'string', required: false, description: 'Hotkey scope for context-specific shortcuts' },
+      { name: 'hotkeys', type: 'string | string[]', required: true, description: 'Hotkey string(s) like "ctrl+s" or ["ctrl+z", "cmd+z"]' },
+      { name: 'handler', type: '() => void', required: true, description: 'Function to call when hotkey is triggered' },
+      { name: 'options.scope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope - only fires when scope matches current scope' },
+      { name: 'options.description', type: 'string', required: false, description: 'Description for help screens (via getRegisteredHotkeys)' },
     ],
     returns: 'void',
     examples: [
-      `useHotkeys([\n  { key: 'ctrl+s', handler: save, description: 'Save file' },\n  { key: 'ctrl+q', handler: quit, description: 'Quit' },\n  { key: 'cmd+shift+p', handler: openPalette, description: 'Command palette' }\n]);`,
+      `// Simple hotkey\nuseHotkeys('ctrl+s', () => save());`,
+      `// Cross-platform (Ctrl on Linux/Windows, Cmd on Mac)\nuseHotkeys(['ctrl+z', 'cmd+z'], () => undo());`,
+      `// Scoped hotkey (only fires when scope is 'modal')\nuseHotkeys('escape', () => closeModal(), { scope: 'modal' });`,
+      `// With description for help screen\nuseHotkeys('f1', () => showHelp(), { description: 'Show help' });`,
+      `// Multiple hotkeys in component\nfunction Editor() {\n  useHotkeys('ctrl+s', save, { description: 'Save' });\n  useHotkeys('ctrl+z', undo, { description: 'Undo' });\n  useHotkeys('ctrl+f', find, { description: 'Find' });\n}`,
     ],
   },
   {

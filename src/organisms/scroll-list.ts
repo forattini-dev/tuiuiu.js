@@ -17,7 +17,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
-import { useInput } from '../hooks/index.js';
+import { useHotkeys, getHotkeyScope, type HotkeyOptions } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { renderToString } from '../core/renderer.js';
 
@@ -84,6 +84,24 @@ export interface ScrollListProps<T> {
    * When 0, always auto-scroll regardless of current position.
    */
   autoScrollThreshold?: number;
+
+  /**
+   * Hotkey scope for keyboard navigation (default: 'global')
+   *
+   * Use scopes to prevent conflicts when multiple scroll lists exist,
+   * or when scroll list is inside a modal/overlay.
+   *
+   * @example
+   * ```typescript
+   * // Only responds when 'chat' scope is active
+   * ScrollList({ ..., hotkeyScope: 'chat' })
+   *
+   * // In parent component
+   * pushHotkeyScope('chat')  // Enable chat hotkeys
+   * popHotkeyScope()         // Disable chat hotkeys
+   * ```
+   */
+  hotkeyScope?: string;
 }
 
 export interface ScrollListState {
@@ -335,6 +353,7 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     state: externalState,
     autoScroll = false,
     autoScrollThreshold = 0,
+    hotkeyScope = 'global',
   } = props;
 
   // Use external state or create internal
@@ -420,24 +439,44 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
 
   const scrollTop = state.scrollTop();
 
-  // Keyboard handling
-  useInput((input, key) => {
-    if (!keysEnabled) return;
+  // Keyboard handling via hotkeys system
+  // Hotkeys only fire when:
+  // 1. keysEnabled is true
+  // 2. isActive is true
+  // 3. The current scope matches hotkeyScope (or scope is 'global')
+  const hotkeyOptions: HotkeyOptions = { scope: hotkeyScope };
 
-    if (key.pageUp) state.pageUp();
-    else if (key.pageDown) state.pageDown();
-    else if (key.home) state.scrollToTop();
-    else if (key.end) state.scrollToBottom();
+  // Helper to conditionally execute scroll action
+  const scrollAction = (action: () => void) => () => {
+    if (keysEnabled && isActive) action();
+  };
 
-    // Arrows / Vim keys
-    if (inverted) {
-      if (key.upArrow || input === 'k') state.scrollBy(1);
-      else if (key.downArrow || input === 'j') state.scrollBy(-1);
-    } else {
-      if (key.upArrow || input === 'k') state.scrollBy(-1);
-      else if (key.downArrow || input === 'j') state.scrollBy(1);
-    }
-  }, { isActive });
+  // Navigation hotkeys
+  // Page up/down
+  useHotkeys('pageup', scrollAction(() => state.pageUp()), hotkeyOptions);
+  useHotkeys('pagedown', scrollAction(() => state.pageDown()), hotkeyOptions);
+
+  // Home/End - go to top/bottom
+  useHotkeys('home', scrollAction(() => state.scrollToTop()), hotkeyOptions);
+  useHotkeys('end', scrollAction(() => state.scrollToBottom()), hotkeyOptions);
+
+  // Arrow keys - direction depends on inverted mode
+  if (inverted) {
+    useHotkeys('up', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
+    useHotkeys('down', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
+  } else {
+    useHotkeys('up', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
+    useHotkeys('down', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
+  }
+
+  // Vim keys - same direction logic
+  if (inverted) {
+    useHotkeys('k', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
+    useHotkeys('j', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
+  } else {
+    useHotkeys('k', scrollAction(() => state.scrollBy(-1)), hotkeyOptions);
+    useHotkeys('j', scrollAction(() => state.scrollBy(1)), hotkeyOptions);
+  }
 
   // Mouse scroll
   const handleScroll = (event: { button: string }) => {

@@ -466,6 +466,7 @@ DataTable({
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control via useScrollList()' },
       { name: 'autoScroll', type: 'boolean', required: false, default: 'false', description: 'Auto-scroll to bottom when content grows (useful for chat/log UIs)' },
       { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Only auto-scroll if within this many lines from bottom. 0 = always auto-scroll.' },
+      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention. Only fires hotkeys when scope matches current scope (via setHotkeyScope/pushHotkeyScope).' },
     ],
     examples: [
       `// ✅ CORRECT - children is a function\nScrollList({\n  items: files(),  // Reactive signal\n  children: (file) => FileRow({ file }),  // Function!\n  height: 20,\n})`,
@@ -473,6 +474,7 @@ DataTable({
       `// ✅ Auto-scroll to follow new items (like logs)\nScrollList({\n  items: logs(),\n  children: (log) => LogEntry({ log }),\n  height: 20,\n  autoScroll: true,  // Always scroll to new items\n})`,
       `// ✅ Smart auto-scroll (only if near bottom)\nScrollList({\n  items: messages(),\n  children: (msg) => Message({ msg }),\n  height: 20,\n  autoScroll: true,\n  autoScrollThreshold: 5,  // Only auto-scroll if within 5 lines of bottom\n})`,
       `// ❌ WRONG - children must be function, not VNode\nScrollList({\n  items: data,\n  children: Item({ data: data[0] })  // WRONG! Must be function\n})`,
+      `// ✅ Hotkey scopes for conflict prevention\n// Two lists, different scopes - only one responds to keys\nScrollList({\n  items: chatMessages,\n  children: (msg) => ChatBubble({ msg }),\n  height: 20,\n  hotkeyScope: 'chat',  // Only fires when scope is 'chat'\n})\n\nScrollList({\n  items: searchResults,\n  children: (r) => SearchResult({ r }),\n  height: 10,\n  hotkeyScope: 'search',  // Only fires when scope is 'search'\n})\n\n// Activate one or the other:\npushHotkeyScope('chat')   // Chat list responds to keys\n// or\npushHotkeyScope('search') // Search list responds to keys`,
     ],
   },
   {
@@ -489,6 +491,7 @@ DataTable({
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control' },
       { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll when new messages arrive (enabled by default!)' },
       { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Smart auto-scroll threshold' },
+      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention' },
     ],
     examples: [
       `// Basic chat - auto-scrolls to new messages\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n})`,
