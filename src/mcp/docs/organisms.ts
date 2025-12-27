@@ -452,7 +452,7 @@ DataTable({
   {
     name: 'ScrollList',
     category: 'organisms',
-    description: 'Scroll list with automatic height estimation, caching, and keyboard navigation. **API Pattern: Render Function** - children is a FUNCTION that receives each item. Items can be reactive (signal/store) for auto-updates.',
+    description: 'Scroll list with automatic height estimation, caching, and keyboard navigation. **API Pattern: Render Function** - children is a FUNCTION that receives each item. Items can be reactive (signal/store) for auto-updates. Supports auto-scroll for chat/log UIs.',
     props: [
       { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items to display - supports signals, stores, or static arrays. When reactive, list auto-updates!' },
       { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render FUNCTION (NOT VNode!) - called for each item' },
@@ -464,17 +464,21 @@ DataTable({
       { name: 'keysEnabled', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation' },
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is component focused' },
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control via useScrollList()' },
+      { name: 'autoScroll', type: 'boolean', required: false, default: 'false', description: 'Auto-scroll to bottom when content grows (useful for chat/log UIs)' },
+      { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Only auto-scroll if within this many lines from bottom. 0 = always auto-scroll.' },
     ],
     examples: [
       `// ✅ CORRECT - children is a function\nScrollList({\n  items: files(),  // Reactive signal\n  children: (file) => FileRow({ file }),  // Function!\n  height: 20,\n})`,
       `// ✅ With Redux-like store - auto-updates on dispatch!\nconst store = createStore(todoReducer, { items: [] })\n\nScrollList({\n  items: () => store.getState().items,  // Derived from store\n  children: (item) => TodoItem({ item }),\n  height: 15,\n})\n\nstore.dispatch({ type: 'ADD', payload: newItem }) // List updates!`,
+      `// ✅ Auto-scroll to follow new items (like logs)\nScrollList({\n  items: logs(),\n  children: (log) => LogEntry({ log }),\n  height: 20,\n  autoScroll: true,  // Always scroll to new items\n})`,
+      `// ✅ Smart auto-scroll (only if near bottom)\nScrollList({\n  items: messages(),\n  children: (msg) => Message({ msg }),\n  height: 20,\n  autoScroll: true,\n  autoScrollThreshold: 5,  // Only auto-scroll if within 5 lines of bottom\n})`,
       `// ❌ WRONG - children must be function, not VNode\nScrollList({\n  items: data,\n  children: Item({ data: data[0] })  // WRONG! Must be function\n})`,
     ],
   },
   {
     name: 'ChatList',
     category: 'organisms',
-    description: 'Pre-configured ScrollList for chat/messaging UIs with inverted scroll (newest at bottom).',
+    description: 'Pre-configured ScrollList for chat/messaging UIs with inverted scroll (newest at bottom) and auto-scroll enabled by default.',
     props: [
       { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Chat messages to display' },
       { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render function for each message' },
@@ -483,13 +487,12 @@ DataTable({
       { name: 'itemHeight', type: 'number | ((item: T) => number)', required: false, description: 'Item height' },
       { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show/hide scrollbar' },
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control' },
+      { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll when new messages arrive (enabled by default!)' },
+      { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Smart auto-scroll threshold' },
     ],
     examples: [
-      `ChatList({
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg }),
-  height: 20,
-})`,
+      `// Basic chat - auto-scrolls to new messages\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n})`,
+      `// Disable auto-scroll\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n  autoScroll: false,\n})`,
     ],
   },
   {

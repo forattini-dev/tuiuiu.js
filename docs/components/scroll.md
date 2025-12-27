@@ -114,6 +114,8 @@ ScrollList({
 | `keysEnabled` | `boolean` | `true` | Enable keyboard navigation |
 | `isActive` | `boolean` | `true` | Is component focused |
 | `state` | `ScrollListState` | - | External state for control |
+| `autoScroll` | `boolean` | `false` | Auto-scroll to bottom when content grows |
+| `autoScrollThreshold` | `number` | `0` | Only auto-scroll if within N lines of bottom (0 = always) |
 
 ### Auto Height Estimation
 
@@ -136,7 +138,7 @@ invalidateScrollListItem(message)
 
 ## ChatList
 
-Pre-configured for chat/messaging UIs with inverted scroll (newest at bottom).
+Pre-configured for chat/messaging UIs with inverted scroll (newest at bottom) and **auto-scroll enabled by default**.
 
 ```typescript
 import { ChatList } from 'tuiuiu.js'
@@ -156,6 +158,25 @@ ScrollList({
   children: (msg) => ChatBubble({ message: msg }),
   height: 20,
   inverted: true,
+  autoScroll: true,  // Enabled by default in ChatList!
+})
+```
+
+### Auto-Scroll Behavior
+
+When `autoScroll` is enabled:
+- New items automatically scroll into view
+- Use `autoScrollThreshold` for "smart" scrolling (only auto-scroll if user is near bottom)
+- Works in both normal and inverted modes
+
+```typescript
+// Smart auto-scroll (respects user scroll position)
+ScrollList({
+  items: logs(),
+  children: (log) => LogEntry({ log }),
+  height: 20,
+  autoScroll: true,
+  autoScrollThreshold: 5, // Only auto-scroll if within 5 lines of bottom
 })
 ```
 
@@ -194,6 +215,7 @@ function MessageList() {
 | `scrollBy(delta)` | `(delta: number) => void` | Scroll by delta |
 | `scrollTop()` | `() => number` | Current scroll position |
 | `maxScroll()` | `() => number` | Maximum scroll value |
+| `isNearBottom(threshold?)` | `(threshold?: number) => boolean` | Check if near bottom |
 | `bind` | `{ state: ScrollListState }` | Props to spread into ScrollList |
 
 ## Keyboard Navigation

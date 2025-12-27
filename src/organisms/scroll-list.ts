@@ -70,6 +70,20 @@ export interface ScrollListProps<T> {
 
   /** External state from useScrollList */
   state?: ScrollListState;
+
+  /**
+   * Auto-scroll to bottom when content grows (default: false)
+   * Useful for chat/log UIs where new items appear at the bottom
+   */
+  autoScroll?: boolean;
+
+  /**
+   * Auto-scroll threshold in lines (default: 0)
+   * When > 0, only auto-scroll if user is within this many lines from bottom.
+   * This enables "smart" auto-scroll that respects when user scrolls up to read.
+   * When 0, always auto-scroll regardless of current position.
+   */
+  autoScrollThreshold?: number;
 }
 
 export interface ScrollListState {
@@ -83,6 +97,8 @@ export interface ScrollListState {
   pageDown: () => void;
   setHeight: (h: number) => void;
   setInverted: (inv: boolean) => void;
+  /** Check if user is near bottom (within threshold lines) */
+  isNearBottom: (threshold?: number) => boolean;
 }
 
 interface ScrollListInternalOptions {
@@ -133,6 +149,7 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
   const [height, setHeight] = createSignal(initialHeight);
   const [inverted, setInverted] = createSignal(initialInverted);
   const [maxScroll, setMaxScroll] = createSignal(0);
+  const [prevItemCount, setPrevItemCount] = createSignal(0);
 
   const scrollBy = (delta: number) => {
     const max = maxScroll();
@@ -162,6 +179,27 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
     scrollTo(inverted() ? maxScroll() : 0);
   };
 
+  /**
+   * Check if user is near bottom (within threshold lines)
+   * In inverted mode, "near bottom" means scrollTop is near 0
+   * In normal mode, "near bottom" means scrollTop is near maxScroll
+   */
+  const isNearBottom = (threshold: number = 0): boolean => {
+    const max = maxScroll();
+    const current = scrollTop();
+    const inv = inverted();
+
+    if (max === 0) return true; // No scrolling needed = at bottom
+
+    if (inv) {
+      // Inverted: bottom is at scrollTop = 0
+      return current <= threshold;
+    } else {
+      // Normal: bottom is at scrollTop = maxScroll
+      return current >= max - threshold;
+    }
+  };
+
   return {
     scrollTop,
     maxScroll,
@@ -173,9 +211,16 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
     pageDown,
     setHeight,
     setInverted,
-    // Internal: allow updating maxScroll from component
+    isNearBottom,
+    // Internal: allow updating maxScroll and item count from component
     _setMaxScroll: setMaxScroll,
-  } as ScrollListState & { _setMaxScroll: (max: number) => void };
+    _prevItemCount: prevItemCount,
+    _setPrevItemCount: setPrevItemCount,
+  } as ScrollListState & {
+    _setMaxScroll: (max: number) => void;
+    _prevItemCount: () => number;
+    _setPrevItemCount: (count: number) => void;
+  };
 }
 
 // =============================================================================
@@ -199,6 +244,8 @@ export interface UseScrollListReturn {
   scrollTop: () => number;
   /** Maximum scroll value */
   maxScroll: () => number;
+  /** Check if user is near bottom (within threshold lines) */
+  isNearBottom: (threshold?: number) => boolean;
   /** Props to spread into ScrollList */
   bind: { state: ScrollListState };
 }
@@ -232,6 +279,7 @@ export function useScrollList(options: UseScrollListOptions = {}): UseScrollList
     scrollBy: (delta: number) => state.scrollBy(delta),
     scrollTop: () => state.scrollTop(),
     maxScroll: () => state.maxScroll(),
+    isNearBottom: (threshold?: number) => state.isNearBottom(threshold),
     bind: { state },
   };
 }
@@ -285,10 +333,19 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     scrollbarColor = 'cyan',
     trackColor = 'gray',
     state: externalState,
+    autoScroll = false,
+    autoScrollThreshold = 0,
   } = props;
 
   // Use external state or create internal
   const state = externalState || createScrollList({ inverted, initialHeight: height });
+
+  // Cast to internal state type for accessing private methods
+  const internalState = state as ScrollListState & {
+    _setMaxScroll: (max: number) => void;
+    _prevItemCount: () => number;
+    _setPrevItemCount: (count: number) => void;
+  };
 
   // Update state with current props
   state.setHeight(height);
@@ -324,9 +381,41 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
 
   const maxScroll = Math.max(0, totalHeight - height);
 
-  // Update max scroll in state
-  if ('_setMaxScroll' in state) {
-    (state as any)._setMaxScroll(maxScroll);
+  // Auto-scroll when content grows
+  // IMPORTANT: Check isNearBottom BEFORE updating maxScroll, so we use the old maxScroll
+  if (autoScroll && '_prevItemCount' in internalState && '_setPrevItemCount' in internalState) {
+    const prevCount = internalState._prevItemCount();
+    const currentCount = itemList.length;
+
+    if (currentCount > prevCount) {
+      // Content has grown - check if we should auto-scroll
+      // Use current state (old maxScroll) to determine if user was near bottom
+      const shouldAutoScroll =
+        autoScrollThreshold === 0 ||
+        state.isNearBottom(autoScrollThreshold);
+
+      // Now update maxScroll before scrolling
+      if ('_setMaxScroll' in internalState) {
+        internalState._setMaxScroll(maxScroll);
+      }
+
+      if (shouldAutoScroll) {
+        state.scrollToBottom();
+      }
+    } else {
+      // No growth, just update maxScroll
+      if ('_setMaxScroll' in internalState) {
+        internalState._setMaxScroll(maxScroll);
+      }
+    }
+
+    // Update previous count
+    internalState._setPrevItemCount(currentCount);
+  } else {
+    // No auto-scroll, just update maxScroll
+    if ('_setMaxScroll' in internalState) {
+      internalState._setMaxScroll(maxScroll);
+    }
   }
 
   const scrollTop = state.scrollTop();
@@ -470,6 +559,7 @@ export interface ChatListProps<T> extends Omit<ScrollListProps<T>, 'inverted'> {
  * Features:
  * - Inverted by default (newest messages visible)
  * - Scroll 0 = bottom (newest)
+ * - Auto-scroll enabled (scrolls to new messages)
  * - Intuitive keyboard navigation
  *
  * @example
@@ -481,6 +571,7 @@ export interface ChatListProps<T> extends Omit<ScrollListProps<T>, 'inverted'> {
  */
 export function ChatList<T>(props: ChatListProps<T>): VNode {
   return ScrollList({
+    autoScroll: true, // Can be overridden by props
     ...props,
     inverted: true,
   });
