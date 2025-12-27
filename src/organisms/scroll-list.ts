@@ -505,7 +505,7 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
       state.scrollBy(inverted ? -1 : 1);
       return;
     }
-  })
+  }, { isActive })
 
   // Mouse scroll
   const handleScroll = (event: { button: string }) => {
