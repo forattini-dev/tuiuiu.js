@@ -58,12 +58,14 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
   const paddingRight = style.paddingRight ?? style.paddingX ?? style.padding ?? 0;
 
   // Calculate margin (handle 'auto' as 0 for now, centering would need parent context)
+  // IMPORTANT: Resolve shorthand FIRST with ??, THEN handle 'auto' conversion
+  // This fixes the bug where resolveMargin(undefined) returns 0, breaking the ?? chain
   const resolveMargin = (m: number | 'auto' | undefined): number =>
     m === 'auto' ? 0 : (m ?? 0);
-  const marginTop = resolveMargin(style.marginTop) ?? resolveMargin(style.marginY) ?? resolveMargin(style.margin);
-  const marginBottom = resolveMargin(style.marginBottom) ?? resolveMargin(style.marginY) ?? resolveMargin(style.margin);
-  const marginLeft = resolveMargin(style.marginLeft) ?? resolveMargin(style.marginX) ?? resolveMargin(style.margin);
-  const marginRight = resolveMargin(style.marginRight) ?? resolveMargin(style.marginX) ?? resolveMargin(style.margin);
+  const marginTop = resolveMargin(style.marginTop ?? style.marginY ?? style.margin);
+  const marginBottom = resolveMargin(style.marginBottom ?? style.marginY ?? style.margin);
+  const marginLeft = resolveMargin(style.marginLeft ?? style.marginX ?? style.margin);
+  const marginRight = resolveMargin(style.marginRight ?? style.marginX ?? style.margin);
 
   // Border takes 1 char each side if present
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
@@ -109,11 +111,13 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     }
     totalWidth += currentGap * Math.max(0, childLayouts.length - 1);
   } else {
+    // For column layout, use the maximum extent (y + height) of children
+    // This correctly accounts for child margins which offset their y position
     for (const child of childLayouts) {
       totalWidth = Math.max(totalWidth, child.width);
-      totalHeight += child.height;
+      totalHeight = Math.max(totalHeight, child.y + child.height);
     }
-    totalHeight += currentGap * Math.max(0, childLayouts.length - 1);
+    // Gap is already handled by layoutColumn which adds it to child.y positions
   }
 
   // Handle text node sizing
@@ -293,7 +297,12 @@ function layoutColumn(
     }
 
     results.push(layout);
-    y += layout.height;
+
+    // Add child's height plus its marginBottom to position next sibling correctly
+    const resolveMargin = (m: number | 'auto' | undefined): number =>
+      m === 'auto' ? 0 : (m ?? 0);
+    const childMarginBottom = resolveMargin(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
+    y += layout.height + childMarginBottom;
 
     if (i < children.length - 1) {
       y += gap;

@@ -32,19 +32,16 @@ describe('Margin Height Calculation', () => {
       expect(measureHeight(node, 80)).toBe(3); // 1 + 1 + 1
     });
 
-    it('handles marginY shorthand for marginBottom only (known limitation)', () => {
-      // Note: Due to a quirk in the layout engine's ?? chain, marginY/margin
-      // shortcuts only work for marginBottom in measureHeight, not marginTop.
-      // For accurate heights, use explicit marginTop/marginBottom.
+    it('handles marginY shorthand correctly', () => {
       const node = Box({ marginY: 2 }, Text({}, 'Hello'));
-      // marginTop is not picked up by layout (returns 0), marginBottom is picked up by measureHeight
-      expect(measureHeight(node, 80)).toBe(3); // 0 + 1 content + 2 bottom
+      // marginY: 2 means marginTop: 2 AND marginBottom: 2
+      expect(measureHeight(node, 80)).toBe(5); // 2 top + 1 content + 2 bottom
     });
 
-    it('handles margin shorthand for marginBottom only (known limitation)', () => {
-      // Same limitation as marginY
+    it('handles margin shorthand correctly', () => {
       const node = Box({ margin: 1 }, Text({}, 'Hello'));
-      expect(measureHeight(node, 80)).toBe(2); // 0 + 1 content + 1 bottom
+      // margin: 1 means all sides = 1
+      expect(measureHeight(node, 80)).toBe(3); // 1 top + 1 content + 1 bottom
     });
 
     it('handles multi-line content with margins', () => {
