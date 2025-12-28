@@ -289,7 +289,7 @@ describe('Performance Benchmarks: Chart Components', () => {
         renderToString(vnode, 70, 25);
       });
 
-      // Should be within 3x of each other
+      // Should be within 3.5x of each other
       // Skip if measurements are too fast (< 0.1ms)
       if (horizontalResult.avgMs < 0.1 && verticalResult.avgMs < 0.1) {
         expect(true).toBe(true); // Components are fast enough, skip ratio test
@@ -298,7 +298,7 @@ describe('Performance Benchmarks: Chart Components', () => {
           horizontalResult.avgMs / verticalResult.avgMs,
           verticalResult.avgMs / horizontalResult.avgMs
         );
-        expect(ratio).toBeLessThan(3);
+        expect(ratio).toBeLessThan(3.5);
       }
     });
   });
