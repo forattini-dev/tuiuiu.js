@@ -1512,3 +1512,420 @@ describe('multi-line items without overlap', () => {
     expect(output).not.toContain('Msg_04');
   });
 });
+
+// =============================================================================
+// Tests for Partial Item Handling (Text Leaking Prevention)
+// =============================================================================
+
+describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
+  beforeEach(() => {
+    clearScrollListCache();
+  });
+
+  describe('normal mode (top-down)', () => {
+    it('should skip partial items at the top of viewport', () => {
+      // Items: 4 items of 3 lines each (total 12 lines)
+      // Viewport: 10 lines
+      // scrollTop: 2 (first item is partially above viewport)
+      const state = createScrollList();
+      const items = ['AAA', 'BBB', 'CCC', 'DDD'];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Box(
+            { flexDirection: 'column' },
+            Text({}, `${item}_line1`),
+            Text({}, `${item}_line2`),
+            Text({}, `${item}_line3`),
+          ),
+          height: 10,
+          width: 40,
+          itemHeight: 3,
+        });
+        return renderToString(node, 40);
+      };
+
+      // First render to establish maxScroll
+      render();
+      // Now scroll to position 2 - first item (lines 0-2) is partially above
+      state.scrollTo(2);
+      const output = render();
+
+      // First item (AAA) should be SKIPPED because it starts before scrollTop
+      expect(output).not.toContain('AAA_line1');
+      expect(output).not.toContain('AAA_line2');
+      expect(output).not.toContain('AAA_line3');
+
+      // Second item (BBB, lines 3-5) should be fully visible
+      expect(output).toContain('BBB_line1');
+      expect(output).toContain('BBB_line2');
+      expect(output).toContain('BBB_line3');
+
+      // Third item (CCC, lines 6-8) should be fully visible
+      expect(output).toContain('CCC_line1');
+      expect(output).toContain('CCC_line2');
+      expect(output).toContain('CCC_line3');
+
+      // Fourth item (DDD, lines 9-11) FITS since renderedHeight=6, 6+3=9 <= 10
+      expect(output).toContain('DDD_line1');
+      expect(output).toContain('DDD_line2');
+      expect(output).toContain('DDD_line3');
+    });
+
+    it('should render correct items when scrolled exactly to item boundary', () => {
+      const state = createScrollList();
+      const items = ['AAA', 'BBB', 'CCC'];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Text({}, `${item}_content`),
+          height: 2,
+          width: 40,
+          itemHeight: 1,
+        });
+        return renderToString(node, 40);
+      };
+
+      // At scrollTop=0, show items 0-1
+      state.scrollTo(0);
+      let output = render();
+      expect(output).toContain('AAA_content');
+      expect(output).toContain('BBB_content');
+      expect(output).not.toContain('CCC_content');
+
+      // At scrollTop=1 (item boundary), show items 1-2
+      state.scrollTo(1);
+      output = render();
+      expect(output).not.toContain('AAA_content');
+      expect(output).toContain('BBB_content');
+      expect(output).toContain('CCC_content');
+    });
+
+    it('should not render more lines than viewport height', () => {
+      const state = createScrollList();
+      // 10 items of 2 lines each = 20 total lines
+      const items = Array.from({ length: 10 }, (_, i) => `Item${i}`);
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Box(
+            { flexDirection: 'column' },
+            Text({}, `${item}_L1`),
+            Text({}, `${item}_L2`),
+          ),
+          height: 5, // Only 5 lines visible
+          width: 40,
+          itemHeight: 2,
+        });
+        return renderToString(node, 40);
+      };
+
+      state.scrollTo(0);
+      const output = render();
+
+      // Should show first 2 items (4 lines) - can't fit 3rd item (would be 6 lines > 5)
+      expect(output).toContain('Item0_L1');
+      expect(output).toContain('Item0_L2');
+      expect(output).toContain('Item1_L1');
+      expect(output).toContain('Item1_L2');
+      // Item2 would push to 6 lines, so it should not be rendered
+      expect(output).not.toContain('Item2_L1');
+
+      // Count actual lines rendered
+      const lines = output.split('\n').filter(line => line.trim());
+      expect(lines.length).toBeLessThanOrEqual(5);
+    });
+
+    it('should handle scrollTop in the middle of an item', () => {
+      const state = createScrollList();
+      // 5 items of 3 lines each
+      const items = ['A', 'B', 'C', 'D', 'E'];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Box(
+            { flexDirection: 'column' },
+            Text({}, `${item}1`),
+            Text({}, `${item}2`),
+            Text({}, `${item}3`),
+          ),
+          height: 6,
+          width: 40,
+          itemHeight: 3,
+        });
+        return renderToString(node, 40);
+      };
+
+      // First render to establish maxScroll
+      render();
+      // scrollTop=4 is in the middle of item B (lines 3-5)
+      state.scrollTo(4);
+      const output = render();
+
+      // Item A (lines 0-2) is above viewport - skip
+      expect(output).not.toContain('A1');
+      expect(output).not.toContain('A2');
+      expect(output).not.toContain('A3');
+
+      // Item B (lines 3-5) STARTS before scrollTop=4, so it's partial - SKIP
+      expect(output).not.toContain('B1');
+      expect(output).not.toContain('B2');
+      expect(output).not.toContain('B3');
+
+      // Item C (lines 6-8) starts after scrollTop, should be visible
+      expect(output).toContain('C1');
+      expect(output).toContain('C2');
+      expect(output).toContain('C3');
+
+      // Item D (lines 9-11) FITS since renderedHeight=3, 3+3=6 <= 6
+      expect(output).toContain('D1');
+      expect(output).toContain('D2');
+      expect(output).toContain('D3');
+
+      // Item E would overflow (6+3=9 > 6), skip
+      expect(output).not.toContain('E1');
+    });
+  });
+
+  describe('inverted mode (chat-style)', () => {
+    it('should skip partial items at the bottom (scroll=0 in inverted mode)', () => {
+      const state = createScrollList({ inverted: true });
+      // 4 items of 3 lines each
+      const items = ['AAA', 'BBB', 'CCC', 'DDD'];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Box(
+            { flexDirection: 'column' },
+            Text({}, `${item}_1`),
+            Text({}, `${item}_2`),
+            Text({}, `${item}_3`),
+          ),
+          height: 10,
+          width: 40,
+          itemHeight: 3,
+          inverted: true,
+        });
+        return renderToString(node, 40);
+      };
+
+      // First render to establish maxScroll
+      render();
+      // In inverted mode, scrollTop=0 means "bottom" (newest visible)
+      // Scroll to 2 means 2 lines of newest item are hidden
+      state.scrollTo(2);
+      const output = render();
+
+      // DDD is newest, but starts before scrollTop - should be skipped
+      expect(output).not.toContain('DDD_1');
+      expect(output).not.toContain('DDD_2');
+      expect(output).not.toContain('DDD_3');
+
+      // CCC should be visible (second newest)
+      expect(output).toContain('CCC_1');
+      expect(output).toContain('CCC_2');
+      expect(output).toContain('CCC_3');
+
+      // BBB should be visible
+      expect(output).toContain('BBB_1');
+      expect(output).toContain('BBB_2');
+      expect(output).toContain('BBB_3');
+    });
+
+    it('should render newest items first when at bottom in inverted mode', () => {
+      const state = createScrollList({ inverted: true });
+      const items = ['Old1', 'Old2', 'Old3', 'New1', 'New2'];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Text({}, item),
+          height: 3,
+          width: 40,
+          itemHeight: 1,
+          inverted: true,
+        });
+        return renderToString(node, 40);
+      };
+
+      // At scrollTop=0 in inverted mode, we should see newest 3 items
+      state.scrollToBottom(); // which is scrollTop=0 in inverted mode
+      const output = render();
+
+      expect(output).toContain('New2');
+      expect(output).toContain('New1');
+      expect(output).toContain('Old3');
+      expect(output).not.toContain('Old2');
+      expect(output).not.toContain('Old1');
+    });
+  });
+
+  describe('content-based cache invalidation', () => {
+    it('should re-estimate height when object content changes', () => {
+      const state = createScrollList();
+      const items = [
+        { id: 1, text: 'Short' },
+        { id: 2, text: 'Also short' },
+      ];
+
+      const render = (items: Array<{ id: number; text: string }>) => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (item) => Text({}, item.text),
+          height: 10,
+          width: 20,
+          // No itemHeight - use auto-estimation
+        });
+        return renderToString(node, 20);
+      };
+
+      // First render
+      let output = render(items);
+      expect(output).toContain('Short');
+      expect(output).toContain('Also short');
+
+      // Mutate object content (same reference but different content)
+      items[0]!.text = 'Now this is a much much longer text that wraps';
+
+      // Re-render - should use new content for height calculation
+      output = render(items);
+      expect(output).toContain('Now this is a much');
+    });
+
+    it('should invalidate cache when clearScrollListCache is called', () => {
+      const state = createScrollList();
+      const item = { id: 1, text: 'Original' };
+      const items = [item];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (it) => Text({}, it.text),
+          height: 5,
+          width: 20,
+        });
+        return renderToString(node, 20);
+      };
+
+      render(); // Cache the height
+
+      // Change content
+      item.text = 'Changed to something longer that requires more space';
+
+      // Clear cache and re-render
+      clearScrollListCache();
+      const output = render();
+      expect(output).toContain('Changed to something');
+    });
+
+    it('should invalidate specific item with invalidateScrollListItem', () => {
+      const state = createScrollList();
+      const item1 = { id: 1, text: 'Item 1' };
+      const item2 = { id: 2, text: 'Item 2' };
+      const items = [item1, item2];
+
+      const render = () => {
+        const node = ScrollList({
+          state,
+          items,
+          children: (it) => Text({}, it.text),
+          height: 10,
+          width: 30,
+        });
+        return renderToString(node, 30);
+      };
+
+      render(); // Cache heights
+
+      // Mutate item1's text property directly
+      item1.text = 'Item 1 is now very long and needs more space to display properly';
+
+      // Invalidate just item1
+      invalidateScrollListItem(item1);
+
+      const output = render();
+      expect(output).toContain('Item 1 is now very long');
+    });
+  });
+
+  describe('auto-scroll with content growth', () => {
+    it('should auto-scroll when existing item content grows', () => {
+      const state = createScrollList();
+      const messages = [
+        { id: 1, content: 'Hello' },
+        { id: 2, content: 'World' },
+        { id: 3, content: 'Short' },
+      ];
+
+      const render = (msgs: typeof messages) => {
+        ScrollList({
+          state,
+          items: msgs,
+          children: (msg) => Text({}, msg.content),
+          height: 5,
+          width: 40,
+          autoScroll: true,
+        });
+      };
+
+      // Initial render
+      render(messages);
+      const initialScroll = state.scrollTop();
+
+      // Mutate content to be longer (simulating streaming text)
+      messages[2]!.content = 'Short message that is now much longer with streaming content';
+      clearScrollListCache(); // Clear cache so new height is calculated
+
+      // Re-render - should auto-scroll because content grew
+      render(messages);
+
+      // totalHeight increased, so if autoScroll is working, scrollTop should be at bottom
+      expect(state.scrollTop()).toBe(state.maxScroll());
+    });
+
+    it('should NOT auto-scroll when content shrinks', () => {
+      const state = createScrollList();
+      const items = Array.from({ length: 10 }, (_, i) => `Item ${i + 1}`);
+
+      const render = (items: string[]) => {
+        ScrollList({
+          state,
+          items,
+          children: (item) => Text({}, item),
+          height: 5,
+          width: 40,
+          itemHeight: 1,
+          autoScroll: true,
+        });
+      };
+
+      // Initial render with 10 items
+      render(items);
+      expect(state.scrollTop()).toBe(5); // At bottom (10 - 5 = 5)
+
+      // Scroll to middle
+      state.scrollTo(2);
+      expect(state.scrollTop()).toBe(2);
+
+      // Remove some items (content shrinks)
+      render(items.slice(0, 5));
+
+      // Should NOT auto-scroll when content shrinks
+      // scrollTop should be clamped to new maxScroll (0) since we only have 5 items now
+      expect(state.scrollTop()).toBeLessThanOrEqual(state.maxScroll());
+    });
+  });
+});

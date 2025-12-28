@@ -129,8 +129,34 @@ interface ScrollListInternalOptions {
 // Height Estimation Cache
 // =============================================================================
 
-// WeakMap to cache heights - automatically garbage collected when items are removed
-const heightCache = new WeakMap<object, number>();
+// Cache entry stores height AND a content hash to detect mutations
+interface CacheEntry {
+  height: number;
+  contentHash: string;
+}
+
+// Use object wrapper so we can replace the WeakMap (for clearing)
+let heightCache = {
+  map: new WeakMap<object, CacheEntry>(),
+};
+
+/**
+ * Generate a simple hash from item content for cache invalidation
+ * This detects when object content changes even if reference stays the same
+ */
+function getContentHash(item: unknown): string {
+  if (item === null || item === undefined) return 'null';
+  if (typeof item !== 'object') return String(item);
+
+  // For objects, create a hash from stringified content
+  // This is simple but effective for detecting mutations
+  try {
+    return JSON.stringify(item);
+  } catch {
+    // Circular reference or other issue - use object keys
+    return Object.keys(item as object).join(',');
+  }
+}
 
 function estimateItemHeight<T>(
   item: T,
@@ -140,8 +166,13 @@ function estimateItemHeight<T>(
 ): number {
   // Only cache objects (not primitives)
   if (typeof item === 'object' && item !== null) {
-    const cached = heightCache.get(item);
-    if (cached !== undefined) return cached;
+    const cached = heightCache.map.get(item);
+    const currentHash = getContentHash(item);
+
+    // Return cached value only if content hash matches
+    if (cached !== undefined && cached.contentHash === currentHash) {
+      return cached.height;
+    }
   }
 
   // Render to string and count lines
@@ -149,9 +180,12 @@ function estimateItemHeight<T>(
   const rendered = renderToString(node, width);
   const height = Math.max(1, rendered.split('\n').length);
 
-  // Cache if object
+  // Cache if object (with content hash for invalidation)
   if (typeof item === 'object' && item !== null) {
-    heightCache.set(item, height);
+    heightCache.map.set(item, {
+      height,
+      contentHash: getContentHash(item),
+    });
   }
 
   return height;
@@ -169,6 +203,7 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
   const [inverted, setInverted] = createSignal(initialInverted);
   const [maxScroll, setMaxScroll] = createSignal(0);
   const [prevItemCount, setPrevItemCount] = createSignal(0);
+  const [prevTotalHeight, setPrevTotalHeight] = createSignal(0);
 
   const scrollBy = (delta: number) => {
     const max = maxScroll();
@@ -235,10 +270,14 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
     _setMaxScroll: setMaxScroll,
     _prevItemCount: prevItemCount,
     _setPrevItemCount: setPrevItemCount,
+    _prevTotalHeight: prevTotalHeight,
+    _setPrevTotalHeight: setPrevTotalHeight,
   } as ScrollListState & {
     _setMaxScroll: (max: number) => void;
     _prevItemCount: () => number;
     _setPrevItemCount: (count: number) => void;
+    _prevTotalHeight: () => number;
+    _setPrevTotalHeight: (h: number) => void;
   };
 }
 
@@ -365,6 +404,8 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     _setMaxScroll: (max: number) => void;
     _prevItemCount: () => number;
     _setPrevItemCount: (count: number) => void;
+    _prevTotalHeight: () => number;
+    _setPrevTotalHeight: (h: number) => void;
   };
 
   // Update state with current props
@@ -406,8 +447,15 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
   if (autoScroll && '_prevItemCount' in internalState && '_setPrevItemCount' in internalState) {
     const prevCount = internalState._prevItemCount();
     const currentCount = itemList.length;
+    const prevHeight = '_prevTotalHeight' in internalState ? internalState._prevTotalHeight() : 0;
 
-    if (currentCount > prevCount) {
+    // Content grows in two ways:
+    // 1. New items added (currentCount > prevCount)
+    // 2. Existing items grew (totalHeight > prevHeight with same count)
+    const itemsAdded = currentCount > prevCount;
+    const contentGrew = totalHeight > prevHeight;
+
+    if (itemsAdded || contentGrew) {
       // Content has grown - check if we should auto-scroll
       // Use current state (old maxScroll) to determine if user was near bottom
       const shouldAutoScroll =
@@ -429,13 +477,22 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
       }
     }
 
-    // Update previous count
+    // Update previous count and height
     internalState._setPrevItemCount(currentCount);
+    if ('_setPrevTotalHeight' in internalState) {
+      internalState._setPrevTotalHeight(totalHeight);
+    }
   } else {
     // No auto-scroll, just update maxScroll
     if ('_setMaxScroll' in internalState) {
       internalState._setMaxScroll(maxScroll);
     }
+  }
+
+  // Clamp scrollTop if it exceeds maxScroll (can happen when content shrinks)
+  const currentScrollTop = state.scrollTop();
+  if (currentScrollTop > maxScroll) {
+    state.scrollTo(maxScroll);
   }
 
   const scrollTop = state.scrollTop();
@@ -517,57 +574,83 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
   };
 
   // Render visible items
+  // Strategy: Only render COMPLETE items that fit in the viewport.
+  // We skip items that start before scrollTop to prevent partial items
+  // from overflowing (terminal layouts don't clip overflow like CSS).
   const visibleNodes: VNode[] = [];
 
   if (!inverted) {
     // Standard (top-down)
+    // Find the first item that starts AT or AFTER scrollTop
     let currentY = 0;
-    let renderedHeight = 0;
+    let firstVisibleIndex = 0;
 
+    // Skip items that END at or before scrollTop (completely above)
     for (let i = 0; i < itemList.length; i++) {
+      const itemH = itemHeights[i]!;
+      if (currentY + itemH <= scrollTop) {
+        currentY += itemH;
+        firstVisibleIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+
+    // If first "visible" item starts BEFORE scrollTop, it's partial - skip it
+    // This prevents rendering items that would overflow above the viewport
+    if (currentY < scrollTop && firstVisibleIndex < itemList.length) {
+      currentY += itemHeights[firstVisibleIndex]!;
+      firstVisibleIndex++;
+    }
+
+    // Now render items starting from firstVisibleIndex
+    let renderedHeight = 0;
+    for (let i = firstVisibleIndex; i < itemList.length; i++) {
       const item = itemList[i]!;
       const itemH = itemHeights[i]!;
 
-      // Skip items above viewport
-      if (currentY + itemH <= scrollTop) {
-        currentY += itemH;
-        continue;
-      }
-
       // Only add item if it FITS in remaining space
-      // This prevents partial/truncated items
       if (renderedHeight + itemH <= height) {
         visibleNodes.push(children(item, i));
         renderedHeight += itemH;
       } else {
         break;
       }
-
-      currentY += itemH;
     }
   } else {
     // Inverted (chat-style, bottom-up)
+    // In inverted mode, scrollTop=0 means "show newest items" (at the end of the array)
+    // We iterate from the end (newest) towards the beginning (oldest)
     const reversedItems = [...itemList].reverse();
     const reversedHeights = [...itemHeights].reverse();
 
+    // Find first visible item (skip items below viewport)
     let linesSkipped = 0;
-    let renderedHeight = 0;
+    let firstVisibleIndex = 0;
 
     for (let i = 0; i < reversedItems.length; i++) {
+      const itemH = reversedHeights[i]!;
+      if (linesSkipped + itemH <= scrollTop) {
+        linesSkipped += itemH;
+        firstVisibleIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+
+    // If first "visible" item starts before scrollTop, skip it (partial)
+    if (linesSkipped < scrollTop && firstVisibleIndex < reversedItems.length) {
+      linesSkipped += reversedHeights[firstVisibleIndex]!;
+      firstVisibleIndex++;
+    }
+
+    // Render items starting from firstVisibleIndex
+    let renderedHeight = 0;
+    for (let i = firstVisibleIndex; i < reversedItems.length; i++) {
       const item = reversedItems[i]!;
       const itemH = reversedHeights[i]!;
       const originalIndex = itemList.length - 1 - i;
 
-      // Skip items below viewport (in inverted mode)
-      if (linesSkipped < scrollTop) {
-        if (linesSkipped + itemH <= scrollTop) {
-          linesSkipped += itemH;
-          continue;
-        }
-      }
-
-      // Only add item if it FITS in remaining space
-      // This prevents partial/truncated items
       if (renderedHeight + itemH <= height) {
         visibleNodes.unshift(children(item, originalIndex));
         renderedHeight += itemH;
@@ -660,14 +743,13 @@ export function ChatList<T>(props: ChatListProps<T>): VNode {
  * Useful when item content changes but object reference stays the same
  */
 export function clearScrollListCache(): void {
-  // WeakMap doesn't have a clear method, but we can create a new one
-  // This is a no-op since we're using module-level WeakMap
-  // Items are automatically removed when objects are garbage collected
+  // Replace the WeakMap with a fresh one to clear all cached heights
+  heightCache.map = new WeakMap<object, CacheEntry>();
 }
 
 /**
  * Invalidate cached height for a specific item
  */
 export function invalidateScrollListItem<T extends object>(item: T): void {
-  heightCache.delete(item);
+  heightCache.map.delete(item);
 }
