@@ -174,7 +174,15 @@ export function renderToString(node: VNode, width?: number, height?: number): st
   const termHeight = height ?? 1000; // Large default for unbounded height
 
   const layout = calculateLayout(node, termWidth, termHeight);
-  const buffer = new OutputBuffer(termWidth, layout.height);
+
+  // Calculate full bounding box height including margins
+  // layout.y already includes marginTop, so we add it to the inner height
+  // Also add marginBottom from the root node's style
+  const style = node.props as BoxStyle;
+  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
+  const fullHeight = layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
+
+  const buffer = new OutputBuffer(termWidth, fullHeight);
 
   renderLayout(layout, buffer, 0, 0);
 

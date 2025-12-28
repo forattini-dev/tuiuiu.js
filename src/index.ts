@@ -66,6 +66,7 @@ export {
   clearTextMeasureCache,
   // Renderer
   renderToString,
+  measureHeight,
   OutputBuffer,
   // App
   render,

@@ -32,6 +32,7 @@ export {
 // Renderer
 export {
   renderToString,
+  measureHeight,
   OutputBuffer,
 } from '../design-system/core/renderer.js';
 

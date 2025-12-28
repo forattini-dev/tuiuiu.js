@@ -20,7 +20,7 @@ import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/use-input.js';
 import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { renderToString } from '../core/renderer.js';
+import { renderToString, measureHeight } from '../design-system/core/renderer.js';
 
 // =============================================================================
 // Types
@@ -175,10 +175,9 @@ function estimateItemHeight<T>(
     }
   }
 
-  // Render to string and count lines
+  // Measure height including margins
   const node = render(item, index);
-  const rendered = renderToString(node, width);
-  const height = Math.max(1, rendered.split('\n').length);
+  const height = Math.max(1, measureHeight(node, width));
 
   // Cache if object (with content hash for invalidation)
   if (typeof item === 'object' && item !== null) {

@@ -195,13 +195,35 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
   }
 
   const layout = calculateLayout(node, termWidth, termHeight);
-  // For fullHeight mode, use the requested height, not layout.height
-  const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layout.height;
+
+  // Calculate full bounding box height including margins
+  // layout.y already includes marginTop, so we add it to the inner height
+  // Also add marginBottom from the root node's style
+  const style = node.props as BoxStyle;
+  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
+  const layoutFullHeight = layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
+
+  // For fullHeight mode, use the requested height, otherwise use calculated height with margins
+  const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layoutFullHeight;
   const buffer = new OutputBuffer(termWidth, bufferHeight);
 
   renderLayout(layout, buffer, 0, 0);
 
   return buffer.toString(fullHeight);
+}
+
+/**
+ * Measure the height of a VNode tree including margins
+ * Returns the full bounding box height (useful for scroll calculations)
+ */
+export function measureHeight(node: VNode, width?: number): number {
+  const termWidth = width ?? process.stdout.columns ?? 80;
+  const layout = calculateLayout(node, termWidth, 1000);
+
+  // Calculate full bounding box height including margins
+  const style = node.props as BoxStyle;
+  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
+  return layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
 }
 
 /**
