@@ -109,7 +109,22 @@ export {
   type DividerStyle,
 } from '../../organisms/split-panel.js';
 
-// Scroll Area
+// ScrollList - Primary scroll component for lists
+export {
+  ScrollList,
+  ChatList,
+  useScrollList,
+  createScrollList,
+  clearScrollListCache,
+  invalidateScrollListItem,
+  type ScrollListProps,
+  type ScrollListState,
+  type ChatListProps,
+  type UseScrollListOptions,
+  type UseScrollListReturn,
+} from '../../organisms/scroll-list.js';
+
+// Scroll Area (Legacy - prefer ScrollList)
 export {
   ScrollArea,
   createScrollArea,

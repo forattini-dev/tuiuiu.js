@@ -447,98 +447,201 @@ DataTable({
   },
 
   // =============================================================================
-  // Scroll & Virtual Lists
+  // Scroll Components - UNIFIED SCROLL SYSTEM
   // =============================================================================
+  //
+  // DECISION GUIDE:
+  // - Scrolling a list of items? → ScrollList (or ChatList for chat UIs)
+  // - Scrolling any VNode content? → Scroll (from primitives)
+  // - Very large list (10k+ items) with selection? → VirtualList
+  //
+  // All scroll components use smooth line-by-line scrolling with ANSI preservation.
+  //
   {
     name: 'ScrollList',
     category: 'organisms',
-    description: 'Scroll list with automatic height estimation, caching, and keyboard navigation. **API Pattern: Render Function** - children is a FUNCTION that receives each item. Items can be reactive (signal/store) for auto-updates. Supports auto-scroll for chat/log UIs.',
+    description: `**PRIMARY scroll component for lists.** Uses smooth line-by-line scrolling with automatic height estimation.
+
+IMPORTANT: \`children\` is a FUNCTION, not a VNode! It receives each item and returns the rendered VNode.
+
+Features:
+- Smooth scroll (shows partial items at viewport edges)
+- Auto height estimation with content-based caching
+- Reactive updates when items change
+- Keyboard navigation (arrows, vim keys, page up/down)
+- Mouse wheel support
+- Auto-scroll for streaming content`,
     props: [
-      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items to display - supports signals, stores, or static arrays. When reactive, list auto-updates!' },
-      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render FUNCTION (NOT VNode!) - called for each item' },
+      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items array or reactive accessor' },
+      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render FUNCTION - receives item, returns VNode' },
       { name: 'height', type: 'number', required: true, description: 'Visible height in lines' },
-      { name: 'width', type: 'number', required: false, default: '80', description: 'Width for layout' },
-      { name: 'itemHeight', type: 'number | ((item: T) => number)', required: false, description: 'Item height (auto-estimated if omitted)' },
-      { name: 'inverted', type: 'boolean', required: false, default: 'false', description: 'Inverted mode (newest at bottom)' },
-      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show/hide scrollbar' },
+      { name: 'width', type: 'number', required: false, default: '80', description: 'Width for layout calculations' },
+      { name: 'itemHeight', type: 'number | ((item: T) => number)', required: false, description: 'Item height - auto-estimated if omitted (more performant if provided)' },
+      { name: 'inverted', type: 'boolean', required: false, default: 'false', description: 'Inverted mode - newest items at bottom (for chat UIs)' },
+      { name: 'autoScroll', type: 'boolean', required: false, default: 'false', description: 'Auto-scroll to bottom when content grows' },
+      { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Smart auto-scroll - only if within N lines of bottom (0 = always)' },
+      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar indicator' },
       { name: 'keysEnabled', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation' },
-      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is component focused' },
-      { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control via useScrollList()' },
-      { name: 'autoScroll', type: 'boolean', required: false, default: 'false', description: 'Auto-scroll to bottom when content grows (useful for chat/log UIs)' },
-      { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Only auto-scroll if within this many lines from bottom. 0 = always auto-scroll.' },
-      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention. Only fires hotkeys when scope matches current scope (via setHotkeyScope/pushHotkeyScope).' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is component focused (disables keys when false)' },
+      { name: 'state', type: 'ScrollListState', required: false, description: 'External state from useScrollList() for programmatic control' },
+      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention' },
     ],
     examples: [
-      `// ✅ CORRECT - children is a function\nScrollList({\n  items: files(),  // Reactive signal\n  children: (file) => FileRow({ file }),  // Function!\n  height: 20,\n})`,
-      `// ✅ With Redux-like store - auto-updates on dispatch!\nconst store = createStore(todoReducer, { items: [] })\n\nScrollList({\n  items: () => store.getState().items,  // Derived from store\n  children: (item) => TodoItem({ item }),\n  height: 15,\n})\n\nstore.dispatch({ type: 'ADD', payload: newItem }) // List updates!`,
-      `// ✅ Auto-scroll to follow new items (like logs)\nScrollList({\n  items: logs(),\n  children: (log) => LogEntry({ log }),\n  height: 20,\n  autoScroll: true,  // Always scroll to new items\n})`,
-      `// ✅ Smart auto-scroll (only if near bottom)\nScrollList({\n  items: messages(),\n  children: (msg) => Message({ msg }),\n  height: 20,\n  autoScroll: true,\n  autoScrollThreshold: 5,  // Only auto-scroll if within 5 lines of bottom\n})`,
-      `// ❌ WRONG - children must be function, not VNode\nScrollList({\n  items: data,\n  children: Item({ data: data[0] })  // WRONG! Must be function\n})`,
-      `// ✅ Hotkey scopes for conflict prevention\n// Two lists, different scopes - only one responds to keys\nScrollList({\n  items: chatMessages,\n  children: (msg) => ChatBubble({ msg }),\n  height: 20,\n  hotkeyScope: 'chat',  // Only fires when scope is 'chat'\n})\n\nScrollList({\n  items: searchResults,\n  children: (r) => SearchResult({ r }),\n  height: 10,\n  hotkeyScope: 'search',  // Only fires when scope is 'search'\n})\n\n// Activate one or the other:\npushHotkeyScope('chat')   // Chat list responds to keys\n// or\npushHotkeyScope('search') // Search list responds to keys`,
+      `// ✅ Basic usage - children is a FUNCTION
+ScrollList({
+  items: files(),           // Reactive signal
+  children: (file) => FileRow({ file }),  // Function!
+  height: 20,
+})`,
+      `// ✅ With fixed itemHeight (better performance)
+ScrollList({
+  items: logs(),
+  children: (log) => Text({}, log),
+  height: 20,
+  itemHeight: 1,  // All items are 1 line
+})`,
+      `// ✅ With programmatic control
+const list = useScrollList()
+
+ScrollList({
+  ...list.bind,
+  items: data(),
+  children: (item) => Row({ item }),
+  height: 20,
+})
+
+// Methods available:
+list.scrollToBottom()
+list.scrollToTop()
+list.scrollTo(50)
+list.scrollBy(-5)
+list.isNearBottom(3)`,
+      `// ✅ Auto-scroll for logs/streaming
+ScrollList({
+  items: logs(),
+  children: (log) => LogEntry({ log }),
+  height: 20,
+  autoScroll: true,
+  autoScrollThreshold: 3,  // Respect user scroll position
+})`,
+      `// ❌ WRONG - children must be function, not VNode
+ScrollList({
+  items: data,
+  children: Item({ data: data[0] })  // WRONG!
+})`,
     ],
   },
   {
     name: 'ChatList',
     category: 'organisms',
-    description: 'Pre-configured ScrollList for chat/messaging UIs with inverted scroll (newest at bottom) and auto-scroll enabled by default.',
+    description: `**Pre-configured ScrollList for chat/messaging UIs.**
+
+Equivalent to ScrollList with:
+- inverted: true (newest at bottom)
+- autoScroll: true (auto-scroll on new messages)
+
+Use autoScrollThreshold to respect user scroll position when they're reading history.`,
     props: [
-      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Chat messages to display' },
-      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render function for each message' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height in lines' },
-      { name: 'width', type: 'number', required: false, default: '80', description: 'Width for layout' },
+      { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Chat messages' },
+      { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render function' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height' },
+      { name: 'width', type: 'number', required: false, default: '80', description: 'Width' },
       { name: 'itemHeight', type: 'number | ((item: T) => number)', required: false, description: 'Item height' },
-      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show/hide scrollbar' },
-      { name: 'state', type: 'ScrollListState', required: false, description: 'External state for control' },
-      { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll when new messages arrive (enabled by default!)' },
       { name: 'autoScrollThreshold', type: 'number', required: false, default: '0', description: 'Smart auto-scroll threshold' },
-      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention' },
+      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
+      { name: 'state', type: 'ScrollListState', required: false, description: 'External state' },
     ],
     examples: [
-      `// Basic chat - auto-scrolls to new messages\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n})`,
-      `// Disable auto-scroll\nChatList({\n  items: messages(),\n  children: (msg) => ChatBubble({ message: msg }),\n  height: 20,\n  autoScroll: false,\n})`,
+      `// Basic chat UI
+ChatList({
+  items: messages(),
+  children: (msg) => ChatBubble({ message: msg }),
+  height: 20,
+})`,
+      `// Smart auto-scroll (respects user scroll position)
+ChatList({
+  items: messages(),
+  children: (msg) => ChatBubble({ message: msg }),
+  height: 20,
+  autoScrollThreshold: 5,  // Only auto-scroll if near bottom
+})`,
+      `// With programmatic control
+const chat = useScrollList({ inverted: true })
+
+ChatList({
+  ...chat.bind,
+  items: messages(),
+  children: (msg) => Message({ msg }),
+  height: 20,
+})
+
+// Scroll to newest after sending
+chat.scrollToBottom()`,
     ],
   },
   {
-    name: 'ScrollArea',
-    category: 'organisms',
-    description: 'Generic scrollable container for any content with horizontal and vertical scrolling.',
+    name: 'Scroll',
+    category: 'primitives',
+    description: `**Universal scroll wrapper for any VNode content.**
+
+Use this when scrolling complex layouts, not lists of items.
+Supports smooth line-by-line scrolling with ANSI preservation.`,
     props: [
-      { name: 'width', type: 'number', required: true, description: 'Visible width' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height' },
-      { name: 'content', type: 'VNode', required: true, description: 'Content to scroll' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height in lines' },
+      { name: 'width', type: 'number', required: false, default: '80', description: 'Width for content layout' },
       { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
-      { name: 'scrollbarPosition', type: "'right' | 'left'", required: false, default: "'right'", description: 'Scrollbar position' },
-      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Accept keyboard input' },
-      { name: 'state', type: 'ScrollAreaState', required: false, description: 'External state from createScrollArea()' },
+      { name: 'keysEnabled', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is focused' },
+      { name: 'scrollbarColor', type: 'ColorValue', required: false, default: "'cyan'", description: 'Thumb color' },
+      { name: 'trackColor', type: 'ColorValue', required: false, default: "'gray'", description: 'Track color' },
+      { name: 'state', type: 'ScrollState', required: false, description: 'External state from useScroll()' },
     ],
     examples: [
-      `ScrollArea({
-  width: 60,
-  height: 20,
-  content: LongContent(),
-})`,
+      `// Wrap any content
+Scroll({ height: 10 },
+  Text({}, veryLongText),
+)`,
+      `// Complex layouts
+Scroll({ height: 20, width: 60 },
+  Box({ flexDirection: 'column' },
+    Header(),
+    Content(),
+    Footer(),
+  ),
+)`,
+      `// With programmatic control
+const scroll = useScroll()
+
+Scroll(
+  { ...scroll.bind, height: 20 },
+  ...contentNodes
+)
+
+scroll.scrollToBottom()`,
     ],
   },
   {
     name: 'VirtualList',
     category: 'organisms',
-    description: 'Virtual scrolling list for extremely large datasets. Only renders visible items.',
+    description: `**For very large datasets (10k+ items) with selection support.**
+
+Only renders visible items for performance. Requires fixed itemHeight.
+Use ScrollList for most cases - only use VirtualList when you have thousands of items.`,
     props: [
-      { name: 'items', type: 'VirtualListItem[]', required: true, description: 'All items' },
-      { name: 'width', type: 'number', required: true, description: 'List width' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height' },
-      { name: 'itemHeight', type: 'number', required: true, description: 'Fixed item height' },
-      { name: 'renderItem', type: '(item: VirtualListItem, index: number) => VNode', required: true, description: 'Item renderer' },
-      { name: 'overscan', type: 'number', required: false, default: '3', description: 'Extra items to render above/below' },
+      { name: 'items', type: 'VirtualListItem[]', required: true, description: 'All items with { key, data }' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height in items' },
+      { name: 'renderItem', type: '(item: VirtualListItem, index: number, isSelected: boolean) => VNode', required: true, description: 'Item renderer with selection state' },
+      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
+      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard' },
       { name: 'state', type: 'VirtualListState', required: false, description: 'External state from createVirtualList()' },
     ],
     examples: [
-      `VirtualList({
-  items: largeDataset,  // 100k items
-  width: 80,
+      `// Large dataset with selection
+VirtualList({
+  items: largeDataset.map((d, i) => ({ key: String(i), data: d })),
   height: 30,
-  itemHeight: 1,
-  renderItem: (item) => Text({}, item.label),
+  renderItem: (item, index, isSelected) =>
+    Text({ color: isSelected ? 'cyan' : 'white' }, item.data.label),
 })`,
     ],
   },
@@ -666,42 +769,57 @@ DataTable({
   },
 
   // =============================================================================
-  // Scroll Components (Extended)
+  // Legacy Scroll Components (prefer ScrollList/Scroll instead)
   // =============================================================================
   {
     name: 'ScrollableText',
     category: 'organisms',
-    description: 'Simple scrollable text container. Wraps text content in a ScrollArea with keyboard navigation.',
+    description: `**PREFER: Scroll from primitives**
+
+Legacy component. Use Scroll({ height }, Text({}, content)) instead for better performance and consistency.`,
     props: [
-      { name: 'text', type: 'string', required: true, description: 'Text content to display (newlines create separate lines)' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
-      { name: 'width', type: 'number', required: false, description: 'Width in columns' },
-      { name: 'color', type: 'ColorValue', required: false, default: "'foreground'", description: 'Text color' },
-      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
-      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard scrolling' },
+      { name: 'text', type: 'string', required: true, description: 'Text content' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height' },
     ],
     examples: [
-      `ScrollableText({\n  text: longContent,\n  height: 10,\n  showScrollbar: true,\n})`,
+      `// ❌ Legacy
+ScrollableText({ text: longContent, height: 10 })
+
+// ✅ Preferred
+Scroll({ height: 10 }, Text({}, longContent))`,
     ],
-    relatedComponents: ['ScrollArea', 'LogViewer'],
+    relatedComponents: ['Scroll'],
   },
   {
     name: 'LogViewer',
     category: 'organisms',
-    description: 'Auto-scrolling log viewer with line numbers, pattern highlighting, and optional timestamps.',
+    description: `**PREFER: ScrollList with autoScroll**
+
+Legacy component with line numbers and highlighting. Use ScrollList for more flexibility.`,
     props: [
-      { name: 'lines', type: 'string[]', required: true, description: 'Array of log lines' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
-      { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll to bottom when new lines added' },
+      { name: 'lines', type: 'string[]', required: true, description: 'Log lines' },
+      { name: 'height', type: 'number', required: true, description: 'Visible height' },
+      { name: 'autoScroll', type: 'boolean', required: false, default: 'true', description: 'Auto-scroll' },
       { name: 'showLineNumbers', type: 'boolean', required: false, default: 'false', description: 'Show line numbers' },
-      { name: 'highlightPattern', type: 'RegExp', required: false, description: 'Pattern to highlight in log lines' },
-      { name: 'highlightColor', type: 'ColorValue', required: false, default: "'yellow'", description: 'Color for highlighted matches' },
-      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard scrolling' },
+      { name: 'highlightPattern', type: 'RegExp', required: false, description: 'Highlight pattern' },
     ],
     examples: [
-      `const [logs, setLogs] = useState<string[]>([]);\n\n// Add log line\nsetLogs(l => [...l, \`[\${new Date().toISOString()}] New event\`]);\n\nLogViewer({\n  lines: logs(),\n  height: 15,\n  autoScroll: true,\n  showLineNumbers: true,\n  highlightPattern: /error|warn/i,\n  highlightColor: 'red',\n})`,
+      `// ❌ Legacy
+LogViewer({ lines: logs(), height: 15, autoScroll: true })
+
+// ✅ Preferred - more flexible
+ScrollList({
+  items: logs(),
+  children: (log, i) => Box({ flexDirection: 'row' },
+    Text({ color: 'gray' }, String(i + 1).padStart(4) + ' '),
+    Text({ color: log.includes('ERROR') ? 'red' : 'foreground' }, log),
+  ),
+  height: 15,
+  itemHeight: 1,
+  autoScroll: true,
+})`,
     ],
-    relatedComponents: ['ScrollArea', 'ScrollableText'],
+    relatedComponents: ['ScrollList'],
   },
   {
     name: 'EditableDataTable',

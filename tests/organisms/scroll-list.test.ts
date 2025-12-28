@@ -1366,7 +1366,7 @@ describe('multi-line items without overlap', () => {
     expect(output).not.toContain('Body_5');
   });
 
-  it('should not truncate items that partially fit', () => {
+  it('should show partial items that fit within viewport height (smooth scroll)', () => {
     const state = createScrollList();
     const items = [
       { id: 1, lines: ['A1', 'A2', 'A3'] }, // 3 lines
@@ -1375,7 +1375,7 @@ describe('multi-line items without overlap', () => {
     ];
 
     // Height is 7, each item is 3 lines
-    // First 2 items = 6 lines, 1 line left - not enough for item 3
+    // First 2 items = 6 lines, 1 line left for partial item 3
     const node = ScrollList({
       state,
       items,
@@ -1398,10 +1398,11 @@ describe('multi-line items without overlap', () => {
     expect(output).toContain('B2');
     expect(output).toContain('B3');
 
-    // Item 3 should NOT appear at all (not even partially)
-    expect(output).not.toContain('C1');
-    expect(output).not.toContain('C2');
-    expect(output).not.toContain('C3');
+    // With smooth scrolling, item 3 should appear PARTIALLY
+    // 7 lines visible: A1, A2, A3, B1, B2, B3, C1
+    expect(output).toContain('C1'); // First line visible
+    expect(output).not.toContain('C2'); // Outside viewport
+    expect(output).not.toContain('C3'); // Outside viewport
   });
 
   it('should navigate correctly with multi-line items', () => {
@@ -1514,16 +1515,16 @@ describe('multi-line items without overlap', () => {
 });
 
 // =============================================================================
-// Tests for Partial Item Handling (Text Leaking Prevention)
+// Tests for Smooth Scrolling (Line-Based Slicing)
 // =============================================================================
 
-describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
+describe('ScrollList - Smooth Scrolling (Line-Based Slicing)', () => {
   beforeEach(() => {
     clearScrollListCache();
   });
 
   describe('normal mode (top-down)', () => {
-    it('should skip partial items at the top of viewport', () => {
+    it('should show partial items at the top of viewport via line slicing', () => {
       // Items: 4 items of 3 lines each (total 12 lines)
       // Viewport: 10 lines
       // scrollTop: 2 (first item is partially above viewport)
@@ -1553,10 +1554,12 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
       state.scrollTo(2);
       const output = render();
 
-      // First item (AAA) should be SKIPPED because it starts before scrollTop
-      expect(output).not.toContain('AAA_line1');
-      expect(output).not.toContain('AAA_line2');
-      expect(output).not.toContain('AAA_line3');
+      // With smooth scrolling, we should see the VISIBLE PORTION of AAA
+      // scrollTop=2 means line 2 (AAA_line3) is the first visible line
+      // Viewport shows lines 2-11 (10 lines total)
+      expect(output).not.toContain('AAA_line1'); // Above viewport (line 0)
+      expect(output).not.toContain('AAA_line2'); // Above viewport (line 1)
+      expect(output).toContain('AAA_line3');      // First visible line (line 2)
 
       // Second item (BBB, lines 3-5) should be fully visible
       expect(output).toContain('BBB_line1');
@@ -1568,10 +1571,10 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
       expect(output).toContain('CCC_line2');
       expect(output).toContain('CCC_line3');
 
-      // Fourth item (DDD, lines 9-11) FITS since renderedHeight=6, 6+3=9 <= 10
-      expect(output).toContain('DDD_line1');
-      expect(output).toContain('DDD_line2');
-      expect(output).toContain('DDD_line3');
+      // Fourth item (DDD, lines 9-11) - all within viewport (lines 2-11)
+      expect(output).toContain('DDD_line1');      // Line 9 - visible
+      expect(output).toContain('DDD_line2');      // Line 10 - visible
+      expect(output).toContain('DDD_line3');      // Line 11 - visible
     });
 
     it('should render correct items when scrolled exactly to item boundary', () => {
@@ -1605,7 +1608,7 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
       expect(output).toContain('CCC_content');
     });
 
-    it('should not render more lines than viewport height', () => {
+    it('should render exactly viewport height lines with smooth scrolling', () => {
       const state = createScrollList();
       // 10 items of 2 lines each = 20 total lines
       const items = Array.from({ length: 10 }, (_, i) => `Item${i}`);
@@ -1629,20 +1632,20 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
       state.scrollTo(0);
       const output = render();
 
-      // Should show first 2 items (4 lines) - can't fit 3rd item (would be 6 lines > 5)
+      // With smooth scrolling, we show partial items
+      // 5 lines: Item0_L1, Item0_L2, Item1_L1, Item1_L2, Item2_L1
       expect(output).toContain('Item0_L1');
       expect(output).toContain('Item0_L2');
       expect(output).toContain('Item1_L1');
       expect(output).toContain('Item1_L2');
-      // Item2 would push to 6 lines, so it should not be rendered
-      expect(output).not.toContain('Item2_L1');
+      expect(output).toContain('Item2_L1'); // First line of partial item
 
-      // Count actual lines rendered
+      // Count actual lines rendered (should be exactly height)
       const lines = output.split('\n').filter(line => line.trim());
       expect(lines.length).toBeLessThanOrEqual(5);
     });
 
-    it('should handle scrollTop in the middle of an item', () => {
+    it('should show visible portion when scrollTop is in the middle of an item', () => {
       const state = createScrollList();
       // 5 items of 3 lines each
       const items = ['A', 'B', 'C', 'D', 'E'];
@@ -1667,36 +1670,37 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
       // First render to establish maxScroll
       render();
       // scrollTop=4 is in the middle of item B (lines 3-5)
+      // Line 4 is B2, so we should see B2, B3, C1, C2, C3, D1
       state.scrollTo(4);
       const output = render();
 
-      // Item A (lines 0-2) is above viewport - skip
+      // Item A (lines 0-2) is above viewport - not visible
       expect(output).not.toContain('A1');
       expect(output).not.toContain('A2');
       expect(output).not.toContain('A3');
 
-      // Item B (lines 3-5) STARTS before scrollTop=4, so it's partial - SKIP
-      expect(output).not.toContain('B1');
-      expect(output).not.toContain('B2');
-      expect(output).not.toContain('B3');
+      // Item B - only visible portion (B2, B3 at lines 4, 5)
+      expect(output).not.toContain('B1'); // Above viewport
+      expect(output).toContain('B2');      // First visible line
+      expect(output).toContain('B3');      // Second visible line
 
-      // Item C (lines 6-8) starts after scrollTop, should be visible
+      // Item C (lines 6-8) - fully visible
       expect(output).toContain('C1');
       expect(output).toContain('C2');
       expect(output).toContain('C3');
 
-      // Item D (lines 9-11) FITS since renderedHeight=3, 3+3=6 <= 6
+      // Item D - only first line visible (line 9)
       expect(output).toContain('D1');
-      expect(output).toContain('D2');
-      expect(output).toContain('D3');
+      expect(output).not.toContain('D2'); // Outside viewport
+      expect(output).not.toContain('D3'); // Outside viewport
 
-      // Item E would overflow (6+3=9 > 6), skip
+      // Item E completely outside
       expect(output).not.toContain('E1');
     });
   });
 
   describe('inverted mode (chat-style)', () => {
-    it('should skip partial items at the bottom (scroll=0 in inverted mode)', () => {
+    it('should show partial items at the top via line slicing in inverted mode', () => {
       const state = createScrollList({ inverted: true });
       // 4 items of 3 lines each
       const items = ['AAA', 'BBB', 'CCC', 'DDD'];
@@ -1721,25 +1725,29 @@ describe('ScrollList - Partial Item Handling (Text Leak Prevention)', () => {
 
       // First render to establish maxScroll
       render();
-      // In inverted mode, scrollTop=0 means "bottom" (newest visible)
-      // Scroll to 2 means 2 lines of newest item are hidden
+      // In inverted mode, scrollTop=2 means we've scrolled 2 lines from top
+      // This cuts off the oldest lines (AAA_1, AAA_2)
       state.scrollTo(2);
       const output = render();
 
-      // DDD is newest, but starts before scrollTop - should be skipped
-      expect(output).not.toContain('DDD_1');
-      expect(output).not.toContain('DDD_2');
-      expect(output).not.toContain('DDD_3');
+      // With smooth scrolling at scrollTop=2:
+      // AAA (oldest) - only last line visible
+      expect(output).not.toContain('AAA_1'); // Scrolled off
+      expect(output).not.toContain('AAA_2'); // Scrolled off
+      expect(output).toContain('AAA_3');      // Visible
 
-      // CCC should be visible (second newest)
+      // BBB, CCC fully visible
+      expect(output).toContain('BBB_1');
+      expect(output).toContain('BBB_2');
+      expect(output).toContain('BBB_3');
       expect(output).toContain('CCC_1');
       expect(output).toContain('CCC_2');
       expect(output).toContain('CCC_3');
 
-      // BBB should be visible
-      expect(output).toContain('BBB_1');
-      expect(output).toContain('BBB_2');
-      expect(output).toContain('BBB_3');
+      // DDD (newest) - all visible (at bottom in inverted mode)
+      expect(output).toContain('DDD_1');
+      expect(output).toContain('DDD_2');
+      expect(output).toContain('DDD_3');
     });
 
     it('should render newest items first when at bottom in inverted mode', () => {

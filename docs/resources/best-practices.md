@@ -20,8 +20,22 @@ const sortedUsers = createMemo(() => {
 });
 ```
 
-### 3. Virtualization for Large Lists
-Never render a list with 10,000 items directly. It will freeze the terminal. Use `VirtualList` or `ScrollArea` (with windowing) to render only what is visible.
+### 3. Scrolling & Large Lists
+
+Use `ScrollList` for scrollable lists - it provides smooth line-by-line scrolling with automatic height estimation:
+
+```typescript
+ScrollList({
+  items: logs(),
+  children: (log) => LogEntry({ log }),  // Render function, NOT VNode!
+  height: 20,
+  autoScroll: true,  // Follow new items
+})
+```
+
+For chat UIs, use `ChatList` (pre-configured with `inverted: true` and `autoScroll: true`).
+
+For very large datasets (10k+ items), use `VirtualList` which only renders visible items.
 
 ### 4. Optimize Animation
 Use `useAnimation` or `createUpdateBatcher` for high-frequency updates. Avoid `setInterval` with very low delays (e.g., < 16ms).

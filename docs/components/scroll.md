@@ -1,28 +1,194 @@
 # Scroll Components
 
-> **Universal scrolling for any content.** Tuiuiu provides multiple scroll APIs designed for incredible developer experience - from simple wrappers to specialized list components.
+> **Smooth, line-by-line scrolling for any content.** Tuiuiu provides a unified scroll system with automatic height estimation, ANSI-preserving line slicing, and reactive updates.
 
-## Overview
+## Quick Decision Guide
+
+```
+What are you scrolling?
+│
+├─► List of items (array) ──────────► ScrollList or ChatList
+│   ├─► Chat/messages (newest at bottom) ──► ChatList
+│   └─► Any list (files, logs, options) ──► ScrollList
+│
+└─► Any content (VNodes, layouts) ──► Scroll
+```
+
+## Core Components
 
 | Component | Use Case | Key Feature |
 |:----------|:---------|:------------|
-| `Scroll` | Any content | Wraps anything, auto-scrollbar |
-| `ScrollList` | Item lists | Auto-height estimation |
-| `ChatList` | Chat/messaging | Inverted, newest at bottom |
-| `Scrollbar` | Custom implementations | Standalone scrollbar atom |
-| `useScrollList` | Advanced control | Programmatic scroll |
-| `useScroll` | Content control | Scroll any wrapped content |
+| `Scroll` | Any VNode content | Wraps anything, smooth line-by-line scroll |
+| `ScrollList` | Array of items | Auto-height estimation, smooth scroll |
+| `ChatList` | Chat/messaging | Inverted + auto-scroll enabled |
+| `useScrollList` | Programmatic control | Methods for scroll manipulation |
+| `useScroll` | Programmatic control | Control for Scroll wrapper |
 
-## Scroll Wrapper
+## Smooth Scrolling Behavior
 
-The simplest way to add scroll to any content.
+All scroll components use **line-based slicing** for smooth scrolling:
+
+- Content is rendered to string
+- Lines are sliced based on scroll position
+- ANSI codes and styles are preserved
+- Partial items appear at viewport edges (no chunky jumps)
+
+```
+┌─────────────────────────────────────┐
+│ ▌ Visible portion of item 1 (2 lines)│  ← Partial item at top
+│ ▌ Item 1 line 3                      │
+├─────────────────────────────────────┤
+│   Item 2 line 1                      │  ← Fully visible items
+│   Item 2 line 2                      │
+│   Item 2 line 3                      │
+├─────────────────────────────────────┤
+│   Item 3 line 1                      │  ← Partial item at bottom
+└─────────────────────────────────────┘
+     Smooth scroll shows partial items!
+```
+
+---
+
+## ScrollList
+
+**The primary component for scrolling lists of items.**
 
 ```typescript
-import { Scroll } from 'tuiuiu.js'
+import { ScrollList, useScrollList } from 'tuiuiu.js'
+
+// Basic usage - items as array or signal
+ScrollList({
+  items: files(),              // Reactive signal or array
+  children: (file) => FileRow({ file }),  // Render function (NOT VNode!)
+  height: 20,
+})
+
+// With auto-estimated heights (default)
+ScrollList({
+  items: messages(),
+  children: (msg) => MessageBubble({ msg }),  // Heights auto-calculated
+  height: 20,
+})
+
+// With fixed height (more performant for uniform items)
+ScrollList({
+  items: logs(),
+  children: (log) => Text({}, log),
+  height: 20,
+  itemHeight: 1,  // All items are 1 line
+})
+
+// With programmatic control
+const list = useScrollList()
+
+ScrollList({
+  ...list.bind,  // Spread the bind object
+  items: data(),
+  children: (item) => Row({ item }),
+  height: 20,
+})
+
+// Programmatic methods
+list.scrollToBottom()
+list.scrollToTop()
+list.scrollTo(50)
+list.scrollBy(-5)
+list.isNearBottom(3)  // Within 3 lines of bottom?
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|:-----|:-----|:--------|:------------|
+| `items` | `T[] \| (() => T[])` | required | Items (array or reactive accessor) |
+| `children` | `(item: T, index: number) => VNode` | required | Render function (NOT a VNode!) |
+| `height` | `number` | required | Visible height in lines |
+| `width` | `number` | `80` | Width for layout calculations |
+| `itemHeight` | `number \| ((item: T) => number)` | auto | Item height (auto-estimated if omitted) |
+| `inverted` | `boolean` | `false` | Inverted mode (newest at bottom) |
+| `autoScroll` | `boolean` | `false` | Auto-scroll when content grows |
+| `autoScrollThreshold` | `number` | `0` | Smart auto-scroll (0 = always) |
+| `showScrollbar` | `boolean` | `true` | Show/hide scrollbar |
+| `keysEnabled` | `boolean` | `true` | Enable keyboard navigation |
+| `isActive` | `boolean` | `true` | Is component focused |
+| `state` | `ScrollListState` | - | External state from useScrollList |
+| `hotkeyScope` | `string` | `'global'` | Hotkey scope for conflict prevention |
+
+### Height Estimation & Caching
+
+When `itemHeight` is omitted, ScrollList automatically:
+1. Renders each item to calculate its height
+2. Caches results using content-based hashing
+3. Invalidates cache when item content changes
+
+```typescript
+// Manual cache invalidation (rarely needed)
+import { invalidateScrollListItem, clearScrollListCache } from 'tuiuiu.js'
+
+// Invalidate specific item when its content changes
+message.content = 'Updated!'
+invalidateScrollListItem(message)
+
+// Clear entire cache (for major data changes)
+clearScrollListCache()
+```
+
+---
+
+## ChatList
+
+**Pre-configured ScrollList for chat/messaging UIs.**
+
+```typescript
+import { ChatList } from 'tuiuiu.js'
+
+ChatList({
+  items: messages(),
+  children: (msg) => ChatBubble({ message: msg }),
+  height: 20,
+})
+```
+
+ChatList is simply:
+```typescript
+ScrollList({
+  items,
+  children,
+  height,
+  inverted: true,      // Newest items at bottom
+  autoScroll: true,    // Auto-scroll on new messages
+})
+```
+
+### Smart Auto-Scroll
+
+Use `autoScrollThreshold` to respect user scroll position:
+
+```typescript
+ChatList({
+  items: messages(),
+  children: (msg) => Message({ msg }),
+  height: 20,
+  autoScrollThreshold: 5,  // Only auto-scroll if within 5 lines of bottom
+})
+```
+
+When user scrolls up to read history, new messages won't jump them back down.
+
+---
+
+## Scroll
+
+**Universal wrapper for scrolling any VNode content.**
+
+Use when you need to scroll complex layouts, not just arrays of items.
+
+```typescript
+import { Scroll, useScroll } from 'tuiuiu.js'
 
 // Wrap any content
 Scroll({ height: 10 },
-  Text({}, longText),
+  Text({}, veryLongText),
 )
 
 // Complex layouts
@@ -33,6 +199,16 @@ Scroll({ height: 20, width: 60 },
     Footer(),
   ),
 )
+
+// With programmatic control
+const scroll = useScroll()
+
+Scroll(
+  { ...scroll.bind, height: 20 },
+  ...contentNodes
+)
+
+scroll.scrollToBottom()
 ```
 
 ### Props
@@ -47,181 +223,13 @@ Scroll({ height: 20, width: 60 },
 | `scrollbarColor` | `ColorValue` | `'cyan'` | Scrollbar thumb color |
 | `trackColor` | `ColorValue` | `'gray'` | Scrollbar track color |
 | `scrollStep` | `number` | `1` | Lines per scroll step |
-| `state` | `ScrollState` | - | External state for control |
+| `state` | `ScrollState` | - | External state from useScroll |
 
-### With Control
-
-```typescript
-import { Scroll, useScroll } from 'tuiuiu.js'
-
-function LogViewer() {
-  const scroll = useScroll()
-
-  // Programmatic control
-  useEffect(() => {
-    scroll.scrollToBottom()
-  }, [logs])
-
-  return Scroll(
-    { ...scroll.bind, height: 20 },
-    ...logs.map(log => Text({}, log))
-  )
-}
-```
-
-## ScrollList
-
-For rendering lists of items with automatic height estimation.
-
-```typescript
-import { ScrollList } from 'tuiuiu.js'
-
-// Simple list
-ScrollList({
-  items: files(),
-  children: (file) => FileRow({ file }),
-  height: 20,
-})
-
-// With fixed item height (more performant)
-ScrollList({
-  items: logs(),
-  children: (log) => Text({}, log),
-  height: 20,
-  itemHeight: 1,
-})
-
-// With calculated height
-ScrollList({
-  items: messages(),
-  children: (msg) => MessageBubble({ msg }),
-  height: 20,
-  itemHeight: (msg) => calculateHeight(msg),
-})
-```
-
-### Props
-
-| Prop | Type | Default | Description |
-|:-----|:-----|:--------|:------------|
-| `items` | `T[] \| (() => T[])` | required | Items to display |
-| `children` | `(item: T, index: number) => VNode` | required | Render function |
-| `height` | `number` | required | Visible height in lines |
-| `width` | `number` | `80` | Width for layout |
-| `itemHeight` | `number \| ((item: T) => number)` | auto | Item height (auto-estimated if omitted) |
-| `inverted` | `boolean` | `false` | Inverted mode (newest at bottom) |
-| `showScrollbar` | `boolean` | `true` | Show/hide scrollbar |
-| `keysEnabled` | `boolean` | `true` | Enable keyboard navigation |
-| `isActive` | `boolean` | `true` | Is component focused |
-| `state` | `ScrollListState` | - | External state for control |
-| `autoScroll` | `boolean` | `false` | Auto-scroll to bottom when content grows |
-| `autoScrollThreshold` | `number` | `0` | Only auto-scroll if within N lines of bottom (0 = always) |
-| `hotkeyScope` | `string` | `'global'` | Hotkey scope for conflict prevention (see [Hotkeys](/core/hotkeys.md)) |
-
-### Auto Height Estimation
-
-When `itemHeight` is not provided, ScrollList automatically estimates each item's height by rendering it and counting lines. Results are cached using WeakMap for performance.
-
-```typescript
-// Heights are auto-estimated and cached
-ScrollList({
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg }),
-  height: 20,
-})
-
-// Invalidate cache when item content changes
-import { invalidateScrollListItem } from 'tuiuiu.js'
-
-message.content = 'Updated content'
-invalidateScrollListItem(message)
-```
-
-## ChatList
-
-Pre-configured for chat/messaging UIs with inverted scroll (newest at bottom) and **auto-scroll enabled by default**.
-
-```typescript
-import { ChatList } from 'tuiuiu.js'
-
-ChatList({
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg }),
-  height: 20,
-})
-```
-
-ChatList is equivalent to:
-
-```typescript
-ScrollList({
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg }),
-  height: 20,
-  inverted: true,
-  autoScroll: true,  // Enabled by default in ChatList!
-})
-```
-
-### Auto-Scroll Behavior
-
-When `autoScroll` is enabled:
-- New items automatically scroll into view
-- Use `autoScrollThreshold` for "smart" scrolling (only auto-scroll if user is near bottom)
-- Works in both normal and inverted modes
-
-```typescript
-// Smart auto-scroll (respects user scroll position)
-ScrollList({
-  items: logs(),
-  children: (log) => LogEntry({ log }),
-  height: 20,
-  autoScroll: true,
-  autoScrollThreshold: 5, // Only auto-scroll if within 5 lines of bottom
-})
-```
-
-## useScrollList Hook
-
-For advanced control over scroll lists.
-
-```typescript
-import { ScrollList, useScrollList } from 'tuiuiu.js'
-
-function MessageList() {
-  const list = useScrollList({ inverted: true })
-
-  // Control methods
-  const sendMessage = (text: string) => {
-    addMessage(text)
-    list.scrollToBottom() // Scroll to newest
-  }
-
-  return ScrollList({
-    ...list.bind,
-    items: messages(),
-    children: (msg) => Message({ msg }),
-    height: 20,
-  })
-}
-```
-
-### Return Value
-
-| Property | Type | Description |
-|:---------|:-----|:------------|
-| `scrollToBottom()` | `() => void` | Scroll to bottom |
-| `scrollToTop()` | `() => void` | Scroll to top |
-| `scrollTo(pos)` | `(pos: number) => void` | Scroll to position |
-| `scrollBy(delta)` | `(delta: number) => void` | Scroll by delta |
-| `scrollTop()` | `() => number` | Current scroll position |
-| `maxScroll()` | `() => number` | Maximum scroll value |
-| `isNearBottom(threshold?)` | `(threshold?: number) => boolean` | Check if near bottom |
-| `bind` | `{ state: ScrollListState }` | Props to spread into ScrollList |
+---
 
 ## Keyboard Navigation
 
-All scroll components support keyboard navigation:
+All scroll components support:
 
 | Key | Action |
 |:----|:-------|
@@ -232,30 +240,36 @@ All scroll components support keyboard navigation:
 | `Home` / `g` | Scroll to top |
 | `End` / `G` | Scroll to bottom |
 
-## Mouse Support
+Mouse wheel scrolling is also supported when the component is focused.
 
-All scroll components support mouse wheel scrolling when the component is focused.
+---
 
 ## Examples
 
-### Log Viewer
+### Log Viewer with Auto-Scroll
 
 ```typescript
-function LogViewer({ logs }: { logs: string[] }) {
-  const scroll = useScroll()
+function LogViewer() {
+  const [logs, setLogs] = useState<string[]>([])
 
-  // Auto-scroll to bottom when new logs arrive
-  createEffect(() => {
-    logs.length // Track dependency
-    scroll.scrollToBottom()
+  // Simulated log streaming
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLogs(l => [...l, `[${Date.now()}] New log entry`])
+    }, 1000)
+    return () => clearInterval(interval)
   })
 
-  return Scroll(
-    { ...scroll.bind, height: 20, width: 80 },
-    ...logs.map((log, i) =>
-      Text({ color: log.includes('ERROR') ? 'red' : 'white' }, `${i + 1}: ${log}`)
-    )
-  )
+  return ScrollList({
+    items: logs(),
+    children: (log, i) => Text(
+      { color: log.includes('ERROR') ? 'red' : 'foreground' },
+      `${i + 1}: ${log}`
+    ),
+    height: 20,
+    itemHeight: 1,
+    autoScroll: true,
+  })
 }
 ```
 
@@ -264,22 +278,22 @@ function LogViewer({ logs }: { logs: string[] }) {
 ```typescript
 function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
-  const chatList = useScrollList({ inverted: true })
+  const chat = useScrollList({ inverted: true })
 
   const sendMessage = (text: string) => {
     setMessages(m => [...m, { text, sender: 'me', time: new Date() }])
-    chatList.scrollToBottom()
+    chat.scrollToBottom()
   }
 
   return Box(
     { flexDirection: 'column', height: '100%' },
     ChatList({
-      ...chatList.bind,
+      ...chat.bind,
       items: messages(),
       children: (msg) => ChatBubble({ message: msg }),
       height: 20,
     }),
-    TextInput({ onSubmit: sendMessage })
+    TextInput({ onSubmit: sendMessage, placeholder: 'Type a message...' })
   )
 }
 ```
@@ -288,28 +302,30 @@ function Chat() {
 
 ```typescript
 function FileBrowser({ files }: { files: FileInfo[] }) {
+  const list = useScrollList()
+
   return ScrollList({
+    ...list.bind,
     items: files,
-    children: (file) =>
-      Box(
-        { flexDirection: 'row' },
-        Text({ color: 'cyan' }, file.isDir ? '📁' : '📄'),
-        Text({}, ` ${file.name}`),
-        Spacer(),
-        Text({ color: 'gray' }, formatSize(file.size))
-      ),
+    children: (file) => Box(
+      { flexDirection: 'row' },
+      Text({ color: 'cyan' }, file.isDir ? '📁' : '📄'),
+      Text({}, ` ${file.name}`),
+      Spacer(),
+      Text({ color: 'gray' }, formatSize(file.size))
+    ),
     height: 20,
-    itemHeight: 1, // Fixed height for performance
+    itemHeight: 1,  // Fixed height for performance
   })
 }
 ```
 
-### Terms & Conditions Modal
+### Modal with Scrollable Content
 
 ```typescript
 function TermsModal({ terms }: { terms: string }) {
   return Modal(
-    { title: 'Terms & Conditions', width: 60, height: 20 },
+    { title: 'Terms & Conditions', width: 60 },
     Scroll(
       { height: 15, width: 56 },
       Text({}, terms)
@@ -323,124 +339,156 @@ function TermsModal({ terms }: { terms: string }) {
 }
 ```
 
-## Migration from DynamicList
-
-`DynamicList` has been replaced by `ScrollList` and `ChatList` with a much simpler API:
-
-### Before
+### Multiple Scroll Areas with Hotkey Scopes
 
 ```typescript
-// 50+ lines of boilerplate
-const [layoutConfig] = useState({ maxWidth: bubbleMaxWidth })
-layoutConfig().maxWidth = bubbleMaxWidth
-
-const getMessageHeight = (msg: Message) => {
-  const contentWidth = Math.max(10, layoutConfig().maxWidth - 4)
-  const lines = getVisualLines(msg.content, contentWidth, true)
-  return 1 + lines.length + 2 + 1
-}
-
-const [listState] = useState(createDynamicList({
-  items: () => messages(),
-  height: 10,
-  getItemHeight: getMessageHeight,
-  renderItem: (msg) => ChatBubble({ message: msg, maxWidth: layoutConfig().maxWidth }),
-  inverted: true
-}))
-
-DynamicList({
-  state: listState(),
-  items: () => messages(),
-  height: messagesHeight,
-  getItemHeight: getMessageHeight,
-  renderItem: (msg) => ChatBubble({ message: msg, maxWidth: bubbleMaxWidth }),
-  inverted: true,
-  keysEnabled: true
-})
-```
-
-### After
-
-```typescript
-// 8 lines, zero boilerplate!
-const chatList = useScrollList({ inverted: true })
-
-ChatList({
-  ...chatList.bind,
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg, maxWidth: bubbleMaxWidth }),
-  height: messagesHeight,
-  width: width - 2,
-})
-```
-
-## Scrollbar (Atom)
-
-A standalone scrollbar component for custom scroll implementations. Use this when building your own scroll container or when you need a scrollbar without the full `Scroll` wrapper.
-
-```typescript
-import { Scrollbar } from 'tuiuiu.js'
-
-// Basic usage
-Scrollbar({
-  height: 10,      // Visible area height
-  total: 50,       // Total content height
-  current: 15,     // Current scroll position
-})
-
-// Custom styling
-Scrollbar({
-  height: 20,
-  total: 100,
-  current: scrollTop(),
-  color: 'primary',      // Thumb color
-  trackColor: 'muted',   // Track color
-})
-```
-
-### Props
-
-| Prop | Type | Default | Description |
-|:-----|:-----|:--------|:------------|
-| `height` | `number` | required | Height of the scrollbar (lines) |
-| `total` | `number` | required | Total content height |
-| `current` | `number` | required | Current scroll position (0 to maxScroll) |
-| `color` | `ColorValue` | `'cyan'` | Thumb (scroller) color |
-| `trackColor` | `ColorValue` | `'gray'` | Track color |
-| `thumbChar` | `string` | auto | Custom thumb character |
-| `trackChar` | `string` | auto | Custom track character |
-
-### Custom Scroll Container Example
-
-```typescript
-function CustomScrollArea({ content, height }: { content: VNode[], height: number }) {
-  const [scrollPos, setScrollPos] = useState(0)
-  const totalHeight = content.length
-
-  useInput((_, key) => {
-    if (key.upArrow) setScrollPos(p => Math.max(0, p - 1))
-    if (key.downArrow) setScrollPos(p => Math.min(totalHeight - height, p + 1))
-  })
-
-  const visible = content.slice(scrollPos, scrollPos + height)
+function DualPane() {
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left')
 
   return Box(
     { flexDirection: 'row' },
-    Box({ width: 40, height },
-      ...visible
+    // Left pane
+    Box({ width: '50%', borderStyle: activePane === 'left' ? 'round' : 'single' },
+      ScrollList({
+        items: leftItems(),
+        children: (item) => LeftItem({ item }),
+        height: 20,
+        hotkeyScope: 'left-pane',
+        isActive: activePane === 'left',
+      })
     ),
-    Scrollbar({
-      height,
-      total: totalHeight,
-      current: scrollPos(),
-      color: 'primary',
-    })
+    // Right pane
+    Box({ width: '50%', borderStyle: activePane === 'right' ? 'round' : 'single' },
+      ScrollList({
+        items: rightItems(),
+        children: (item) => RightItem({ item }),
+        height: 20,
+        hotkeyScope: 'right-pane',
+        isActive: activePane === 'right',
+      })
+    )
   )
 }
 ```
 
+---
+
+## Best Practices
+
+### Performance
+
+1. **Use `itemHeight` for uniform items** - Avoids height estimation overhead
+2. **Use reactive signals for items** - Enables automatic updates
+3. **Avoid unnecessary re-renders** - Use `createMemo` for derived data
+
+```typescript
+// Good - fixed height, reactive items
+ScrollList({
+  items: logs(),  // Reactive signal
+  children: (log) => LogLine({ log }),
+  height: 20,
+  itemHeight: 1,  // Known fixed height
+})
+
+// Less optimal - variable heights, static array
+ScrollList({
+  items: staticArray,  // Static, no reactivity
+  children: (item) => ComplexItem({ item }),  // Heights must be estimated
+  height: 20,
+})
+```
+
+### UX
+
+1. **Use `autoScrollThreshold` for streaming content** - Respects user scroll position
+2. **Use `ChatList` for chat UIs** - Pre-configured for best chat experience
+3. **Combine with keyboard shortcuts** - Add navigation with `useHotkeys`
+
+```typescript
+// Smart auto-scroll for logs
+ScrollList({
+  items: logs(),
+  children: (log) => LogEntry({ log }),
+  height: 20,
+  autoScroll: true,
+  autoScrollThreshold: 3,  // Only auto-scroll if near bottom
+})
+```
+
+### Accessibility
+
+1. **Set `isActive` appropriately** - Disables keyboard when not focused
+2. **Use `hotkeyScope`** - Prevents conflicts between multiple scroll areas
+3. **Show scrollbar** - Visual indicator of more content
+
+---
+
+## API Reference
+
+### useScrollList
+
+```typescript
+const list = useScrollList(options?: UseScrollListOptions)
+
+// Options
+interface UseScrollListOptions {
+  inverted?: boolean  // Start from bottom
+}
+
+// Returns
+interface UseScrollListReturn {
+  scrollToBottom(): void
+  scrollToTop(): void
+  scrollTo(pos: number): void
+  scrollBy(delta: number): void
+  scrollTop(): number
+  maxScroll(): number
+  isNearBottom(threshold?: number): boolean
+  bind: { state: ScrollListState }
+}
+```
+
+### useScroll
+
+```typescript
+const scroll = useScroll(options?: UseScrollOptions)
+
+// Options
+interface UseScrollOptions {
+  height?: number
+}
+
+// Returns
+interface UseScrollReturn {
+  scrollToBottom(): void
+  scrollToTop(): void
+  scrollTo(pos: number): void
+  scrollBy(delta: number): void
+  scrollTop(): number
+  maxScroll(): number
+  bind: { state: ScrollState }
+}
+```
+
+### Cache Utilities
+
+```typescript
+import {
+  invalidateScrollListItem,  // Invalidate single item
+  clearScrollListCache       // Clear entire cache
+} from 'tuiuiu.js'
+
+// When item content changes
+invalidateScrollListItem(item)
+
+// Major data refresh
+clearScrollListCache()
+```
+
+---
+
 ## Related
 
 - [Select](/components/forms.md#select) — Has built-in scroll with `maxVisible`
-- [Modal](/components/overlays.md) — Use Scroll for long content
-- [VirtualList](/components/layout.md#virtuallist) — For very large lists with selection
+- [Modal](/components/overlays.md) — Use Scroll for long modal content
+- [VirtualList](/components/layout.md#virtuallist) — For very large lists (10k+ items) with selection

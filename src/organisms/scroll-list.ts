@@ -573,90 +573,143 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     }
   };
 
-  // Render visible items
-  // Strategy: Only render COMPLETE items that fit in the viewport.
-  // We skip items that start before scrollTop to prevent partial items
-  // from overflowing (terminal layouts don't clip overflow like CSS).
-  const visibleNodes: VNode[] = [];
+  // Render visible items using line-based slicing
+  // Strategy: Render items that intersect the viewport, then slice lines.
+  // This gives smooth line-by-line scrolling while preserving ANSI styles.
+  //
+  // The approach (same as the Scroll wrapper component):
+  // 1. Find items that intersect viewport
+  // 2. Render them to string (preserves ANSI codes)
+  // 3. Slice the visible lines
+  // 4. Recreate as Text nodes
+
+  let visibleNodes: VNode[] = [];
 
   if (!inverted) {
     // Standard (top-down)
-    // Find the first item that starts AT or AFTER scrollTop
+    // Find range of items that intersect the viewport [scrollTop, scrollTop + height)
     let currentY = 0;
-    let firstVisibleIndex = 0;
+    let firstIndex = 0;
+    let lastIndex = itemList.length;
 
-    // Skip items that END at or before scrollTop (completely above)
+    // Find first item that intersects viewport
     for (let i = 0; i < itemList.length; i++) {
       const itemH = itemHeights[i]!;
-      if (currentY + itemH <= scrollTop) {
-        currentY += itemH;
-        firstVisibleIndex = i + 1;
-      } else {
+      if (currentY + itemH > scrollTop) {
+        firstIndex = i;
+        break;
+      }
+      currentY += itemH;
+    }
+
+    // Find last item that intersects viewport
+    currentY = 0;
+    for (let i = 0; i < itemList.length; i++) {
+      const itemH = itemHeights[i]!;
+      currentY += itemH;
+      if (currentY >= scrollTop + height) {
+        lastIndex = i + 1;
         break;
       }
     }
 
-    // If first "visible" item starts BEFORE scrollTop, it's partial - skip it
-    // This prevents rendering items that would overflow above the viewport
-    if (currentY < scrollTop && firstVisibleIndex < itemList.length) {
-      currentY += itemHeights[firstVisibleIndex]!;
-      firstVisibleIndex++;
-    }
+    // Render intersecting items
+    const intersectingNodes: VNode[] = [];
+    let startOffset = 0; // Lines before viewport in first intersecting item
+    currentY = 0;
 
-    // Now render items starting from firstVisibleIndex
-    let renderedHeight = 0;
-    for (let i = firstVisibleIndex; i < itemList.length; i++) {
-      const item = itemList[i]!;
+    for (let i = 0; i < itemList.length; i++) {
       const itemH = itemHeights[i]!;
 
-      // Only add item if it FITS in remaining space
-      if (renderedHeight + itemH <= height) {
-        visibleNodes.push(children(item, i));
-        renderedHeight += itemH;
-      } else {
-        break;
+      if (i === firstIndex) {
+        // Calculate how many lines of first item are above viewport
+        startOffset = scrollTop - currentY;
       }
+
+      if (i >= firstIndex && i < lastIndex) {
+        intersectingNodes.push(children(itemList[i]!, i));
+      }
+
+      currentY += itemH;
+    }
+
+    // Render to string and slice visible lines
+    if (intersectingNodes.length > 0) {
+      const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
+      const rendered = renderToString(contentNode, width);
+      const allLines = rendered.split('\n');
+
+      // Slice visible portion
+      const visibleLines = allLines.slice(startOffset, startOffset + height);
+
+      // Convert back to Text nodes (preserves ANSI codes)
+      visibleNodes = visibleLines.map(line => Text({}, line));
     }
   } else {
     // Inverted (chat-style, bottom-up)
-    // In inverted mode, scrollTop=0 means "show newest items" (at the end of the array)
-    // We iterate from the end (newest) towards the beginning (oldest)
+    // In inverted mode, scrollTop=0 shows newest (end of array)
+    // We work backwards from the end
     const reversedItems = [...itemList].reverse();
     const reversedHeights = [...itemHeights].reverse();
 
-    // Find first visible item (skip items below viewport)
-    let linesSkipped = 0;
-    let firstVisibleIndex = 0;
+    // Find range of items that intersect viewport
+    let currentY = 0;
+    let firstIndex = 0;
+    let lastIndex = reversedItems.length;
+
+    // Find first item (newest) that intersects viewport
+    for (let i = 0; i < reversedItems.length; i++) {
+      const itemH = reversedHeights[i]!;
+      if (currentY + itemH > scrollTop) {
+        firstIndex = i;
+        break;
+      }
+      currentY += itemH;
+    }
+
+    // Find last item (oldest) that intersects viewport
+    currentY = 0;
+    for (let i = 0; i < reversedItems.length; i++) {
+      const itemH = reversedHeights[i]!;
+      currentY += itemH;
+      if (currentY >= scrollTop + height) {
+        lastIndex = i + 1;
+        break;
+      }
+    }
+
+    // Render intersecting items (in original order for display)
+    const intersectingNodes: VNode[] = [];
+    let startOffset = 0;
+    currentY = 0;
 
     for (let i = 0; i < reversedItems.length; i++) {
       const itemH = reversedHeights[i]!;
-      if (linesSkipped + itemH <= scrollTop) {
-        linesSkipped += itemH;
-        firstVisibleIndex = i + 1;
-      } else {
-        break;
+
+      if (i === firstIndex) {
+        startOffset = scrollTop - currentY;
       }
+
+      if (i >= firstIndex && i < lastIndex) {
+        const originalIndex = itemList.length - 1 - i;
+        // Add to front to maintain visual order (oldest at top)
+        intersectingNodes.unshift(children(reversedItems[i]!, originalIndex));
+      }
+
+      currentY += itemH;
     }
 
-    // If first "visible" item starts before scrollTop, skip it (partial)
-    if (linesSkipped < scrollTop && firstVisibleIndex < reversedItems.length) {
-      linesSkipped += reversedHeights[firstVisibleIndex]!;
-      firstVisibleIndex++;
-    }
+    // Render to string and slice visible lines
+    if (intersectingNodes.length > 0) {
+      const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
+      const rendered = renderToString(contentNode, width);
+      const allLines = rendered.split('\n');
 
-    // Render items starting from firstVisibleIndex
-    let renderedHeight = 0;
-    for (let i = firstVisibleIndex; i < reversedItems.length; i++) {
-      const item = reversedItems[i]!;
-      const itemH = reversedHeights[i]!;
-      const originalIndex = itemList.length - 1 - i;
+      // Slice visible portion
+      const visibleLines = allLines.slice(startOffset, startOffset + height);
 
-      if (renderedHeight + itemH <= height) {
-        visibleNodes.unshift(children(item, originalIndex));
-        renderedHeight += itemH;
-      } else {
-        break;
-      }
+      // Convert back to Text nodes
+      visibleNodes = visibleLines.map(line => Text({}, line));
     }
   }
 

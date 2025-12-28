@@ -106,7 +106,7 @@ describe('MCP Documentation Coverage', () => {
 
     it('should have documentation for layout components', () => {
       const layoutNames = [
-        'ScrollArea',
+        'ScrollList',  // Primary scroll component (replaces ScrollArea)
         'Tabs',
         'SplitPanel',
         'Grid',

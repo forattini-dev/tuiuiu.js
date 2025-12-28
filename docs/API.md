@@ -612,38 +612,67 @@ Collapsible({
 })
 ```
 
-#### `ScrollArea(props: ScrollAreaProps): VNode`
+#### `ScrollList(props: ScrollListProps): VNode`
 
-Scrollable content area.
+**The primary component for scrolling lists.** Provides smooth line-by-line scrolling with automatic height estimation.
 
 ```typescript
-ScrollArea({
-  height: 10,
-  showScrollbar: true,
-}, longContent)
+ScrollList({
+  items: files(),              // Array or signal
+  children: (file) => FileRow({ file }),  // Render function (NOT VNode!)
+  height: 20,
+  autoScroll: true,            // Follow new items
+  autoScrollThreshold: 3,      // Only auto-scroll if near bottom
+})
 ```
 
-#### `Scrollbar(props: ScrollbarOptions): VNode`
+#### `ChatList(props: ChatListProps): VNode`
 
-Standalone scrollbar atom for custom scroll implementations.
+Pre-configured ScrollList for chat/messaging UIs. Includes `inverted: true` and `autoScroll: true`.
 
 ```typescript
-Scrollbar({
-  height: 10,       // Visible area height
-  total: 50,        // Total content height
-  current: 15,      // Current scroll position
-  color: 'primary', // Thumb color
-  trackColor: 'muted',
+ChatList({
+  items: messages(),
+  children: (msg) => ChatBubble({ message: msg }),
+  height: 20,
 })
+```
+
+#### `useScrollList(): UseScrollListReturn`
+
+Hook for programmatic scroll control.
+
+```typescript
+const list = useScrollList()
+
+ScrollList({ ...list.bind, items, children, height })
+
+list.scrollToBottom()
+list.scrollToTop()
+list.isNearBottom(3)  // Within 3 lines of bottom?
+```
+
+#### `Scroll(props: ScrollProps, ...children): VNode`
+
+Universal wrapper for scrolling any VNode content (not just lists).
+
+```typescript
+Scroll({ height: 15, width: 60 },
+  Box({ flexDirection: 'column' },
+    Header(),
+    Content(),
+    Footer(),
+  ),
+)
 ```
 
 #### `VirtualList(props: VirtualListProps): VNode`
 
-Virtualized list for performance.
+Virtualized list for very large datasets (10k+ items). Only renders visible items.
 
-#### `LogViewer(props: LogViewerOptions): VNode`
+#### `ScrollArea(props: ScrollAreaProps): VNode` *(Legacy)*
 
-Auto-scrolling log display.
+Legacy scrollable area. **Prefer `ScrollList` or `Scroll`.**
 
 #### `Grid(props: GridProps): VNode`
 

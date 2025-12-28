@@ -348,5 +348,5 @@ Box({ flexDirection: 'column' },
 
 - [Modal](/components/organisms/modal.md) - Modal dialogs
 - [Tabs](/components/molecules/tabs.md) - Tabbed content
-- [ScrollArea](/components/organisms/scroll-area.md) - Scrollable containers
+- [Scroll](/components/scroll.md) - Scrollable containers (ScrollList, ChatList, Scroll)
 

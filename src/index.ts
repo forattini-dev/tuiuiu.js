@@ -769,7 +769,14 @@ export {
   createAccordion,
   Details,
   ExpandableText,
-  // ScrollArea
+  // ScrollList - Primary scroll component
+  ScrollList,
+  ChatList,
+  useScrollList,
+  createScrollList,
+  clearScrollListCache,
+  invalidateScrollListItem,
+  // ScrollArea (Legacy - prefer ScrollList)
   ScrollArea,
   createScrollArea,
   VirtualList,
@@ -805,7 +812,13 @@ export type {
   AccordionProps,
   DetailsProps,
   ExpandableTextProps,
-  // ScrollArea
+  // ScrollList
+  ScrollListProps,
+  ScrollListState,
+  ChatListProps,
+  UseScrollListOptions,
+  UseScrollListReturn,
+  // ScrollArea (Legacy)
   ScrollAreaOptions,
   ScrollAreaState,
   ScrollAreaProps,

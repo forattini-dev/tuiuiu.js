@@ -98,7 +98,7 @@ import { BarChart } from 'tuiuiu.js/design-system';
 `Select` `MultiSelect` `RadioGroup` `Autocomplete` `Table` `Tabs` `Tree` `Calendar` `CodeBlock` `Markdown` `Collapsible`
 
 ### Organisms
-`Modal` `CommandPalette` `DataTable` `FileManager` `SplitPanel` `ScrollArea` `Grid` `OverlayStack`
+`Modal` `CommandPalette` `DataTable` `FileManager` `SplitPanel` `ScrollList` `ChatList` `Grid` `OverlayStack`
 
 ### Templates
 `AppShell` `Page` `Header` `StatusBar` `VStack` `HStack` `Center` `FullScreen`
