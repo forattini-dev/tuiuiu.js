@@ -398,6 +398,55 @@ ScrollList({
 })
 ```
 
+### Item Spacing with Margins
+
+Use `marginBottom` on item containers to create visual separation between items. ScrollList's height estimation correctly accounts for margins.
+
+```typescript
+// ✅ Good - marginBottom for spacing between items
+ScrollList({
+  items: messages(),
+  children: (msg) => Box(
+    { marginBottom: 1 },  // 1 line gap between messages
+    Text({ color: 'cyan', bold: true }, msg.sender),
+    Text({}, msg.text),
+  ),
+  height: 20,
+})
+
+// ✅ Good - marginY for spacing above and below
+ScrollList({
+  items: sections(),
+  children: (section) => Box(
+    { marginY: 1 },  // 1 line above AND below each section
+    Text({ bold: true }, section.title),
+    Text({ color: 'muted' }, section.content),
+  ),
+  height: 20,
+})
+
+// ✅ Good - Cards with full margin + padding
+ScrollList({
+  items: cards(),
+  children: (card) => Box(
+    {
+      marginBottom: 1,
+      borderStyle: 'round',
+      padding: 1,
+    },
+    Text({ bold: true }, card.title),
+    Text({}, card.body),
+  ),
+  height: 20,
+})
+```
+
+**Margin shorthands supported:**
+- `margin` — All sides
+- `marginX` — Left and right
+- `marginY` — Top and bottom
+- `marginTop`, `marginBottom`, `marginLeft`, `marginRight` — Individual sides
+
 ### UX
 
 1. **Use `autoScrollThreshold` for streaming content** - Respects user scroll position
@@ -484,6 +533,36 @@ invalidateScrollListItem(item)
 // Major data refresh
 clearScrollListCache()
 ```
+
+### measureHeight
+
+Utility function to calculate the full bounding box height of a VNode, including margins. Useful for custom height calculations or debugging.
+
+```typescript
+import { measureHeight } from 'tuiuiu.js'
+
+// Measure a component's height
+const node = Box(
+  { marginBottom: 1 },
+  Text({}, 'Line 1'),
+  Text({}, 'Line 2'),
+)
+
+const height = measureHeight(node, 80)  // width=80
+// Returns: 3 (2 content lines + 1 marginBottom)
+```
+
+**Signature:**
+```typescript
+measureHeight(node: VNode, width?: number): number
+```
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `node` | `VNode` | required | The VNode tree to measure |
+| `width` | `number` | `terminal width` | Width for layout calculation |
+
+**Returns:** Total height in lines, including margins.
 
 ---
 

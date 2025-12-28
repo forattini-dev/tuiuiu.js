@@ -466,11 +466,13 @@ IMPORTANT: \`children\` is a FUNCTION, not a VNode! It receives each item and re
 
 Features:
 - Smooth scroll (shows partial items at viewport edges)
-- Auto height estimation with content-based caching
+- Auto height estimation with content-based caching (supports margins!)
 - Reactive updates when items change
 - Keyboard navigation (arrows, vim keys, page up/down)
 - Mouse wheel support
-- Auto-scroll for streaming content`,
+- Auto-scroll for streaming content
+
+**Item spacing:** Use marginBottom on item containers for visual separation between items. Height estimation correctly accounts for all margin shorthands (margin, marginY, marginTop, marginBottom).`,
     props: [
       { name: 'items', type: 'T[] | (() => T[])', required: true, description: 'Items array or reactive accessor' },
       { name: 'children', type: '(item: T, index: number) => VNode', required: true, description: 'Render FUNCTION - receives item, returns VNode' },
@@ -528,6 +530,26 @@ ScrollList({
 ScrollList({
   items: data,
   children: Item({ data: data[0] })  // WRONG!
+})`,
+      `// ✅ Item spacing with margins
+ScrollList({
+  items: messages(),
+  children: (msg) => Box(
+    { marginBottom: 1 },  // 1 line gap between items
+    Text({ bold: true }, msg.sender),
+    Text({}, msg.text),
+  ),
+  height: 20,
+})`,
+      `// ✅ Cards with margin + border + padding
+ScrollList({
+  items: cards(),
+  children: (card) => Box(
+    { marginBottom: 1, borderStyle: 'round', padding: 1 },
+    Text({ bold: true }, card.title),
+    Text({}, card.body),
+  ),
+  height: 20,
 })`,
     ],
   },
