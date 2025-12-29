@@ -391,6 +391,34 @@ ScrollList({
 store.dispatch({ type: 'ADD', payload: newItem }); // List re-renders!
 \`\`\`
 
+## Width Constraints
+
+Some components benefit from explicit width constraints for proper layout:
+
+| Component | Prop | Default | Notes |
+|-----------|------|---------|-------|
+| Markdown | \`maxWidth\` | \`'100%'\` | Auto-fills parent width. Set explicitly for custom constraints |
+| Scroll | \`width\` | terminal width | Content layout calculation |
+| SplitPanel | \`width\`, \`height\` | terminal size | Panel size calculations |
+| CodeBlock | \`maxWidth\` | - | Code line wrapping |
+
+\`\`\`typescript
+// ✅ Markdown auto-fills parent width
+Scroll({ height: 20, width: 60 },
+  Markdown({ content: readme })  // Fills to parent width automatically
+)
+
+// ✅ Explicit maxWidth for custom constraints
+Markdown({ content: readme, maxWidth: 50 })
+
+// ✅ Inside SplitPanel - works automatically
+SplitPanel({
+  width: 100, height: 30, ratio: 0.4,
+  left: MenuList(),
+  right: Markdown({ content: doc }),  // Fills right panel automatically
+})
+\`\`\`
+
 ## Most Common Mistakes
 
 1. **Using children: with Box/Text/VStack/HStack**

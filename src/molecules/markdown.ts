@@ -457,12 +457,19 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
  * })
  */
 export function Markdown(options: MarkdownOptions & { content: string }): VNode {
-  const { content, ...rest } = options;
+  const { content, maxWidth, ...rest } = options;
   const nodes = parseMarkdown(content);
 
+  // Use maxWidth if provided, otherwise fill available space from parent
+  // This enables flexWrap to work - without a width constraint, flexbox never wraps
+  const width = maxWidth ?? '100%';
+
   return Box(
-    { flexDirection: 'column' },
-    ...nodes.map((node) => renderNode(node, rest))
+    {
+      flexDirection: 'column',
+      width,
+    },
+    ...nodes.map((node) => renderNode(node, { ...rest, maxWidth }))
   );
 }
 

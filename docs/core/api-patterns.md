@@ -457,6 +457,42 @@ interface ScrollListProps<T> {
 
 ---
 
+## Width Constraints
+
+Some components benefit from explicit width constraints for proper layout:
+
+| Component | Prop | Default | Notes |
+|-----------|------|---------|-------|
+| `Markdown` | `maxWidth` | `'100%'` | Auto-fills parent width. Set explicitly for custom constraints |
+| `Scroll` | `width` | terminal width | Content layout calculation |
+| `SplitPanel` | `width`, `height` | terminal size | Panel size calculations |
+| `CodeBlock` | `maxWidth` | - | Code line wrapping |
+
+```typescript
+// ✅ Markdown auto-fills parent width
+Scroll({ height: 20, width: 60 },
+  Markdown({ content: readme })  // Fills to parent width automatically
+)
+
+// ✅ Explicit maxWidth for custom constraints
+Markdown({ content: readme, maxWidth: 50 })
+
+// ✅ Inside SplitPanel - works automatically
+SplitPanel({
+  width: 100,
+  height: 30,
+  ratio: 0.4,
+  left: MenuList(),
+  right: Markdown({ content: doc }),  // Fills right panel automatically
+})
+```
+
+> **How does this work?**
+>
+> The Markdown component uses `width: '100%'` by default, which fills the available space from its parent container. The layout engine resolves percentages during rendering, so flexWrap works correctly.
+
+---
+
 ## Common Mistakes
 
 ### Mistake 1: Using `children:` with Variadic Components

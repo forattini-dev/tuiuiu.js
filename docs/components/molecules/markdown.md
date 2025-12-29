@@ -22,12 +22,14 @@ This is **bold** and *italic* text.
 })
 ```
 
+> **Note:** The Markdown component automatically fills the available width from its parent container using `width: '100%'`. You can explicitly set `maxWidth` if you need a specific width constraint.
+
 ## Props
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `content` | `string` | required | Markdown content |
-| `maxWidth` | `number` | - | Max width for text wrapping |
+| `maxWidth` | `number` | `'100%'` | Max width for text wrapping. Defaults to filling parent width |
 | `theme` | `MarkdownTheme` | - | Custom theme colors |
 | `codeLineNumbers` | `boolean` | `true` | Show line numbers in code blocks |
 | `indentSize` | `number` | - | Indent size for nested elements |
@@ -209,11 +211,12 @@ import { foo } from 'my-package'
 ### README Viewer
 
 ```typescript
-function ReadmeViewer({ content }) {
+function ReadmeViewer({ content, width }) {
   return Box(
     { padding: 1 },
     Markdown({
       content,
+      maxWidth: width - 2,  // Account for padding
       theme: {
         h1: 'cyan',
         h2: 'blue',
@@ -229,6 +232,7 @@ function ReadmeViewer({ content }) {
 ```typescript
 Markdown({
   content: readme,
+  maxWidth: 80,
   theme: {
     h1: 'cyan',
     h2: 'blue',
@@ -244,6 +248,7 @@ Markdown({
 
 ```typescript
 Markdown({
+  maxWidth: 60,
   content: `# Changelog
 
 ## [1.2.0] - 2024-01-15
@@ -258,6 +263,36 @@ Markdown({
 ### Changed
 - Updated dependencies
 `,
+})
+```
+
+### Inside Scroll or SplitPanel
+
+The Markdown component now automatically fills the available width from its parent, so it works out of the box:
+
+```typescript
+// ✅ Works automatically - Markdown fills parent width
+Scroll(
+  { height: 20, width: 60 },
+  Markdown({ content: readme }),  // Fills to 60 (or 58 with scrollbar)
+)
+
+// ✅ Also works with explicit maxWidth
+Scroll(
+  { height: 20, width: 60 },
+  Markdown({ content: readme, maxWidth: 50 }),  // Explicitly smaller
+)
+```
+
+```typescript
+// Inside SplitPanel - works automatically
+SplitPanel({
+  direction: 'horizontal',
+  width: 100,
+  height: 30,
+  ratio: 0.4,
+  left: MenuList(),
+  right: Markdown({ content: selectedDoc }),  // Fills right panel automatically
 })
 ```
 

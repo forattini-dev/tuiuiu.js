@@ -584,20 +584,20 @@ export const molecules: ComponentDoc[] = [
   {
     name: 'Markdown',
     category: 'molecules',
-    description: 'Markdown renderer with support for headings, lists, code, and formatting.',
+    description: 'Markdown renderer with support for headings, lists, code blocks, tables, and rich formatting. Automatically fills available parent width using width: 100%.',
     props: [
-      { name: 'content', type: "string", required: true, description: 'Markdown content' },
-      { name: 'width', type: "number", required: false, description: 'Max width for wrapping' },
-      { name: 'codeTheme', type: "CodeTheme", required: false, description: 'Code block theme' },
-      { name: 'headingColors', type: "ColorValue[]", required: false, description: 'Colors for h1-h6' },
-      { name: 'linkColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Link color' },
-      { name: 'codeColor', type: "ColorValue", required: false, default: "'yellow'", description: 'Inline code color' },
+      { name: 'content', type: "string", required: true, description: 'Markdown content to render' },
+      { name: 'maxWidth', type: "number", required: false, default: "'100%'", description: 'Max width for text wrapping. Defaults to filling parent width automatically' },
+      { name: 'theme', type: "MarkdownTheme", required: false, description: 'Custom theme colors for headings, links, code, etc.' },
+      { name: 'codeLineNumbers', type: "boolean", required: false, default: 'true', description: 'Show line numbers in code blocks' },
+      { name: 'indentSize', type: "number", required: false, description: 'Indent size for nested elements' },
     ],
     examples: [
-      `Markdown({ content: '# Hello\\n\\nThis is **bold** and _italic_.' })`,
-      `// From file\nMarkdown({ content: readmeContent, width: 80 })`,
+      `// Simple usage - auto-fills parent width\nMarkdown({ content: '# Hello\\n\\nThis is **bold** and _italic_.' })`,
+      `// Inside Scroll - works automatically\nScroll(\n  { height: 20, width: 60 },\n  Markdown({ content: readme }),\n)`,
+      `// With explicit maxWidth and theme\nMarkdown({\n  content: readme,\n  maxWidth: 80,\n  theme: { h1: 'cyan', link: 'blue' },\n})`,
     ],
-    relatedComponents: ['CodeBlock', 'InlineCode'],
+    relatedComponents: ['CodeBlock', 'InlineCode', 'Scroll', 'SplitPanel'],
   },
 
   // =============================================================================
