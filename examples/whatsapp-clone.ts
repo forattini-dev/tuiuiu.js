@@ -649,7 +649,6 @@ function WhatsAppClone(): VNode {
 
   const headerHeight = 3;
   const statusBarHeight = 1;
-  const searchBarHeight = 4;
   const contentHeight = Math.max(10, height - headerHeight - statusBarHeight);
   // Increased left panel width (was 25-35, now 30-45)
   const leftPanelWidth = Math.max(30, Math.min(45, Math.floor(width * 0.40)));
@@ -661,9 +660,9 @@ function WhatsAppClone(): VNode {
       // Check if click is within the left panel (contacts area)
       if (event.x < leftPanelWidth) {
         // Calculate which contact was clicked
-        // Header takes headerHeight rows, search bar takes searchBarHeight rows
+        // Layout: Header (3 rows) + SearchBar (5 rows: paddingY:1 + round border)
         // Each contact item is 3 rows tall (itemHeight: 3)
-        const contactsStartY = headerHeight + searchBarHeight;
+        const contactsStartY = 8; // Header(3) + SearchBar(5) = 8
         const clickedRow = event.y - contactsStartY;
 
         if (clickedRow >= 0) {
