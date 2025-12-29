@@ -19,6 +19,7 @@ import {
   Badge,
   Spinner,
   useHotkeys,
+  useMouse,
   useApp,
   useState,
   useTerminalSize,
@@ -602,7 +603,7 @@ function StatusBar(props: { width: number }): VNode {
     totalUnread > 0
       ? Text({ color: colors.primary }, `${totalUnread} unread messages`)
       : Text({ color: colors.textMuted, dim: true }, 'All caught up'),
-    Text({ color: colors.textMuted, dim: true }, '↑↓ Navigate │ Enter Select │ Esc Quit'),
+    Text({ color: colors.textMuted, dim: true }, '↑↓ Navigate │ 🖱️ Click │ Esc Quit'),
   );
 }
 
@@ -646,10 +647,41 @@ function WhatsAppClone(): VNode {
     }
   });
 
-  const headerHeight = 2;
+  const headerHeight = 3;
   const statusBarHeight = 1;
+  const searchBarHeight = 4;
   const contentHeight = Math.max(10, height - headerHeight - statusBarHeight);
-  const leftPanelWidth = Math.max(25, Math.min(35, Math.floor(width * 0.35)));
+  // Increased left panel width (was 25-35, now 30-45)
+  const leftPanelWidth = Math.max(30, Math.min(45, Math.floor(width * 0.40)));
+
+  // Mouse click support for contacts
+  useMouse((event) => {
+    // Only handle left clicks in the contacts panel area
+    if (event.action === 'click' && event.button === 'left') {
+      // Check if click is within the left panel (contacts area)
+      if (event.x < leftPanelWidth) {
+        // Calculate which contact was clicked
+        // Header takes headerHeight rows, search bar takes searchBarHeight rows
+        // Each contact item is 3 rows tall (itemHeight: 3)
+        const contactsStartY = headerHeight + searchBarHeight;
+        const clickedRow = event.y - contactsStartY;
+
+        if (clickedRow >= 0) {
+          const itemHeight = 3;
+          const clickedIndex = Math.floor(clickedRow / itemHeight);
+          const filtered = searchQuery()
+            ? contacts().filter(c => c.name.toLowerCase().includes(searchQuery().toLowerCase()))
+            : contacts();
+
+          if (clickedIndex >= 0 && clickedIndex < filtered.length) {
+            setSelectedIndex(clickedIndex);
+            setSelectedContactId(filtered[clickedIndex].id);
+            markAsRead(filtered[clickedIndex].id);
+          }
+        }
+      }
+    }
+  }, { enableTracking: true });
 
   return Box(
     { flexDirection: 'column', height, backgroundColor: colors.bgDark },
