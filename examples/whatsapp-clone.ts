@@ -266,26 +266,23 @@ function Header(): VNode {
 }
 
 /**
- * Search Input Component
+ * Search Input Component - Simple full-width search like WhatsApp Web
  */
 function SearchBar(props: { width: number }): VNode {
   return Box(
-    { paddingX: 1, paddingY: 1, backgroundColor: colors.bgPanel },
-    Box(
-      {
-        flexDirection: 'row',
-        backgroundColor: colors.bgInput,
-        borderStyle: 'round',
-        borderColor: colors.bgInput,
-        paddingX: 1,
-      },
-      Text({ color: colors.textSecondary }, '🔍 '),
-      renderTextInput(searchInputState, {
-        width: Math.max(10, props.width - 10),
-        borderStyle: 'none',
-        isActive: false,
-      }),
-    ),
+    {
+      flexDirection: 'row',
+      backgroundColor: colors.bgInput,
+      paddingX: 1,
+      gap: 1,
+    },
+    Text({ color: colors.textMuted }, '🔍'),
+    renderTextInput(searchInputState, {
+      width: props.width - 4,
+      borderStyle: 'none',
+      isActive: false,
+      placeholder: 'Search or start new chat',
+    }),
   );
 }
 
@@ -660,9 +657,9 @@ function WhatsAppClone(): VNode {
       // Check if click is within the left panel (contacts area)
       if (event.x < leftPanelWidth) {
         // Calculate which contact was clicked
-        // Layout: Header (3 rows) + SearchBar (5 rows: paddingY:1 + round border)
+        // Layout: Header (3 rows) + SearchBar (1 row: simple input)
         // Each contact item is 3 rows tall (itemHeight: 3)
-        const contactsStartY = 8; // Header(3) + SearchBar(5) = 8
+        const contactsStartY = 4; // Header(3) + SearchBar(1) = 4
         const clickedRow = event.y - contactsStartY;
 
         if (clickedRow >= 0) {
