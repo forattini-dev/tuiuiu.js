@@ -43,6 +43,7 @@ interface HookState {
 let hookState: HookState = { state: [], effects: [] };
 let hookIndex = 0;
 let isRendering = false;
+let lastMaxHookIndex = 0;
 
 /** Call before rendering component */
 export function beginRender(): void {
@@ -53,6 +54,26 @@ export function beginRender(): void {
 /** Call after rendering component */
 export function endRender(): void {
   isRendering = false;
+
+  const currentMaxIndex = hookIndex;
+
+  // Deactivate orphaned hooks (hooks that were called in previous render but not in this one)
+  // This happens when switching between components with different numbers of hooks
+  if (currentMaxIndex < lastMaxHookIndex) {
+    for (let i = currentMaxIndex; i < lastMaxHookIndex; i++) {
+      const hookData = hookState.state[i];
+      if (hookData && typeof hookData === 'object' && 'registered' in hookData && 'handlerId' in hookData) {
+        // This is a useInput hook - deactivate it
+        if (hookData.registered && hookData.handlerId !== null) {
+          removeInputHandlerById(hookData.handlerId);
+          hookData.handlerId = null;
+          hookData.registered = false;
+        }
+      }
+    }
+  }
+
+  lastMaxHookIndex = currentMaxIndex;
 }
 
 /** Get or initialize hook state at current index */
@@ -104,6 +125,7 @@ export function resetHookState(): void {
   }
   hookState = { state: [], effects: [] };
   hookIndex = 0;
+  lastMaxHookIndex = 0;
 }
 
 export function getAppContext(): AppContext | null {
