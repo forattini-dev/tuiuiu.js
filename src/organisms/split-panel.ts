@@ -113,8 +113,11 @@ function VerticalDivider(props: {
     return Box({});
   }
 
+  // Guard against invalid dimensions
+  const safeHeight = Math.max(1, Math.floor(height) || 1);
+
   const char = DIVIDER_CHARS.vertical[style] || DIVIDER_CHARS.vertical.line;
-  const lines = Array(height).fill(char).join('\n');
+  const lines = Array(safeHeight).fill(char).join('\n');
 
   return Box(
     { flexDirection: 'column' },
@@ -136,8 +139,11 @@ function HorizontalDivider(props: {
     return Box({});
   }
 
+  // Guard against invalid dimensions
+  const safeWidth = Math.max(1, Math.floor(width) || 1);
+
   const char = DIVIDER_CHARS.horizontal[style] || DIVIDER_CHARS.horizontal.line;
-  const line = char.repeat(width);
+  const line = char.repeat(safeWidth);
 
   return Text({ color, dim: style === 'dotted' || style === 'dashed' }, line);
 }
@@ -228,8 +234,11 @@ export function SplitPanel(props: SplitPanelProps): VNode {
   } = props;
 
   // Use provided dimensions or fall back to terminal size
-  const termWidth = width ?? (process.stdout.columns || 80);
-  const termHeight = height ?? (process.stdout.rows || 24);
+  // Guard against invalid dimensions (0, negative, NaN)
+  const rawTermWidth = width ?? (process.stdout.columns || 80);
+  const rawTermHeight = height ?? (process.stdout.rows || 24);
+  const termWidth = Math.max(20, rawTermWidth || 80);
+  const termHeight = Math.max(10, rawTermHeight || 24);
 
   // Calculate panel dimensions
   let leftSize: number;
@@ -237,30 +246,30 @@ export function SplitPanel(props: SplitPanelProps): VNode {
   const dividerSize = divider && dividerStyle !== 'none' ? 1 : gap;
 
   if (direction === 'horizontal') {
-    const availableWidth = termWidth - dividerSize - (border ? 2 : 0);
+    const availableWidth = Math.max(minWidth * 2, termWidth - dividerSize - (border ? 2 : 0));
 
     if (leftWidth !== undefined) {
-      leftSize = Math.min(leftWidth, availableWidth - minWidth);
-      rightSize = availableWidth - leftSize;
+      leftSize = Math.max(minWidth, Math.min(leftWidth, availableWidth - minWidth));
+      rightSize = Math.max(minWidth, availableWidth - leftSize);
     } else if (rightWidth !== undefined) {
-      rightSize = Math.min(rightWidth, availableWidth - minWidth);
-      leftSize = availableWidth - rightSize;
+      rightSize = Math.max(minWidth, Math.min(rightWidth, availableWidth - minWidth));
+      leftSize = Math.max(minWidth, availableWidth - rightSize);
     } else {
-      leftSize = Math.floor(availableWidth * ratio);
-      rightSize = availableWidth - leftSize;
+      leftSize = Math.max(minWidth, Math.floor(availableWidth * ratio));
+      rightSize = Math.max(minWidth, availableWidth - leftSize);
     }
   } else {
-    const availableHeight = termHeight - dividerSize - (border ? 2 : 0);
+    const availableHeight = Math.max(4, termHeight - dividerSize - (border ? 2 : 0));
 
     if (leftWidth !== undefined) {
-      leftSize = Math.min(leftWidth, availableHeight - 2);
-      rightSize = availableHeight - leftSize;
+      leftSize = Math.max(2, Math.min(leftWidth, availableHeight - 2));
+      rightSize = Math.max(2, availableHeight - leftSize);
     } else if (rightWidth !== undefined) {
-      rightSize = Math.min(rightWidth, availableHeight - 2);
-      leftSize = availableHeight - rightSize;
+      rightSize = Math.max(2, Math.min(rightWidth, availableHeight - 2));
+      leftSize = Math.max(2, availableHeight - rightSize);
     } else {
-      leftSize = Math.floor(availableHeight * ratio);
-      rightSize = availableHeight - leftSize;
+      leftSize = Math.max(2, Math.floor(availableHeight * ratio));
+      rightSize = Math.max(2, availableHeight - leftSize);
     }
   }
 
@@ -297,11 +306,14 @@ export function SplitPanel(props: SplitPanelProps): VNode {
     right
   );
 
-  // Build divider
+  // Build divider (use safe dimensions)
+  const dividerHeight = Math.max(1, termHeight - (border ? 2 : 0));
+  const dividerWidth = Math.max(1, termWidth - (border ? 2 : 0));
+
   const dividerNode = divider
     ? direction === 'horizontal'
-      ? VerticalDivider({ height: termHeight - (border ? 2 : 0), style: dividerStyle, color: dividerColor })
-      : HorizontalDivider({ width: termWidth - (border ? 2 : 0), style: dividerStyle, color: dividerColor })
+      ? VerticalDivider({ height: dividerHeight, style: dividerStyle, color: dividerColor })
+      : HorizontalDivider({ width: dividerWidth, style: dividerStyle, color: dividerColor })
     : gap > 0
     ? Box({ width: direction === 'horizontal' ? gap : undefined, height: direction === 'vertical' ? gap : undefined })
     : Box({});
@@ -478,8 +490,11 @@ export function ThreePanel(props: ThreePanelProps): VNode {
   } = props;
 
   // Use provided dimensions or fall back to terminal size
-  const termWidth = width ?? (process.stdout.columns || 80);
-  const termHeight = height ?? (process.stdout.rows || 24);
+  // Guard against invalid dimensions (0, negative, NaN)
+  const rawTermWidth = width ?? (process.stdout.columns || 80);
+  const rawTermHeight = height ?? (process.stdout.rows || 24);
+  const termWidth = Math.max(20, rawTermWidth || 80);
+  const termHeight = Math.max(10, rawTermHeight || 24);
   const dividerSize = dividers ? 1 : 0;
 
   // Calculate center width
