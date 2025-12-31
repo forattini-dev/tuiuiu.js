@@ -458,7 +458,7 @@ describe('Canvas Widget', () => {
         canvas.circle(10, 5, 3);
 
         // Should have pixels at radius distance
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
 
@@ -478,7 +478,7 @@ describe('Canvas Widget', () => {
 
         canvas.ellipse(15, 7, 10, 5);
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
     });
@@ -489,7 +489,7 @@ describe('Canvas Widget', () => {
 
         canvas.arc(10, 5, 4, 0, 180);
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
     });
@@ -504,7 +504,7 @@ describe('Canvas Widget', () => {
           { x: 2, y: 8 },
         ]);
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
 
@@ -536,7 +536,7 @@ describe('Canvas Widget', () => {
           { x: 29, y: 7 }
         );
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
     });
@@ -551,7 +551,7 @@ describe('Canvas Widget', () => {
           { x: 29, y: 14 }
         );
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
     });
@@ -654,8 +654,7 @@ describe('Canvas Widget', () => {
 
         canvas.setPixel(2, 1, 'X');
 
-        const output = canvas.render();
-        const lines = output.split('\n');
+        const lines = canvas.render();
 
         expect(lines.length).toBe(3);
         expect(lines[1]!.includes('X')).toBe(true);
@@ -668,7 +667,7 @@ describe('Canvas Widget', () => {
 
         const output = canvas.render();
 
-        expect(output).not.toBe('');
+        expect(output.length).toBeGreaterThan(0);
       });
 
       it('should render block mode', () => {
@@ -678,7 +677,7 @@ describe('Canvas Widget', () => {
 
         const output = canvas.render();
 
-        expect(output).not.toBe('');
+        expect(output.length).toBeGreaterThan(0);
       });
     });
 
@@ -708,7 +707,7 @@ describe('Canvas Widget', () => {
 
         drawSparkline(canvas, data, 0, 0, 20, 5);
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
 
@@ -727,7 +726,7 @@ describe('Canvas Widget', () => {
 
         drawBarChart(canvas, data, 0, 0, 20, 10);
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('█');
       });
 
@@ -756,7 +755,7 @@ describe('Canvas Widget', () => {
           { x: 0, y: 0, width: 20, height: 10 }
         );
 
-        const output = canvas.render();
+        const output = canvas.renderToString();
         expect(output).toContain('●');
       });
     });
@@ -768,7 +767,7 @@ describe('Canvas Widget', () => {
 
       canvas.setPixel(0, 0, 'X');
 
-      expect(canvas.render()).toBe('X');
+      expect(canvas.render()).toEqual(['X']);
     });
 
     it('should handle very large coordinates in line', () => {

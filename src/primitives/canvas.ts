@@ -9,6 +9,8 @@
  */
 
 import { createSignal } from './signal.js';
+import { colorToAnsi } from '../utils/text-utils.js';
+import { resolveColor } from '../core/theme.js';
 
 // =============================================================================
 // Types
@@ -76,6 +78,8 @@ export interface CanvasOptions {
   background?: CanvasColor;
   /** Fill character for character mode */
   fillChar?: string;
+  /** Default color for pixels set without explicit color */
+  defaultColor?: CanvasColor;
 }
 
 /**
@@ -735,9 +739,13 @@ export class Canvas {
   private foreground: CanvasColor;
   private background: CanvasColor;
   private fillChar: string;
+  private defaultColor: CanvasColor;
 
   // Character mode buffer
   private charBuffer: string[][];
+
+  // Color buffer (stores color for each cell)
+  private colorBuffer: (CanvasColor)[][];
 
   // Braille mode buffer (2x4 resolution per character)
   private brailleBuffer: boolean[][] | null = null;
@@ -752,11 +760,18 @@ export class Canvas {
     this.foreground = options.foreground ?? null;
     this.background = options.background ?? null;
     this.fillChar = options.fillChar ?? '█';
+    this.defaultColor = options.defaultColor ?? null;
 
     // Initialize character buffer
     this.charBuffer = [];
     for (let y = 0; y < this.height; y++) {
       this.charBuffer.push(new Array(this.width).fill(' '));
+    }
+
+    // Initialize color buffer
+    this.colorBuffer = [];
+    for (let y = 0; y < this.height; y++) {
+      this.colorBuffer.push(new Array(this.width).fill(null));
     }
 
     // Initialize mode-specific buffers
@@ -789,11 +804,12 @@ export class Canvas {
   }
 
   /**
-   * Clear the canvas
+   * Clear the canvas (resets both characters and colors)
    */
   clear(): void {
     for (let y = 0; y < this.height; y++) {
       this.charBuffer[y] = new Array(this.width).fill(' ');
+      this.colorBuffer[y] = new Array(this.width).fill(null);
     }
 
     if (this.brailleBuffer) {
@@ -805,12 +821,14 @@ export class Canvas {
   }
 
   /**
-   * Set a pixel/character at position
+   * Set a pixel/character at position with optional color
    */
-  setPixel(x: number, y: number, char?: string): void {
+  setPixel(x: number, y: number, char?: string, color?: CanvasColor): void {
     if (this.mode === 'character') {
       if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
         this.charBuffer[y]![x] = char ?? this.fillChar;
+        // Set color: use provided color, fall back to defaultColor, or null
+        this.colorBuffer[y]![x] = color !== undefined ? color : this.defaultColor;
       }
     } else if (this.mode === 'braille' && this.brailleBuffer) {
       setBrailleDot(this.brailleBuffer, x, y, true);
@@ -827,6 +845,25 @@ export class Canvas {
       return this.charBuffer[y]![x]!;
     }
     return ' ';
+  }
+
+  /**
+   * Get the color at a specific position
+   */
+  getPixelColor(x: number, y: number): CanvasColor {
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      return this.colorBuffer[y]![x]!;
+    }
+    return null;
+  }
+
+  /**
+   * Set only the color at a position without changing the character
+   */
+  setPixelColor(x: number, y: number, color: CanvasColor): void {
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      this.colorBuffer[y]![x] = color;
+    }
   }
 
   /**
@@ -997,19 +1034,79 @@ export class Canvas {
   }
 
   /**
-   * Render canvas to string
+   * Helper to resolve and convert a color to ANSI code
    */
-  render(): string {
+  private colorToAnsiCode(color: CanvasColor): string {
+    if (!color) return '';
+    // Resolve palette/semantic colors first, then convert to ANSI
+    const resolved = resolveColor(color);
+    return colorToAnsi(resolved, 'foreground');
+  }
+
+  /**
+   * Render a single line with ANSI color codes
+   */
+  renderLine(y: number): string {
+    if (y < 0 || y >= this.height) return '';
+
+    const RESET = '\x1b[0m';
+    let result = '';
+    let currentColor: CanvasColor = null;
+
+    for (let x = 0; x < this.width; x++) {
+      const char = this.charBuffer[y]![x]!;
+      const color = this.colorBuffer[y]![x];
+
+      // Check if color changed
+      if (color !== currentColor) {
+        // Reset if we had a color and now we don't, or if color changed
+        if (currentColor !== null) {
+          result += RESET;
+        }
+        // Apply new color if present
+        if (color !== null) {
+          result += this.colorToAnsiCode(color);
+        }
+        currentColor = color;
+      }
+
+      result += char;
+    }
+
+    // Reset at end of line if we had a color
+    if (currentColor !== null) {
+      result += RESET;
+    }
+
+    return result;
+  }
+
+  /**
+   * Render canvas to string array with ANSI color codes
+   */
+  render(): string[] {
     if (this.mode === 'braille' && this.brailleBuffer) {
-      return brailleBufferToString(this.brailleBuffer);
+      return brailleBufferToString(this.brailleBuffer).split('\n');
     }
 
     if (this.mode === 'block' && this.blockBuffer) {
-      return blockBufferToString(this.blockBuffer);
+      return blockBufferToString(this.blockBuffer).split('\n');
     }
 
-    // Character mode
-    return this.charBuffer.map((row) => row.join('')).join('\n');
+    // Character mode with colors
+    const lines: string[] = [];
+    for (let y = 0; y < this.height; y++) {
+      lines.push(this.renderLine(y));
+    }
+    return lines;
+  }
+
+  /**
+   * Render canvas to a single string (lines joined with newlines)
+   * For backwards compatibility and simple output
+   */
+  renderToString(): string {
+    return this.render().join('\n');
   }
 
   /**
