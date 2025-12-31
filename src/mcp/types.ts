@@ -217,11 +217,17 @@ export interface PropDefinition {
   description: string;
 }
 
+export interface MethodDefinition {
+  name: string;
+  description: string;
+}
+
 export interface ComponentDoc {
   name: string;
   category: 'atoms' | 'molecules' | 'organisms' | 'templates' | 'primitives' | 'hooks' | 'utils' | 'media' | 'animation';
   description: string;
   props: PropDefinition[];
+  methods?: MethodDefinition[];
   examples: string[];
   relatedComponents?: string[];
 }

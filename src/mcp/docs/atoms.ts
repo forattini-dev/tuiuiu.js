@@ -424,7 +424,7 @@ export const atoms: ComponentDoc[] = [
   {
     name: 'Canvas',
     category: 'atoms',
-    description: '2D drawing canvas for terminal. Supports character, braille (2x4), and block (2x2) modes.',
+    description: '2D drawing canvas for terminal. Supports character, braille (2x4), and block (2x2) modes with per-pixel color storage.',
     props: [
       { name: 'width', type: "number", required: true, description: 'Canvas width in characters' },
       { name: 'height', type: "number", required: true, description: 'Canvas height in characters' },
@@ -432,9 +432,26 @@ export const atoms: ComponentDoc[] = [
       { name: 'foreground', type: "ColorValue", required: false, description: 'Default foreground color' },
       { name: 'background', type: "ColorValue", required: false, description: 'Background color' },
       { name: 'fillChar', type: "string", required: false, default: "'█'", description: 'Fill character' },
+      { name: 'defaultColor', type: "ColorValue", required: false, description: 'Default color for pixels when color not specified' },
+    ],
+    methods: [
+      { name: 'setPixel(x, y, char, color?)', description: 'Set pixel character with optional color. The 4th parameter stores color per-pixel.' },
+      { name: 'getPixel(x, y)', description: 'Get pixel character at position' },
+      { name: 'getPixelColor(x, y)', description: 'Get color at position (returns undefined if not set)' },
+      { name: 'setPixelColor(x, y, color)', description: 'Set color at position without changing character' },
+      { name: 'render()', description: 'Render canvas to string[] with ANSI colors applied per-pixel' },
+      { name: 'renderLine(y)', description: 'Render single line with ANSI colors' },
+      { name: 'clear()', description: 'Clear canvas (resets both characters and colors)' },
+      { name: 'line(x1, y1, x2, y2)', description: 'Draw line using Bresenham algorithm' },
+      { name: 'circle(cx, cy, r)', description: 'Draw circle outline' },
+      { name: 'fillCircle(cx, cy, r)', description: 'Draw filled circle' },
+      { name: 'rect(x, y, w, h)', description: 'Draw rectangle outline' },
+      { name: 'fillRect(x, y, w, h)', description: 'Draw filled rectangle' },
     ],
     examples: [
       `const canvas = createCanvas({ width: 40, height: 20, mode: 'braille' });\ncanvas.line(0, 0, 39, 19);\ncanvas.circle(20, 10, 8);\nconst output = canvas.render();`,
+      `// Per-pixel color support\nconst canvas = createCanvas({ width: 80, height: 24 });\ncanvas.setPixel(10, 5, '█', 'red');      // Red pixel\ncanvas.setPixel(11, 5, '█', '#00ff00');  // Green pixel (hex)\ncanvas.setPixel(12, 5, '█', 'blue-500'); // Blue pixel (palette)\n\n// render() returns ANSI-colored strings\nconst lines = canvas.render();\nlines.forEach(line => Text({}, line));`,
+      `// Paint application pattern\nconst [color, setColor] = useState('cyan');\nconst canvas = createCanvas({ width: 80, height: 24 });\n\nuseLocalMouse(bounds, (event) => {\n  if (event.isInside && (event.action === 'click' || event.action === 'drag')) {\n    canvas.setPixel(event.x, event.y, '█', color());\n    rerender();\n  }\n});\n\n// Color picker - read existing colors\nconst existingColor = canvas.getPixelColor(x, y);\nif (existingColor) {\n  // Pixel has a color\n}`,
     ],
   },
   {

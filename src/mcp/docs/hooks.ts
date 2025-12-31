@@ -205,6 +205,57 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
+    name: 'useInterval',
+    description: 'Create a recurring timer with automatic cleanup on unmount. Perfect for animations, polling, and periodic updates.',
+    signature: 'useInterval(callback: () => void, delay: number, options?: UseIntervalOptions): UseIntervalReturn',
+    params: [
+      { name: 'callback', type: '() => void', required: true, description: 'Function to call on each interval tick' },
+      { name: 'delay', type: 'number', required: true, description: 'Delay between ticks in milliseconds' },
+      { name: 'options.enabled', type: 'boolean', required: false, default: 'true', description: 'Start/stop timer reactively' },
+      { name: 'options.immediate', type: 'boolean', required: false, default: 'false', description: 'Execute callback immediately on mount' },
+    ],
+    returns: 'Object with start(), stop(), and isRunning() controls',
+    examples: [
+      `// Basic usage - animate every 100ms\nconst [frame, setFrame] = useState(0);\nuseInterval(() => setFrame(f => f + 1), 100);`,
+      `// With controls\nconst { start, stop, isRunning } = useInterval(\n  () => fetchData(),\n  5000,\n  { enabled: isPolling() }\n);\n\n// Manual control\nButton({ label: isRunning() ? 'Stop' : 'Start', onClick: isRunning() ? stop : start })`,
+      `// Immediate execution\nuseInterval(() => tick(), 1000, { immediate: true }); // Runs immediately, then every 1s`,
+    ],
+  },
+  {
+    name: 'useTimeout',
+    description: 'Create a delayed execution with automatic cleanup on unmount. Perfect for debouncing, auto-hide, and delayed actions.',
+    signature: 'useTimeout(callback: () => void, delay: number, options?: UseTimeoutOptions): UseTimeoutReturn',
+    params: [
+      { name: 'callback', type: '() => void', required: true, description: 'Function to call after delay' },
+      { name: 'delay', type: 'number', required: true, description: 'Delay in milliseconds before execution' },
+      { name: 'options.enabled', type: 'boolean', required: false, default: 'true', description: 'Start/cancel timer reactively' },
+    ],
+    returns: 'Object with start(), cancel(), and isPending() controls',
+    examples: [
+      `// Auto-hide notification after 3 seconds\nconst [visible, setVisible] = useState(true);\nuseTimeout(() => setVisible(false), 3000, { enabled: visible() });`,
+      `// With controls\nconst { cancel, isPending } = useTimeout(\n  () => saveChanges(),\n  1000\n);\n\n// Cancel on user input\nuseInput(() => cancel());`,
+      `// Restart timeout\nconst { start, cancel } = useTimeout(() => logout(), 300000); // 5min\n\n// Reset on activity\nuseInput(() => { cancel(); start(); });`,
+    ],
+  },
+  {
+    name: 'useLocalMouse',
+    description: 'Transform terminal-absolute mouse coordinates to component-relative coordinates. Essential for canvas drawing, drag-and-drop, and hit testing.',
+    signature: 'useLocalMouse(bounds: Bounds | () => Bounds, handler: LocalMouseHandler, options?: UseLocalMouseOptions): void',
+    params: [
+      { name: 'bounds', type: 'Bounds | () => Bounds', required: true, description: 'Component bounds {x, y, width, height} or getter function' },
+      { name: 'handler', type: 'LocalMouseHandler', required: true, description: 'Handler receiving LocalMouseEvent with local coordinates' },
+      { name: 'options.onlyInside', type: 'boolean', required: false, default: 'false', description: 'Only fire handler for events inside bounds' },
+      { name: 'options.isActive', type: 'boolean', required: false, default: 'true', description: 'Enable/disable handler dynamically' },
+      { name: 'options.enableTracking', type: 'boolean', required: false, default: 'true', description: 'Enable mouse tracking mode' },
+    ],
+    returns: 'void',
+    examples: [
+      `// Basic usage - canvas drawing\nconst bounds = { x: 10, y: 5, width: 80, height: 24 };\n\nuseLocalMouse(bounds, (event) => {\n  // event.x, event.y - relative to bounds (0,0 is top-left of component)\n  // event.globalX, event.globalY - terminal absolute coordinates\n  // event.isInside - true if click is within bounds\n  if (event.isInside && event.action === 'click') {\n    canvas.setPixel(event.x, event.y, '█', color);\n  }\n});`,
+      `// Only handle inside clicks\nuseLocalMouse(bounds, (event) => {\n  // Only fires when mouse is inside bounds\n  handleDraw(event.x, event.y);\n}, { onlyInside: true });`,
+      `// Reactive bounds (follows component position)\nconst [position, setPosition] = createSignal({ x: 0, y: 0 });\nuseLocalMouse(\n  () => ({ ...position(), width: 40, height: 20 }),\n  handleMouse\n);`,
+    ],
+  },
+  {
     name: 'useForm',
     description: 'Form state management hook with validation, submission, and field binding.',
     signature: 'useForm<T extends FormValues>(options: UseFormOptions<T>): UseFormResult<T>',
