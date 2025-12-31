@@ -82,11 +82,14 @@
   - [useHotkeys](/hooks/use-hotkeys.md)
   - [useTerminalSize](/hooks/use-terminal-size.md)
   - [useMouse](/hooks/use-mouse.md)
+  - [useLocalMouse](/hooks/use-local-mouse.md)
   - [useFocus](/hooks/use-focus.md)
   - [useApp](/hooks/use-app.md)
   - [useNavigation](/hooks/use-navigation.md)
   - [useFps](/hooks/use-fps.md)
   - [useForm](/hooks/use-form.md)
+  - [useInterval](/hooks/use-interval.md)
+  - [useTimeout](/hooks/use-timeout.md)
   - [Context API](/hooks/context.md)
 
 - **Guides**
