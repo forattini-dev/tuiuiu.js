@@ -162,5 +162,3 @@ export function ConsoleAccordion(): VNode {
   );
 }
 
-// Keep old export for backwards compatibility
-export const LogViewer = ConsoleAccordion;
