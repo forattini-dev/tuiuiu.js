@@ -323,7 +323,7 @@ Add to your `.mcp.json` for Claude Code integration:
 
 Now Claude has full access to Tuiuiu's 50+ components, hooks, themes, and examples. Ask it to build dashboards, forms, file browsers, or any terminal UI — it knows the API.
 
-**Available tools:** `tuiuiu_list_components`, `tuiuiu_get_component`, `tuiuiu_get_hook`, `tuiuiu_search`, `tuiuiu_list_themes`, `tuiuiu_getting_started`
+**Available tools:** `tuiuiu_list_components`, `tuiuiu_get_component`, `tuiuiu_get_hook`, `tuiuiu_search`, `tuiuiu_list_themes`, `tuiuiu_create_theme`, `tuiuiu_getting_started`, `tuiuiu_quickstart`, `tuiuiu_version`, `tuiuiu_api_patterns`
 
 [→ Full MCP Documentation](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp)
 
@@ -374,12 +374,12 @@ pnpm tsx examples/app-chat.ts      # Chat application
 | Components | 50+ |
 | Dependencies | 0 |
 | Subpath Imports | 12 |
-| Hooks | 10 |
-| MCP Tools | 6 |
+| Hooks | 15 |
+| MCP Tools | 10 |
 | Examples | 20+ |
-| Border Styles | 9 |
+| Border Styles | 10 |
 | Named Colors | 18 |
-| Tests | 3500+ |
+| Tests | 5300+ |
 | Tree Shakeable | ✅ |
 | MCP Ready | ✅ |
 
