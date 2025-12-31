@@ -122,6 +122,16 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 <img src="docs/assets/demo-forms.gif" alt="Forms" width="100%">
 </td>
 </tr>
+<tr>
+<td align="center">
+<strong>💚 WhatsApp Clone</strong><br>
+<img src="examples/whatsapp-clone.gif" alt="WhatsApp Clone" width="100%">
+</td>
+<td align="center">
+<strong>🖌️ Drawing Canvas</strong><br>
+<img src="examples/tuiuiu-brush.gif" alt="Tuiuiu Brush" width="100%">
+</td>
+</tr>
 </table>
 
 ## Highlights
