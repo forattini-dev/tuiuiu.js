@@ -8,7 +8,7 @@
  * - Diff highlighting
  */
 
-import { createSignal } from '../../core/signal.js';
+import { createSignal } from '../../primitives/signal.js';
 import type { Story, ControlDefinition } from '../types.js';
 import type { VNode } from '../../utils/types.js';
 

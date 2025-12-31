@@ -68,7 +68,7 @@
  * **Letters & Numbers:** a-z, 0-9
  */
 
-import { createSignal } from '../core/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { useInput } from './use-input.js';
 import type { Key } from './types.js';
 

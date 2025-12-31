@@ -14,7 +14,7 @@ import {
 import { parseKeypress } from './use-input.js';
 import { parseMouseEvent, isMouseEvent, enableMouseTracking, disableMouseTracking } from './use-mouse.js';
 import { getHitTestRegistry } from '../core/hit-test.js';
-import { FocusManagerImpl } from './use-focus.js';
+import { FocusZoneManagerAdapter } from './use-focus.js';
 import type { AppContext } from './types.js';
 
 export type { AppContext };
@@ -89,8 +89,8 @@ export function initializeApp(
   setRawMode(true);
   stdin.resume();
 
-  // Initialize focus manager
-  const focusManager = new FocusManagerImpl();
+  // Initialize focus manager (using modern FocusZoneManagerAdapter)
+  const focusManager = new FocusZoneManagerAdapter();
   setFocusManager(focusManager);
 
   // Handle input

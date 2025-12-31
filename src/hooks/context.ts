@@ -2,10 +2,8 @@
  * Internal hooks context - Shared mutable state
  *
  * This module holds the global state used by hooks.
- * Will be moved to app layer in a future refactor.
  */
 
-import { EventEmitter } from 'node:events';
 import type {
   Key,
   InputHandler,
@@ -25,10 +23,6 @@ let focusManager: FocusManager | null = null;
 // Handlers are sorted by priority (highest first) when emitting
 const inputHandlers: InputHandlerEntry[] = [];
 let handlerIdCounter = 0;
-
-// Legacy EventEmitter for backward compatibility (deprecated)
-const inputEventEmitter = new EventEmitter();
-inputEventEmitter.setMaxListeners(100); // Allow many input handlers
 
 // =============================================================================
 // HOOK STATE PERSISTENCE
@@ -140,11 +134,6 @@ export function setAppContext(ctx: AppContext | null): void {
 // INPUT HANDLER MANAGEMENT (Priority-based)
 // =============================================================================
 
-/** Get the internal input event emitter (legacy, for backward compatibility) */
-export function getInputEventEmitter(): EventEmitter {
-  return inputEventEmitter;
-}
-
 /**
  * Register an input handler with priority support
  *
@@ -195,19 +184,6 @@ export function removeInputHandlerById(id: number): boolean {
 }
 
 /**
- * Remove an input handler by reference (legacy support)
- * @deprecated Use removeInputHandlerById instead
- */
-export function removeInputHandler(handler: InputHandler): void {
-  const index = inputHandlers.findIndex((entry) => entry.handler === handler);
-  if (index !== -1) {
-    inputHandlers.splice(index, 1);
-  }
-  // Also remove from legacy emitter
-  inputEventEmitter.off('input', handler);
-}
-
-/**
  * Emit input event to all handlers, respecting priority
  *
  * Handlers are called in priority order (highest first).
@@ -233,17 +209,12 @@ export function emitInput(input: string, key: Key): void {
       console.error('[tuiuiu] Error in input handler:', error);
     }
   }
-
-  // Also emit to legacy EventEmitter for backward compatibility
-  // This will be removed in a future version
-  inputEventEmitter.emit('input', input, key);
 }
 
 /** Clear all input handlers */
 export function clearInputHandlers(): void {
   inputHandlers.length = 0;
   handlerIdCounter = 0;
-  inputEventEmitter.removeAllListeners('input');
 }
 
 /** Get count of registered input handlers (for testing/debugging) */

@@ -4,8 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  FocusManagerImpl,
-  createFocusManager,
+  FocusZoneManagerAdapter,
   useFocus,
   useFocusManager,
 } from '../../src/hooks/use-focus.js';
@@ -16,12 +15,14 @@ import {
   endRender,
   resetHookState,
 } from '../../src/hooks/context.js';
+import { resetFocusZoneManager } from '../../src/core/focus.js';
 
-describe('FocusManagerImpl', () => {
-  let fm: FocusManagerImpl;
+describe('FocusZoneManagerAdapter', () => {
+  let fm: FocusZoneManagerAdapter;
 
   beforeEach(() => {
-    fm = new FocusManagerImpl();
+    resetFocusZoneManager();
+    fm = new FocusZoneManagerAdapter();
   });
 
   describe('register', () => {
@@ -174,14 +175,19 @@ describe('FocusManagerImpl', () => {
   });
 });
 
-describe('createFocusManager', () => {
+describe('createFocusAdapter', () => {
+  beforeEach(() => {
+    resetFocusZoneManager();
+  });
+
   afterEach(() => {
     setFocusManager(null);
   });
 
-  it('creates and sets focus manager', () => {
-    const fm = createFocusManager();
-    expect(fm).toBeInstanceOf(FocusManagerImpl);
+  it('creates and sets focus manager using FocusZoneManagerAdapter', () => {
+    const fm = new FocusZoneManagerAdapter();
+    setFocusManager(fm);
+    expect(fm).toBeInstanceOf(FocusZoneManagerAdapter);
     expect(getFocusManager()).toBe(fm);
   });
 });
@@ -189,7 +195,8 @@ describe('createFocusManager', () => {
 describe('useFocus', () => {
   beforeEach(() => {
     resetHookState();
-    setFocusManager(new FocusManagerImpl());
+    resetFocusZoneManager();
+    setFocusManager(new FocusZoneManagerAdapter());
   });
 
   afterEach(() => {
@@ -263,7 +270,8 @@ describe('useFocus', () => {
 describe('useFocusManager', () => {
   beforeEach(() => {
     resetHookState();
-    setFocusManager(new FocusManagerImpl());
+    resetFocusZoneManager();
+    setFocusManager(new FocusZoneManagerAdapter());
   });
 
   afterEach(() => {

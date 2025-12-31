@@ -8,7 +8,7 @@
  * - Undo/redo history
  */
 
-import { createSignal, batch } from '../../core/signal.js';
+import { createSignal, batch } from '../../primitives/signal.js';
 import type { Story, ControlDefinition, ControlType } from '../types.js';
 
 export interface PlaygroundState {

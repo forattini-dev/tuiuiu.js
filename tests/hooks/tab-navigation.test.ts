@@ -5,10 +5,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FocusManagerImpl } from '../../src/hooks/use-focus.js';
+import { FocusZoneManagerAdapter } from '../../src/hooks/use-focus.js';
 import { initializeApp, cleanupApp } from '../../src/hooks/use-app.js';
 import { setFocusManager, getFocusManager, clearInputHandlers } from '../../src/hooks/context.js';
 import { resetHookState } from '../../src/hooks/context.js';
+import { resetFocusZoneManager } from '../../src/core/focus.js';
 import {
   FocusContext,
   useFocusContext,
@@ -26,6 +27,7 @@ describe('Tab Navigation', () => {
     resetHookState();
     clearInputHandlers();
     setFocusManager(null);
+    resetFocusZoneManager();
 
     // Create mock stdin
     mockStdin = {
@@ -56,12 +58,12 @@ describe('Tab Navigation', () => {
 
   describe('FocusManager blur and getActiveId', () => {
     it('should return undefined when no component is focused', () => {
-      const fm = new FocusManagerImpl();
+      const fm = new FocusZoneManagerAdapter();
       expect(fm.getActiveId()).toBeUndefined();
     });
 
     it('should return focused component id', () => {
-      const fm = new FocusManagerImpl();
+      const fm = new FocusZoneManagerAdapter();
       const setFocused1 = vi.fn();
       const setFocused2 = vi.fn();
 
@@ -73,7 +75,7 @@ describe('Tab Navigation', () => {
     });
 
     it('should blur current focus', () => {
-      const fm = new FocusManagerImpl();
+      const fm = new FocusZoneManagerAdapter();
       const setFocused = vi.fn();
 
       fm.register('input1', setFocused);
@@ -89,7 +91,7 @@ describe('Tab Navigation', () => {
     });
 
     it('should handle blur when nothing is focused', () => {
-      const fm = new FocusManagerImpl();
+      const fm = new FocusZoneManagerAdapter();
       // Should not throw
       expect(() => fm.blur()).not.toThrow();
       expect(fm.getActiveId()).toBeUndefined();
@@ -406,7 +408,7 @@ describe('Focus integration with Context', () => {
 
   it('should prefer FocusContext over global when both exist', () => {
     // Set up global FocusManager
-    const globalFm = new FocusManagerImpl();
+    const globalFm = new FocusZoneManagerAdapter();
     setFocusManager(globalFm);
 
     const globalSetFocused = vi.fn();
@@ -434,7 +436,7 @@ describe('Focus integration with Context', () => {
 
   it('should fall back to global when FocusContext is empty', () => {
     // Set up global FocusManager only
-    const globalFm = new FocusManagerImpl();
+    const globalFm = new FocusZoneManagerAdapter();
     setFocusManager(globalFm);
 
     const globalSetFocused = vi.fn();

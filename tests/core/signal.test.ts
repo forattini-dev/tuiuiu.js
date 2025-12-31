@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createSignal, createEffect, batch, createMemo, Signal, Effect } from '../../src/core/signal.js'
+import { createSignal, createEffect, batch, createMemo, Signal, Effect } from '../../src/primitives/signal.js'
 
 describe('Signal', () => {
   it('should create a signal with initial value', () => {

@@ -29,7 +29,6 @@ export { useInput, useModalInput, useCriticalInput, parseKeypress } from './use-
 // Input handler management (for advanced use cases)
 export {
   addInputHandler,
-  removeInputHandler,
   removeInputHandlerById,
   emitInput,
   clearInputHandlers,
@@ -64,9 +63,7 @@ export {
 export {
   useFocus,
   useFocusManager,
-  createFocusManager,
   createFocusAdapter,
-  FocusManagerImpl,
   FocusZoneManagerAdapter,
 } from './use-focus.js';
 

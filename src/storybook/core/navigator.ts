@@ -8,7 +8,7 @@
  * - Focus management between panels
  */
 
-import { createSignal, batch } from '../../core/signal.js';
+import { createSignal, batch } from '../../primitives/signal.js';
 import type { Story, StoryCategory } from '../types.js';
 
 export type ViewMode = 'preview' | 'playground' | 'comparatives' | 'docs';

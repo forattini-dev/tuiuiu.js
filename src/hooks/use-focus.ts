@@ -27,119 +27,6 @@ function getActiveFocusManager(): FocusManager | null {
 
 export type { FocusOptions, FocusResult, FocusManager };
 
-// Track if deprecation warning has been shown
-let focusManagerDeprecationWarned = false;
-
-/**
- * Reset deprecation warning state (for testing)
- */
-export function resetFocusManagerDeprecationWarning(): void {
-  focusManagerDeprecationWarned = false;
-}
-
-/**
- * Focus Manager - Manages focus between components
- *
- * @deprecated Use FocusZoneManagerAdapter instead for new code.
- * FocusManagerImpl will be removed in a future version.
- *
- * Migration:
- * ```typescript
- * // Old way (deprecated)
- * const fm = createFocusManager();
- *
- * // New way (recommended)
- * const fm = createFocusAdapter();
- * ```
- *
- * The new adapter provides the same interface but uses the advanced
- * FocusZoneManager internally, enabling zone-based focus traps and stacks.
- */
-export class FocusManagerImpl implements FocusManager {
-  private items: Map<string, (focused: boolean) => void> = new Map();
-  private order: string[] = [];
-  private currentIndex = -1;
-
-  constructor() {
-    // Show deprecation warning in development mode (only once)
-    if (process.env.NODE_ENV !== 'production' && !focusManagerDeprecationWarned) {
-      focusManagerDeprecationWarned = true;
-      console.warn(
-        '[tuiuiu] FocusManagerImpl is deprecated. ' +
-        'Use createFocusAdapter() instead for new code. ' +
-        'See docs for migration guide.'
-      );
-    }
-  }
-
-  register(id: string, setFocused: (focused: boolean) => void): void {
-    this.items.set(id, setFocused);
-    this.order.push(id);
-  }
-
-  unregister(id: string): void {
-    this.items.delete(id);
-    const index = this.order.indexOf(id);
-    if (index >= 0) {
-      this.order.splice(index, 1);
-      if (this.currentIndex >= index && this.currentIndex > 0) {
-        this.currentIndex--;
-      }
-    }
-  }
-
-  focus(id: string): void {
-    const index = this.order.indexOf(id);
-    if (index >= 0) {
-      this.setFocusIndex(index);
-    }
-  }
-
-  focusNext(): void {
-    if (this.order.length === 0) return;
-    this.setFocusIndex((this.currentIndex + 1) % this.order.length);
-  }
-
-  focusPrevious(): void {
-    if (this.order.length === 0) return;
-    this.setFocusIndex((this.currentIndex - 1 + this.order.length) % this.order.length);
-  }
-
-  blur(): void {
-    // Unfocus current without focusing another
-    if (this.currentIndex >= 0 && this.currentIndex < this.order.length) {
-      const currentId = this.order[this.currentIndex];
-      const handler = this.items.get(currentId!);
-      handler?.(false);
-    }
-    this.currentIndex = -1;
-  }
-
-  getActiveId(): string | undefined {
-    if (this.currentIndex >= 0 && this.currentIndex < this.order.length) {
-      return this.order[this.currentIndex];
-    }
-    return undefined;
-  }
-
-  private setFocusIndex(index: number): void {
-    // Unfocus current
-    if (this.currentIndex >= 0 && this.currentIndex < this.order.length) {
-      const currentId = this.order[this.currentIndex];
-      const handler = this.items.get(currentId!);
-      handler?.(false);
-    }
-
-    // Focus new
-    this.currentIndex = index;
-    if (index >= 0 && index < this.order.length) {
-      const newId = this.order[index];
-      const handler = this.items.get(newId!);
-      handler?.(true);
-    }
-  }
-}
-
 /**
  * FocusZoneManagerAdapter - Bridges simple FocusManager interface to FocusZoneManager
  *
@@ -186,18 +73,6 @@ export class FocusZoneManagerAdapter implements FocusManager {
   getActiveId(): string | undefined {
     return this.zoneManager.getActiveId(this.zoneId) ?? undefined;
   }
-}
-
-/**
- * Create and initialize a focus manager
- *
- * @deprecated Use FocusZoneManagerAdapter for new code.
- * FocusManagerImpl will be removed in a future version.
- */
-export function createFocusManager(): FocusManager {
-  const fm = new FocusManagerImpl();
-  setFocusManager(fm);
-  return fm;
 }
 
 /**

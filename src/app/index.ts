@@ -23,6 +23,6 @@ export {
 // Re-export focus management for app-level control
 export {
   useFocusManager,
-  createFocusManager,
+  createFocusAdapter,
   type FocusManager,
 } from '../hooks/index.js';

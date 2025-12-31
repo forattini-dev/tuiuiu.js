@@ -4,7 +4,6 @@
 
 import {
   addInputHandler,
-  removeInputHandler,
   removeInputHandlerById,
   getHookState,
   getCurrentHookIndex,
@@ -114,15 +113,11 @@ export function useInput(
       if (hookData.handlerId !== null) {
         removeInputHandlerById(hookData.handlerId);
         hookData.handlerId = null;
-      } else {
-        removeInputHandler(hookData.wrapper);
       }
     } else if (isActive && optionsChanged) {
       // Options changed while active - re-register with new options
       if (hookData.handlerId !== null) {
         removeInputHandlerById(hookData.handlerId);
-      } else {
-        removeInputHandler(hookData.wrapper);
       }
       hookData.priority = priority;
       hookData.stopPropagation = stopPropagation;
