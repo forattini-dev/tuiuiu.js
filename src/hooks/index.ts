@@ -49,6 +49,17 @@ export {
 } from './use-mouse.js';
 export type { MouseEvent, MouseHandler, MouseButton, MouseAction, MouseOptions } from './use-mouse.js';
 
+// Local mouse hook (component-relative coordinates)
+export {
+  useLocalMouse,
+  cleanupLocalMouse,
+  type Bounds,
+  type BoundsOrGetter,
+  type LocalMouseEvent,
+  type LocalMouseHandler,
+  type UseLocalMouseOptions,
+} from './use-local-mouse.js';
+
 // Focus hooks
 export {
   useFocus,
@@ -133,6 +144,21 @@ export {
 
 // FPS tracking hook
 export { useFps, type UseFpsResult } from './use-fps.js';
+
+// Timing hooks
+export {
+  useInterval,
+  cleanupInterval,
+  type UseIntervalOptions,
+  type UseIntervalReturn,
+} from './use-interval.js';
+
+export {
+  useTimeout,
+  cleanupTimeout,
+  type UseTimeoutOptions,
+  type UseTimeoutReturn,
+} from './use-timeout.js';
 
 // Form hook
 export {
