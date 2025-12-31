@@ -1,13 +1,7 @@
 /**
  * Design System Navigation - File browser and navigation components
  *
- * FileManager:
- * - DirectoryTree: Hierarchical tree view
- * - FileList: List/details view of files
- * - PathBreadcrumbs: Path navigation
- * - FileBrowser: Combined file browser
- * - FileDetails: File information
- * - FilePreview: File content preview
+ * Re-exports from organisms/file-browser.ts (canonical source).
  */
 
 export {
@@ -49,4 +43,4 @@ export {
   type FileDetailsOptions,
   type FilePreviewOptions,
   type FileIcons,
-} from './file-manager.js';
+} from '../../organisms/file-browser.js';

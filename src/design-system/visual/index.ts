@@ -51,7 +51,7 @@ export {
   type ScoreOptions,
 } from './digits.js';
 
-// Tooltip
+// Tooltip (from atoms - canonical source)
 export {
   Tooltip,
   WithTooltip,
@@ -69,4 +69,4 @@ export {
   type PopoverOptions,
   type BadgeOptions,
   type TagOptions,
-} from './tooltip.js';
+} from '../../atoms/tooltip.js';

@@ -31,7 +31,7 @@ import {
   getParentPath,
   // Types
   type FileItem,
-} from '../../src/design-system/navigation/file-manager.js';
+} from '../../src/organisms/file-browser.js';
 
 // =============================================================================
 // Test Data

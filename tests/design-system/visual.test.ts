@@ -29,7 +29,7 @@ import {
   Popover,
   Badge,
   Tag,
-} from '../../src/design-system/visual/tooltip.js';
+} from '../../src/atoms/tooltip.js';
 import { Text, Box } from '../../src/primitives/index.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 
@@ -522,25 +522,25 @@ describe('Visual Components', () => {
   });
 
   describe('Badge', () => {
-    it('renders badge with text', () => {
-      const node = Badge({ text: 'NEW' });
+    it('renders badge with label', () => {
+      const node = Badge({ label: 'NEW' });
       expect(node).not.toBeNull();
       const output = renderToString(node);
       expect(output).toContain('NEW');
     });
 
     it('renders solid variant', () => {
-      const node = Badge({ text: '5', variant: 'solid', color: 'red' });
+      const node = Badge({ label: '5', variant: 'solid', color: 'red' });
       expect(node).not.toBeNull();
     });
 
     it('renders outline variant', () => {
-      const node = Badge({ text: 'OK', variant: 'outline', color: 'green' });
+      const node = Badge({ label: 'OK', variant: 'outline', color: 'green' });
       expect(node).not.toBeNull();
     });
 
     it('renders subtle variant (default)', () => {
-      const node = Badge({ text: 'INFO', variant: 'subtle' });
+      const node = Badge({ label: 'INFO', variant: 'subtle' });
       expect(node).not.toBeNull();
     });
   });
