@@ -321,3 +321,10 @@ export function clearMouseHandlers(): void {
   mouseHandlers.length = 0;
   mouseHandlerIdCounter = 0;
 }
+
+/**
+ * Get the number of registered mouse handlers
+ */
+export function getMouseHandlerCount(): number {
+  return mouseHandlers.length;
+}
