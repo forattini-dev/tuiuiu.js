@@ -14,7 +14,7 @@ import { Select } from '../../src/molecules/select.js';
 import { Toast, AlertBox } from '../../src/organisms/modal.js';
 import { Autocomplete } from '../../src/molecules/autocomplete.js';
 import { RadioGroup } from '../../src/molecules/radio-group.js';
-import { HStack, VStack } from '../../src/design-system/layout/stack.js';
+import { HStack, VStack } from '../../src/templates/stack.js';
 import { SplitPanel } from '../../src/organisms/split-panel.js';
 
 describe('Width Inheritance', () => {

@@ -1,8 +1,10 @@
 /**
  * Design System Feedback - User feedback components
+ *
+ * Re-exports from atoms (canonical source) plus unique Badge component.
  */
 
-// Spinner (advanced) - 60+ styles
+// Spinner (from atoms - canonical source)
 export {
   createSpinner,
   renderSpinner,
@@ -12,9 +14,9 @@ export {
   getSpinnerCount,
   type SpinnerStyle,
   type SpinnerOptions,
-} from './spinner.js';
+} from '../../atoms/spinner.js';
 
-// Progress Bar (advanced)
+// Progress Bar (from atoms - canonical source)
 export {
   createProgressBar,
   renderProgressBar,
@@ -22,15 +24,9 @@ export {
   MultiProgressBar,
   type ProgressBarStyle,
   type ProgressBarOptions,
-} from './progress-bar.js';
+} from '../../atoms/progress-bar.js';
 
-// Badge
-export {
-  Badge,
-  type BadgeProps,
-} from './badge.js';
-
-// Timer
+// Timer (from atoms - canonical source)
 export {
   Timer,
   createTimer,
@@ -43,4 +39,11 @@ export {
   type TimerMode,
   type CreateTimerOptions,
   type MultiTimerState,
-} from './timer.js';
+} from '../../atoms/timer.js';
+
+// Badge (unique to design-system - semantic variant API)
+export {
+  Badge,
+  type BadgeProps,
+  type BadgeVariant,
+} from './badge.js';

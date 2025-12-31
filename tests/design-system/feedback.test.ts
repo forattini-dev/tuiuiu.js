@@ -9,13 +9,13 @@ import {
   Spinner,
   createSpinner,
   renderSpinner,
-} from '../../src/design-system/feedback/spinner.js';
+} from '../../src/atoms/spinner.js';
 import {
   ProgressBar,
   createProgressBar,
   renderProgressBar,
   MultiProgressBar,
-} from '../../src/design-system/feedback/progress-bar.js';
+} from '../../src/atoms/progress-bar.js';
 
 describe('Feedback Components', () => {
   describe('Badge', () => {

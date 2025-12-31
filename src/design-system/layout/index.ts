@@ -25,7 +25,7 @@
 // Unique to Design System (no duplicates)
 // =============================================================================
 
-// Stack Layouts
+// Stack Layouts (from templates - canonical source)
 export {
   VStack,
   HStack,
@@ -39,9 +39,9 @@ export {
   type FullScreenProps,
   type SpacerProps,
   type DividerProps,
-} from './stack.js';
+} from '../../templates/stack.js';
 
-// App Layouts
+// App Layouts (from templates - canonical source)
 export {
   Page,
   AppShell,
@@ -53,7 +53,7 @@ export {
   type StatusBarProps,
   type HeaderProps,
   type ContainerProps,
-} from './app.js';
+} from '../../templates/app.js';
 
 // =============================================================================
 // Re-exports from Molecules

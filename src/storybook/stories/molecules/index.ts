@@ -29,7 +29,7 @@ import {
   createCollapsible,
   createAccordion,
 } from '../../../molecules/collapsible.js';
-import { ProgressBar } from '../../../design-system/feedback/index.js';
+import { ProgressBar } from '../../../atoms/progress-bar.js';
 import {
   LineChart,
   ScatterPlot,

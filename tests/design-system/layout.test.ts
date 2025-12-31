@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/index.js';
-import { VStack, HStack, Center, Spacer } from '../../src/design-system/layout/stack.js';
+import { VStack, HStack, Center, Spacer } from '../../src/templates/stack.js';
 import { SplitPanel, ThreePanel, createSplitPanel } from '../../src/organisms/split-panel.js';
 
 describe('Layout Components', () => {
