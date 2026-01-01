@@ -13,6 +13,15 @@ import {
   clearInputHandlers,
   getInputHandlerCount,
   getInputHandlers,
+  addMouseHandler,
+  removeMouseHandlerById,
+  emitMouseEvent,
+  clearMouseHandlers,
+  getMouseHandlerCount,
+  beginRender,
+  endRender,
+  getHookState,
+  resetHookState,
 } from '../../src/hooks/context.js';
 import { INPUT_PRIORITY_VALUES } from '../../src/hooks/types.js';
 import type { Key, InputHandler } from '../../src/hooks/types.js';
@@ -366,6 +375,152 @@ describe('Input Priority System', () => {
       // Both should be called (no stopPropagation)
       expect(normalHandler).toHaveBeenCalled();
       expect(analyticsHandler).toHaveBeenCalled();
+    });
+  });
+
+  describe('Handler count warning', () => {
+    it('should warn when too many handlers registered', () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Add 101 handlers to trigger the warning
+      for (let i = 0; i < 101; i++) {
+        addInputHandler(() => {});
+      }
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining('High number of input handlers')
+      );
+
+      consoleWarn.mockRestore();
+    });
+  });
+});
+
+describe('Mouse Handler System', () => {
+  beforeEach(() => {
+    clearMouseHandlers();
+  });
+
+  describe('addMouseHandler', () => {
+    it('should add mouse handler', () => {
+      const handler = vi.fn();
+      const id = addMouseHandler(handler);
+
+      expect(id).toBeDefined();
+      expect(getMouseHandlerCount()).toBe(1);
+    });
+
+    it('should return unique IDs for each handler', () => {
+      const id1 = addMouseHandler(() => {});
+      const id2 = addMouseHandler(() => {});
+
+      expect(id1).not.toBe(id2);
+    });
+  });
+
+  describe('removeMouseHandlerById', () => {
+    it('should remove handler by ID', () => {
+      const handler = vi.fn();
+      const id = addMouseHandler(handler);
+
+      expect(getMouseHandlerCount()).toBe(1);
+      const removed = removeMouseHandlerById(id);
+      expect(removed).toBe(true);
+      expect(getMouseHandlerCount()).toBe(0);
+    });
+
+    it('should return false for non-existent ID', () => {
+      const removed = removeMouseHandlerById(999);
+      expect(removed).toBe(false);
+    });
+  });
+
+  describe('emitMouseEvent', () => {
+    it('should call all registered handlers', () => {
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      addMouseHandler(handler1);
+      addMouseHandler(handler2);
+
+      const event = { type: 'click', x: 10, y: 20 } as any;
+      emitMouseEvent(event);
+
+      expect(handler1).toHaveBeenCalledWith(event);
+      expect(handler2).toHaveBeenCalledWith(event);
+    });
+
+    it('should catch errors and continue to next handler', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const handler1 = vi.fn().mockImplementation(() => {
+        throw new Error('Mouse handler error');
+      });
+      const handler2 = vi.fn();
+
+      addMouseHandler(handler1);
+      addMouseHandler(handler2);
+
+      const event = { type: 'click', x: 10, y: 20 } as any;
+      emitMouseEvent(event);
+
+      expect(handler1).toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        '[tuiuiu] Error in mouse handler:',
+        expect.any(Error)
+      );
+
+      consoleError.mockRestore();
+    });
+  });
+
+  describe('clearMouseHandlers', () => {
+    it('should remove all handlers', () => {
+      addMouseHandler(() => {});
+      addMouseHandler(() => {});
+      addMouseHandler(() => {});
+
+      expect(getMouseHandlerCount()).toBe(3);
+      clearMouseHandlers();
+      expect(getMouseHandlerCount()).toBe(0);
+    });
+  });
+});
+
+describe('Hook Render Lifecycle', () => {
+  beforeEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  describe('beginRender/endRender', () => {
+    it('should track render lifecycle', () => {
+      beginRender();
+      // Should not throw
+      endRender();
+    });
+
+    it('should deactivate orphaned useInput hooks', () => {
+      // Simulate a render with 2 hooks
+      beginRender();
+      const hook1 = getHookState({ registered: true, handlerId: null });
+      const hook2State = {
+        registered: true,
+        handlerId: addInputHandler(() => {}),
+      };
+      getHookState(hook2State);
+      endRender();
+
+      expect(getInputHandlerCount()).toBe(1);
+
+      // Simulate a render with 1 hook (hook2 is orphaned)
+      beginRender();
+      getHookState(hook1.value);
+      endRender();
+
+      // The orphaned hook's handler should be removed
+      expect(getInputHandlerCount()).toBe(0);
     });
   });
 });

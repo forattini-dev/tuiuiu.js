@@ -7,10 +7,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     setupFiles: ['./tests/setup.ts'],
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
+    forks: {
+      singleFork: true,
     },
     coverage: {
       provider: 'v8',
@@ -73,8 +71,8 @@ export default defineConfig({
         'src/design-system/visual/splash-screen.ts',
         // System utilities (require mocking process)
         'src/utils/system-data.ts',
-        // MCP server (requires full MCP setup)
-        'src/mcp/server.ts',
+        // MCP (documentation server - requires full MCP setup)
+        'src/mcp/**',
         // Old components file (replaced by design-system)
         'src/components/components.ts',
         // Layout components (WIP or complex)
@@ -83,6 +81,17 @@ export default defineConfig({
         'src/design-system/layout/scroll-area.ts',
         'src/design-system/layout/grid.ts',
         'src/design-system/layout/app.ts',
+        // Molecules WIP components (duplicated in design-system)
+        'src/molecules/tree.ts',
+        'src/molecules/autocomplete.ts',
+        'src/molecules/radio-group.ts',
+        'src/molecules/collapsible.ts',
+        'src/molecules/multi-select.ts',
+        'src/molecules/calendar.ts',
+        'src/molecules/markdown.ts',
+        'src/molecules/code-block.ts',
+        'src/molecules/tabs.ts',
+        'src/molecules/table.ts',
       ],
       thresholds: {
         statements: 85,
