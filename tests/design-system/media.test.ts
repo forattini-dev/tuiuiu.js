@@ -19,7 +19,7 @@ import {
   createShadowedText,
   AsciiPatterns,
   createBanner,
-} from '../../src/design-system/media/picture.js';
+} from '../../src/atoms/picture.js';
 
 describe('Media Components', () => {
   describe('Picture', () => {
