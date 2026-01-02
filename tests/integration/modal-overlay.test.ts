@@ -22,7 +22,7 @@ import {
   getHotkeyScope,
   resetHotkeyScope,
 } from '../../src/hooks/use-hotkeys.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 import type { VNode } from '../../src/utils/types.js';
 
 // =============================================================================
