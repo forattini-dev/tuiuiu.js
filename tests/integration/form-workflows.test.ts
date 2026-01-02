@@ -11,7 +11,7 @@ import { TextInput, createTextInput } from '../../src/atoms/text-input.js';
 import { Switch, createSwitch } from '../../src/atoms/switch.js';
 import { Button } from '../../src/atoms/button.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 import type { VNode } from '../../src/utils/types.js';
 
 // =============================================================================
