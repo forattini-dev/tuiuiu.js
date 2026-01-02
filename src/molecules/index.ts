@@ -166,3 +166,21 @@ export {
   type SplitViewState,
   type SplitDirection,
 } from './split-view.js';
+
+// Splash Screen - Animated loading/intro screens
+export {
+  SplashScreen,
+  createSplashScreen,
+  TuiuiuSplash,
+  ImpactSplashScreen,
+  MinimalSplash,
+  ProgressSplash,
+  parseColoredBBCode,
+  TUIUIU_LOGO_LARGE,
+  TUIUIU_LOGO_MEDIUM,
+  TUIUIU_LOGO_SMALL,
+  type SplashScreenOptions,
+  type SplashScreenState,
+  type SplashScreenProps,
+  type ImpactSplashProps,
+} from './splash-screen.js';
