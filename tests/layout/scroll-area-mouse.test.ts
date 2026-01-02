@@ -12,8 +12,8 @@ import {
   createVirtualList,
 } from '../../src/organisms/scroll-area.js';
 import { Box, Text } from '../../src/primitives/index.js';
-import { calculateLayout } from '../../src/design-system/core/layout.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { calculateLayout } from '../../src/core/layout.js';
+import { renderToString } from '../../src/core/renderer.js';
 import {
   getHitTestRegistry,
   resetHitTestRegistry,
