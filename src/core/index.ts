@@ -27,14 +27,16 @@ export {
   getVisibleWidth,
   measureText,
   clearTextMeasureCache,
-} from '../design-system/core/layout.js';
+} from './layout.js';
 
 // Renderer
 export {
   renderToString,
   measureHeight,
   OutputBuffer,
-} from '../design-system/core/renderer.js';
+} from './renderer.js';
+
+export type { RenderOptions } from './renderer.js';
 
 // Hit Testing (mouse event dispatch)
 export {
