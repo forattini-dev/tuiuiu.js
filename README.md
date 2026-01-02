@@ -19,7 +19,7 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 
 [📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook) · [🤖 MCP Server](#mcp-server)
 
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/assets/demo-dashboard.gif" alt="Tuiuiu Demo" width="600">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-hero.gif" alt="Tuiuiu Demo" width="600">
 
 </div>
 
@@ -77,17 +77,17 @@ Build terminal apps that feel native. These examples recreate familiar CLI tools
 <td align="center" width="33%">
 <strong>📊 htop</strong><br>
 <em>Process Monitor</em><br>
-<img src="docs/assets/demo-htop.gif" alt="htop clone" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-htop.gif" alt="htop clone" width="100%">
 </td>
 <td align="center" width="33%">
 <strong>🌐 mtr</strong><br>
 <em>Network Diagnostics</em><br>
-<img src="docs/assets/demo-mtr.gif" alt="mtr clone" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-mtr.gif" alt="mtr clone" width="100%">
 </td>
 <td align="center" width="33%">
 <strong>📡 ping</strong><br>
 <em>Network Latency</em><br>
-<img src="docs/assets/demo-ping.gif" alt="ping clone" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-ping.gif" alt="ping clone" width="100%">
 </td>
 </tr>
 </table>
@@ -105,31 +105,31 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 <tr>
 <td align="center" width="50%">
 <strong>📊 Real-time Dashboard</strong><br>
-<img src="docs/assets/demo-dashboard.gif" alt="Dashboard" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-dashboard.gif" alt="Dashboard" width="100%">
 </td>
 <td align="center" width="50%">
 <strong>💬 Chat Application</strong><br>
-<img src="docs/assets/demo-chat.gif" alt="Chat" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-chat.gif" alt="Chat" width="100%">
 </td>
 </tr>
 <tr>
 <td align="center">
 <strong>🎨 Component Storybook</strong><br>
-<img src="docs/assets/demo-storybook.gif" alt="Storybook" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-storybook.gif" alt="Storybook" width="100%">
 </td>
 <td align="center">
 <strong>📝 Interactive Forms</strong><br>
-<img src="docs/assets/demo-forms.gif" alt="Forms" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-forms.gif" alt="Forms" width="100%">
 </td>
 </tr>
 <tr>
 <td align="center">
 <strong>💚 WhatsApp Clone</strong><br>
-<img src="examples/whatsapp-clone.gif" alt="WhatsApp Clone" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/examples/whatsapp-clone.gif" alt="WhatsApp Clone" width="100%">
 </td>
 <td align="center">
 <strong>🖌️ Drawing Canvas</strong><br>
-<img src="examples/tuiuiu-brush.gif" alt="Tuiuiu Brush" width="100%">
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/examples/tuiuiu-brush.gif" alt="Tuiuiu Brush" width="100%">
 </td>
 </tr>
 </table>
