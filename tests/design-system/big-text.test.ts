@@ -15,7 +15,7 @@ import {
   getBigTextFontCount,
   renderBigText,
   type BigTextFont,
-} from '../../src/design-system/visual/big-text.js';
+} from '../../src/atoms/big-text.js';
 
 describe('BigText', () => {
   describe('listBigTextFonts', () => {
