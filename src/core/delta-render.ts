@@ -13,7 +13,7 @@
 
 import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
-import { calculateLayout, getVisibleWidth } from '../design-system/core/layout.js';
+import { calculateLayout, getVisibleWidth } from './layout.js';
 import { stringWidth } from '../utils/text-utils.js';
 import {
   CellBuffer,
