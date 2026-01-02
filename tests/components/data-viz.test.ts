@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 
 // Sparkline
