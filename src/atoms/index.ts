@@ -222,3 +222,95 @@ export {
   type MetricSize,
 } from './metric-display.js';
 
+// =============================================================================
+// Scrollbar - Scroll position indicator
+// =============================================================================
+export {
+  Scrollbar,
+  type ScrollbarProps,
+} from './scrollbar.js';
+
+// =============================================================================
+// BigText - Large ASCII art text display
+// =============================================================================
+export {
+  BigText,
+  FigletText,
+  BigTitle,
+  Logo,
+  listBigTextFonts,
+  getBigTextFontInfo,
+  renderBigText,
+  getBigTextFontCount,
+  type BigTextFont,
+  type BigTextOptions,
+  type FigletTextOptions,
+  type BigTitleOptions,
+  type LogoOptions,
+} from './big-text.js';
+
+// =============================================================================
+// Digits - LCD-style numeric displays
+// =============================================================================
+export {
+  Digits,
+  Clock,
+  Counter,
+  Countdown,
+  Stopwatch,
+  DigitRoll,
+  Score,
+  type DigitsStyle,
+  type DigitsOptions,
+  type ClockOptions,
+  type CounterOptions,
+  type CountdownOptions,
+  type StopwatchOptions,
+  type DigitRollOptions,
+  type ScoreOptions,
+} from './digits.js';
+
+// =============================================================================
+// Picture - ASCII art and colored pixel art display
+// =============================================================================
+export {
+  Picture,
+  FramedPicture,
+  ColoredPicture,
+  AnimatedPicture,
+  createPixelGrid,
+  createPixelGridFromColors,
+  parseColoredBBCode,
+  renderPixelGrid,
+  createSprite,
+  getSpriteFrame,
+  nextSpriteFrame,
+  createGradientBar,
+  rainbowText,
+  createShadowedText,
+  createBanner,
+  createAnimatedPicture,
+  adjustBrightness,
+  interpolateColor,
+  applyBrightnessToGrid,
+  applyShimmerToGrid,
+  applyRainbowToGrid,
+  applyGlitchToGrid,
+  AsciiPatterns,
+  type PictureProps,
+  type PictureFit,
+  type PictureAlignX,
+  type PictureAlignY,
+  type FramedPictureProps,
+  type ColoredPictureProps,
+  type AnimatedPictureProps,
+  type AnimatedPictureControls,
+  type PictureAnimation,
+  type AnimationEasing,
+  type Pixel,
+  type PixelGrid,
+  type ColorPalette,
+  type Sprite,
+  type GradientStop,
+} from './picture.js';
+
