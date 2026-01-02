@@ -5,7 +5,7 @@
  * Dimensions: 80x27 (width x height)
  */
 
-import type { PixelGrid } from '../../design-system/media/picture.js';
+import type { PixelGrid } from '../../atoms/picture.js';
 
 /**
  * Tuiuiu bird colored ASCII art as PixelGrid
