@@ -9,7 +9,7 @@ import { Static } from '../../src/primitives/index.js';
 import { Text } from '../../src/primitives/index.js';
 import { Box } from '../../src/primitives/index.js';
 import { Fragment } from '../../src/primitives/index.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 
 describe('Static Component', () => {
   describe('Basic rendering', () => {
