@@ -568,4 +568,55 @@ export const atoms: ComponentDoc[] = [
     ],
     relatedComponents: ['Button', 'Modal'],
   },
+
+  // =============================================================================
+  // Status & Metrics Components
+  // =============================================================================
+  {
+    name: 'StatusIndicator',
+    category: 'atoms',
+    description: 'Semantic status display with color-coded icons, optional pulse animation, and preset factories.',
+    props: [
+      { name: 'status', type: "BuiltInStatus | CustomStatus", required: true, description: "Status type: 'success' | 'warning' | 'error' | 'info' | 'pending' | 'running' | 'stopped' or { color, icon }" },
+      { name: 'label', type: 'MaybeReactive<string>', required: false, description: 'Optional text label after indicator' },
+      { name: 'showIcon', type: 'boolean', required: false, default: 'true', description: 'Display status icon' },
+      { name: 'showDot', type: 'boolean', required: false, default: 'false', description: 'Display colored dot instead of icon' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", required: false, default: "'md'", description: 'Size variant' },
+      { name: 'pulse', type: 'boolean', required: false, description: "Enable pulse animation (auto-enabled for 'running')" },
+      { name: 'gap', type: 'number', required: false, default: '1', description: 'Gap between icon and label' },
+    ],
+    examples: [
+      `// Built-in statuses\nStatusIndicator({ status: 'success', label: 'Connected' })\nStatusIndicator({ status: 'running', label: 'Processing...', pulse: true })\nStatusIndicator({ status: 'error', label: 'Failed' })`,
+      `// Preset factories (shortcuts)\nimport { loadingStatus, successStatus, errorStatus } from 'tuiuiu.js'\n\nStatusIndicator(loadingStatus('Processing...'))\nStatusIndicator(successStatus('Done'))\nStatusIndicator(errorStatus('Connection failed'))`,
+      `// Custom status\nStatusIndicator({\n  status: { color: 'magenta', icon: '◆' },\n  label: 'Custom Status',\n})`,
+      `// Reactive status\nStatusIndicator({\n  status: () => isConnected() ? 'success' : 'error',\n  label: () => isConnected() ? 'Online' : 'Offline',\n})`,
+    ],
+    relatedComponents: ['Badge', 'InfoBox', 'MetricDisplay'],
+  },
+  {
+    name: 'MetricDisplay',
+    category: 'atoms',
+    description: 'Dashboard metric component with value, trend sparkline, delta percentage, and threshold-based coloring. Use createMetric() for auto-tracking state.',
+    props: [
+      { name: 'metric', type: 'MetricState', required: false, description: 'State from createMetric() - preferred for reactive metrics' },
+      { name: 'label', type: 'MaybeReactive<string>', required: false, description: 'Metric label (standalone mode)' },
+      { name: 'value', type: 'MaybeReactive<number>', required: false, description: 'Current value (standalone mode)' },
+      { name: 'unit', type: 'MaybeReactive<string>', required: false, description: "Unit suffix (e.g., '%', 'ms', 'MB')" },
+      { name: 'trend', type: 'MaybeReactive<number[]>', required: false, description: 'Historical data for sparkline' },
+      { name: 'trendWidth', type: 'number', required: false, default: '10', description: 'Sparkline width in chars' },
+      { name: 'delta', type: 'MaybeReactive<number>', required: false, description: 'Delta percentage (auto-calculated with createMetric)' },
+      { name: 'thresholds', type: 'ExtendedThresholdConfig', required: false, description: 'Threshold config for value coloring' },
+      { name: 'layout', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Layout direction' },
+      { name: 'size', type: "'compact' | 'normal' | 'large'", required: false, default: "'normal'", description: 'Size variant' },
+      { name: 'showTrend', type: 'boolean', required: false, default: 'true', description: 'Show sparkline trend' },
+      { name: 'showDelta', type: 'boolean', required: false, default: 'true', description: 'Show delta indicator' },
+    ],
+    examples: [
+      `// With createMetric() - auto-tracking (recommended)\nconst cpu = createMetric({\n  label: 'CPU',\n  unit: '%',\n  historySize: 20,\n  thresholds: {\n    success: [0, 50],\n    warning: [50, 80],\n    error: [80, 100],\n  },\n});\n\n// Update - history and delta auto-calculated!\ncpu.set(45);\ncpu.set(52);  // delta = +15.5%\n\nMetricDisplay({ metric: cpu })`,
+      `// Standalone mode (one-off usage)\nMetricDisplay({\n  label: 'Response Time',\n  value: 145,\n  unit: 'ms',\n  trend: [120, 130, 145, 142, 145],\n  delta: 2.1,\n  thresholds: { success: [0, 200], error: [200, Infinity] },\n})`,
+      `// Vertical layout\nMetricDisplay({ metric: cpu, layout: 'vertical' })`,
+      `// Multiple metrics dashboard\nBox({ flexDirection: 'row', gap: 4 },\n  MetricDisplay({ metric: cpuMetric }),\n  MetricDisplay({ metric: memoryMetric }),\n  MetricDisplay({ metric: requestsMetric }),\n)`,
+    ],
+    relatedComponents: ['StatusIndicator', 'ProgressBar', 'Sparkline', 'Gauge'],
+  },
 ];

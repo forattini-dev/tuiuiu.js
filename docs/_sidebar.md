@@ -49,6 +49,8 @@
   - [Slider](/components/atoms/slider.md)
   - [Timer](/components/atoms/timer.md)
   - [Tooltip & Badge](/components/atoms/tooltip.md)
+  - [StatusIndicator](/components/atoms/status-indicator.md)
+  - [MetricDisplay](/components/atoms/metric-display.md)
 
 - **Molecules**
   - [Select](/components/molecules/select.md)
