@@ -14,13 +14,10 @@
 
 import { Box, Text, When, Each, Fragment, Spacer, Newline } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
-import {
-  TextInput,
-  Checkbox,
-  Select,
-  RadioGroup,
-  ToggleGroup
-} from '../../../design-system/forms/index.js';
+import { TextInput } from '../../../atoms/text-input.js';
+import { Switch as Checkbox, ToggleGroup } from '../../../atoms/switch.js';
+import { Select } from '../../../molecules/select.js';
+import { RadioGroup } from '../../../molecules/radio-group.js';
 import {
   Collapsible,
   Accordion,
