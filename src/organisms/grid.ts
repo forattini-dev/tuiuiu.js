@@ -86,10 +86,10 @@ export type AlignContent =
 
 /** Grid container options */
 export interface GridOptions {
-  /** Column track definition (e.g., '1fr 2fr 1fr' or [10, '1fr', 'auto']) */
-  columns?: string | TrackSize[];
+  /** Column track definition (e.g., '1fr 2fr 1fr', [10, '1fr', 'auto'], or 3 for equal columns) */
+  columns?: string | TrackSize[] | number;
   /** Row track definition */
-  rows?: string | TrackSize[];
+  rows?: string | TrackSize[] | number;
   /** Gap between cells (or [rowGap, columnGap]) */
   gap?: number | [number, number];
   /** Row gap specifically */
@@ -227,9 +227,18 @@ export function parseTrackSize(size: TrackSize): ParsedTrack {
  * Parse track definition string into array
  * e.g., '1fr 2fr 1fr' -> [{ type: 'fr', value: 1 }, ...]
  */
-export function parseTrackDefinition(definition: string | TrackSize[]): ParsedTrack[] {
+export function parseTrackDefinition(definition: string | TrackSize[] | number): ParsedTrack[] {
   if (Array.isArray(definition)) {
     return definition.map(parseTrackSize);
+  }
+
+  // Handle numeric shorthand (e.g., columns: 2 -> "1fr 1fr")
+  if (typeof definition === 'number') {
+    const tracks: ParsedTrack[] = [];
+    for (let i = 0; i < definition; i++) {
+      tracks.push({ type: 'fr', value: 1 });
+    }
+    return tracks;
   }
 
   // Handle repeat() function
