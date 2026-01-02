@@ -8,7 +8,7 @@ import {
   clearTextMeasureCache,
   getVisibleWidth,
   measureText,
-} from '../../src/design-system/core/layout.js';
+} from '../../src/core/layout.js';
 import { Box, Text } from '../../src/primitives/index.js';
 
 describe('Core Layout Engine', () => {
