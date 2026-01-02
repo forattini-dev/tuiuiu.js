@@ -166,12 +166,33 @@ export class OutputBuffer {
   }
 }
 
+/** Options for renderToString */
+export interface RenderOptions {
+  /** Terminal width (defaults to process.stdout.columns or 80) */
+  width?: number;
+  /** Terminal height (defaults to unbounded) */
+  height?: number;
+  /** If true, preserve all lines including trailing empty ones (for full-screen apps) */
+  fullHeight?: boolean;
+}
+
 /**
  * Render a VNode tree to ANSI string
  */
-export function renderToString(node: VNode, width?: number, height?: number): string {
-  const termWidth = width ?? process.stdout.columns ?? 80;
-  const termHeight = height ?? 1000; // Large default for unbounded height
+export function renderToString(node: VNode, widthOrOptions?: number | RenderOptions, height?: number): string {
+  // Support both old signature (width, height) and new options object
+  let termWidth: number;
+  let termHeight: number;
+  let fullHeight = false;
+
+  if (typeof widthOrOptions === 'object') {
+    termWidth = widthOrOptions.width ?? process.stdout.columns ?? 80;
+    termHeight = widthOrOptions.height ?? 1000;
+    fullHeight = widthOrOptions.fullHeight ?? false;
+  } else {
+    termWidth = widthOrOptions ?? process.stdout.columns ?? 80;
+    termHeight = height ?? 1000; // Large default for unbounded height
+  }
 
   const layout = calculateLayout(node, termWidth, termHeight);
 
@@ -180,13 +201,29 @@ export function renderToString(node: VNode, width?: number, height?: number): st
   // Also add marginBottom from the root node's style
   const style = node.props as BoxStyle;
   const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
-  const fullHeight = layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
+  const layoutFullHeight = layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
 
-  const buffer = new OutputBuffer(termWidth, fullHeight);
+  // For fullHeight mode, use the requested height, otherwise use calculated height with margins
+  const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layoutFullHeight;
+  const buffer = new OutputBuffer(termWidth, bufferHeight);
 
   renderLayout(layout, buffer, 0, 0);
 
-  return buffer.toString();
+  return buffer.toString(fullHeight);
+}
+
+/**
+ * Measure the height of a VNode tree including margins
+ * Returns the full bounding box height (useful for scroll calculations)
+ */
+export function measureHeight(node: VNode, width?: number): number {
+  const termWidth = width ?? process.stdout.columns ?? 80;
+  const layout = calculateLayout(node, termWidth, 1000);
+
+  // Calculate full bounding box height including margins
+  const style = node.props as BoxStyle;
+  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
+  return layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
 }
 
 /**
@@ -199,9 +236,9 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
 
   // Get this node's background style (or inherit from parent)
   const style = node.props as BoxStyle;
-  const nodeBgStyle = style.backgroundColor
-    ? `\x1b[${getColorCode(style.backgroundColor, true)}m`
-    : parentBgStyle;
+  // Get background color code, checking for undefined to avoid "[undefinedm" in output
+  const bgCode = style.backgroundColor ? getColorCode(style.backgroundColor, true) : undefined;
+  const nodeBgStyle = bgCode ? `\x1b[${bgCode}m` : parentBgStyle;
 
   // Render based on node type
   switch (node.type) {
@@ -212,8 +249,7 @@ function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number,
       renderText(node, buffer, absX, absY, width, nodeBgStyle);
       break;
     case 'spacer':
-      // Note: Spacer background is NOT filled to avoid flickering.
-      // Background inheritance happens through text children.
+      // Spacer is just empty space (no visual)
       break;
     case 'newline':
       // Newline is handled by layout
@@ -249,8 +285,14 @@ function renderBox(
 ): void {
   const style = node.props as BoxStyle;
 
-  // Note: Background is NOT filled here to avoid flickering.
-  // Text children inherit parentBgStyle and render with the correct background.
+  // Fill background if backgroundColor is specified
+  if (style.backgroundColor) {
+    const bgCode = getColorCode(style.backgroundColor, true);
+    if (bgCode) {
+      const bgStyle = `\x1b[${bgCode}m`;
+      buffer.fill(x, y, width, height, ' ', bgStyle);
+    }
+  }
 
   // Border rendering
   if (style.borderStyle && style.borderStyle !== 'none') {
@@ -337,62 +379,69 @@ function getColorStyle(color: string): string | undefined {
   return code ? `\x1b[${code}m` : undefined;
 }
 
-// Basic ANSI color names - checked first before theme resolution
-const ANSI_COLORS: Record<string, number> = {
-  black: 30,
-  red: 31,
-  green: 32,
-  yellow: 33,
-  blue: 34,
-  magenta: 35,
-  cyan: 36,
-  white: 37,
-  gray: 90,
-  grey: 90,
-  blackBright: 90,
-  redBright: 91,
-  greenBright: 92,
-  yellowBright: 93,
-  blueBright: 94,
-  magentaBright: 95,
-  cyanBright: 96,
-  whiteBright: 97,
-};
-
 /**
  * Get ANSI color code
- * Supports: ANSI color names, hex (#rrggbb), RGB (rgb(r,g,b)), and semantic theme colors (primary, success, etc.)
  *
- * Priority: ANSI colors > semantic theme colors > hex/rgb
+ * Supports:
+ * - ANSI color names: 'red', 'cyan', 'whiteBright', etc.
+ * - Semantic theme colors: 'primary', 'success', 'foreground', 'primaryForeground', etc.
+ * - Hex colors: '#3b82f6', '#fff' (short form)
+ * - RGB colors: 'rgb(255, 100, 50)'
  */
 function getColorCode(color: string, background: boolean): string | undefined {
   const offset = background ? 10 : 0;
 
-  // 1. Check for basic ANSI colors first (direct terminal colors have highest priority)
-  if (ANSI_COLORS[color] !== undefined) {
-    return String(ANSI_COLORS[color] + offset);
+  // Basic ANSI colors (check these first for performance)
+  const basicColors: Record<string, number> = {
+    black: 30,
+    red: 31,
+    green: 32,
+    yellow: 33,
+    blue: 34,
+    magenta: 35,
+    cyan: 36,
+    white: 37,
+    gray: 90,
+    grey: 90,
+    blackBright: 90,
+    redBright: 91,
+    greenBright: 92,
+    yellowBright: 93,
+    blueBright: 94,
+    magentaBright: 95,
+    cyanBright: 96,
+    whiteBright: 97,
+  };
+
+  if (basicColors[color] !== undefined) {
+    return String(basicColors[color] + offset);
   }
 
-  // 2. Resolve semantic theme colors (like 'primary', 'success') to their actual hex values
-  const resolvedColor = resolveColor(color);
+  // Resolve semantic/theme colors to hex values
+  // This handles: 'primary', 'foreground', 'primaryForeground', 'success-500', etc.
+  const resolved = resolveColor(color);
 
-  // 3. Check again for ANSI colors in case resolution returned one
-  if (ANSI_COLORS[resolvedColor] !== undefined) {
-    return String(ANSI_COLORS[resolvedColor] + offset);
+  // Check if resolved value is a basic color name (e.g., when primaryForeground resolves to 'white' or 'black')
+  if (basicColors[resolved] !== undefined) {
+    return String(basicColors[resolved] + offset);
   }
 
-  // 4. Hex color
-  if (resolvedColor.startsWith('#')) {
-    const hex = resolvedColor.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
+  // Hex color (after resolution)
+  if (resolved.startsWith('#')) {
+    const hex = resolved.slice(1);
+    // Handle short hex (#fff -> #ffffff)
+    const fullHex = hex.length === 3
+      ? hex[0]! + hex[0] + hex[1]! + hex[1] + hex[2]! + hex[2]
+      : hex;
+    const r = parseInt(fullHex.slice(0, 2), 16);
+    const g = parseInt(fullHex.slice(2, 4), 16);
+    const b = parseInt(fullHex.slice(4, 6), 16);
     return `${background ? 48 : 38};2;${r};${g};${b}`;
   }
 
-  // 5. RGB
-  if (resolvedColor.startsWith('rgb')) {
-    const match = resolvedColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  // RGB color
+  if (resolved.startsWith('rgb')) {
+    const match = resolved.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (match) {
       return `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
     }
@@ -453,7 +502,7 @@ function wrapLine(line: string, maxWidth: number): string[] {
 }
 
 /**
- * Truncate text at end
+ * Truncate text at end (ANSI-aware)
  */
 function truncate(text: string, maxWidth: number, ellipsis: string): string {
   if (getVisibleWidth(text) <= maxWidth) return text;
@@ -462,16 +511,17 @@ function truncate(text: string, maxWidth: number, ellipsis: string): string {
   let width = 0;
 
   for (const char of text) {
-    if (width + 1 + ellipsisWidth > maxWidth) break;
+    const charWidth = stringWidth(char);
+    if (width + charWidth + ellipsisWidth > maxWidth) break;
     result += char;
-    width++;
+    width += charWidth;
   }
 
   return result + ellipsis;
 }
 
 /**
- * Truncate text at start
+ * Truncate text at start (ANSI-aware)
  */
 function truncateStart(text: string, maxWidth: number, ellipsis: string): string {
   if (getVisibleWidth(text) <= maxWidth) return text;
@@ -481,9 +531,10 @@ function truncateStart(text: string, maxWidth: number, ellipsis: string): string
   let width = 0;
 
   for (let i = chars.length - 1; i >= 0; i--) {
-    if (width + 1 + ellipsisWidth > maxWidth) break;
+    const charWidth = stringWidth(chars[i]);
+    if (width + charWidth + ellipsisWidth > maxWidth) break;
     result = chars[i] + result;
-    width++;
+    width += charWidth;
   }
 
   return ellipsis + result;
