@@ -20,7 +20,7 @@ import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/use-input.js';
 import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { renderToString, measureHeight } from '../design-system/core/renderer.js';
+import { renderToString, measureHeight } from '../core/renderer.js';
 
 // =============================================================================
 // Types
