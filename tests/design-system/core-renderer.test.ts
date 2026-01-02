@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/index.js';
 
 describe('Core Renderer', () => {
