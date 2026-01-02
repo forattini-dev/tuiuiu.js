@@ -55,10 +55,9 @@ export {
 export {
   Tooltip,
   WithTooltip,
-  HelpTooltip,
+  helpTooltip,
   InfoBox,
   Popover,
-  Badge,
   Tag,
   type TooltipPosition,
   type TooltipOptions,
@@ -67,6 +66,18 @@ export {
   type InfoBoxType,
   type InfoBoxOptions,
   type PopoverOptions,
-  type BadgeOptions,
   type TagOptions,
 } from '../../atoms/tooltip.js';
+
+// Badge (from atoms/badge.ts - canonical source)
+export {
+  Badge,
+  successBadge,
+  warningBadge,
+  dangerBadge,
+  infoBadge,
+  primaryBadge,
+  type BadgeProps,
+  type BadgeVariant,
+  type BadgeStyle,
+} from '../../atoms/badge.js';

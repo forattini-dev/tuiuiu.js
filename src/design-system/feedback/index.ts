@@ -41,9 +41,15 @@ export {
   type MultiTimerState,
 } from '../../atoms/timer.js';
 
-// Badge (unique to design-system - semantic variant API)
+// Badge (from atoms/badge.ts - canonical source)
 export {
   Badge,
+  successBadge,
+  warningBadge,
+  dangerBadge,
+  infoBadge,
+  primaryBadge,
   type BadgeProps,
   type BadgeVariant,
-} from './badge.js';
+  type BadgeStyle,
+} from '../../atoms/badge.js';

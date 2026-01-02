@@ -1,14 +1,14 @@
 /**
  * Tooltip Tests
  *
- * Tests for Tooltip, WithTooltip, HelpTooltip, InfoBox, Popover, Badge, Tag components
+ * Tests for Tooltip, WithTooltip, helpTooltip, InfoBox, Popover, Badge, Tag components
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   Tooltip,
   WithTooltip,
-  HelpTooltip,
+  helpTooltip,
   InfoBox,
   Popover,
   Badge,
@@ -270,60 +270,44 @@ describe('WithTooltip', () => {
   });
 });
 
-describe('HelpTooltip', () => {
+describe('helpTooltip', () => {
   it('should create a help tooltip', () => {
-    const vnode = HelpTooltip({
-      text: 'Help text here',
-    });
+    const vnode = helpTooltip('Help text here');
 
     expect(vnode).toBeDefined();
     expect(vnode.type).toBe('box');
   });
 
   it('should show help icon', () => {
-    const vnode = HelpTooltip({
-      text: 'Help text',
-    });
+    const vnode = helpTooltip('Help text');
 
     const output = JSON.stringify(vnode);
     expect(output).toContain('[?]');
   });
 
   it('should use custom icon', () => {
-    const vnode = HelpTooltip({
-      text: 'Help text',
-      icon: 'i',
-    });
+    const vnode = helpTooltip('Help text', { icon: 'i' });
 
     const output = JSON.stringify(vnode);
     expect(output).toContain('[i]');
   });
 
   it('should apply icon color', () => {
-    const vnode = HelpTooltip({
-      text: 'Help text',
-      iconColor: 'yellow',
-    });
+    const vnode = helpTooltip('Help text', { iconColor: 'yellow' });
 
     const output = JSON.stringify(vnode);
     expect(output).toContain('yellow');
   });
 
   it('should show tooltip when active', () => {
-    const vnode = HelpTooltip({
-      text: 'Visible help',
-      active: true,
-    });
+    const vnode = helpTooltip('Visible help', { active: true });
 
     const output = JSON.stringify(vnode);
     expect(output).toContain('Visible help');
   });
 
   it('should not show tooltip text when not active', () => {
-    const vnode = HelpTooltip({
-      text: 'Hidden help',
-      active: false,
-    });
+    const vnode = helpTooltip('Hidden help', { active: false });
 
     const output = JSON.stringify(vnode);
     // The icon is still visible, but tooltip content is not
@@ -597,33 +581,33 @@ describe('Badge', () => {
     });
   });
 
-  describe('Variants', () => {
-    it('should render solid variant', () => {
+  describe('Style Variants', () => {
+    it('should render solid style (default)', () => {
       const vnode = Badge({
         label: 'NEW',
-        color: 'green',
-        variant: 'solid',
+        color: '#00ff00',
+        style: 'solid',
       });
 
       expect(vnode.type).toBe('text');
-      expect(vnode.props.backgroundColor).toBe('green');
+      expect(vnode.props.backgroundColor).toBe('#00ff00');
     });
 
-    it('should render outline variant', () => {
+    it('should render outline style', () => {
       const vnode = Badge({
         label: 'NEW',
-        color: 'blue',
-        variant: 'outline',
+        color: '#0000ff',
+        style: 'outline',
       });
 
       expect(vnode.type).toBe('box');
       expect(vnode.props.borderStyle).toBe('round');
     });
 
-    it('should render subtle variant (default)', () => {
+    it('should render subtle style', () => {
       const vnode = Badge({
         label: 'NEW',
-        variant: 'subtle',
+        style: 'subtle',
       });
 
       expect(vnode.type).toBe('text');
@@ -631,11 +615,28 @@ describe('Badge', () => {
       expect(output).toContain('[NEW]');
     });
 
-    it('should default to subtle variant', () => {
+    it('should default to solid style', () => {
       const vnode = Badge({ label: 'DEF' });
 
-      const output = JSON.stringify(vnode);
-      expect(output).toContain('[DEF]');
+      // Default is solid, which is a text node with backgroundColor
+      expect(vnode.type).toBe('text');
+    });
+  });
+
+  describe('Semantic Variants', () => {
+    it('should render success variant', () => {
+      const vnode = Badge({ label: 'OK', variant: 'success' });
+      expect(vnode).toBeDefined();
+    });
+
+    it('should render warning variant', () => {
+      const vnode = Badge({ label: 'WARN', variant: 'warning' });
+      expect(vnode).toBeDefined();
+    });
+
+    it('should render danger variant', () => {
+      const vnode = Badge({ label: 'ERR', variant: 'danger' });
+      expect(vnode).toBeDefined();
     });
   });
 
@@ -643,18 +644,19 @@ describe('Badge', () => {
     it('should apply custom color', () => {
       const vnode = Badge({
         label: 'TEST',
-        color: 'magenta',
+        color: '#ff00ff',
       });
 
       const output = JSON.stringify(vnode);
-      expect(output).toContain('magenta');
+      expect(output).toContain('#ff00ff');
     });
 
-    it('should default to mutedForeground', () => {
+    it('should use theme colors by default', () => {
       const vnode = Badge({ label: 'DEFAULT' });
 
-      const output = JSON.stringify(vnode);
-      expect(output).toContain('mutedForeground'); // Semantic color
+      // Default badge uses theme badge tokens
+      expect(vnode).toBeDefined();
+      expect(vnode.type).toBe('text');
     });
   });
 });

@@ -216,7 +216,7 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
     yAxis = {},
     markerStyle = 'circle',
     colorMode = 'uniform',
-    color = 'cyan',
+    color = 'primary',
     colorScale = ['blue', 'cyan', 'green', 'yellow', 'red'],
     title,
     showLegend = false,

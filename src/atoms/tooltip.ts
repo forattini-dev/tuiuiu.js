@@ -15,7 +15,6 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { getRenderMode } from '../core/capabilities.js';
-import { getContrastColor } from '../core/theme.js';
 
 // Border style type (matching Box component)
 type BorderStyle = 'single' | 'double' | 'round' | 'bold' | 'none';
@@ -243,7 +242,7 @@ export function WithTooltip(props: WithTooltipOptions): VNode {
 }
 
 // =============================================================================
-// HelpTooltip - Help icon with tooltip
+// helpTooltip - Help icon with tooltip (factory function)
 // =============================================================================
 
 export interface HelpTooltipOptions {
@@ -260,23 +259,22 @@ export interface HelpTooltipOptions {
 }
 
 /**
- * HelpTooltip - Help icon that shows tooltip when active
+ * helpTooltip - Factory for help icon with tooltip
  *
  * @example
- * HelpTooltip({
- *   text: 'Enter your email address',
- *   position: 'right',
- *   active: focused,
- * })
+ * helpTooltip('Enter your email address')
+ * helpTooltip('Help text', { position: 'right', active: focused })
  */
-export function HelpTooltip(props: HelpTooltipOptions): VNode {
+export function helpTooltip(
+  text: string,
+  options?: Omit<HelpTooltipOptions, 'text'>
+): VNode {
   const {
-    text,
     position = 'right',
     active = false,
     icon = '?',
     iconColor = 'primary',
-  } = props;
+  } = options ?? {};
 
   const iconNode = Text({ color: iconColor }, `[${icon}]`);
 
@@ -291,6 +289,7 @@ export function HelpTooltip(props: HelpTooltipOptions): VNode {
     },
   });
 }
+
 
 // =============================================================================
 // InfoBox - Information callout box
@@ -496,46 +495,11 @@ export function Popover(props: PopoverOptions): VNode | null {
 }
 
 // =============================================================================
-// Badge - Small badge/chip display
+// Badge - Re-exported from badge.ts
 // =============================================================================
 
-export interface BadgeOptions {
-  /** Badge label text */
-  label?: string;
-  /** Badge color */
-  color?: ColorValue;
-  /** Variant */
-  variant?: 'solid' | 'outline' | 'subtle';
-}
-
-/**
- * Badge - Small badge/chip
- *
- * @example
- * Badge({ label: 'NEW', color: 'success' })
- * Badge({ label: '5', color: 'destructive', variant: 'solid' })
- */
-export function Badge(props: BadgeOptions): VNode {
-  const { label = '', color = 'mutedForeground', variant = 'subtle' } = props;
-
-  switch (variant) {
-    case 'solid':
-      return Text(
-        { color: getContrastColor(color as string), backgroundColor: color, bold: true },
-        ` ${label} `
-      );
-
-    case 'outline':
-      return Box(
-        { borderStyle: 'round', borderColor: color },
-        Text({ color }, label)
-      );
-
-    case 'subtle':
-    default:
-      return Text({ color, dim: true }, `[${label}]`);
-  }
-}
+// Badge is now in its own file: ./badge.ts
+export { Badge } from './badge.js';
 
 // =============================================================================
 // Tag - Labeled tag

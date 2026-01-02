@@ -116,4 +116,52 @@ setTheme(customTheme);
 | \`createTheme(base, overrides)\` | Extend theme (shallow merge) |
 | \`mergeThemes(base, overrides)\` | Extend theme (deep merge) |
 | \`defineTheme(definition)\` | Create complete theme from scratch |
+
+## Theme-First Component Design
+
+All Tuiuiu components use semantic theme colors by default. This ensures your app
+looks consistent across all themes automatically.
+
+### Semantic Color Names
+
+| Color | Usage |
+|-------|-------|
+| \`'primary'\` | Main action color, highlights |
+| \`'secondary'\` | Secondary actions |
+| \`'success'\` | Positive states, confirmations |
+| \`'warning'\` | Caution, attention needed |
+| \`'error'\` | Error states, destructive actions |
+| \`'info'\` | Informational content |
+| \`'muted'\` | De-emphasized content, tracks |
+| \`'foreground'\` | Default text color |
+| \`'background'\` | Default background |
+| \`'border'\` | Borders, dividers |
+
+### Component Defaults
+
+Components automatically use theme colors. You can override any color:
+
+\`\`\`typescript
+// Uses theme 'primary' by default
+Spinner({ style: 'dots' })
+
+// Override with specific color
+Spinner({ style: 'dots', color: 'success' })
+
+// Scrollbar uses theme colors
+Scrollbar({ height: 10, total: 50, current: 0 })
+// Defaults: color='primary', trackColor='muted'
+\`\`\`
+
+### Deprecated: Hardcoded Colors
+
+Avoid hardcoded colors like 'cyan' or 'gray'. Use semantic colors instead:
+
+\`\`\`typescript
+// ❌ Avoid - doesn't adapt to theme
+Text({ color: 'cyan' }, 'Title')
+
+// ✅ Preferred - adapts to any theme
+Text({ color: 'primary' }, 'Title')
+\`\`\`
 `;

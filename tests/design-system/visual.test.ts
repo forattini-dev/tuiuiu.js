@@ -24,7 +24,7 @@ import {
 import {
   Tooltip,
   WithTooltip,
-  HelpTooltip,
+  helpTooltip,
   InfoBox,
   Popover,
   Badge,
@@ -405,12 +405,9 @@ describe('Visual Components', () => {
     });
   });
 
-  describe('HelpTooltip', () => {
+  describe('helpTooltip', () => {
     it('renders help icon with tooltip when active', () => {
-      const node = HelpTooltip({
-        text: 'Help information',
-        active: true,
-      });
+      const node = helpTooltip('Help information', { active: true });
       expect(node).not.toBeNull();
       const output = renderToString(node);
       expect(output).toContain('?');
@@ -418,10 +415,7 @@ describe('Visual Components', () => {
     });
 
     it('renders only icon when not active', () => {
-      const node = HelpTooltip({
-        text: 'Hidden help',
-        active: false,
-      });
+      const node = helpTooltip('Hidden help', { active: false });
       expect(node).not.toBeNull();
       const output = renderToString(node);
       expect(output).toContain('?');
@@ -429,11 +423,7 @@ describe('Visual Components', () => {
     });
 
     it('renders with custom icon', () => {
-      const node = HelpTooltip({
-        text: 'Info',
-        icon: 'i',
-        active: true,
-      });
+      const node = helpTooltip('Info', { icon: 'i', active: true });
       expect(node).not.toBeNull();
       const output = renderToString(node);
       expect(output).toContain('[i]');

@@ -156,3 +156,13 @@ export {
 
 // Data Visualization
 export * from './data-viz/index.js';
+
+// SplitView - Master-detail layout
+export {
+  SplitView,
+  createSplitView,
+  type SplitViewProps,
+  type CreateSplitViewOptions,
+  type SplitViewState,
+  type SplitDirection,
+} from './split-view.js';

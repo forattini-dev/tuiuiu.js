@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { Badge } from '../../src/design-system/feedback/badge.js';
+import { Badge } from '../../src/atoms/badge.js';
 import {
   Spinner,
   createSpinner,

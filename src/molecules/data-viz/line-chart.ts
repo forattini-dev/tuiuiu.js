@@ -677,7 +677,7 @@ export interface AreaChartOptions extends Omit<LineChartOptions, 'series'> {
  * })
  */
 export function AreaChart(options: AreaChartOptions): VNode {
-  const { data, color = 'cyan', name = 'Data', ...rest } = options;
+  const { data, color = 'primary', name = 'Data', ...rest } = options;
 
   // Area chart is just a line chart with fill - for terminal, same visual
   return LineChart({

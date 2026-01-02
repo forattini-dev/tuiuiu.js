@@ -23,7 +23,7 @@
  */
 
 import type { ButtonProps, ButtonVariant, ButtonSize } from '../atoms/button.js';
-import type { BadgeOptions } from '../atoms/tooltip.js';
+import type { BadgeProps, BadgeVariant, BadgeStyle } from '../atoms/badge.js';
 import type { ModalProps, ModalSize } from '../organisms/modal.js';
 
 // =============================================================================
@@ -177,81 +177,81 @@ export const fullscreenModal: Partial<ModalProps> = {
  * Success status badge
  * Use for positive states: active, online, completed
  */
-export const statusSuccess: Partial<BadgeOptions> = {
-  variant: 'solid',
-  color: 'success',
+export const statusSuccess: Partial<BadgeProps> = {
+  variant: 'success',
+  style: 'solid',
 };
 
 /**
  * Warning status badge
  * Use for warning states: pending, expiring, needs attention
  */
-export const statusWarning: Partial<BadgeOptions> = {
-  variant: 'solid',
-  color: 'warning',
+export const statusWarning: Partial<BadgeProps> = {
+  variant: 'warning',
+  style: 'solid',
 };
 
 /**
  * Error status badge
  * Use for error states: failed, offline, critical
  */
-export const statusError: Partial<BadgeOptions> = {
-  variant: 'solid',
-  color: 'error',
+export const statusError: Partial<BadgeProps> = {
+  variant: 'danger',
+  style: 'solid',
 };
 
 /**
  * Info status badge
  * Use for informational states: new, beta, count
  */
-export const statusInfo: Partial<BadgeOptions> = {
-  variant: 'solid',
-  color: 'info',
+export const statusInfo: Partial<BadgeProps> = {
+  variant: 'info',
+  style: 'solid',
 };
 
 /**
  * Neutral status badge
  * Use for neutral states: draft, inactive
  */
-export const statusNeutral: Partial<BadgeOptions> = {
-  variant: 'subtle',
-  color: 'gray',
+export const statusNeutral: Partial<BadgeProps> = {
+  variant: 'default',
+  style: 'subtle',
 };
 
 /**
  * Pending status badge
  * Use for pending/loading states: processing, queued
  */
-export const statusPending: Partial<BadgeOptions> = {
-  variant: 'subtle',
-  color: 'yellow',
+export const statusPending: Partial<BadgeProps> = {
+  variant: 'warning',
+  style: 'subtle',
 };
 
 /**
  * Outline success badge
  * Lighter variant of success
  */
-export const outlineSuccess: Partial<BadgeOptions> = {
-  variant: 'outline',
-  color: 'success',
+export const outlineSuccess: Partial<BadgeProps> = {
+  variant: 'success',
+  style: 'outline',
 };
 
 /**
  * Outline warning badge
  * Lighter variant of warning
  */
-export const outlineWarning: Partial<BadgeOptions> = {
-  variant: 'outline',
-  color: 'warning',
+export const outlineWarning: Partial<BadgeProps> = {
+  variant: 'warning',
+  style: 'outline',
 };
 
 /**
  * Outline error badge
  * Lighter variant of error
  */
-export const outlineError: Partial<BadgeOptions> = {
-  variant: 'outline',
-  color: 'error',
+export const outlineError: Partial<BadgeProps> = {
+  variant: 'danger',
+  style: 'outline',
 };
 
 // =============================================================================

@@ -265,7 +265,7 @@ export {
   // Tooltip
   Tooltip,
   WithTooltip,
-  HelpTooltip,
+  helpTooltip,
   InfoBox,
   Popover,
   Tag,

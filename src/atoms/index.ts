@@ -127,10 +127,9 @@ export {
 export {
   Tooltip,
   WithTooltip,
-  HelpTooltip,
+  helpTooltip,
   InfoBox,
   Popover,
-  Badge,
   Tag,
   type TooltipOptions,
   type TooltipPosition,
@@ -139,9 +138,23 @@ export {
   type InfoBoxOptions,
   type InfoBoxType,
   type PopoverOptions,
-  type BadgeOptions,
   type TagOptions,
 } from './tooltip.js';
+
+// =============================================================================
+// Badge - Status indicator
+// =============================================================================
+export {
+  Badge,
+  successBadge,
+  warningBadge,
+  dangerBadge,
+  infoBadge,
+  primaryBadge,
+  type BadgeProps,
+  type BadgeVariant,
+  type BadgeStyle,
+} from './badge.js';
 
 // =============================================================================
 // DevX Composite Inputs
@@ -174,3 +187,38 @@ export {
   type ConfirmButtonState,
   type ConfirmButtonProps,
 } from './confirm-button.js';
+
+// =============================================================================
+// StatusIndicator - Semantic status display
+// =============================================================================
+export {
+  StatusIndicator,
+  // Presets
+  successStatus,
+  errorStatus,
+  warningStatus,
+  infoStatus,
+  loadingStatus,
+  pendingStatus,
+  stoppedStatus,
+  // Types
+  type StatusIndicatorProps,
+  type StatusType,
+  type BuiltInStatus,
+  type CustomStatus,
+  type StatusSize,
+} from './status-indicator.js';
+
+// =============================================================================
+// MetricDisplay - Dashboard metrics with auto-tracking
+// =============================================================================
+export {
+  MetricDisplay,
+  createMetric,
+  type MetricDisplayProps,
+  type CreateMetricOptions,
+  type MetricState,
+  type MetricLayout,
+  type MetricSize,
+} from './metric-display.js';
+

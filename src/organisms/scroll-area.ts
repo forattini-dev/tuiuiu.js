@@ -540,7 +540,7 @@ export function LogViewer(props: LogViewerOptions): VNode {
     autoScroll = true,
     showLineNumbers = false,
     highlightPattern,
-    highlightColor = 'yellow',
+    highlightColor = 'warning',
     isActive = true,
   } = props;
 

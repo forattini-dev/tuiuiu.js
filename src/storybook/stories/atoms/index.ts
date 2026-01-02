@@ -13,7 +13,7 @@
 
 import { Box, Text, Spacer } from '../../../primitives/nodes.js';
 import { Divider } from '../../../primitives/divider.js';
-import { Badge } from '../../../design-system/feedback/badge.js';
+import { Badge } from '../../../atoms/badge.js';
 import { story, defaultControls } from '../../core/registry.js';
 import { getTheme } from '../../../core/theme.js';
 import type { Story } from '../../types.js';

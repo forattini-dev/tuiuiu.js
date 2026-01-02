@@ -119,3 +119,29 @@ export type {
   SystemInfo,
 } from './system-data.js';
 
+// Signal-transparent resolution
+export {
+  resolve,
+  isReactive,
+  resolveAll,
+  resolveProps,
+  createResolver,
+} from './resolve.js';
+
+export type {
+  MaybeReactive,
+} from './resolve.js';
+
+// Format utilities
+export {
+  formatBytes as formatBytesAdvanced, // Avoid conflict with system-data.formatBytes
+  formatDuration,
+  formatRelative,
+  formatNumber,
+  formatCompact,
+  formatPercent,
+  formatDelta,
+  truncateMiddle,
+  truncateEnd,
+} from './formatters.js';
+

@@ -36,8 +36,8 @@ export function Scrollbar(options: ScrollbarOptions): VNode {
         height,
         total,
         current,
-        color = 'cyan',
-        trackColor = 'gray',
+        color = 'primary',
+        trackColor = 'muted',
         thumbChar: customThumb,
         trackChar: customTrack,
     } = options;
@@ -73,8 +73,8 @@ export function Scrollbar(options: ScrollbarOptions): VNode {
         const char = isThumb ? finalThumbChar : finalTrackChar;
         const charColor = isThumb ? color : trackColor;
 
-        // Use muted/dim for track if using default gray
-        const isTrackDefault = !isThumb && trackColor === 'gray';
+        // Use muted/dim for track if using default muted color
+        const isTrackDefault = !isThumb && trackColor === 'muted';
 
         scrollbarLines.push(
             Text(

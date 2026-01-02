@@ -182,3 +182,27 @@ export type {
   ValidationRule,
   FieldValidators,
 } from './use-form.js';
+
+// Threshold color hook
+export {
+  useThresholdColor,
+  getThresholdColor,
+  getThresholdColorName,
+} from './use-threshold-color.js';
+
+export type {
+  ThresholdRange,
+  ThresholdConfig,
+  ExtendedThresholdConfig,
+} from './use-threshold-color.js';
+
+// Reactive format hooks
+export {
+  useFormatBytes,
+  useFormatDuration,
+  useFormatRelative,
+  useFormatNumber,
+  useFormatCompact,
+  useFormatPercent,
+  useFormatDelta,
+} from './use-format.js';

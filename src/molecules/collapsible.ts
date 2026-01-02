@@ -18,6 +18,7 @@ import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
+import { resolve, type MaybeReactive } from '../utils/resolve.js';
 
 /** Variant type for Collapsible component */
 export type CollapsibleVariant = 'primary' | 'secondary' | 'default';
@@ -29,6 +30,8 @@ export type CollapsibleVariant = 'primary' | 'secondary' | 'default';
 export interface CollapsibleOptions {
   /** Section title (required for Collapsible component) */
   title?: string;
+  /** Summary shown when collapsed (signal-transparent) */
+  summary?: MaybeReactive<string | VNode>;
   /** Initial expanded state */
   initialExpanded?: boolean;
   /** Title icon (when collapsed) */
@@ -134,6 +137,7 @@ export function Collapsible(props: CollapsibleProps): VNode {
   const theme = getTheme();
   const {
     title,
+    summary: summaryProp,
     collapsedIcon,
     expandedIcon,
     variant = 'default',
@@ -199,11 +203,21 @@ export function Collapsible(props: CollapsibleProps): VNode {
     icon = collapsedIcon ?? (isAscii ? '>' : chars.expand.collapsed);
   }
 
+  // Resolve summary (only shown when collapsed)
+  const summary = summaryProp !== undefined && !isExpanded ? resolve(summaryProp) : null;
+  const summaryIsVNode = summary !== null && typeof summary === 'object' && 'type' in summary;
+
   // Header
   const header = Box(
-    { flexDirection: 'row', gap: 1, backgroundColor: headerBg, paddingX: 1 },
+    { flexDirection: 'row', gap: 1, backgroundColor: headerBg, paddingX: 1, alignItems: 'center' },
     Text({ color: iconFg, dim: disabled }, icon),
-    Text({ color: headerFg, bold: true, dim: disabled }, title || 'Untitled')
+    Text({ color: headerFg, bold: true, dim: disabled }, title || 'Untitled'),
+    // Summary (shown when collapsed)
+    summary !== null && (
+      summaryIsVNode
+        ? summary
+        : Text({ color: 'muted', dim: true }, ` (${summary})`)
+    )
   );
 
   // Content (only shown when expanded)
