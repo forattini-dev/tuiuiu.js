@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Button, IconButton, ButtonGroup, createButtonGroup } from '../../src/atoms/button.js';
 import type { Key } from '../../src/hooks/index.js';
 import { Box, Text } from '../../src/primitives/index.js';
-import { calculateLayout } from '../../src/design-system/core/layout.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { calculateLayout } from '../../src/core/layout.js';
+import { renderToString } from '../../src/core/renderer.js';
 import {
   getHitTestRegistry,
   resetHitTestRegistry,
