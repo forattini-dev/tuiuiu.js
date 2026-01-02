@@ -36,7 +36,7 @@ export {
   OutputBuffer,
 } from './renderer.js';
 
-export type { RenderOptions } from './renderer.js';
+export type { RenderOptions as StaticRenderOptions } from './renderer.js';
 
 // Hit Testing (mouse event dispatch)
 export {
