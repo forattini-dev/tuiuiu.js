@@ -241,15 +241,12 @@ describe('Integration: Component Combinations', () => {
     });
 
     it('renders a grid with mixed content', () => {
-      const layout = Grid({
-        columns: 2,
-        gap: 1,
-        children: [
-          Badge({ label: 'NEW', color: 'green' }),
-          Digits({ value: '42', style: 'lcd' }),
-          Sparkline({ data: [1, 2, 3, 4, 5, 6, 7, 8], width: 30 }),
-        ],
-      });
+      const layout = Grid(
+        { columns: 2, gap: 1 },
+        Badge({ label: 'NEW', color: 'green' }),
+        Digits({ value: '42', style: 'lcd' }),
+        Sparkline({ data: [1, 2, 3, 4, 5, 6, 7, 8], width: 30 }),
+      );
       const output = renderToString(layout, 50, 15);
       expect(output).toContain('NEW');
     });
