@@ -15,7 +15,7 @@ import {
   createAnimatedPicture,
   type PixelGrid,
   type Pixel,
-} from '../../src/design-system/media/picture.js';
+} from '../../src/atoms/picture.js';
 
 // =============================================================================
 // Color Utility Tests
