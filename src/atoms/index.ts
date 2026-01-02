@@ -225,10 +225,7 @@ export {
 // =============================================================================
 // Scrollbar - Scroll position indicator
 // =============================================================================
-export {
-  Scrollbar,
-  type ScrollbarProps,
-} from './scrollbar.js';
+export { Scrollbar } from './scrollbar.js';
 
 // =============================================================================
 // BigText - Large ASCII art text display
