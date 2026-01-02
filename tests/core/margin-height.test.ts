@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Box, Text } from '../../src/primitives/index.js';
-import { renderToString, measureHeight } from '../../src/design-system/core/renderer.js';
+import { renderToString, measureHeight } from '../../src/core/renderer.js';
 
 describe('Margin Height Calculation', () => {
   describe('measureHeight', () => {
