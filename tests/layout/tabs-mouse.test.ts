@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Tabs, VerticalTabs, createTabs, type Tab } from '../../src/molecules/tabs.js';
 import { Box, Text } from '../../src/primitives/index.js';
-import { calculateLayout } from '../../src/design-system/core/layout.js';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { calculateLayout } from '../../src/core/layout.js';
+import { renderToString } from '../../src/core/renderer.js';
 import {
   getHitTestRegistry,
   resetHitTestRegistry,
