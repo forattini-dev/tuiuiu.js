@@ -5,13 +5,13 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderToString } from '../../src/design-system/core/renderer.js';
+import { renderToString } from '../../src/core/renderer.js';
 import {
   BigText,
   FigletText,
   BigTitle,
   Logo,
-} from '../../src/design-system/visual/big-text.js';
+} from '../../src/atoms/big-text.js';
 import {
   Digits,
   Clock,
@@ -20,7 +20,7 @@ import {
   Stopwatch,
   DigitRoll,
   Score,
-} from '../../src/design-system/visual/digits.js';
+} from '../../src/atoms/digits.js';
 import {
   Tooltip,
   WithTooltip,
