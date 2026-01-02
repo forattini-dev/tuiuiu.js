@@ -223,7 +223,7 @@ export {
 export {
   // Components
   FileBrowser,
-  DirectoryTree,
+  DirectoryTree as FileDirectoryTree,
   FileList,
   PathBreadcrumbs,
   FileDetails,
@@ -251,7 +251,7 @@ export {
   type SortDirection as FileSortDirection,
   type FileFilter,
   type FileSorter,
-  type DirectoryTreeOptions,
+  type DirectoryTreeOptions as FileDirectoryTreeOptions,
   type FileListOptions,
   type FileListColumn,
   type PathBreadcrumbsOptions,
