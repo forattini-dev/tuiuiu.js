@@ -5,8 +5,8 @@
  */
 
 import type { VNode, BoxStyle, LayoutNode } from '../utils/types.js';
-import { renderToString } from '../design-system/core/renderer.js';
-import { calculateLayout } from '../design-system/core/layout.js';
+import { renderToString } from '../core/renderer.js';
+import { calculateLayout } from '../core/layout.js';
 import { createEffect } from '../primitives/signal.js';
 import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking, setClearScreen } from '../hooks/index.js';
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
