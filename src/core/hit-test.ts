@@ -58,6 +58,8 @@ export interface HitTestResult {
  */
 class HitTestRegistry {
   private elements: ElementBounds[] = [];
+  private boundsByNode: Map<VNode, ElementBounds> = new Map();
+  private parentMap: Map<VNode, VNode | null> = new Map();
   private zCounter = 0;
   private hoveredElement: VNode | null = null;
   private lastClickTime = 0;
@@ -71,13 +73,16 @@ class HitTestRegistry {
    */
   clear(): void {
     this.elements = [];
+    this.boundsByNode.clear();
+    this.parentMap.clear();
     this.zCounter = 0;
   }
 
   /**
    * Register an element's bounds
    */
-  register(node: VNode, x: number, y: number, width: number, height: number): void {
+  register(node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null): void {
+    this.parentMap.set(node, parent);
     // Only register if element has mouse handlers
     const props = node.props;
     if (
@@ -91,27 +96,29 @@ class HitTestRegistry {
       props.onContextMenu ||
       props.onScroll
     ) {
-      this.elements.push({
+      const bounds = {
         node,
         x,
         y,
         width,
         height,
         zIndex: this.zCounter++,
-      });
+      };
+      this.elements.push(bounds);
+      this.boundsByNode.set(node, bounds);
     }
   }
 
   /**
    * Register from layout node (recursive)
    */
-  registerFromLayout(layout: LayoutNode, offsetX = 0, offsetY = 0): void {
+  registerFromLayout(layout: LayoutNode, offsetX = 0, offsetY = 0, parentNode: VNode | null = null): void {
     const { node, x, y, width, height, children } = layout;
     const absX = offsetX + x;
     const absY = offsetY + y;
 
     // Register this element
-    this.register(node, absX, absY, width, height);
+    this.register(node, absX, absY, width, height, parentNode);
 
     // Calculate content offset for children
     const style = node.props;
@@ -123,7 +130,7 @@ class HitTestRegistry {
 
     // Register children
     for (const child of children) {
-      this.registerFromLayout(child, contentOffsetX, contentOffsetY);
+      this.registerFromLayout(child, contentOffsetX, contentOffsetY, node);
     }
   }
 
@@ -262,45 +269,36 @@ class HitTestRegistry {
   /**
    * Bubble event to parent elements
    */
-  private bubbleEvent(startNode: VNode, rawEvent: RawMouseEvent, _eventData: MouseEventData): void {
-    // Find parent elements that contain this position
-    const parents = this.elements.filter(
-      (bounds) =>
-        bounds.node !== startNode &&
-        _eventData.absoluteX >= bounds.x &&
-        _eventData.absoluteX < bounds.x + bounds.width &&
-        _eventData.absoluteY >= bounds.y &&
-        _eventData.absoluteY < bounds.y + bounds.height
-    );
-
-    // Sort by z-index (lower first for bubbling up)
-    parents.sort((a, b) => b.zIndex - a.zIndex);
-
+  private bubbleEvent(startNode: VNode, rawEvent: RawMouseEvent, eventData: MouseEventData): void {
     let stopped = false;
+    let current = this.parentMap.get(startNode) ?? null;
 
-    for (const parent of parents) {
-      if (stopped) break;
+    while (current && !stopped) {
+      const bounds = this.boundsByNode.get(current);
+      if (bounds) {
+        const props = bounds.node.props;
+        const parentEventData: MouseEventData = {
+          x: eventData.absoluteX - bounds.x,
+          y: eventData.absoluteY - bounds.y,
+          absoluteX: eventData.absoluteX,
+          absoluteY: eventData.absoluteY,
+          button: eventData.button,
+          modifiers: eventData.modifiers,
+          target: bounds.node,
+          stopPropagation: () => {
+            stopped = true;
+          },
+        };
 
-      const props = parent.node.props;
-      const parentEventData: MouseEventData = {
-        x: _eventData.absoluteX - parent.x,
-        y: _eventData.absoluteY - parent.y,
-        absoluteX: _eventData.absoluteX,
-        absoluteY: _eventData.absoluteY,
-        button: _eventData.button,
-        modifiers: _eventData.modifiers,
-        target: parent.node,
-        stopPropagation: () => {
-          stopped = true;
-        },
-      };
-
-      // Only trigger click handlers during bubbling
-      if (rawEvent.action === 'click') {
-        if (rawEvent.button === 'left' && props.onClick) {
-          (props.onClick as MouseEventHandler)(parentEventData);
+        // Only trigger click handlers during bubbling
+        if (rawEvent.action === 'click') {
+          if (rawEvent.button === 'left' && props.onClick) {
+            (props.onClick as MouseEventHandler)(parentEventData);
+          }
         }
       }
+
+      current = this.parentMap.get(current) ?? null;
     }
   }
 

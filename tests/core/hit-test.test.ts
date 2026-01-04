@@ -13,7 +13,7 @@ import {
 } from '../../src/core/hit-test.js';
 import { calculateLayout } from '../../src/core/layout.js';
 import { Box, Text } from '../../src/primitives/index.js';
-import type { VNode } from '../../src/utils/types.js';
+import type { LayoutNode, VNode } from '../../src/utils/types.js';
 
 describe('Hit Test System', () => {
   beforeEach(() => {
@@ -379,6 +379,48 @@ describe('Hit Test System', () => {
       expect(childClick).toHaveBeenCalledTimes(1);
       // Parent should not receive the click because child stopped propagation
       expect(parentClick).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Overlapping Elements', () => {
+    it('should not bubble to overlapping siblings', () => {
+      const rootClick = vi.fn();
+      const underClick = vi.fn();
+      const overClick = vi.fn();
+
+      const root: VNode = Box(
+        { width: 10, height: 5, onClick: rootClick },
+        Box({ width: 10, height: 5, onClick: underClick }),
+        Box({ width: 10, height: 5, onClick: overClick })
+      );
+
+      const [underNode, overNode] = root.children as VNode[];
+      const layout: LayoutNode = {
+        node: root,
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 5,
+        children: [
+          { node: underNode, x: 0, y: 0, width: 10, height: 5, children: [] },
+          { node: overNode, x: 0, y: 0, width: 10, height: 5, children: [] },
+        ],
+      };
+
+      registerHitTestFromLayout(layout);
+
+      const registry = getHitTestRegistry();
+      registry.handleMouseEvent({
+        x: 1,
+        y: 1,
+        button: 'left',
+        action: 'click',
+        modifiers: { ctrl: false, shift: false, alt: false },
+      });
+
+      expect(overClick).toHaveBeenCalledTimes(1);
+      expect(underClick).not.toHaveBeenCalled();
+      expect(rootClick).toHaveBeenCalledTimes(1);
     });
   });
 
