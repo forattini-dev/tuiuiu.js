@@ -27,6 +27,7 @@ import {
   getNextTheme,
   resolveColor,
   type VNode,
+  measureHeight,
   // New simplified scroll API!
   ChatList,
   useScrollList,
@@ -34,9 +35,10 @@ import {
 import { useTerminalSize } from '../src/hooks/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader } from './_shared/tuiuiu-header.js';
-import { createTextInput, renderTextInput, getVisualLines } from '../src/atoms/text-input.js';
+import { createTextInput, renderTextInput } from '../src/atoms/text-input.js';
 import { type SpinnerStyle } from '../src/atoms/spinner.js';
 import { KeyValueTable } from '../src/molecules/table.js';
+import { wrapText, stringWidth } from '../src/utils/text-utils.js';
 
 interface Message {
   id: number;
@@ -58,6 +60,15 @@ function ChatBubble(props: { message: Message; maxWidth?: number }): VNode {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
+  const roleLabel = isUser ? '👤 Você' : isSystem ? '⚙️ Sistema' : '🤖 Assistente';
+  const timeText = formatTime(message.timestamp);
+  const contentMaxWidth = Math.max(1, maxWidth - 4);
+  const wrappedContent = wrapText(message.content, contentMaxWidth, { wordWrap: true });
+  const lines = wrappedContent.length > 0 ? wrappedContent.split('\n') : [''];
+  const maxLineWidth = lines.reduce((max, line) => Math.max(max, stringWidth(line)), 0);
+  const headerWidth = stringWidth(roleLabel) + 2 + stringWidth(timeText);
+  const resolvedWidth = Math.min(maxWidth, Math.max(maxLineWidth, headerWidth) + 4);
+
   // Colors based on role
   const bubbleColor = isUser
     ? resolveColor('primary')
@@ -72,15 +83,16 @@ function ChatBubble(props: { message: Message; maxWidth?: number }): VNode {
       borderStyle: 'round',
       borderColor: bubbleColor,
       paddingX: 1,
+      width: resolvedWidth,
     },
     // Header: name + time
     Box(
       { flexDirection: 'row' },
-      Text({ color: bubbleColor, bold: true }, isUser ? '👤 Você' : isSystem ? '⚙️ Sistema' : '🤖 Assistente'),
-      Text({ color: resolveColor('muted'), dim: true }, `  ${formatTime(message.timestamp)}`)
+      Text({ color: bubbleColor, bold: true }, roleLabel),
+      Text({ color: resolveColor('muted'), dim: true }, `  ${timeText}`)
     ),
     // Content
-    Text({}, message.content),
+    ...lines.map(line => Text({}, line)),
     // Streaming indicator
     message.streaming ? Text({ color: bubbleColor, dim: true }, '▌') : Text({}, '')
   );
@@ -127,11 +139,12 @@ function StatusBar(props: {
   themeName: string;
   spinnerStyle: SpinnerStyle;
   messageCount: number;
+  width?: number;
 }): VNode {
-  const { model, themeName, spinnerStyle, messageCount } = props;
+  const { model, themeName, spinnerStyle, messageCount, width } = props;
 
   return Box(
-    { flexDirection: 'row', marginTop: 1, paddingX: 1 },
+    { flexDirection: 'row', marginTop: 1, paddingX: 1, width },
     Text({ color: resolveColor('primary') }, '▶'),
     Text({ color: resolveColor('foreground') }, ` ${model}`),
     Text({ color: resolveColor('muted'), dim: true }, ' │ '),
@@ -207,20 +220,21 @@ function EnhancedChatApp(): VNode {
 
   const textInput = textInputState();
 
-  // Calculate input width for wrapping
-  // Must match renderTextInput's contentWidth calculation:
-  // - Outer padding: 2 (from Box padding: 1)
-  // - Border: 2 chars
-  // - Inner paddingX: 2 chars
-  // - Prompt "❯ ": 2 chars
-  // Total: width - 2 (outer) - 6 (inner) = width - 8
-  const inputContentWidth = width - 8;
-
-  // Calculate input height based on VISUAL lines (includes wrapped lines)
-  const inputValue = textInput.value();
-  const visualLines = getVisualLines(inputValue, inputContentWidth, true);
-  const inputLines = Math.max(1, visualLines.length);
-  const inputHeight = Math.max(3, inputLines + 2); // +2 for border
+  const inputNode = renderTextInput(textInput, {
+    placeholder: 'Type your message... (/ for commands)',
+    borderStyle: 'round',
+    focusedBorderColor: resolveColor('primary'),
+    prompt: '❯',
+    foreground: resolveColor('primary'),
+    fullWidth: true,
+    multiline: true,
+    wordWrap: true,
+    autoGrow: true,
+    maxLines: 5,
+    showScrollbar: true,
+    width: width - 2, // Minus outer padding; renderTextInput subtracts 6 more internally
+  });
+  const inputHeight = measureHeight(inputNode, width - 2);
 
   // Messages area height = total - header(3) - status(1) - input - padding(2)
   const messagesHeight = Math.max(3, height - 6 - inputHeight);
@@ -321,6 +335,7 @@ function EnhancedChatApp(): VNode {
       emoji: '💬',
       subtitle: 'Interactive Chat Demo',
       showFps: false,
+      width: width - 2,
     }),
 
     // Help panel (collapsible)
@@ -336,17 +351,7 @@ function EnhancedChatApp(): VNode {
     }),
 
     // Input (multiline auto-expands)
-    renderTextInput(textInput, {
-      placeholder: 'Type your message... (/ for commands)',
-      borderStyle: 'round',
-      focusedBorderColor: resolveColor('primary'),
-      prompt: '❯',
-      promptColor: resolveColor('primary'),
-      fullWidth: true,
-      multiline: true,
-      wordWrap: true,
-      width: width - 2, // Minus outer padding; renderTextInput subtracts 6 more internally
-    }),
+    inputNode,
 
     // Status bar
     StatusBar({
@@ -354,10 +359,11 @@ function EnhancedChatApp(): VNode {
       themeName: currentTheme.name,
       spinnerStyle: spinnerStyle(),
       messageCount: messages().length,
+      width: width - 2,
     }),
 
     // Key indicator
-    KeyIndicator()
+    KeyIndicator({ width: width - 2 })
   );
 }
 

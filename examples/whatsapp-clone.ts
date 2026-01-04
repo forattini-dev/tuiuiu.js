@@ -19,14 +19,17 @@ import {
   Badge,
   Spinner,
   useHotkeys,
+  useInput,
   useMouse,
   useApp,
   useState,
   useTerminalSize,
   createSignal,
+  measureHeight,
   setTheme,
   darkTheme,
 } from '../src/index.js';
+import { wrapText, stringWidth } from '../src/utils/text-utils.js';
 import type { VNode } from '../src/utils/types.js';
 
 // =============================================================================
@@ -194,6 +197,8 @@ const [searchQuery, setSearchQuery] = createSignal('');
 const [activeInput, setActiveInput] = createSignal<'search' | 'message'>('message');
 const [isTyping, setIsTyping] = createSignal(false);
 const [activeFilter, setActiveFilter] = createSignal<'all' | 'unread' | 'favorites' | 'groups'>('all');
+const [messageInputHeight, setMessageInputHeight] = createSignal(3);
+const MESSAGE_INPUT_MAX_LINES = 5;
 
 // Scroll states
 const chatScrollState = createScrollList({ initialScrollTop: 999 });
@@ -208,6 +213,10 @@ const searchInputState = createTextInput({
 
 const messageInputState = createTextInput({
   placeholder: 'Type a message',
+  wordWrap: true,
+  maxLines: MESSAGE_INPUT_MAX_LINES,
+  autoGrow: true,
+  showScrollbar: true,
   isActive: () => activeInput() === 'message',
   onSubmit: (value: string) => {
     if (!value.trim()) return;
@@ -359,6 +368,10 @@ function SearchBar(props: { width: number }): VNode {
       backgroundColor: colors.bgInput,
       paddingX: 1,
       gap: 1,
+      width: props.width,
+      flexGrow: 1,
+      onClick: () => setActiveInput('search'),
+      onMouseUp: () => setActiveInput('search'),
     },
     Text({ color: colors.textMuted }, '🔍'),
     renderTextInput(searchInputState, {
@@ -366,6 +379,7 @@ function SearchBar(props: { width: number }): VNode {
       borderStyle: 'none',
       isActive: activeInput() === 'search',
       placeholder: 'Search or start new chat',
+      fullWidth: true,
     }),
   );
 }
@@ -454,7 +468,7 @@ function ContactsList(props: { width: number; height: number }): VNode {
   }
 
   return Box(
-    { flexDirection: 'column', backgroundColor: colors.bgPanel, height },
+    { flexDirection: 'column', backgroundColor: colors.bgPanel, height, width },
     PanelHeader(),
     SearchBar({ width }),
     FilterTabs(),
@@ -517,18 +531,36 @@ function ChatHeader(props: { contact: Contact; width: number }): VNode {
 /**
  * Single Message Bubble - Solid background, no borders (like real WhatsApp)
  */
+function getMessageBubbleLayout(message: Message, width: number) {
+  const maxWidth = Math.floor(width * 0.7);
+  const availableWidth = Math.max(2, width - 4);
+  const bubbleWidth = Math.max(2, Math.min(maxWidth, availableWidth));
+  const contentWidth = Math.max(1, bubbleWidth - 2);
+  const wrappedText = wrapText(message.text, contentWidth, { wordWrap: true });
+  const lines = wrappedText.length > 0 ? wrappedText.split('\n') : [''];
+  const maxLineWidth = lines.reduce((max, line) => Math.max(max, stringWidth(line)), 0);
+  const checkmarkText = message.sent
+    ? message.read
+      ? ' ✓✓'
+      : message.delivered
+        ? ' ✓✓'
+        : ' ✓'
+    : '';
+  const timeRowWidth = stringWidth(message.time) +
+    (checkmarkText ? stringWidth(checkmarkText) + 1 : 0);
+  const resolvedBubbleWidth = Math.min(bubbleWidth, Math.max(maxLineWidth, timeRowWidth) + 2);
+
+  return { lines, resolvedBubbleWidth, checkmarkText };
+}
+
 function MessageBubble(props: { message: Message; width: number }): VNode {
   const { message, width } = props;
-  const maxWidth = Math.floor(width * 0.7);
   const isSent = message.sent;
+  const { lines, resolvedBubbleWidth, checkmarkText } = getMessageBubbleLayout(message, width);
 
   // Checkmarks for sent messages
-  const checkmarks = isSent
-    ? message.read
-      ? Text({ color: colors.checkmark }, ' ✓✓')
-      : message.delivered
-        ? Text({ color: colors.textMuted }, ' ✓✓')
-        : Text({ color: colors.textMuted }, ' ✓')
+  const checkmarks = checkmarkText
+    ? Text({ color: message.read ? colors.checkmark : colors.textMuted }, checkmarkText)
     : null;
 
   return Box(
@@ -542,9 +574,9 @@ function MessageBubble(props: { message: Message; width: number }): VNode {
         flexDirection: 'column',
         backgroundColor: isSent ? colors.bgBubbleSent : colors.bgBubbleReceived,
         paddingX: 1,
-        maxWidth,
+        width: resolvedBubbleWidth,
       },
-      Text({ color: colors.textPrimary }, message.text),
+      ...lines.map(line => Text({ color: colors.textPrimary }, line)),
       Box(
         { flexDirection: 'row', justifyContent: 'flex-end', gap: 1 },
         Text({ color: colors.textMuted, dim: true }, message.time),
@@ -562,6 +594,10 @@ function ChatMessages(props: { contactId: string; width: number; height: number 
   const chatMessages = messages()[contactId] || [];
   // Account for top padding (2 lines)
   const scrollHeight = Math.max(5, height - 3);
+  const getMessageHeight = (message: Message) => {
+    const { lines } = getMessageBubbleLayout(message, width);
+    return lines.length + 1;
+  };
 
   if (chatMessages.length === 0) {
     return Box(
@@ -589,9 +625,9 @@ function ChatMessages(props: { contactId: string; width: number; height: number 
       children: (msg: Message) => MessageBubble({ message: msg, width }),
       height: scrollHeight,
       width,
-      itemHeight: 3,
+      itemHeight: getMessageHeight,
       keysEnabled: true,
-      isActive: true,
+      isActive: activeInput() === 'message',
       autoScroll: true,
       autoScrollThreshold: 0,
       state: chatScrollState,
@@ -601,7 +637,7 @@ function ChatMessages(props: { contactId: string; width: number; height: number 
 }
 
 /**
- * Message Input Area - Simple flat design like WhatsApp Web (3 lines with padding)
+ * Message Input Area - Simple flat design with auto-grow behavior
  */
 function MessageInput(props: { width: number }): VNode {
   const { width } = props;
@@ -614,6 +650,9 @@ function MessageInput(props: { width: number }): VNode {
       backgroundColor: colors.bgPanel,
       gap: 2,
       alignItems: 'center',
+      width,
+      onClick: () => setActiveInput('message'),
+      onMouseUp: () => setActiveInput('message'),
     },
     Text({ color: colors.textSecondary }, '+'),
     Text({ color: colors.textSecondary }, '😀'),
@@ -628,6 +667,11 @@ function MessageInput(props: { width: number }): VNode {
         borderStyle: 'none',
         isActive: activeInput() === 'message',
         foreground: colors.textPrimary,
+        fullWidth: true,
+        wordWrap: true,
+        maxLines: MESSAGE_INPUT_MAX_LINES,
+        autoGrow: true,
+        showScrollbar: true,
       }),
     ),
     Text({ color: colors.textSecondary }, '🎤'),
@@ -659,14 +703,16 @@ function ChatPanel(props: { width: number; height: number }): VNode {
   }
 
   const headerHeight = 4;  // 4 lines for chat header with centering
-  const inputHeight = 3;   // 3 lines for input with padding
+  const messageInputNode = MessageInput({ width });
+  const inputHeight = measureHeight(messageInputNode, width);
+  setMessageInputHeight(inputHeight);
   const messagesHeight = Math.max(5, height - headerHeight - inputHeight);
 
   return Box(
-    { flexDirection: 'column', height },
+    { flexDirection: 'column', height, width },
     ChatHeader({ contact, width }),
     ChatMessages({ contactId: selectedId, width, height: messagesHeight }),
-    MessageInput({ width }),
+    messageInputNode,
   );
 }
 
@@ -702,6 +748,22 @@ function WhatsAppClone(): VNode {
   const width = termSize.width || process.stdout.columns || 80;
   const height = termSize.height || process.stdout.rows || 24;
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const contentHeight = Math.max(10, height);
+  const contactsListHeight = Math.max(5, contentHeight - 5);
+  const contactItemHeight = 3;
+
+  const ensureContactVisible = (index: number) => {
+    const itemTop = index * contactItemHeight;
+    const itemBottom = itemTop + contactItemHeight;
+    const currentTop = contactsScrollState.scrollTop();
+    const currentBottom = currentTop + contactsListHeight;
+
+    if (itemTop < currentTop) {
+      contactsScrollState.scrollTo(itemTop);
+    } else if (itemBottom > currentBottom) {
+      contactsScrollState.scrollTo(Math.max(0, itemBottom - contactsListHeight));
+    }
+  };
 
   // Keyboard shortcuts
   useHotkeys('escape', () => exit());
@@ -714,46 +776,55 @@ function WhatsAppClone(): VNode {
   useHotkeys('4', () => setActiveFilter('groups'));
 
   // Tab focuses the search input; Shift+Tab returns to message input
-  useHotkeys('tab', () => setActiveInput('search'));
-  useHotkeys('shift+tab', () => setActiveInput('message'));
+  useInput((_, key) => {
+    if (!key.tab) return;
+    if (key.shift) {
+      setActiveInput('message');
+    } else {
+      setActiveInput('search');
+    }
+    return true;
+  }, { priority: 'critical', stopPropagation: true });
 
   useHotkeys('up', () => {
+    if (activeInput() !== 'search') return;
     const filtered = getFilteredContacts();
     const newIndex = Math.max(0, selectedIndex() - 1);
     setSelectedIndex(newIndex);
     if (filtered[newIndex]) {
       setSelectedContactId(filtered[newIndex].id);
       markAsRead(filtered[newIndex].id);
-      setActiveInput('message');
+      ensureContactVisible(newIndex);
     }
   });
 
   useHotkeys('down', () => {
+    if (activeInput() !== 'search') return;
     const filtered = getFilteredContacts();
     const newIndex = Math.min(filtered.length - 1, selectedIndex() + 1);
     setSelectedIndex(newIndex);
     if (filtered[newIndex]) {
       setSelectedContactId(filtered[newIndex].id);
       markAsRead(filtered[newIndex].id);
-      setActiveInput('message');
+      ensureContactVisible(newIndex);
     }
   });
 
-  // Full height for content (no global header/status bar)
-  const contentHeight = Math.max(10, height);
   // Increased left panel width (was 25-35, now 30-45)
   const leftPanelWidth = Math.max(30, Math.min(45, Math.floor(width * 0.40)));
 
   // Mouse click support for contacts
   useMouse((event) => {
+    const isPrimaryClick = (event.action === 'click' || event.action === 'release') &&
+      (event.button === 'left' || event.button === 'none');
     // Only handle left clicks in the contacts panel area
-    if (event.action === 'click' && event.button === 'left') {
+    if (isPrimaryClick) {
       const panelHeaderHeight = 3;
       const searchBarHeight = 1;
       const filterTabsHeight = 1;
       const contactsStartY = panelHeaderHeight + searchBarHeight + filterTabsHeight;
       const chatHeaderHeight = 4;
-      const chatInputHeight = 3;
+      const chatInputHeight = messageInputHeight();
       const messagesHeight = Math.max(5, contentHeight - chatHeaderHeight - chatInputHeight);
       const messageInputStartY = chatHeaderHeight + messagesHeight;
 
@@ -779,6 +850,7 @@ function WhatsAppClone(): VNode {
             setSelectedContactId(filtered[clickedIndex].id);
             markAsRead(filtered[clickedIndex].id);
             setActiveInput('message');
+            ensureContactVisible(clickedIndex);
           }
         }
       } else if (event.x > leftPanelWidth) {
