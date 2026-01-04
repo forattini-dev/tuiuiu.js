@@ -1,6 +1,5 @@
 # Tuiuiu Brush Demo - tuiuiu.js
-# A nostalgic recreation of Windows 95/98 MS Paint
-# Press 'd' to draw "tuiuiu.js" logo automatically
+# Show tools, demo drawing, and canvas clearing
 
 Output examples/tuiuiu-brush.gif
 
@@ -17,10 +16,6 @@ Set PlaybackSpeed 1.0
 Type "pnpm example examples/tuiuiu-brush.ts"
 Enter
 Sleep 3s
-
-# Draw the "tuiuiu.js" logo pixel by pixel (press 'd' for demo)
-Type "d"
-Sleep 4s
 
 # Cycle through tools to show the MS Paint interface
 # Press 2 for Line tool
@@ -47,12 +42,17 @@ Sleep 700ms
 Type "1"
 Sleep 1s
 
-# Show the logo a bit longer
-Sleep 2s
+# Draw the "tuiuiu.js" logo pixel by pixel (press 'd' for demo)
+Type "d"
+Sleep 4s
 
 # Clear canvas to show it works
 Type "c"
 Sleep 1s
+
+# Draw again for a clean final frame
+Type "d"
+Sleep 3s
 
 # Final pause
 Sleep 1s

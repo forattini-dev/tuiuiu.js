@@ -1,5 +1,5 @@
 # WhatsApp Clone Demo - Tuiuiu.js
-# A terminal-based WhatsApp Web clone built with tuiuiu.js
+# Showcase: search filtering, chat selection, and message sending
 
 Output examples/whatsapp-clone.gif
 
@@ -9,7 +9,7 @@ Set Width 1600
 Set Height 900
 Set Padding 10
 Set Theme "Dracula"
-Set TypingSpeed 50ms
+Set TypingSpeed 35ms
 Set PlaybackSpeed 1.0
 
 # Start the app
@@ -17,69 +17,48 @@ Type "pnpm example examples/whatsapp-clone.ts"
 Enter
 Sleep 2s
 
-# Navigate through contacts with arrow keys
-Sleep 1s
-Down
-Sleep 500ms
-Down
-Sleep 500ms
-Down
-Sleep 500ms
-
-# Select a contact (David - has unread messages)
+# Send a long message to show input auto-grow and wrapping
+Set TypingSpeed 30ms
+Type "Hey Alice, I just pushed the new chat input with auto-grow and word wrap so we can test long messages in the UI."
+Sleep 400ms
 Enter
-Sleep 1s
+Sleep 900ms
 
-# Type a message
-Type "Hey! Just checking in on the PR status"
+# Focus the search input and filter by name
+Tab
+Sleep 400ms
+Type "dev"
+Sleep 700ms
+
+# Move selection to another filtered chat
+Down
 Sleep 500ms
+
+# Return to message input and send in the selected chat
+Shift+Tab
+Sleep 400ms
+Type "Hey team, can you review the latest changes?"
+Sleep 300ms
 Enter
-Sleep 1s
+Sleep 900ms
 
-# Go back to contacts and check another one
-Escape
+# Clear the search and show full list again
+Tab
+Sleep 300ms
+Ctrl+U
+Sleep 600ms
+
+# Navigate a bit in the list
+Down
+Down
 Sleep 500ms
-Up
-Up
-Sleep 500ms
+
+# Send another quick message
+Shift+Tab
+Sleep 300ms
+Type "Ping! Testing chat selection and send."
+Sleep 300ms
 Enter
-Sleep 1s
-
-# Navigate to see more contacts
-Down
-Down
-Down
-Down
-Down
-Sleep 1s
-
-# Try the filter tabs - press 'u' for Unread
-Type "u"
-Sleep 1s
-
-# Press 'a' for All
-Type "a"
-Sleep 1s
-
-# Press 'f' for Favorites
-Type "f"
-Sleep 1s
-
-# Press 'g' for Groups
-Type "g"
-Sleep 1s
-
-# Back to All
-Type "a"
-Sleep 1s
-
-# Wait to see incoming messages animation
-Sleep 3s
-
-# Scroll through messages
-Up
-Up
-Up
 Sleep 1s
 
 # Final pause
