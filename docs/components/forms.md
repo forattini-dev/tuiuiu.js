@@ -11,6 +11,8 @@ A fully featured text input field.
 - History support (Up/Down arrows)
 - Password mode (masking)
 - Multi-line support
+- Auto-grow with optional scrollbar for overflow
+- Mouse click to move the caret
 - Placeholder text
 
 ### Props
@@ -20,6 +22,11 @@ A fully featured text input field.
 | `initialValue` | `string` | Starting value |
 | `placeholder` | `string` | Text when empty |
 | `password` | `boolean` | Mask characters |
+| `multiline` | `boolean` | Enable multi-line input |
+| `wordWrap` | `boolean` | Wrap text at the input width |
+| `maxLines` | `number` | Maximum visible lines before scrolling |
+| `autoGrow` | `boolean` | Grow height up to maxLines (defaults to 5 when enabled) |
+| `showScrollbar` | `boolean` | Show scrollbar on overflow (default: true) |
 | `onChange` | `(val: string) => void` | Change handler |
 | `onSubmit` | `(val: string) => void` | Enter key handler |
 
@@ -33,6 +40,26 @@ const input = createTextInput({
 
 // Render
 renderTextInput(input);
+```
+
+### Auto-grow example
+
+```typescript
+const input = createTextInput({
+  multiline: true,
+  wordWrap: true,
+  autoGrow: true,
+  maxLines: 5,
+  showScrollbar: true,
+});
+
+renderTextInput(input, {
+  multiline: true,
+  wordWrap: true,
+  autoGrow: true,
+  maxLines: 5,
+  showScrollbar: true,
+});
 ```
 
 ?> **Testing Tip:** When unit testing `TextInput` logic without rendering, you must manually register the input handler: `addInputHandler(input.handleInput)`.

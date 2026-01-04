@@ -16,11 +16,12 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
-import type { VNode } from '../utils/types.js';
+import type { VNode, MouseEventData } from '../utils/types.js';
 import { createSignal, createEffect } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { stringWidth } from '../utils/text-utils.js';
 
 export interface TextInputState {
   value: string;
@@ -71,6 +72,10 @@ export interface TextInputOptions {
   width?: number;
   /** Maximum number of lines to display (for textarea mode) */
   maxLines?: number;
+  /** Auto-grow height based on visual line count (up to maxLines) */
+  autoGrow?: boolean;
+  /** Show scrollbar when content exceeds maxLines (default: true) */
+  showScrollbar?: boolean;
   /** Show character count */
   showCharCount?: boolean;
   /** Enable word wrapping */
@@ -169,6 +174,21 @@ export function getVisualLines(text: string, width: number, wrap: boolean): Visu
   return lines;
 }
 
+function getCursorIndexFromColumn(text: string, column: number): number {
+  if (column <= 0) return 0;
+  let width = 0;
+  let index = 0;
+
+  for (const char of text) {
+    const charWidth = stringWidth(char);
+    if (width + charWidth > column) break;
+    width += charWidth;
+    index += char.length;
+  }
+
+  return index;
+}
+
 /**
  * Create a TextInput state manager
  */
@@ -187,9 +207,15 @@ export function createTextInput(options: TextInputOptions = {}) {
     isActive: isActiveProp = true,
     width = 80, // Default width for wrapping
     maxLines,
+    autoGrow = false,
     wordWrap = false,
     enterCreatesNewline = false,
   } = options;
+  let wrapWidth = width;
+  let wrapWordWrap = wordWrap;
+  let wrapMaxLines = maxLines;
+  let wrapAutoGrow = autoGrow;
+  let resolvedMaxLines = wrapAutoGrow ? (wrapMaxLines ?? 5) : wrapMaxLines;
 
   // Helper to check if input is currently active
   // Supports both static boolean and reactive getter function
@@ -203,12 +229,71 @@ export function createTextInput(options: TextInputOptions = {}) {
   const [historyIndex, setHistoryIndex] = createSignal(-1);
   const [originalValue, setOriginalValue] = createSignal('');
   const [viewportOffset, setViewportOffset] = createSignal(0);
+  const [preferredColumn, setPreferredColumn] = createSignal<number | null>(null);
+
+  const setLayout = (layout: { width?: number; wordWrap?: boolean; maxLines?: number; autoGrow?: boolean }) => {
+    if (typeof layout.width === 'number') {
+      wrapWidth = Math.max(1, layout.width);
+    }
+    if (typeof layout.wordWrap === 'boolean') {
+      wrapWordWrap = layout.wordWrap;
+    }
+    if (layout.maxLines !== undefined) {
+      wrapMaxLines = layout.maxLines;
+    }
+    if (typeof layout.autoGrow === 'boolean') {
+      wrapAutoGrow = layout.autoGrow;
+    }
+    resolvedMaxLines = wrapAutoGrow ? (wrapMaxLines ?? 5) : wrapMaxLines;
+  };
+
+  const getCursorLineInfo = (val: string, cursor: number) => {
+    const visualLines = getVisualLines(val, wrapWidth, wrapWordWrap);
+    let lineIndex = 0;
+    let lineStart = visualLines[0]?.start ?? 0;
+    let lineText = visualLines[0]?.text ?? '';
+
+    for (let i = 0; i < visualLines.length; i++) {
+      const line = visualLines[i];
+      if (cursor >= line.start && cursor <= line.end) {
+        lineIndex = i;
+        lineStart = line.start;
+        lineText = line.text;
+        if (cursor < line.end || i === visualLines.length - 1) {
+          break;
+        }
+      }
+    }
+
+    const column = stringWidth(lineText.slice(0, Math.max(0, cursor - lineStart)));
+    return { visualLines, lineIndex, lineStart, lineText, column };
+  };
+
+  const updatePreferredColumn = (val: string, cursor: number) => {
+    const { column } = getCursorLineInfo(val, cursor);
+    setPreferredColumn(column);
+  };
+
+  const setCursorPositionInternal = (
+    pos: number,
+    options?: { scroll?: boolean; updatePreferredColumn?: boolean }
+  ) => {
+    const current = value();
+    const clamped = Math.max(0, Math.min(pos, current.length));
+    setCursorPosition(clamped);
+    if (options?.updatePreferredColumn !== false) {
+      updatePreferredColumn(current, clamped);
+    }
+    if (options?.scroll !== false) {
+      scrollToCursor(current, clamped);
+    }
+  };
 
   // Scroll to cursor helper
   const scrollToCursor = (val: string, cursor: number) => {
-    if (!maxLines) return; // No scrolling needed if no max height
+    if (!resolvedMaxLines) return; // No scrolling needed if no max height
 
-    const visualLines = getVisualLines(val, width, wordWrap);
+    const visualLines = getVisualLines(val, wrapWidth, wrapWordWrap);
 
     // Find visual line containing cursor
     let cursorLineFn = 0;
@@ -246,8 +331,8 @@ export function createTextInput(options: TextInputOptions = {}) {
     const currentOffset = viewportOffset();
     if (cursorLineFn < currentOffset) {
       setViewportOffset(cursorLineFn);
-    } else if (cursorLineFn >= currentOffset + maxLines) {
-      setViewportOffset(cursorLineFn - maxLines + 1);
+    } else if (cursorLineFn >= currentOffset + resolvedMaxLines) {
+      setViewportOffset(cursorLineFn - resolvedMaxLines + 1);
     }
   };
 
@@ -293,9 +378,8 @@ export function createTextInput(options: TextInputOptions = {}) {
       const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
       setValue(newValue);
       const newPos = pos + 1;
-      setCursorPosition(newPos);
+      setCursorPositionInternal(newPos);
       setIsMultilineMode(true);
-      scrollToCursor(newValue, newPos);
       onChange?.(newValue);
       return;
     }
@@ -308,9 +392,8 @@ export function createTextInput(options: TextInputOptions = {}) {
         const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
         setValue(newValue);
         const newPos = pos + 1;
-        setCursorPosition(newPos);
+        setCursorPositionInternal(newPos);
         setIsMultilineMode(true);
-        scrollToCursor(newValue, newPos);
         onChange?.(newValue);
       } else {
         // Submit
@@ -331,12 +414,10 @@ export function createTextInput(options: TextInputOptions = {}) {
       if (key.ctrl) {
         // Move to previous word boundary
         const newPos = findPrevWordBoundary(currentValue, pos);
-        setCursorPosition(newPos);
-        scrollToCursor(currentValue, newPos);
+        setCursorPositionInternal(newPos);
       } else {
         const newPos = Math.max(0, pos - 1);
-        setCursorPosition(newPos);
-        scrollToCursor(currentValue, newPos);
+        setCursorPositionInternal(newPos);
       }
       return;
     }
@@ -345,62 +426,90 @@ export function createTextInput(options: TextInputOptions = {}) {
       if (key.ctrl) {
         // Move to next word boundary
         const newPos = findNextWordBoundary(currentValue, pos);
-        setCursorPosition(newPos);
-        scrollToCursor(currentValue, newPos);
+        setCursorPositionInternal(newPos);
       } else {
         const newPos = Math.min(currentValue.length, pos + 1);
-        setCursorPosition(newPos);
-        scrollToCursor(currentValue, newPos);
+        setCursorPositionInternal(newPos);
       }
       return;
     }
 
     // Home/End or Ctrl+A/E
     if (key.home || (key.ctrl && input === 'a')) {
-      setCursorPosition(0);
-      scrollToCursor(currentValue, 0);
+      setCursorPositionInternal(0);
       return;
     }
 
     if (key.end || (key.ctrl && input === 'e')) {
       const newPos = currentValue.length;
-      setCursorPosition(newPos);
-      scrollToCursor(currentValue, newPos);
+      setCursorPositionInternal(newPos);
       return;
     }
 
-    // History navigation
-    if (key.upArrow && history.length > 0) {
-      const currentIndex = historyIndex();
-      if (currentIndex === -1) {
-        setOriginalValue(currentValue);
+    if (key.upArrow) {
+      const { visualLines, lineIndex, column } = getCursorLineInfo(currentValue, pos);
+      const targetColumn = preferredColumn() ?? column;
+
+      if (lineIndex > 0) {
+        const targetLine = visualLines[lineIndex - 1]!;
+        const offset = getCursorIndexFromColumn(targetLine.text, targetColumn);
+        const newPos = Math.min(currentValue.length, targetLine.start + offset);
+        if (preferredColumn() === null) {
+          setPreferredColumn(targetColumn);
+        }
+        setCursorPositionInternal(newPos, { updatePreferredColumn: false });
+        return;
       }
-      const newIndex = Math.min(currentIndex + 1, history.length - 1);
-      setHistoryIndex(newIndex);
-      const historyValue = history[history.length - 1 - newIndex];
-      setValue(historyValue);
-      setCursorPosition(historyValue.length);
-      onChange?.(historyValue);
-      return;
-    }
 
-    if (key.downArrow && historyIndex() >= 0) {
-      const newIndex = historyIndex() - 1;
-      setHistoryIndex(newIndex);
-      if (newIndex < 0) {
-        const orig = originalValue();
-        setValue(orig);
-        setCursorPosition(orig.length);
-        onChange?.(orig);
-      } else {
+      if (history.length > 0) {
+        const currentIndex = historyIndex();
+        if (currentIndex === -1) {
+          setOriginalValue(currentValue);
+        }
+        const newIndex = Math.min(currentIndex + 1, history.length - 1);
+        setHistoryIndex(newIndex);
         const historyValue = history[history.length - 1 - newIndex];
         setValue(historyValue);
-        setCursorPosition(historyValue.length);
+        setCursorPositionInternal(historyValue.length);
         onChange?.(historyValue);
       }
       return;
     }
 
+    if (key.downArrow) {
+      const { visualLines, lineIndex, column } = getCursorLineInfo(currentValue, pos);
+      const targetColumn = preferredColumn() ?? column;
+
+      if (lineIndex < visualLines.length - 1) {
+        const targetLine = visualLines[lineIndex + 1]!;
+        const offset = getCursorIndexFromColumn(targetLine.text, targetColumn);
+        const newPos = Math.min(currentValue.length, targetLine.start + offset);
+        if (preferredColumn() === null) {
+          setPreferredColumn(targetColumn);
+        }
+        setCursorPositionInternal(newPos, { updatePreferredColumn: false });
+        return;
+      }
+
+      if (historyIndex() >= 0) {
+        const newIndex = historyIndex() - 1;
+        setHistoryIndex(newIndex);
+        if (newIndex < 0) {
+          const orig = originalValue();
+          setValue(orig);
+          setCursorPositionInternal(orig.length);
+          onChange?.(orig);
+        } else {
+          const historyValue = history[history.length - 1 - newIndex];
+          setValue(historyValue);
+          setCursorPositionInternal(historyValue.length);
+          onChange?.(historyValue);
+        }
+      }
+      return;
+    }
+
+    // History navigation
     // Deletion
     if (key.backspace) {
       if (pos > 0) {
@@ -409,13 +518,13 @@ export function createTextInput(options: TextInputOptions = {}) {
           const boundary = findPrevWordBoundary(currentValue, pos);
           const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
           setValue(newValue);
-          setCursorPosition(boundary);
+          setCursorPositionInternal(boundary);
           onChange?.(newValue);
         } else {
           // Delete single char
           const newValue = currentValue.slice(0, pos - 1) + currentValue.slice(pos);
           setValue(newValue);
-          setCursorPosition(pos - 1);
+          setCursorPositionInternal(pos - 1);
           onChange?.(newValue);
         }
       }
@@ -456,7 +565,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       const startPos = lineStart >= 0 ? lineStart + 1 : 0;
       const newValue = currentValue.slice(0, startPos) + currentValue.slice(pos);
       setValue(newValue);
-      setCursorPosition(startPos);
+      setCursorPositionInternal(startPos);
       onChange?.(newValue);
       return;
     }
@@ -466,7 +575,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       const boundary = findPrevWordBoundary(currentValue, pos);
       const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
       setValue(newValue);
-      setCursorPosition(boundary);
+      setCursorPositionInternal(boundary);
       onChange?.(newValue);
       return;
     }
@@ -474,7 +583,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     // Ctrl+X - clear all (like Ctrl+C in some terminals)
     if (key.ctrl && input === 'x') {
       setValue('');
-      setCursorPosition(0);
+      setCursorPositionInternal(0);
       onChange?.('');
       return;
     }
@@ -490,12 +599,9 @@ export function createTextInput(options: TextInputOptions = {}) {
 
       const newValue = currentValue.slice(0, pos) + input + currentValue.slice(pos);
       setValue(newValue);
-      setCursorPosition(pos + input.length);
+      setCursorPositionInternal(pos + input.length);
       setHistoryIndex(-1);
       onChange?.(newValue);
-      // Update scroll on input
-      const newPos = pos + input.length;
-      scrollToCursor(newValue, newPos);
     }
   };
 
@@ -508,15 +614,18 @@ export function createTextInput(options: TextInputOptions = {}) {
     viewportOffset,
     isMultiline: isMultilineMode,
     handleInput, // Expose handler to be registered during render
+    setLayout,
+    setCursorPosition: (pos: number, options?: { scroll?: boolean }) => {
+      setCursorPositionInternal(pos, options);
+    },
     setValue: (v: string) => {
       setValue(v);
-      setCursorPosition(v.length);
-      scrollToCursor(v, v.length);
+      setCursorPositionInternal(v.length);
       onChange?.(v);
     },
     clear: () => {
       setValue('');
-      setCursorPosition(0);
+      setCursorPositionInternal(0);
       setHistoryIndex(-1);
       onChange?.('');
     },
@@ -547,6 +656,9 @@ export function renderTextInput(
     isActive = true,
     fullWidth = false,
   } = options;
+  const autoGrow = options.autoGrow ?? false;
+  const showScrollbar = options.showScrollbar ?? true;
+  const resolvedMaxLines = autoGrow ? (options.maxLines ?? 5) : options.maxLines;
 
   // Register input handler during render phase
   useInput(state.handleInput);
@@ -559,7 +671,7 @@ export function renderTextInput(
   // Use passed specific wrapping options or defaults
   const width = options.width ?? 80;
   const wordWrap = options.wordWrap ?? false;
-  const maxLines = options.maxLines;
+  const maxLines = resolvedMaxLines;
   const showCharCount = options.showCharCount ?? false;
 
   // Build the input display with cursor
@@ -586,6 +698,14 @@ export function renderTextInput(
     boxStyle.paddingX = 1;
   }
 
+  const baseContentWidth = Math.max(1, (noBorder ? width - 2 : width - 6));
+  state.setLayout?.({
+    width: baseContentWidth,
+    wordWrap,
+    maxLines: options.maxLines,
+    autoGrow,
+  });
+
   const isMultiline = state.isMultiline() || displayValue.includes('\n') || options.multiline;
 
   // Use multiline path when any of these conditions are true
@@ -597,18 +717,44 @@ export function renderTextInput(
     // Calculate actual content width for wrapping:
     // - Border: 2 chars (left + right)
     // - paddingX: 2 chars (left + right)
-    // - Prompt "❯ " or "│ ": 2 chars
-    const contentWidth = noBorder ? width - 2 : width - 6;
-    const lines = getVisualLines(displayValue, contentWidth, wordWrap);
+    // - Prompt plus space, or border plus space: 2 chars
+    const baseWidth = baseContentWidth;
+    let contentWidth = baseWidth;
+    let lines = getVisualLines(displayValue, contentWidth, wordWrap);
+    const hasOverflow = maxLines !== undefined && lines.length > maxLines;
+    const shouldShowScrollbar = showScrollbar && hasOverflow;
+
+    if (shouldShowScrollbar) {
+      contentWidth = Math.max(1, baseWidth - 1);
+      lines = getVisualLines(displayValue, contentWidth, wordWrap);
+      state.setLayout?.({
+        width: contentWidth,
+        wordWrap,
+        maxLines: options.maxLines,
+        autoGrow,
+      });
+    }
 
     // Viewport handling
+    const visibleCount = maxLines ? Math.min(maxLines, lines.length) : lines.length;
+    const maxOffset = Math.max(0, lines.length - visibleCount);
     let offset = state.viewportOffset();
+    if (offset > maxOffset) {
+      offset = maxOffset;
+    } else if (offset < 0) {
+      offset = 0;
+    }
     let visibleLines = lines;
 
     // If maxLines is set, slice the lines
     if (maxLines) {
-      visibleLines = lines.slice(offset, offset + maxLines);
+      visibleLines = lines.slice(offset, offset + visibleCount);
     }
+
+    const padForScrollbar = shouldShowScrollbar;
+    const borderSize = noBorder ? 0 : 1;
+    const contentStartX = noBorder ? 0 : 2;
+    const contentStartY = borderSize;
 
     // Determine visual cursor position relative to viewport
     // We need to match the cursor index to a line and col
@@ -630,12 +776,54 @@ export function renderTextInput(
     // Adjust cursorLine to be relative to visible window
     const relativeCursorLine = cursorLine - offset;
 
+    const chars = getChars();
+    const renderMode = getRenderMode();
+    const trackChar = renderMode === 'ascii' ? '|' : chars.scrollbar.track;
+    const thumbChar = renderMode === 'ascii' ? '#' : chars.scrollbar.thumb;
+    const scrollbarChars: string[] = [];
+    if (shouldShowScrollbar && visibleCount > 0) {
+      const thumbHeight = Math.max(1, Math.floor((visibleCount / lines.length) * visibleCount));
+      const thumbPosition = maxOffset > 0
+        ? Math.floor((offset / maxOffset) * (visibleCount - thumbHeight))
+        : 0;
+
+      for (let i = 0; i < visibleCount; i++) {
+        scrollbarChars.push(
+          i >= thumbPosition && i < thumbPosition + thumbHeight ? thumbChar : trackChar
+        );
+      }
+    }
+
+    const renderScrollbar = (index: number, isThumb: boolean): VNode | null => {
+      if (!shouldShowScrollbar) return null;
+      const color = isThumb
+        ? (isActive ? focusedBorderColor : unfocusedBorderColor)
+        : unfocusedBorderColor;
+      return Text({ color }, scrollbarChars[index] ?? ' ');
+    };
+
+    const handleMultilineClick = (event: MouseEventData) => {
+      const lineIndex = event.y - contentStartY;
+      if (lineIndex < 0 || lineIndex >= visibleLines.length) return;
+
+      const lineObj = visibleLines[lineIndex];
+      const linePrompt = lineIndex === 0 && offset === 0 ? prompt : chars.border.vertical;
+      const promptWidth = stringWidth(`${linePrompt} `);
+      const column = event.x - contentStartX - promptWidth;
+      const cursorOffset = getCursorIndexFromColumn(lineObj.text, column);
+      const nextCursor = Math.min(value.length, lineObj.start + cursorOffset);
+
+      state.setCursorPosition(nextCursor, { scroll: false });
+    };
+
     const renderedLines = visibleLines.map((lineObj, i) => {
       const lineIndex = offset + i; // Absolute line index
       const isCursorLine = lineIndex === cursorLine;
       const line = lineObj.text;
 
-      const linePrompt = i === 0 && offset === 0 ? prompt : getChars().border.vertical;
+      const linePrompt = i === 0 && offset === 0 ? prompt : chars.border.vertical;
+      const scrollbarChar = shouldShowScrollbar ? (scrollbarChars[i] ?? ' ') : '';
+      const isThumb = shouldShowScrollbar ? scrollbarChar === thumbChar : false;
 
       if (isCursorLine && isActive) {
         // Ensure cursorCol is within bounds of this line
@@ -643,20 +831,29 @@ export function renderTextInput(
         const before = line.slice(0, safeCol);
         const char = line[safeCol] || ' ';
         const after = line.slice(safeCol + 1);
+        const lineWidth = stringWidth(before + char + after);
+        const padCount = padForScrollbar ? Math.max(0, contentWidth - lineWidth) : 0;
 
         return Box(
           { flexDirection: 'row' },
           Text({ color: foreground }, `${linePrompt} `),
           Text({}, before),
           Text({ backgroundColor: cursorBg, color: cursorFg }, char),
-          Text({}, after)
+          Text({}, after),
+          padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
+          renderScrollbar(i, isThumb)
         );
       }
+
+      const lineWidth = stringWidth(line);
+      const padCount = padForScrollbar ? Math.max(0, contentWidth - lineWidth) : 0;
 
       return Box(
         { flexDirection: 'row' },
         Text({ color: foreground }, `${linePrompt} `),
-        Text({}, line)
+        Text({}, line),
+        padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
+        renderScrollbar(i, isThumb)
       );
     });
 
@@ -665,13 +862,14 @@ export function renderTextInput(
       renderedLines.push(
         Box(
           { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 0 },
-          Text({ color: 'mutedForeground', dim: true }, countText)
+          Text({ color: 'mutedForeground', dim: true }, countText),
+          shouldShowScrollbar ? Text({}, ' ') : null
         )
       );
     }
 
     return Box(
-      boxStyle,
+      { ...boxStyle, onClick: handleMultilineClick },
       ...renderedLines
     );
   }
@@ -688,10 +886,23 @@ export function renderTextInput(
     rowStyle.paddingX = 1;
   }
 
+  const handleSingleLineClick = (event: MouseEventData) => {
+    const borderSize = noBorder ? 0 : 1;
+    const contentStartX = noBorder ? 0 : 2;
+    const contentStartY = borderSize;
+    const lineIndex = event.y - contentStartY;
+    if (lineIndex !== 0) return;
 
+    const promptWidth = stringWidth(`${prompt} `);
+    const column = event.x - contentStartX - promptWidth;
+    const cursorOffset = getCursorIndexFromColumn(displayValue, column);
+    const nextCursor = Math.min(displayValue.length, cursorOffset);
+
+    state.setCursorPosition(nextCursor, { scroll: false });
+  };
 
   return Box(
-    rowStyle,
+    { ...rowStyle, onClick: handleSingleLineClick },
     Text({ color: foreground }, `${prompt} `),
     showPlaceholder
       ? Box(

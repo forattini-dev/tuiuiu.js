@@ -2,6 +2,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TextInput, createTextInput, renderTextInput } from '../../src/atoms/text-input';
 import { Box, Text } from '../../src/primitives/nodes';
+import { getChars, getRenderMode } from '../../src/core/capabilities';
+import { stringWidth } from '../../src/utils/text-utils';
 import type { Key } from '../../src/hooks';
 
 // Helper to simulate input
@@ -12,7 +14,20 @@ const keys = {
     enter: () => ({ return: true }) as Key,
     shiftEnter: () => ({ return: true, shift: true }) as Key,
     end: () => ({ end: true }) as Key,
+    up: () => ({ upArrow: true }) as Key,
+    down: () => ({ downArrow: true }) as Key,
 };
+
+const createClickEvent = (x: number, y: number) => ({
+    x,
+    y,
+    absoluteX: x,
+    absoluteY: y,
+    button: 'left',
+    modifiers: { ctrl: false, shift: false, alt: false },
+    target: null,
+    stopPropagation: () => {},
+});
 
 describe('TextInput Advanced Features', () => {
     describe('Word Wrapping', () => {
@@ -65,6 +80,157 @@ describe('TextInput Advanced Features', () => {
             // Last child should include char count
             const lastChild = vnode.children[vnode.children.length - 1] as any;
             expect(lastChild.children[0].props.children).toContain('3');
+        });
+    });
+
+    describe('Auto-grow & Scrollbar', () => {
+        it('should default to 5 lines when autoGrow is true without maxLines', () => {
+            const lines = Array.from({ length: 6 }, (_, i) => `Line ${i + 1}`).join('\n');
+            const ti = createTestInput({
+                initialValue: lines,
+                multiline: true,
+                autoGrow: true
+            });
+
+            const vnode = renderTextInput(ti, { multiline: true, autoGrow: true });
+            expect(vnode.children.length).toBe(5);
+        });
+
+        it('should show a scrollbar by default when content overflows', () => {
+            const text = ['Line 1', 'Line 2', 'Line 3'].join('\n');
+            const ti = createTestInput({
+                initialValue: text,
+                multiline: true,
+                maxLines: 2
+            });
+
+            const vnode = renderTextInput(ti, { multiline: true, maxLines: 2 });
+            const lineChildren = (vnode.children[0] as any).children;
+            const lastChild = lineChildren[lineChildren.length - 1] as any;
+            const chars = getChars();
+            const renderMode = getRenderMode();
+            const expected = renderMode === 'ascii'
+                ? ['|', '#']
+                : [chars.scrollbar.track, chars.scrollbar.thumb];
+
+            expect(expected).toContain(lastChild.props.children);
+        });
+
+        it('should omit the scrollbar when showScrollbar is false', () => {
+            const text = ['Line 1', 'Line 2', 'Line 3'].join('\n');
+            const ti = createTestInput({
+                initialValue: text,
+                multiline: true,
+                maxLines: 2
+            });
+
+            const vnode = renderTextInput(ti, { multiline: true, maxLines: 2, showScrollbar: false });
+            const lineChildren = (vnode.children[0] as any).children;
+            const lastChild = lineChildren[lineChildren.length - 1] as any;
+            const chars = getChars();
+            const renderMode = getRenderMode();
+            const trackChar = renderMode === 'ascii' ? '|' : chars.scrollbar.track;
+            const thumbChar = renderMode === 'ascii' ? '#' : chars.scrollbar.thumb;
+
+            expect(lastChild.props.children).not.toBe(trackChar);
+            expect(lastChild.props.children).not.toBe(thumbChar);
+        });
+    });
+
+    describe('Mouse Click Caret', () => {
+        it('should move cursor on single-line click', () => {
+            const ti = createTestInput({ initialValue: 'hello' });
+            const vnode = renderTextInput(ti, { borderStyle: 'none', prompt: '>' });
+            const promptWidth = stringWidth('> ');
+            const onClick = (vnode.props as any).onClick;
+
+            onClick(createClickEvent(promptWidth + 4, 0));
+            expect(ti.cursorPosition()).toBe(4);
+        });
+
+        it('should move cursor on wrapped multiline click', () => {
+            const ti = createTestInput({
+                initialValue: 'abcdefghij12',
+                multiline: true,
+                wordWrap: true,
+            });
+            const vnode = renderTextInput(ti, { borderStyle: 'none', width: 10, wordWrap: true });
+            const chars = getChars();
+            const promptWidth = stringWidth(`${chars.border.vertical} `);
+            const onClick = (vnode.props as any).onClick;
+
+            onClick(createClickEvent(promptWidth + 2, 1));
+            expect(ti.cursorPosition()).toBe(10);
+        });
+    });
+
+    describe('Visual Up/Down Navigation', () => {
+        it('should move cursor up by visual lines before history', () => {
+            const ti = createTestInput({
+                initialValue: 'abcdefghij',
+                multiline: true,
+                wordWrap: true,
+            });
+            renderTextInput(ti, { width: 6, wordWrap: true, multiline: true, borderStyle: 'none' });
+
+            ti.setCursorPosition(5);
+            ti.handleInput('', keys.up());
+
+            expect(ti.cursorPosition()).toBe(1);
+            expect(ti.value()).toBe('abcdefghij');
+        });
+
+        it('should use history only at the first visual line', () => {
+            const ti = createTestInput({
+                initialValue: 'abcdefghij',
+                multiline: true,
+                wordWrap: true,
+                history: ['prev'],
+            });
+            renderTextInput(ti, { width: 6, wordWrap: true, multiline: true, borderStyle: 'none' });
+
+            ti.setCursorPosition(5);
+            ti.handleInput('', keys.up());
+            expect(ti.value()).toBe('abcdefghij');
+
+            ti.setCursorPosition(1);
+            ti.handleInput('', keys.up());
+            expect(ti.value()).toBe('prev');
+        });
+
+        it('should keep preferred column when moving down then up', () => {
+            const ti = createTestInput({
+                initialValue: '12345\nabc\n12345',
+                multiline: true,
+            });
+            renderTextInput(ti, { multiline: true, borderStyle: 'none' });
+
+            ti.setCursorPosition(4);
+            ti.handleInput('', keys.down());
+            expect(ti.cursorPosition()).toBe(9);
+
+            ti.handleInput('', keys.up());
+            expect(ti.cursorPosition()).toBe(4);
+        });
+
+        it('should navigate history only at the last visual line on down', () => {
+            const ti = createTestInput({
+                initialValue: 'current',
+                history: ['older', 'newer'],
+            });
+            renderTextInput(ti, { borderStyle: 'none' });
+
+            ti.handleInput('', keys.up());
+            expect(ti.value()).toBe('newer');
+
+            ti.handleInput('', keys.up());
+            expect(ti.value()).toBe('older');
+
+            ti.handleInput('', keys.down());
+            expect(ti.value()).toBe('newer');
+
+            ti.handleInput('', keys.down());
+            expect(ti.value()).toBe('current');
         });
     });
 
@@ -146,6 +312,22 @@ describe('TextInput Advanced Features', () => {
             expect(vnode.children.length).toBe(5);
             expect((vnode.children[4] as any).children[1].props.children).toContain('Line 20');
             expect((vnode.children[0] as any).children[1].props.children).toContain('Line 16');
+        });
+
+        it('should adjust viewport offset when cursor moves past visible lines', () => {
+            const text = ['Line 1', 'Line 2', 'Line 3', 'Line 4'].join('\n');
+            const ti = createTestInput({
+                initialValue: text,
+                multiline: true,
+                maxLines: 2
+            });
+            renderTextInput(ti, { multiline: true, maxLines: 2 });
+
+            ti.setCursorPosition(text.length);
+            expect(ti.viewportOffset()).toBe(2);
+
+            ti.setCursorPosition(0);
+            expect(ti.viewportOffset()).toBe(0);
         });
 
         it('should wrap text correctly within strict width (TextArea behavior)', () => {

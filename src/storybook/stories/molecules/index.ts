@@ -170,6 +170,27 @@ export const textInputStories: Story[] = [
       })
     ),
 
+  story('TextInput - Auto-grow')
+    .category('Molecules')
+    .description('Auto-grow text input with overflow scrollbar')
+    .controls({
+      initialValue: defaultControls.text(
+        'Initial Value',
+        'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6'
+      ),
+    })
+    .render((props) =>
+      TextInput({
+        initialValue: props.initialValue,
+        multiline: true,
+        wordWrap: true,
+        autoGrow: true,
+        maxLines: 5,
+        showScrollbar: true,
+        onChange: (val: string) => console.log('Auto-grow changed:', val),
+      })
+    ),
+
   story('TextInput - With Label')
     .category('Molecules')
     .description('TextInput with label and full-width')
