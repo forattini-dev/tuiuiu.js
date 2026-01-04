@@ -13,6 +13,8 @@ import { stringWidth, stripAnsi } from '../utils/text-utils.js';
  */
 const textMeasureCache = new Map<string, { width: number; height: number }>();
 const TEXT_CACHE_MAX_SIZE = 1000;
+const resolveMarginValue = (value: number | 'auto' | undefined): number =>
+  value === 'auto' ? 0 : (value ?? 0);
 
 /**
  * Clear the text measurement cache
@@ -60,12 +62,10 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
   // Calculate margin (handle 'auto' as 0 for now, centering would need parent context)
   // IMPORTANT: Resolve shorthand FIRST with ??, THEN handle 'auto' conversion
   // This fixes the bug where resolveMargin(undefined) returns 0, breaking the ?? chain
-  const resolveMargin = (m: number | 'auto' | undefined): number =>
-    m === 'auto' ? 0 : (m ?? 0);
-  const marginTop = resolveMargin(style.marginTop ?? style.marginY ?? style.margin);
-  const marginBottom = resolveMargin(style.marginBottom ?? style.marginY ?? style.margin);
-  const marginLeft = resolveMargin(style.marginLeft ?? style.marginX ?? style.margin);
-  const marginRight = resolveMargin(style.marginRight ?? style.marginX ?? style.margin);
+  const marginTop = resolveMarginValue(style.marginTop ?? style.marginY ?? style.margin);
+  const marginBottom = resolveMarginValue(style.marginBottom ?? style.marginY ?? style.margin);
+  const marginLeft = resolveMarginValue(style.marginLeft ?? style.marginX ?? style.margin);
+  const marginRight = resolveMarginValue(style.marginRight ?? style.marginX ?? style.margin);
 
   // Border takes 1 char each side if present
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
@@ -106,7 +106,10 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
 
   if (isRow) {
     for (const child of childLayouts) {
-      totalWidth += child.width;
+      const childStyle = child.node.props as BoxStyle;
+      const childMarginLeft = resolveMarginValue(childStyle.marginLeft ?? childStyle.marginX ?? childStyle.margin);
+      const childMarginRight = resolveMarginValue(childStyle.marginRight ?? childStyle.marginX ?? childStyle.margin);
+      totalWidth += child.width + childMarginLeft + childMarginRight;
       totalHeight = Math.max(totalHeight, child.height);
     }
     totalWidth += currentGap * Math.max(0, childLayouts.length - 1);
@@ -114,8 +117,10 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     // For column layout, use the maximum extent (y + height) of children
     // This correctly accounts for child margins which offset their y position
     for (const child of childLayouts) {
+      const childStyle = child.node.props as BoxStyle;
+      const childMarginBottom = resolveMarginValue(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
       totalWidth = Math.max(totalWidth, child.width);
-      totalHeight = Math.max(totalHeight, child.y + child.height);
+      totalHeight = Math.max(totalHeight, child.y + child.height + childMarginBottom);
     }
     // Gap is already handled by layoutColumn which adds it to child.y positions
   }
@@ -176,21 +181,24 @@ function layoutRow(
   // First pass: calculate fixed sizes and count flexible children
   let fixedWidth = 0;
   let flexTotal = 0;
-  const childInfos: { node: VNode; flex: number; minWidth: number }[] = [];
+  const childInfos: { node: VNode; flex: number; minWidth: number; marginLeft: number; marginRight: number }[] = [];
 
   for (const child of children) {
     const style = child.props as BoxStyle;
     const flex = style.flexGrow ?? (child.type === 'spacer' ? 1 : 0);
     const minWidth = style.minWidth ?? 0;
+    const marginLeft = resolveMarginValue(style.marginLeft ?? style.marginX ?? style.margin);
+    const marginRight = resolveMarginValue(style.marginRight ?? style.marginX ?? style.margin);
 
     if (flex > 0) {
       flexTotal += flex;
-      childInfos.push({ node: child, flex, minWidth });
+      fixedWidth += marginLeft + marginRight;
+      childInfos.push({ node: child, flex, minWidth, marginLeft, marginRight });
     } else {
       // Fixed width child - layout to get its natural size
       const layout = layoutNode(child, { x: 0, y: 0, width, height });
-      fixedWidth += layout.width;
-      childInfos.push({ node: child, flex: 0, minWidth: layout.width });
+      fixedWidth += layout.width + marginLeft + marginRight;
+      childInfos.push({ node: child, flex: 0, minWidth: layout.width, marginLeft, marginRight });
     }
   }
 
@@ -230,7 +238,8 @@ function layoutRow(
   for (let i = 0; i < childInfos.length; i++) {
     const info = childInfos[i];
     const childWidth = info.flex > 0 ? Math.floor(flexUnit * info.flex) : info.minWidth;
-    const layout = layoutNode(info.node, { x, y: 0, width: childWidth, height });
+    const allocatedWidth = childWidth + info.marginLeft + info.marginRight;
+    const layout = layoutNode(info.node, { x, y: 0, width: allocatedWidth, height });
 
     // Adjust y based on alignItems (or alignSelf if set on child)
     const childStyle = info.node.props as BoxStyle;
@@ -250,7 +259,7 @@ function layoutRow(
     results.push(layout);
 
     // Calculate next x position
-    x += layout.width;
+    x += info.marginLeft + layout.width + info.marginRight;
     if (justifyContent === 'space-between' && i < childInfos.length - 1) {
       x += spaceBetween;
     } else if (justifyContent === 'space-around') {
@@ -281,10 +290,12 @@ function layoutColumn(
   // First pass: layout all children normally
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
+    const childStyle = child.props as BoxStyle;
+    const marginTop = resolveMarginValue(childStyle.marginTop ?? childStyle.marginY ?? childStyle.margin);
+    const marginBottom = resolveMarginValue(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
     const layout = layoutNode(child, { x: 0, y, width, height: height - y });
 
     // Adjust x based on alignItems (or alignSelf if set on child)
-    const childStyle = child.props as BoxStyle;
     const alignSelf = childStyle.alignSelf;
     const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
 
@@ -299,10 +310,7 @@ function layoutColumn(
     results.push(layout);
 
     // Add child's height plus its marginBottom to position next sibling correctly
-    const resolveMargin = (m: number | 'auto' | undefined): number =>
-      m === 'auto' ? 0 : (m ?? 0);
-    const childMarginBottom = resolveMargin(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
-    y += layout.height + childMarginBottom;
+    y += marginTop + layout.height + marginBottom;
 
     if (i < children.length - 1) {
       y += gap;
