@@ -12,6 +12,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  getAppContext,
 } from './context.js';
 
 // =============================================================================
@@ -66,6 +67,16 @@ const X10_MOUSE_DISABLE = '\x1b[?1000l';
 // Track if mouse is globally enabled to avoid multiple enable/disable
 let mouseTrackingEnabled = false;
 let mouseTrackingRefCount = 0;
+let mouseOutputStream: NodeJS.WriteStream | null = null;
+
+function getMouseOutputStream(): NodeJS.WriteStream {
+  const appContext = getAppContext();
+  return (appContext?.stdout ?? process.stdout) as NodeJS.WriteStream;
+}
+
+function isTTYStream(stream: NodeJS.WriteStream): boolean {
+  return 'isTTY' in stream && !!(stream as any).isTTY;
+}
 
 // =============================================================================
 // Mouse Event Parsing
@@ -217,7 +228,11 @@ export function enableMouseTracking(): void {
   mouseTrackingRefCount++;
   if (!mouseTrackingEnabled) {
     mouseTrackingEnabled = true;
-    process.stdout.write(SGR_MOUSE_ENABLE);
+    const stream = getMouseOutputStream();
+    mouseOutputStream = stream;
+    if (isTTYStream(stream)) {
+      stream.write(SGR_MOUSE_ENABLE);
+    }
   }
 }
 
@@ -228,7 +243,11 @@ export function disableMouseTracking(): void {
   mouseTrackingRefCount = Math.max(0, mouseTrackingRefCount - 1);
   if (mouseTrackingRefCount === 0 && mouseTrackingEnabled) {
     mouseTrackingEnabled = false;
-    process.stdout.write(SGR_MOUSE_DISABLE);
+    const stream = mouseOutputStream ?? getMouseOutputStream();
+    if (isTTYStream(stream)) {
+      stream.write(SGR_MOUSE_DISABLE);
+    }
+    mouseOutputStream = null;
   }
 }
 
@@ -239,7 +258,11 @@ export function forceDisableMouseTracking(): void {
   mouseTrackingRefCount = 0;
   if (mouseTrackingEnabled) {
     mouseTrackingEnabled = false;
-    process.stdout.write(SGR_MOUSE_DISABLE);
+    const stream = mouseOutputStream ?? getMouseOutputStream();
+    if (isTTYStream(stream)) {
+      stream.write(SGR_MOUSE_DISABLE);
+    }
+    mouseOutputStream = null;
   }
 }
 
