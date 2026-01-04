@@ -223,10 +223,11 @@ export class EventEmitter<E extends Record<string, any> = Record<string, any>> {
     // Build path from root to target
     const path = this.buildPath();
 
-    // Capture phase (root to target)
+    // Capture phase (root to parent of target)
     event.phase = 'capture';
-    for (const emitter of path) {
+    for (let i = 0; i < path.length - 1; i++) {
       if (event.propagationStopped) break;
+      const emitter = path[i];
       event.currentTarget = emitter.node;
       emitter.dispatchLocal(event, 'capture');
     }
@@ -310,7 +311,12 @@ export class EventEmitter<E extends Record<string, any> = Record<string, any>> {
       // Target phase triggers both capture and bubble listeners
 
       try {
-        listener.handler(event);
+        const result = listener.handler(event);
+        if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+          Promise.resolve(result).catch((error) => {
+            console.error(`Error in async event handler for "${event.type}":`, error);
+          });
+        }
       } catch (error) {
         console.error(`Error in event handler for "${event.type}":`, error);
       }

@@ -138,6 +138,32 @@ describe('EventEmitter', () => {
       expect(event.type).toBe('test');
       expect(event.data).toBe('data');
     });
+
+    it('should catch async handler rejections', async () => {
+      const error = new Error('Async failure');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      let unhandled: unknown;
+      const unhandledHandler = (reason: unknown) => {
+        unhandled = reason;
+      };
+
+      process.once('unhandledRejection', unhandledHandler);
+
+      emitter.on('test', async () => {
+        throw error;
+      });
+
+      emitter.emit('test');
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      process.off('unhandledRejection', unhandledHandler);
+
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(unhandled).toBeUndefined();
+
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('priority', () => {
@@ -266,6 +292,17 @@ describe('Event Propagation', () => {
       child.dispatch(event);
 
       expect(order).toEqual(['root-capture', 'child-target', 'root-bubble']);
+    });
+
+    it('should only invoke target capture listener once', () => {
+      const order: string[] = [];
+
+      child.on('test', () => order.push('child-capture'), { capture: true });
+
+      const event = createEvent('test', null);
+      child.dispatch(event);
+
+      expect(order).toEqual(['child-capture']);
     });
   });
 
