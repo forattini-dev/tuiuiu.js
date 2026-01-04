@@ -209,6 +209,11 @@ const searchInputState = createTextInput({
 const messageInputState = createTextInput({
   placeholder: 'Type a message',
   isActive: () => activeInput() === 'message',
+  onSubmit: (value: string) => {
+    if (!value.trim()) return;
+    addMessage(selectedContactId(), value, true);
+    messageInputState.clear();
+  },
 });
 
 // Helper to get current time
@@ -598,16 +603,8 @@ function ChatMessages(props: { contactId: string; width: number; height: number 
 /**
  * Message Input Area - Simple flat design like WhatsApp Web (3 lines with padding)
  */
-function MessageInput(props: { width: number; onSend: (text: string) => void }): VNode {
-  const { width, onSend } = props;
-
-  // Set up the submit handler
-  messageInputState.onSubmit = (value: string) => {
-    if (value.trim()) {
-      onSend(value);
-      messageInputState.clear();
-    }
-  };
+function MessageInput(props: { width: number }): VNode {
+  const { width } = props;
 
   return Box(
     {
@@ -665,15 +662,11 @@ function ChatPanel(props: { width: number; height: number }): VNode {
   const inputHeight = 3;   // 3 lines for input with padding
   const messagesHeight = Math.max(5, height - headerHeight - inputHeight);
 
-  const handleSend = (text: string) => {
-    addMessage(selectedId, text, true);
-  };
-
   return Box(
     { flexDirection: 'column', height },
     ChatHeader({ contact, width }),
     ChatMessages({ contactId: selectedId, width, height: messagesHeight }),
-    MessageInput({ width, onSend: handleSend }),
+    MessageInput({ width }),
   );
 }
 
