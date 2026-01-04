@@ -8,6 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+const SAFE_KEY_RE = /^[A-Za-z0-9._-]+$/;
+
 export interface NodeFsStorageOptions {
   /** Base directory for storing files (e.g., './data') */
   dir?: string;
@@ -29,7 +31,16 @@ export function createNodeFsStorage(options: NodeFsStorageOptions = {}) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  const assertSafeKey = (key: string): void => {
+    if (!SAFE_KEY_RE.test(key) || key.includes('..')) {
+      throw new Error(
+        `[tuiuiu] Invalid storage key "${key}". Keys must match ${SAFE_KEY_RE.source} and not include "..".`
+      );
+    }
+  };
+
   const getItem = async (key: string): Promise<string | null> => {
+    assertSafeKey(key);
     const filePath = path.join(dir, `${key}${ext}`);
     if (fs.existsSync(filePath)) {
       return fs.promises.readFile(filePath, 'utf-8');
@@ -38,6 +49,7 @@ export function createNodeFsStorage(options: NodeFsStorageOptions = {}) {
   };
 
   const setItem = async (key: string, value: string): Promise<void> => {
+    assertSafeKey(key);
     const filePath = path.join(dir, `${key}${ext}`);
     await fs.promises.writeFile(filePath, value, 'utf-8');
   };

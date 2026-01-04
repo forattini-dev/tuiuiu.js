@@ -60,6 +60,15 @@ describe('createNodeFsStorage', () => {
       const filePath = path.join(TEST_DIR, 'data.txt');
       expect(fs.existsSync(filePath)).toBe(true);
     });
+
+    it('should reject unsafe keys', async () => {
+      const storage = createNodeFsStorage({ dir: TEST_DIR });
+
+      await expect(storage.setItem('../evil', 'x')).rejects.toThrow('Invalid storage key');
+      await expect(storage.setItem('..', 'x')).rejects.toThrow('Invalid storage key');
+      await expect(storage.setItem('bad/key', 'x')).rejects.toThrow('Invalid storage key');
+      await expect(storage.setItem('bad\\\\key', 'x')).rejects.toThrow('Invalid storage key');
+    });
   });
 
   describe('getItem', () => {
@@ -78,6 +87,15 @@ describe('createNodeFsStorage', () => {
       const value = await storage.getItem('non-existent');
 
       expect(value).toBeNull();
+    });
+
+    it('should reject unsafe keys', async () => {
+      const storage = createNodeFsStorage({ dir: TEST_DIR });
+
+      await expect(storage.getItem('../evil')).rejects.toThrow('Invalid storage key');
+      await expect(storage.getItem('..')).rejects.toThrow('Invalid storage key');
+      await expect(storage.getItem('bad/key')).rejects.toThrow('Invalid storage key');
+      await expect(storage.getItem('bad\\\\key')).rejects.toThrow('Invalid storage key');
     });
   });
 

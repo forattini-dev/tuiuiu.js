@@ -10,6 +10,7 @@ const HIDE_CURSOR = '\u001B[?25l';
 
 let isHidden = false;
 let handlersRegistered = false;
+let lastStream: Writable | null = null;
 
 // Store handler references for potential cleanup
 let exitHandler: (() => void) | null = null;
@@ -20,9 +21,17 @@ let uncaughtHandler: ((err: Error) => void) | null = null;
 /**
  * Restore cursor visibility
  */
+function isTTYStream(stream: Writable): boolean {
+  return 'isTTY' in stream && !!(stream as any).isTTY;
+}
+
 function restoreCursor(): void {
+  const stream = lastStream ?? process.stdout;
+  if (!isTTYStream(stream)) {
+    return;
+  }
   if (isHidden) {
-    process.stdout.write(SHOW_CURSOR);
+    stream.write(SHOW_CURSOR);
     isHidden = false;
   }
 }
@@ -72,15 +81,17 @@ export function removeExitHandlers(): void {
   sigtermHandler = null;
   uncaughtHandler = null;
   handlersRegistered = false;
+  lastStream = null;
 }
 
 /**
  * Show the terminal cursor
  */
 export function showCursor(stream: Writable = process.stdout): void {
-  if (!('isTTY' in stream) || !(stream as any).isTTY) {
+  if (!isTTYStream(stream)) {
     return;
   }
+  lastStream = stream;
   isHidden = false;
   stream.write(SHOW_CURSOR);
 }
@@ -89,9 +100,10 @@ export function showCursor(stream: Writable = process.stdout): void {
  * Hide the terminal cursor
  */
 export function hideCursor(stream: Writable = process.stdout): void {
-  if (!('isTTY' in stream) || !(stream as any).isTTY) {
+  if (!isTTYStream(stream)) {
     return;
   }
+  lastStream = stream;
   setupExitHandler();
   isHidden = true;
   stream.write(HIDE_CURSOR);
