@@ -191,6 +191,7 @@ const [contacts, setContacts] = createSignal<Contact[]>(initialContacts);
 const [messages, setMessages] = createSignal<Record<string, Message[]>>(initialMessages);
 const [selectedContactId, setSelectedContactId] = createSignal<string>('1');
 const [searchQuery, setSearchQuery] = createSignal('');
+const [activeInput, setActiveInput] = createSignal<'search' | 'message'>('message');
 const [isTyping, setIsTyping] = createSignal(false);
 const [activeFilter, setActiveFilter] = createSignal<'all' | 'unread' | 'favorites' | 'groups'>('all');
 
@@ -202,10 +203,12 @@ const contactsScrollState = createScrollList({});
 const searchInputState = createTextInput({
   placeholder: 'Search or start new chat',
   onChange: setSearchQuery,
+  isActive: () => activeInput() === 'search',
 });
 
 const messageInputState = createTextInput({
   placeholder: 'Type a message',
+  isActive: () => activeInput() === 'message',
 });
 
 // Helper to get current time
@@ -356,7 +359,7 @@ function SearchBar(props: { width: number }): VNode {
     renderTextInput(searchInputState, {
       width: props.width - 4,
       borderStyle: 'none',
-      isActive: false,
+      isActive: activeInput() === 'search',
       placeholder: 'Search or start new chat',
     }),
   );
@@ -431,12 +434,9 @@ function ContactsList(props: { width: number; height: number }): VNode {
   // Header(3 with padding) + Search(1) + FilterTabs(1) = 5 rows reserved
   const listHeight = Math.max(5, height - 5);
 
-  // Apply search filter
+  // Apply search filter (by chat name)
   let filteredContacts = query
-    ? contacts().filter(c =>
-        c.name.toLowerCase().includes(query) ||
-        c.lastMessage.toLowerCase().includes(query)
-      )
+    ? contacts().filter(c => c.name.toLowerCase().includes(query))
     : contacts();
 
   // Apply tab filter
@@ -629,7 +629,7 @@ function MessageInput(props: { width: number; onSend: (text: string) => void }):
       renderTextInput(messageInputState, {
         width: Math.max(10, width - 14),
         borderStyle: 'none',
-        isActive: true,
+        isActive: activeInput() === 'message',
         foreground: colors.textPrimary,
       }),
     ),
@@ -688,10 +688,7 @@ function getFilteredContacts(): Contact[] {
   const filter = activeFilter();
 
   let filtered = query
-    ? contacts().filter(c =>
-        c.name.toLowerCase().includes(query) ||
-        c.lastMessage.toLowerCase().includes(query)
-      )
+    ? contacts().filter(c => c.name.toLowerCase().includes(query))
     : contacts();
 
   if (filter === 'unread') {
@@ -759,12 +756,25 @@ function WhatsAppClone(): VNode {
   useMouse((event) => {
     // Only handle left clicks in the contacts panel area
     if (event.action === 'click' && event.button === 'left') {
+      const panelHeaderHeight = 3;
+      const searchBarHeight = 1;
+      const filterTabsHeight = 1;
+      const contactsStartY = panelHeaderHeight + searchBarHeight + filterTabsHeight;
+      const chatHeaderHeight = 4;
+      const chatInputHeight = 3;
+      const messagesHeight = Math.max(5, contentHeight - chatHeaderHeight - chatInputHeight);
+      const messageInputStartY = chatHeaderHeight + messagesHeight;
+
       // Check if click is within the left panel (contacts area)
       if (event.x < leftPanelWidth) {
+        if (event.y >= panelHeaderHeight && event.y < panelHeaderHeight + searchBarHeight) {
+          setActiveInput('search');
+          return;
+        }
+
         // Calculate which contact was clicked
         // Layout: PanelHeader(3 with padding) + SearchBar(1) + FilterTabs(1) = 5 rows
         // Each contact item is 3 rows tall (itemHeight: 3)
-        const contactsStartY = 5;
         const clickedRow = event.y - contactsStartY;
 
         if (clickedRow >= 0) {
@@ -776,7 +786,12 @@ function WhatsAppClone(): VNode {
             setSelectedIndex(clickedIndex);
             setSelectedContactId(filtered[clickedIndex].id);
             markAsRead(filtered[clickedIndex].id);
+            setActiveInput('message');
           }
+        }
+      } else if (event.x > leftPanelWidth) {
+        if (event.y >= messageInputStartY) {
+          setActiveInput('message');
         }
       }
     }
