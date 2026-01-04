@@ -10,9 +10,10 @@ A fully featured text input field.
 - Cursor navigation
 - History support (Up/Down arrows)
 - Password mode (masking)
-- Multi-line support
+- Multi-line support with visual line navigation
 - Auto-grow with optional scrollbar for overflow
-- Mouse click to move the caret
+- Mouse click to position caret (click-to-caret)
+- Up/Down arrow navigation between visual lines
 - Placeholder text
 
 ### Props
@@ -60,6 +61,24 @@ renderTextInput(input, {
   maxLines: 5,
   showScrollbar: true,
 });
+```
+
+### Keyboard Navigation (Multiline)
+
+In multiline mode, TextInput supports visual line navigation:
+
+- **Up/Down arrows**: Move cursor between visual lines, preserving column position
+- **Home/End**: Jump to start/end of current visual line
+- **Ctrl+Home/End**: Jump to start/end of entire text
+
+### Click-to-Caret
+
+Clicking on the TextInput positions the cursor at the clicked location. This works for both single-line and multiline inputs.
+
+```typescript
+// The onClick handler is set up automatically when rendering
+// Clicking at column 5, row 2 positions cursor there
+renderTextInput(input, { multiline: true, width: 40 });
 ```
 
 ?> **Testing Tip:** When unit testing `TextInput` logic without rendering, you must manually register the input handler: `addInputHandler(input.handleInput)`.
