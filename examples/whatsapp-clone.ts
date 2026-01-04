@@ -720,12 +720,9 @@ function WhatsAppClone(): VNode {
   useHotkeys('3', () => setActiveFilter('favorites'));
   useHotkeys('4', () => setActiveFilter('groups'));
 
-  // Tab to cycle through filters
-  useHotkeys('tab', () => {
-    const filters: Array<'all' | 'unread' | 'favorites' | 'groups'> = ['all', 'unread', 'favorites', 'groups'];
-    const currentIdx = filters.indexOf(activeFilter());
-    setActiveFilter(filters[(currentIdx + 1) % filters.length]);
-  });
+  // Tab focuses the search input; Shift+Tab returns to message input
+  useHotkeys('tab', () => setActiveInput('search'));
+  useHotkeys('shift+tab', () => setActiveInput('message'));
 
   useHotkeys('up', () => {
     const filtered = getFilteredContacts();
@@ -734,6 +731,7 @@ function WhatsAppClone(): VNode {
     if (filtered[newIndex]) {
       setSelectedContactId(filtered[newIndex].id);
       markAsRead(filtered[newIndex].id);
+      setActiveInput('message');
     }
   });
 
@@ -744,6 +742,7 @@ function WhatsAppClone(): VNode {
     if (filtered[newIndex]) {
       setSelectedContactId(filtered[newIndex].id);
       markAsRead(filtered[newIndex].id);
+      setActiveInput('message');
     }
   });
 
@@ -827,6 +826,7 @@ simulateIncomingMessages();
 const { waitUntilExit } = render(WhatsAppClone, {
   fullHeight: true,
   exitOnCtrlC: true,
+  autoTabNavigation: false,
 });
 
 await waitUntilExit();
