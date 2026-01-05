@@ -106,7 +106,9 @@
   - [Patterns](/patterns/index.md)
 
 - **Resources**
+  - [Component Hierarchy](/core/component-hierarchy.md)
   - [Storybook](/core/storybook.md)
+  - [Storybook Coverage](/core/storybook-coverage.md)
   - [Examples](/resources/examples.md)
   - [Best Practices](/resources/best-practices.md)
   - [Contributing](/resources/contributing.md)
