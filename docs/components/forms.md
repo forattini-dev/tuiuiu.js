@@ -193,6 +193,8 @@ FormGroup({
 
 ## Specialized Inputs
 
+These inputs are composite controls built on top of TextInput (molecules).
+
 ### SearchInput
 
 Text input with search icon and clear button.
