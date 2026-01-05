@@ -57,15 +57,25 @@ case "$CATEGORY" in
     components)
         generate_category "components"
         ;;
+    animations)
+        generate_category "animations"
+        ;;
+    core)
+        generate_category "core"
+        ;;
     all)
-        generate_category "examples"
+        generate_category "core"
         generate_category "components"
+        generate_category "animations"
+        generate_category "examples"
         ;;
     *)
-        echo "Usage: $0 [examples|components|all]"
+        echo "Usage: $0 [examples|components|animations|core|all]"
         echo ""
         echo "  examples   - Generate full app demo GIFs"
         echo "  components - Generate component documentation GIFs"
+        echo "  animations - Generate animation effect GIFs"
+        echo "  core       - Generate core feature GIFs (layout, themes)"
         echo "  all        - Generate all GIFs (default)"
         exit 1
         ;;
@@ -78,8 +88,14 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Generated files:"
 echo ""
-echo "📁 Examples:"
-ls -lh docs/recordings/examples/*.gif 2>/dev/null || echo "   (none)"
+echo "📁 Core:"
+ls -lh docs/recordings/core/*.gif 2>/dev/null || echo "   (none)"
 echo ""
 echo "📁 Components:"
 ls -lh docs/recordings/components/*.gif 2>/dev/null || echo "   (none)"
+echo ""
+echo "📁 Animations:"
+ls -lh docs/recordings/animations/*.gif 2>/dev/null || echo "   (none)"
+echo ""
+echo "📁 Examples:"
+ls -lh docs/recordings/examples/*.gif 2>/dev/null || echo "   (none)"
