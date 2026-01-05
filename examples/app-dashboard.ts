@@ -27,12 +27,16 @@ import {
   useTheme,
   getNextTheme,
   resolveColor,
+  Screen,
+  Main,
+  Header,
+  Footer,
+  Panel,
 } from '../src/index.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { createSpinner, renderSpinner, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
-import { ScrollArea } from '../src/organisms/scroll-area.js';
-import type { VNode } from '../src/utils/types.js';
-import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
+import { ScrollPanel } from '../src/organisms/scroll-panel.js';
+import type { BoxStyle, VNode } from '../src/utils/types.js';
 import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-header.js';
 
 // ============================================================================
@@ -77,6 +81,12 @@ function formatNum(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return Math.floor(n).toString();
+}
+
+function formatWhole(n: number): string {
+  return Math.floor(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function formatTime(secs: number): string {
@@ -153,13 +163,13 @@ function renderLCD(text: string, color: string, suffix?: string): VNode {
 
   return Box(
     { flexDirection: 'column' },
-    Text({ color: color as any }, lines[0]),
-    Text({ color: color as any }, lines[1]),
+    Text({ color: color as any, wrap: 'truncate' }, lines[0]),
+    Text({ color: color as any, wrap: 'truncate' }, lines[1]),
     // Suffix appears on the last line, right after the LCD digits
     Box(
       { flexDirection: 'row' },
-      Text({ color: color as any }, lines[2]),
-      suffix ? Text({ color: color as any, bold: true }, ` ${suffix}`) : null
+      Text({ color: color as any, wrap: 'truncate' }, lines[2]),
+      suffix ? Text({ color: color as any, bold: true, wrap: 'truncate' }, ` ${suffix}`) : null
     )
   );
 }
@@ -185,6 +195,8 @@ function createMetricsStore() {
   const [rps, setRps] = createSignal(1247);
   const [rpsHistory, setRpsHistory] = createSignal<number[]>([]);
   const [totalReqs, setTotalReqs] = createSignal(0);
+  const [activeUsers, setActiveUsers] = createSignal(1620);
+  const [activeUsersHistory, setActiveUsersHistory] = createSignal<number[]>([]);
 
   const [cpu, setCpu] = createSignal(45);
   const [cpuHistory, setCpuHistory] = createSignal<number[]>([]);
@@ -194,12 +206,20 @@ function createMetricsStore() {
 
   const [latency, setLatency] = createSignal(42);
   const [latencyHistory, setLatencyHistory] = createSignal<number[]>([]);
+  const [p95Latency, setP95Latency] = createSignal(86);
+  const [p95LatencyHistory, setP95LatencyHistory] = createSignal<number[]>([]);
 
   const [errors, setErrors] = createSignal(0.2);
   const [errorsHistory, setErrorsHistory] = createSignal<number[]>([]);
+  const [cacheHit, setCacheHit] = createSignal(98.2);
+  const [cacheHitHistory, setCacheHitHistory] = createSignal<number[]>([]);
 
   const [connections, setConnections] = createSignal(342);
+  const [queueDepth, setQueueDepth] = createSignal(42);
+  const [queueDepthHistory, setQueueDepthHistory] = createSignal<number[]>([]);
   const [bandwidth, setBandwidth] = createSignal({ in: 45.2, out: 23.1 });
+  const [packetLoss, setPacketLoss] = createSignal(0.12);
+  const [rtt, setRtt] = createSignal(38);
 
   const [uptime, setUptime] = createSignal(0);
   const [activityLog, setActivityLog] = createSignal<LogEntry[]>([]);
@@ -226,6 +246,15 @@ function createMetricsStore() {
       setTotalReqs(t => t + Math.round(newRps / 10));
     }, 100));
 
+    // Active users - every 400ms
+    timers.push(setInterval(() => {
+      const wave = Math.sin(Date.now() / 5000) * 350;
+      const noise = (Math.random() - 0.5) * 180;
+      const nextUsers = Math.max(600, Math.min(3200, 1600 + wave + noise));
+      setActiveUsers(Math.round(nextUsers));
+      setActiveUsersHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), nextUsers]);
+    }, 400));
+
     // CPU - every 200ms
     timers.push(setInterval(() => {
       const wave = Math.sin(Date.now() / 3000) * 15;
@@ -248,8 +277,12 @@ function createMetricsStore() {
     timers.push(setInterval(() => {
       const base = 35 + Math.random() * 20;
       const spike = Math.random() > 0.92 ? Math.random() * 100 : 0;
-      setLatency(Math.round(base + spike));
-      setLatencyHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), latency()]);
+      const newLatency = Math.round(base + spike);
+      const newP95 = Math.max(45, Math.min(260, newLatency + 25 + Math.random() * 60));
+      setLatency(newLatency);
+      setLatencyHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newLatency]);
+      setP95Latency(Math.round(newP95));
+      setP95LatencyHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newP95]);
     }, 150));
 
     // Errors - every 1s
@@ -257,11 +290,19 @@ function createMetricsStore() {
       const newErr = Math.random() > 0.9 ? Math.random() * 2 : Math.random() * 0.5;
       setErrors(Math.round(newErr * 100) / 100);
       setErrorsHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), newErr]);
+      const hitBase = 97.6 + Math.sin(Date.now() / 4500) * 0.6;
+      const hitJitter = (Math.random() - 0.5) * 0.8;
+      const nextHit = Math.max(93.5, Math.min(99.9, hitBase + hitJitter - newErr * 0.4));
+      setCacheHit(Math.round(nextHit * 10) / 10);
+      setCacheHitHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), nextHit]);
     }, 1000));
 
     // Connections - every 300ms
     timers.push(setInterval(() => {
       setConnections(c => Math.max(200, Math.min(500, c + Math.floor((Math.random() - 0.5) * 30))));
+      const nextQueue = Math.max(10, Math.min(240, queueDepth() + Math.floor((Math.random() - 0.5) * 24)));
+      setQueueDepth(nextQueue);
+      setQueueDepthHistory(h => [...h.slice(-MAX_SPARKLINE_HISTORY), nextQueue]);
     }, 300));
 
     // Bandwidth - every 200ms
@@ -270,6 +311,10 @@ function createMetricsStore() {
         in: Math.round((40 + Math.random() * 30) * 10) / 10,
         out: Math.round((20 + Math.random() * 20) * 10) / 10,
       });
+      const nextRtt = Math.max(12, Math.min(140, 32 + Math.sin(Date.now() / 3200) * 10 + (Math.random() - 0.5) * 8));
+      const nextLoss = Math.max(0, Math.min(3, 0.08 + Math.random() * 0.35 + (Math.random() > 0.97 ? Math.random() * 2 : 0)));
+      setRtt(Math.round(nextRtt));
+      setPacketLoss(Math.round(nextLoss * 100) / 100);
     }, 200));
 
     // Activity log - random intervals (50-300ms)
@@ -311,11 +356,15 @@ function createMetricsStore() {
   return {
     start, stop,
     rps, rpsHistory, totalReqs,
+    activeUsers, activeUsersHistory,
     cpu, cpuHistory,
     mem, memHistory,
     latency, latencyHistory,
+    p95Latency, p95LatencyHistory,
     errors, errorsHistory,
-    connections, bandwidth,
+    cacheHit, cacheHitHistory,
+    connections, queueDepth, queueDepthHistory,
+    bandwidth, packetLoss, rtt,
     uptime, activityLog, services,
   };
 }
@@ -326,28 +375,28 @@ function createMetricsStore() {
 
 function Card(props: {
   title: string;
-  width?: number;
-  height?: number;
+  width?: BoxStyle['width'];
+  height?: BoxStyle['height'];
+  minWidth?: number;
   color?: string;
   flexGrow?: number;
   children: (VNode | null)[];
 }): VNode {
-  return Box(
+  const content = props.children.filter(Boolean) as VNode[];
+
+  return Panel(
     {
-      flexDirection: 'column',
-      borderStyle: 'round',
+      title: props.title,
       borderColor: (props.color || resolveColor('muted')) as any,
       width: props.width,
       height: props.height,
-      flexGrow: props.flexGrow ?? (props.width ? undefined : 1),
+      minWidth: props.minWidth,
+      flexGrow: props.flexGrow,
+      padding: 0,
       paddingX: 1,
       paddingBottom: 1,
     },
-    Box(
-      { marginBottom: 1 },
-      Text({ color: resolveColor('mutedForeground'), dim: true }, props.title)
-    ),
-    ...props.children
+    ...content
   );
 }
 
@@ -357,14 +406,36 @@ function BigMetric(props: {
   suffix?: string;
   color: string;
   spark?: string;
-  sparkWidth?: number;
+  width?: BoxStyle['width'];
+  minWidth?: number;
+  flexGrow?: number;
 }): VNode {
   return Card({
     title: props.title,
     color: props.color,
+    width: props.width,
+    minWidth: props.minWidth,
+    flexGrow: props.flexGrow,
     children: [
       renderLCD(props.value, props.color, props.suffix),
-      props.spark ? Text({ color: props.color as any, dim: true }, props.spark) : null,
+      props.spark ? Text({ color: props.color as any, dim: true, wrap: 'truncate' }, props.spark) : null,
+    ],
+  });
+}
+
+function CompactMetric(props: {
+  title: string;
+  value: string;
+  color: string;
+  flexGrow?: number;
+}): VNode {
+  return Card({
+    title: props.title,
+    color: props.color,
+    flexGrow: props.flexGrow ?? 1,
+    minWidth: 18,
+    children: [
+      Text({ color: props.color as any, bold: true }, props.value),
     ],
   });
 }
@@ -387,15 +458,11 @@ function GaugeBar(props: {
       Spacer({}),
       Text({ color: props.color as any, bold: true }, `${pct.toFixed(0)}%`)
     ),
-    Box(
-      { marginTop: 1 },
-      Text({ color: props.color as any }, bar)
-    )
+    Text({ color: props.color as any, wrap: 'truncate' }, bar)
   );
 }
 
-function ActivityFeed(props: { entries: LogEntry[]; height: number }): VNode {
-  // Convert entries to VNodes for ScrollArea
+function ActivityFeed(props: { entries: LogEntry[] }): VNode {
   const logContent = props.entries.map((e) =>
     Box(
       { flexDirection: 'row' },
@@ -407,39 +474,84 @@ function ActivityFeed(props: { entries: LogEntry[]; height: number }): VNode {
     )
   );
 
-  return Card({
+  return ScrollPanel({
     title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES}) [↑↓/jk scroll]`,
-    height: props.height + 4, // +4 for border and title
-    color: resolveColor('primary'),
+    borderColor: resolveColor('primary'),
+    scrollbarColor: resolveColor('primary'),
+    content: logContent,
+    height: 'fill',
+    showScrollbar: true,
+    flexGrow: 1,
+    isActive: true,
+  });
+}
+
+function ServicesList(props: {
+  services: { name: string; status: string; cpu: number; mem: number }[];
+  maxItems?: number;
+  showOverflow?: boolean;
+}): VNode {
+  const maxItems = Math.max(1, props.maxItems ?? props.services.length);
+  const visible = props.services.slice(0, maxItems);
+  const overflow = props.showOverflow === false ? 0 : props.services.length - visible.length;
+
+  return Card({
+    title: '◎ SERVICES',
+    color: resolveColor('success'),
     children: [
-      ScrollArea({
-        height: props.height,
-        content: logContent,
-        showScrollbar: true,
-        scrollbarColor: resolveColor('primary'),
-        isActive: true, // Component handles its own keyboard input
-      }),
+      ...visible.map((s, i) =>
+        Box(
+          { flexDirection: 'row', key: i },
+          Text({ color: resolveColor('success') }, '● '),
+          Text({ color: resolveColor('foreground') }, s.name.padEnd(14)),
+          Text({ color: s.cpu > 50 ? resolveColor('warning') : resolveColor('mutedForeground') as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
+          Text({ color: resolveColor('mutedForeground') }, `MEM:${s.mem}MB`)
+        )
+      ),
+      overflow > 0
+        ? Text({ color: resolveColor('mutedForeground'), dim: true }, `+${overflow} more`)
+        : null,
     ],
   });
 }
 
-function ServicesList(props: { services: { name: string; status: string; cpu: number; mem: number }[] }): VNode {
-  return Card({
-    title: '◎ SERVICES',
-    color: resolveColor('success'),
-    children: props.services.map((s, i) =>
-      Box(
-        { flexDirection: 'row', key: i },
-        Text({ color: resolveColor('success') }, '● '),
-        Text({ color: resolveColor('foreground') }, s.name.padEnd(14)),
-        Text({ color: s.cpu > 50 ? resolveColor('warning') : resolveColor('mutedForeground') as any }, `CPU:${s.cpu.toString().padStart(2)}% `),
-        Text({ color: resolveColor('mutedForeground') }, `MEM:${s.mem}MB`)
-      )
-    ),
-  });
-}
+function NetworkStats(props: {
+  inMb: number;
+  outMb: number;
+  connections: number;
+  rtt: number;
+  packetLoss: number;
+  compact?: boolean;
+}): VNode {
+  if (props.compact) {
+    return Card({
+      title: '◈ NETWORK',
+      color: resolveColor('accent'),
+      children: [
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: resolveColor('success') }, '↓ '),
+          Text({ color: resolveColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`),
+          Spacer({}),
+          Text({ color: resolveColor('primary') }, '↑ '),
+          Text({ color: resolveColor('foreground'), bold: true }, `${props.outMb.toFixed(1)} MB/s`)
+        ),
+        Box(
+          { flexDirection: 'row' },
+          Text({ color: resolveColor('mutedForeground') }, 'Conn '),
+          Text({ color: resolveColor('warning'), bold: true }, props.connections.toString()),
+          Text({ color: resolveColor('mutedForeground') }, '  RTT '),
+          Text({ color: resolveColor('foreground'), bold: true }, `${props.rtt}ms`),
+          Text({ color: resolveColor('mutedForeground') }, '  Loss '),
+          Text(
+            { color: props.packetLoss > 1 ? resolveColor('error') : resolveColor('success'), bold: true },
+            `${props.packetLoss.toFixed(2)}%`
+          )
+        ),
+      ],
+    });
+  }
 
-function NetworkStats(props: { inMb: number; outMb: number; connections: number }): VNode {
   return Card({
     title: '◈ NETWORK',
     color: resolveColor('accent'),
@@ -447,18 +559,26 @@ function NetworkStats(props: { inMb: number; outMb: number; connections: number 
       Box(
         { flexDirection: 'row' },
         Text({ color: resolveColor('success') }, '↓ '),
-        Text({ color: resolveColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`)
-      ),
-      Box(
-        { flexDirection: 'row' },
+        Text({ color: resolveColor('foreground'), bold: true }, `${props.inMb.toFixed(1)} MB/s`),
+        Spacer({}),
         Text({ color: resolveColor('primary') }, '↑ '),
         Text({ color: resolveColor('foreground'), bold: true }, `${props.outMb.toFixed(1)} MB/s`)
       ),
-      Box({ marginTop: 1 }),
       Box(
         { flexDirection: 'row' },
-        Text({ color: resolveColor('mutedForeground') }, 'Connections: '),
-        Text({ color: resolveColor('warning'), bold: true }, props.connections.toString())
+        Text({ color: resolveColor('mutedForeground') }, 'Connections '),
+        Text({ color: resolveColor('warning'), bold: true }, props.connections.toString()),
+        Spacer({}),
+        Text({ color: resolveColor('mutedForeground') }, 'RTT '),
+        Text({ color: resolveColor('foreground'), bold: true }, `${props.rtt}ms`)
+      ),
+      Box(
+        { flexDirection: 'row' },
+        Text({ color: resolveColor('mutedForeground') }, 'Pkt Loss '),
+        Text(
+          { color: props.packetLoss > 1 ? resolveColor('error') : resolveColor('success'), bold: true },
+          `${props.packetLoss.toFixed(2)}%`
+        )
       ),
     ],
   });
@@ -540,18 +660,20 @@ function startBackgroundJobs() {
   }, 200);
 }
 
-function SpinnersPanel(): VNode {
+function SpinnersPanel(props: { queueDepth: number; maxItems?: number }): VNode {
   // Start jobs simulation if not already running
   if (!jobsInterval) {
     startBackgroundJobs();
   }
 
   const jobs = backgroundJobs();
+  const maxItems = Math.max(1, props.maxItems ?? jobs.length);
+  const visible = jobs.slice(0, maxItems);
 
   return Card({
-    title: `◐ BACKGROUND JOBS (${jobs.filter(j => j.status === 'running').length} running)`,
+    title: `◐ BACKGROUND JOBS (${jobs.filter(j => j.status === 'running').length} running • Q:${props.queueDepth})`,
     color: resolveColor('warning'),
-    children: jobs.map((job) => {
+    children: visible.map((job) => {
       const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
       const isComplete = job.status === 'completed';
       const barWidth = 12;
@@ -579,14 +701,14 @@ function SpinnersPanel(): VNode {
   });
 }
 
-function Header(props: { uptime: number; totalReqs: number; width: number }): VNode {
+function DashboardHeader(props: { uptime: number; totalReqs: number }): VNode {
   const theme = useTheme();
 
-  return Box(
+  return Header(
     {
       flexDirection: 'row',
       backgroundColor: resolveColor('primary'),
-      width: props.width,
+      width: 'fill',
       paddingX: 1,
     },
     Text({ color: resolveColor('primaryForeground'), bold: true }, ' 🚀 SYSTEM DASHBOARD '),
@@ -600,17 +722,19 @@ function Header(props: { uptime: number; totalReqs: number; width: number }): VN
   );
 }
 
-function Footer(props: { width: number }): VNode {
-  return Box(
+function DashboardFooter(): VNode {
+  return Footer(
     {
       flexDirection: 'row',
       backgroundColor: resolveColor('muted'),
-      width: props.width,
+      height: 1,
+      marginTop: 1,
+      width: 'fill',
       paddingX: 1,
     },
-    Text({ color: resolveColor('foreground') }, ' [Q] Quit '),
+    Text({ color: resolveColor('foreground') }, '[Q] Quit '),
     Text({ color: resolveColor('mutedForeground') }, '│'),
-    Text({ color: resolveColor('foreground') }, ' [Tab] Theme '),
+    Text({ color: resolveColor('foreground') }, ' [Tab] Theme'),
     Spacer({}),
     Text({ color: resolveColor('mutedForeground') }, new Date().toLocaleString())
   );
@@ -629,27 +753,36 @@ function Dashboard(): VNode {
   const { columns: termWidth, rows: termHeight } = useTerminalSize();
   const m = metricsStore;
 
-  // Calculate responsive widths
-  const fullWidth = termWidth;
-  const leftColWidth = Math.floor((termWidth - 1) / 2); // Left column (half)
-  const rightColWidth = termWidth - leftColWidth - 1; // Right column (other half)
+  const compactMode = termHeight < 28;
+  const showSecondRow = !compactMode && termHeight >= 34;
+  const showBigSparks = !compactMode && termHeight >= 32;
+  const showSystemSparks = !compactMode && termHeight >= 32;
+  const showNetwork = termHeight >= 26;
+  const compactNetwork = termHeight < 32;
+  const showJobs = termHeight >= 36;
+  const jobsToShow = termHeight >= 40 ? 3 : 2;
 
-  // Card content width = card width - border(2) - paddingX(2) = card width - 4
-  const bigMetricCardWidth = Math.floor((termWidth - 2) / 3); // 3 cards + 2 gaps
-  const bigMetricContentWidth = bigMetricCardWidth - 4;
-  const leftColContentWidth = leftColWidth - 4;
+  const totalServices = m.services().length;
+  const servicesVisible = termHeight >= 36
+    ? totalServices
+    : termHeight >= 30
+      ? Math.min(4, totalServices)
+      : Math.min(3, totalServices);
+  const showServicesOverflow = servicesVisible < totalServices;
 
-  // Activity feed: 30 visible lines, stores up to MAX_LOG_ENTRIES (100)
-  const activityHeight = 30;
+  const metricSparkWidth = Math.max(10, Math.floor(termWidth / 3) - 6);
+  const metricMinWidth = Math.max(18, Math.floor(termWidth / 4));
+  const leftColumnApprox = Math.max(24, Math.floor(termWidth / 2));
+  const leftColContentWidth = Math.max(10, leftColumnApprox - 4);
+  const gaugeBarWidth = Math.max(10, leftColContentWidth - 10);
 
   resetFps();
 
   createEffect(() => {
     trackFrame();
-    clearOldKeyPresses();
   });
 
-  useInput(withKeyIndicator((input, key) => {
+  useInput((input, key) => {
     if (input === 'q' || key.escape) {
       m.stop();
       app.exit();
@@ -660,99 +793,135 @@ function Dashboard(): VNode {
       const nextTheme = getNextTheme(currentTheme);
       setTheme(nextTheme);
     }
-  }));
+  });
 
   const cpuColor = m.cpu() > 80 ? resolveColor('error') : m.cpu() > 60 ? resolveColor('warning') : resolveColor('success');
   const memColor = m.mem() > 80 ? resolveColor('error') : m.mem() > 60 ? resolveColor('warning') : resolveColor('primary');
   const latColor = m.latency() > 100 ? resolveColor('error') : m.latency() > 60 ? resolveColor('warning') : resolveColor('success');
+  const p95Color = m.p95Latency() > 140 ? resolveColor('error') : m.p95Latency() > 100 ? resolveColor('warning') : resolveColor('success');
   const errColor = m.errors() > 1 ? resolveColor('error') : m.errors() > 0.5 ? resolveColor('warning') : resolveColor('success');
+  const cacheColor = m.cacheHit() < 95 ? resolveColor('error') : m.cacheHit() < 97 ? resolveColor('warning') : resolveColor('success');
+  const usersColor = resolveColor('accent');
 
-  // Calculate bar widths for gauges (content width - label "CPU" - percentage "100%")
-  const gaugeBarWidth = Math.max(10, leftColContentWidth - 10);
+  const primaryMetrics = compactMode
+    ? Box(
+        { flexDirection: 'row', gap: 1, alignItems: 'stretch' },
+        CompactMetric({
+          title: '◆ REQUESTS/SEC',
+          value: `${m.rps().toString()}/s`,
+          color: resolveColor('primary'),
+        }),
+        CompactMetric({
+          title: '◆ AVG LATENCY',
+          value: `${m.latency().toString()}ms`,
+          color: latColor,
+        }),
+        CompactMetric({
+          title: '◆ ERROR RATE',
+          value: `${m.errors().toFixed(1)}%`,
+          color: errColor,
+        })
+      )
+    : Box(
+        { flexDirection: 'row', gap: 1, alignItems: 'stretch' },
+        BigMetric({
+          title: '◆ REQUESTS/SEC',
+          value: m.rps().toString(),
+          suffix: '/s',
+          color: resolveColor('primary'),
+          spark: showBigSparks ? sparkline(m.rpsHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        }),
+        BigMetric({
+          title: '◆ AVG LATENCY',
+          value: m.latency().toString(),
+          suffix: 'ms',
+          color: latColor,
+          spark: showBigSparks ? sparkline(m.latencyHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        }),
+        BigMetric({
+          title: '◆ ERROR RATE',
+          value: m.errors().toFixed(1),
+          suffix: '%',
+          color: errColor,
+          spark: showBigSparks ? sparkline(m.errorsHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        })
+      );
 
-  return Box(
-    { flexDirection: 'column', width: fullWidth },
+  const secondaryMetrics = showSecondRow
+    ? Box(
+        { flexDirection: 'row', gap: 1, alignItems: 'stretch' },
+        BigMetric({
+          title: '◆ ACTIVE USERS',
+          value: formatWhole(m.activeUsers()),
+          suffix: 'usr',
+          color: usersColor,
+          spark: showBigSparks ? sparkline(m.activeUsersHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        }),
+        BigMetric({
+          title: '◆ P95 LATENCY',
+          value: m.p95Latency().toString(),
+          suffix: 'ms',
+          color: p95Color,
+          spark: showBigSparks ? sparkline(m.p95LatencyHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        }),
+        BigMetric({
+          title: '◆ CACHE HIT',
+          value: m.cacheHit().toFixed(1),
+          suffix: '%',
+          color: cacheColor,
+          spark: showBigSparks ? sparkline(m.cacheHitHistory(), metricSparkWidth) : undefined,
+          flexGrow: 1,
+          minWidth: metricMinWidth,
+        })
+      )
+    : null;
 
-    // Header
-    Header({ uptime: m.uptime(), totalReqs: m.totalReqs(), width: fullWidth }),
-
-    // Row 1: Big Numbers (3 columns)
-    Box(
-      { flexDirection: 'row', marginTop: 1, width: fullWidth },
-      BigMetric({
-        title: '◆ REQUESTS/SEC',
-        value: m.rps().toString(),
-        suffix: '/s',
-        color: resolveColor('primary'),
-        spark: sparkline(m.rpsHistory(), bigMetricContentWidth),
-      }),
-      Box({ width: 1 }),
-      BigMetric({
-        title: '◆ AVG LATENCY',
-        value: m.latency().toString(),
-        suffix: 'ms',
-        color: latColor,
-        spark: sparkline(m.latencyHistory(), bigMetricContentWidth),
-      }),
-      Box({ width: 1 }),
-      BigMetric({
-        title: '◆ ERROR RATE',
-        value: m.errors().toFixed(1),
-        suffix: '%',
-        color: errColor,
-        spark: sparkline(m.errorsHistory(), bigMetricContentWidth),
-      }),
-    ),
-
-    // Row 2: Two-column layout (Left: stacked cards, Right: Activity Feed full height)
-    Box(
-      { flexDirection: 'row', marginTop: 1, width: fullWidth },
-
-      // Left Column: System Resources + Network + Services + Background Jobs
+  return Screen(
+    {},
+    DashboardHeader({ uptime: m.uptime(), totalReqs: m.totalReqs() }),
+    Main(
+      { gap: 1 },
+      primaryMetrics,
+      secondaryMetrics,
       Box(
-        { flexDirection: 'column', width: leftColWidth },
-
-        // System Gauges
-        Card({
-          title: '◇ SYSTEM RESOURCES',
-          color: resolveColor('success'),
-          width: leftColWidth,
-          children: [
-            GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),
-            Text({ color: cpuColor as any, dim: true }, sparkline(m.cpuHistory(), leftColContentWidth)),
-            Box({ marginTop: 1 }),
+        { flexDirection: 'row', gap: 1, flexGrow: 1, alignItems: 'stretch' },
+        Box(
+          { flexDirection: 'column', gap: 1, flexGrow: 1, alignItems: 'stretch' },
+          Card({
+            title: '◇ SYSTEM RESOURCES',
+            color: resolveColor('success'),
+            children: [
+              GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),
+            showSystemSparks ? Text({ color: cpuColor as any, dim: true, wrap: 'truncate' }, sparkline(m.cpuHistory(), leftColContentWidth)) : null,
             GaugeBar({ title: 'MEM', value: m.mem(), max: 100, color: memColor, barWidth: gaugeBarWidth }),
-            Text({ color: memColor as any, dim: true }, sparkline(m.memHistory(), leftColContentWidth)),
+            showSystemSparks ? Text({ color: memColor as any, dim: true, wrap: 'truncate' }, sparkline(m.memHistory(), leftColContentWidth)) : null,
           ],
         }),
-
-        // Network Stats
-        Box({ marginTop: 1 }),
-        NetworkStats({
-          inMb: m.bandwidth().in,
-          outMb: m.bandwidth().out,
-          connections: m.connections(),
-        }),
-
-        // Services List
-        Box({ marginTop: 1 }),
-        ServicesList({ services: m.services() }),
-
-        // Background Jobs
-        Box({ marginTop: 1 }),
-        SpinnersPanel(),
-      ),
-
-      Box({ width: 1 }),
-
-      // Right Column: Activity Feed (full height)
-      ActivityFeed({ entries: m.activityLog(), height: activityHeight }),
+          showNetwork ? NetworkStats({
+            inMb: m.bandwidth().in,
+            outMb: m.bandwidth().out,
+            connections: m.connections(),
+            rtt: m.rtt(),
+            packetLoss: m.packetLoss(),
+            compact: compactNetwork,
+          }) : null,
+          ServicesList({ services: m.services(), maxItems: servicesVisible, showOverflow: showServicesOverflow }),
+          showJobs ? SpinnersPanel({ queueDepth: m.queueDepth(), maxItems: jobsToShow }) : null
+        ),
+        ActivityFeed({ entries: m.activityLog() })
+      )
     ),
-
-    // Footer
-    Box({ marginTop: 1 }),
-    Footer({ width: fullWidth }),
-    KeyIndicator(),
+    DashboardFooter()
   );
 }
 
@@ -760,5 +929,5 @@ function Dashboard(): VNode {
 // Run
 // ============================================================================
 
-const { waitUntilExit } = render(Dashboard, { autoTabNavigation: false });
+const { waitUntilExit } = render(Dashboard, { autoTabNavigation: false, fullHeight: true });
 await waitUntilExit();
