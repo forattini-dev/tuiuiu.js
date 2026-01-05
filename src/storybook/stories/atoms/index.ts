@@ -560,8 +560,7 @@ export const sliderStories: Story[] = [
         min: props.min,
         max: props.max,
         step: props.step,
-        minValue: props.minValue,
-        maxValue: props.maxValue,
+        initialValue: [props.minValue, props.maxValue],
         width: props.width,
         onChange: () => {},
       })
@@ -620,7 +619,7 @@ export const tooltipStories: Story[] = [
         position: props.position,
         arrow: props.arrow,
         visible: props.visible,
-      })
+      }) ?? Box({})
     ),
 
   story('WithTooltip - Active')
@@ -672,7 +671,7 @@ export const tooltipStories: Story[] = [
         width: props.width,
         arrow: props.arrow,
         content: Box({ flexDirection: 'column', gap: 1 }, Text({}, 'Option 1'), Text({}, 'Option 2')),
-      })
+      }) ?? Box({})
     ),
 
   story('Tag - Basic')
@@ -811,7 +810,7 @@ export const bigTextStories: Story[] = [
       color: defaultControls.color('Color', 'cyan'),
     })
     .render((props) =>
-      Logo({ text: props.text, color: props.color })
+      Logo({ text: props.text, colors: [props.color] })
     ),
 ];
 
@@ -873,13 +872,13 @@ export const digitsStories: Story[] = [
     .category('Atoms')
     .description('Countdown display')
     .controls({
-      time: defaultControls.text('Time', '00:45'),
+      seconds: defaultControls.number('Seconds', 45),
       style: defaultControls.select('Style', ['lcd', 'block', 'dotmatrix', 'minimal'], 'lcd'),
       color: defaultControls.color('Color', 'red'),
     })
     .render((props) =>
       Countdown({
-        time: props.time,
+        seconds: props.seconds,
         style: props.style,
         color: props.color,
       })
@@ -889,13 +888,13 @@ export const digitsStories: Story[] = [
     .category('Atoms')
     .description('Stopwatch display')
     .controls({
-      time: defaultControls.text('Time', '01:23'),
+      milliseconds: defaultControls.number('Milliseconds', 83000),
       style: defaultControls.select('Style', ['lcd', 'block', 'dotmatrix', 'minimal'], 'dotmatrix'),
       color: defaultControls.color('Color', 'cyan'),
     })
     .render((props) =>
       Stopwatch({
-        time: props.time,
+        milliseconds: props.milliseconds,
         style: props.style,
         color: props.color,
       })
@@ -921,14 +920,14 @@ export const digitsStories: Story[] = [
     .category('Atoms')
     .description('Score display')
     .controls({
-      home: defaultControls.number('Home', 3),
-      away: defaultControls.number('Away', 2),
+      score: defaultControls.number('Score', 3),
+      label: defaultControls.text('Label', 'SCORE'),
       style: defaultControls.select('Style', ['lcd', 'block', 'dotmatrix', 'minimal'], 'block'),
     })
     .render((props) =>
       Score({
-        home: props.home,
-        away: props.away,
+        score: props.score,
+        label: props.label,
         style: props.style,
       })
     ),
