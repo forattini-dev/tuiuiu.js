@@ -14,6 +14,13 @@ import { VStack, HStack, Spacer, Divider } from './stack.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import type { SemanticVariant } from '../core/theme-types.js';
 
+/** Normalize ReckNode to ReckChild[] */
+function normalizeChildren(propsChildren: ReckNode | undefined): ReckChild[] {
+  if (!propsChildren) return [];
+  if (Array.isArray(propsChildren)) return propsChildren;
+  return [propsChildren];
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -531,9 +538,7 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: Reck
     const { height, children: propsChildren, ...rest } = props as LayoutHeaderProps;
 
     // Fallback to props.children if variadic children empty
-    const resolvedChildren = children.length > 0
-      ? children
-      : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
+    const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
 
     return Box(
       {
