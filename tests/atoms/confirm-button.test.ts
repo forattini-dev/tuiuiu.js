@@ -20,7 +20,7 @@ import {
   ConfirmButton,
   type ConfirmButtonState,
   type ConfirmButtonOptions,
-} from '../../src/atoms/confirm-button.js';
+} from '../../src/molecules/confirm-button.js';
 
 // =============================================================================
 // Test Helpers
