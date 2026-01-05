@@ -93,8 +93,10 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     // Get children, reversing order if needed
     const orderedChildren = isReverse ? [...node.children].reverse() : node.children;
 
+    const hasExplicitHeight = style.height !== undefined;
+
     if (isRow) {
-      childLayouts.push(...layoutRow(orderedChildren, contentWidth, contentHeight, currentGap, style));
+      childLayouts.push(...layoutRow(orderedChildren, contentWidth, contentHeight, currentGap, style, hasExplicitHeight));
     } else {
       childLayouts.push(...layoutColumn(orderedChildren, contentWidth, contentHeight, currentGap, style));
     }
@@ -174,7 +176,8 @@ function layoutRow(
   width: number,
   height: number,
   gap: number,
-  parentStyle: BoxStyle
+  parentStyle: BoxStyle,
+  hasExplicitHeight: boolean
 ): LayoutNode[] {
   const results: LayoutNode[] = [];
 
@@ -235,28 +238,18 @@ function layoutRow(
     }
   }
 
+  let rowHeight = 0;
+  const pendingLayouts: { layout: LayoutNode; style: BoxStyle }[] = [];
+
   for (let i = 0; i < childInfos.length; i++) {
     const info = childInfos[i];
     const childWidth = info.flex > 0 ? Math.floor(flexUnit * info.flex) : info.minWidth;
     const allocatedWidth = childWidth + info.marginLeft + info.marginRight;
     const layout = layoutNode(info.node, { x, y: 0, width: allocatedWidth, height });
 
-    // Adjust y based on alignItems (or alignSelf if set on child)
     const childStyle = info.node.props as BoxStyle;
-    const alignSelf = childStyle.alignSelf;
-    const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
-
-    if (alignItems === 'center') {
-      layout.y = Math.floor((height - layout.height) / 2);
-    } else if (alignItems === 'flex-end') {
-      layout.y = height - layout.height;
-    } else if (alignItems === 'baseline') {
-      // For baseline, align to top (simplified - true baseline needs font metrics)
-      layout.y = 0;
-    }
-    // 'stretch' is default - no adjustment needed
-
-    results.push(layout);
+    rowHeight = Math.max(rowHeight, layout.height);
+    pendingLayouts.push({ layout, style: childStyle });
 
     // Calculate next x position
     x += info.marginLeft + layout.width + info.marginRight;
@@ -269,6 +262,26 @@ function layoutRow(
     } else {
       x += gap;
     }
+  }
+
+  const alignHeight = hasExplicitHeight ? height : rowHeight;
+
+  for (const entry of pendingLayouts) {
+    const { layout, style } = entry;
+    const alignSelf = style.alignSelf;
+    const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
+
+    if (alignItems === 'center') {
+      layout.y = Math.floor((alignHeight - layout.height) / 2);
+    } else if (alignItems === 'flex-end') {
+      layout.y = alignHeight - layout.height;
+    } else if (alignItems === 'baseline') {
+      // For baseline, align to top (simplified - true baseline needs font metrics)
+      layout.y = 0;
+    }
+    // 'stretch' is default - no adjustment needed
+
+    results.push(layout);
   }
 
   return results;
@@ -319,7 +332,8 @@ function layoutColumn(
 
   // Calculate total content height
   const contentHeight = y;
-  const remainingSpace = Math.max(0, height - contentHeight);
+  const effectiveHeight = parentStyle.height !== undefined ? height : contentHeight;
+  const remainingSpace = Math.max(0, effectiveHeight - contentHeight);
 
   // Apply justifyContent by offsetting all results
   const justifyContent = parentStyle.justifyContent ?? 'flex-start';
