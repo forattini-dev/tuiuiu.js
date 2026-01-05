@@ -716,8 +716,8 @@ function StorybookApp(): VNode {
     recordKeyPress(input, key);
     clearOldKeyPresses();
 
-    // Toggle Search with F1
-    if (key.f1) {
+    // Toggle Search with Ctrl+F
+    if (key.ctrl && input === 'f') {
       storybookStore.dispatch({ type: 'TOGGLE_SEARCH' });
       setSearchSelectedIndex(0);
       return;
@@ -1097,7 +1097,7 @@ function StorybookApp(): VNode {
       }),
       PreviewPanel({
         story: currentStory,
-        values,
+        values: { ...values, __storybookActive: focusArea() === 'preview' },
         viewMode: viewMode(),
         focusArea: focusArea(),
         frame: animationFrame(),
