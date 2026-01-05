@@ -15,7 +15,9 @@ export function Screen(props: ScreenProps = {}, ...children: ReckChild[]): VNode
   const termHeight = process.stdout.rows || 24;
 
   // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+  const resolvedChildren = children.length > 0
+    ? children
+    : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
   return Box(
     {
@@ -37,7 +39,9 @@ export function Main(props: MainProps = {}, ...children: ReckChild[]): VNode {
   const { height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+  const resolvedChildren = children.length > 0
+    ? children
+    : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
   return Box(
     {
@@ -58,7 +62,9 @@ export function Footer(props: FooterProps = {}, ...children: ReckChild[]): VNode
   const { height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+  const resolvedChildren = children.length > 0
+    ? children
+    : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
   return Box(
     {
@@ -79,7 +85,9 @@ export function Sidebar(props: SidebarProps = {}, ...children: ReckChild[]): VNo
   const { width, height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+  const resolvedChildren = children.length > 0
+    ? children
+    : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
   return Box(
     {
@@ -111,7 +119,9 @@ export function Panel(props: PanelProps = {}, ...children: ReckChild[]): VNode {
   } = props;
 
   // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+  const resolvedChildren = children.length > 0
+    ? children
+    : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
   return Box(
     {

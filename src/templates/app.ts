@@ -531,7 +531,9 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: Reck
     const { height, children: propsChildren, ...rest } = props as LayoutHeaderProps;
 
     // Fallback to props.children if variadic children empty
-    const resolvedChildren = children.length > 0 ? children : (propsChildren ? [propsChildren] : []);
+    const resolvedChildren = children.length > 0
+      ? children
+      : (propsChildren ? (Array.isArray(propsChildren) ? propsChildren : [propsChildren]) : []);
 
     return Box(
       {

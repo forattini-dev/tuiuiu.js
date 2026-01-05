@@ -218,7 +218,7 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
 
   const autoHeight = heightProp === undefined || heightProp === 'auto' || heightProp === 'fill';
   const layoutRef = autoHeight ? useLayoutRef() : undefined;
-  const measuredHeight = autoHeight ? layoutRef.height() : 0;
+  const measuredHeight = autoHeight && layoutRef ? layoutRef.height() : 0;
   const resolvedHeight = resolveScrollHeight(heightProp, measuredHeight, minHeight, maxHeight);
 
   const state = externalState || createScrollArea({
