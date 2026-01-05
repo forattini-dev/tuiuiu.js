@@ -1,5 +1,5 @@
 /**
- * Reck Layout Engine - Simplified flexbox for terminals
+ * Tuiuiu Layout Engine - Simplified flexbox for terminals
  *
  * ~300 lines of TypeScript handling 90% of terminal UI needs
  */

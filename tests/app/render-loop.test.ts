@@ -79,7 +79,7 @@ describe('render-loop', () => {
   });
 
   describe('render', () => {
-    it('returns ReckInstance with expected methods', () => {
+    it('returns TuiInstance with expected methods', () => {
       const node = Text({}, 'Hello');
       const instance = render(node, { stdin, stdout });
 

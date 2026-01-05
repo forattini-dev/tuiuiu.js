@@ -62,14 +62,12 @@ download()
 
 ## Patterns
 
-### Download with Recker
+### Download with Progress
 
 ```typescript
 import { render, Box, Text, ProgressBar, Spinner, createSignal, batch } from 'tuiuiu.js'
-import { Client } from 'recker'
 
 const [progress, setProgress] = createSignal(0)
-const [speed, setSpeed] = createSignal('0 KB/s')
 const [status, setStatus] = createSignal('Connecting...')
 const [error, setError] = createSignal<string | null>(null)
 
@@ -93,32 +91,33 @@ function DownloadUI() {
       showPercentage: true,
       color: progress() === 100 ? 'green' : 'cyan',
     }),
-    Text({ color: 'gray', dim: true }, `Speed: ${speed()}`),
   )
 }
 
 const { unmount } = render(DownloadUI, { clearOnStart: false })
 
-async function downloadFile(url: string, dest: string) {
-  const client = new Client()
-
+async function downloadFile(url: string) {
   try {
     setStatus('Downloading...')
 
-    const response = await client.get(url, {
-      onDownloadProgress: ({ loaded, total, rate }) => {
-        batch(() => {
-          setProgress(total ? Math.round((loaded / total) * 100) : 0)
-          setSpeed(rate ? `${(rate / 1024).toFixed(1)} KB/s` : '...')
-        })
-      }
-    })
+    const response = await fetch(url)
+    const total = Number(response.headers.get('content-length')) || 0
+    const reader = response.body?.getReader()
 
-    // Save file...
+    if (!reader) throw new Error('No response body')
+
+    let loaded = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      loaded += value.length
+      setProgress(total ? Math.round((loaded / total) * 100) : 0)
+    }
+
     setStatus('✓ Download complete!')
     setProgress(100)
 
-  } catch (err) {
+  } catch (err: any) {
     setError(err.message)
   } finally {
     await new Promise(r => setTimeout(r, 1000))
@@ -126,7 +125,7 @@ async function downloadFile(url: string, dest: string) {
   }
 }
 
-downloadFile('https://example.com/file.zip', './file.zip')
+downloadFile('https://example.com/file.zip')
 ```
 
 ### Multiple Operations

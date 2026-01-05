@@ -1,7 +1,7 @@
 /**
- * Reck App - Main render loop and app lifecycle
+ * Tuiuiu App - Main render loop and app lifecycle
  *
- * This is the entry point for Reck applications
+ * This is the entry point for Tuiuiu applications
  */
 
 import type { VNode, BoxStyle, LayoutNode } from '../utils/types.js';
@@ -95,7 +95,7 @@ export interface RenderOptions {
   fullHeight?: boolean;
 }
 
-export interface ReckInstance {
+export interface TuiInstance {
   /** Re-render with a new component */
   rerender: (node: VNode) => void;
   /** Unmount the app */
@@ -107,13 +107,13 @@ export interface ReckInstance {
 }
 
 /**
- * Render a Reck app to the terminal
+ * Render a Tuiuiu app to the terminal
  *
  * @example
  * const { waitUntilExit } = render(() => App());
  * await waitUntilExit();
  */
-export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions = {}): ReckInstance {
+export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions = {}): TuiInstance {
   const {
     stdout = process.stdout,
     stdin = process.stdin,

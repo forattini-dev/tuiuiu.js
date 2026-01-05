@@ -1,5 +1,5 @@
 /**
- * Reck Cursor Control - Hide/show terminal cursor
+ * Tuiuiu Cursor Control - Hide/show terminal cursor
  */
 
 import { Writable } from 'node:stream';

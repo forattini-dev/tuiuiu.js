@@ -1,5 +1,5 @@
 /**
- * Modal/Window Component - Pop-up dialogs for Reck
+ * Modal/Window Component - Pop-up dialogs for Tuiuiu
  *
  * Features:
  * - Centered modal dialogs

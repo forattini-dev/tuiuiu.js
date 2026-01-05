@@ -29,7 +29,7 @@ export type { AppContext };
 export function useApp(): AppContext {
   const appContext = getAppContext();
   if (!appContext) {
-    throw new Error('useApp must be called within a Reck app');
+    throw new Error('useApp must be called within a Tuiuiu app');
   }
   return appContext;
 }

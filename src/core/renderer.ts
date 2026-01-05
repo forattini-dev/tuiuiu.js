@@ -1,5 +1,5 @@
 /**
- * Reck Renderer - Convert VNodes to ANSI terminal output
+ * Tuiuiu Renderer - Convert VNodes to ANSI terminal output
  *
  * Uses a 2D character buffer for precise positioning
  */

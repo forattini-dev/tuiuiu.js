@@ -3,20 +3,20 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
-import type { BoxStyle, ColorValue, ReckChild, ReckNode, VNode } from '../utils/types.js';
+import type { BoxStyle, ColorValue, TuiChild, TuiNode, VNode } from '../utils/types.js';
 
-/** Normalize ReckNode to ReckChild[] */
-function normalizeChildren(propsChildren: ReckNode | undefined): ReckChild[] {
+/** Normalize TuiNode to TuiChild[] */
+function normalizeChildren(propsChildren: TuiNode | undefined): TuiChild[] {
   if (!propsChildren) return [];
   if (Array.isArray(propsChildren)) return propsChildren;
   return [propsChildren];
 }
 
 export interface ScreenProps extends BoxStyle {
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Screen(props: ScreenProps = {}, ...children: ReckChild[]): VNode {
+export function Screen(props: ScreenProps = {}, ...children: TuiChild[]): VNode {
   const { width, height, children: propsChildren, ...rest } = props;
   const termWidth = process.stdout.columns || 80;
   const termHeight = process.stdout.rows || 24;
@@ -37,10 +37,10 @@ export function Screen(props: ScreenProps = {}, ...children: ReckChild[]): VNode
 }
 
 export interface MainProps extends BoxStyle {
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Main(props: MainProps = {}, ...children: ReckChild[]): VNode {
+export function Main(props: MainProps = {}, ...children: TuiChild[]): VNode {
   const { height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
@@ -58,10 +58,10 @@ export function Main(props: MainProps = {}, ...children: ReckChild[]): VNode {
 }
 
 export interface FooterProps extends BoxStyle {
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Footer(props: FooterProps = {}, ...children: ReckChild[]): VNode {
+export function Footer(props: FooterProps = {}, ...children: TuiChild[]): VNode {
   const { height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
@@ -79,10 +79,10 @@ export function Footer(props: FooterProps = {}, ...children: ReckChild[]): VNode
 }
 
 export interface SidebarProps extends BoxStyle {
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Sidebar(props: SidebarProps = {}, ...children: ReckChild[]): VNode {
+export function Sidebar(props: SidebarProps = {}, ...children: TuiChild[]): VNode {
   const { width, height, children: propsChildren, ...rest } = props;
 
   // Fallback to props.children if variadic children empty
@@ -103,10 +103,10 @@ export function Sidebar(props: SidebarProps = {}, ...children: ReckChild[]): VNo
 export interface PanelProps extends BoxStyle {
   title?: string;
   titleColor?: ColorValue;
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Panel(props: PanelProps = {}, ...children: ReckChild[]): VNode {
+export function Panel(props: PanelProps = {}, ...children: TuiChild[]): VNode {
   const {
     title,
     titleColor = 'mutedForeground',
@@ -144,13 +144,13 @@ export function Panel(props: PanelProps = {}, ...children: ReckChild[]): VNode {
 // =============================================================================
 
 /** Screen without props - just pass children */
-export const screen = (...children: ReckChild[]): VNode => Screen({}, ...children);
+export const screen = (...children: TuiChild[]): VNode => Screen({}, ...children);
 
 /** Main without props - just pass children */
-export const main = (...children: ReckChild[]): VNode => Main({}, ...children);
+export const main = (...children: TuiChild[]): VNode => Main({}, ...children);
 
 /** Footer without props - just pass children */
-export const footer = (...children: ReckChild[]): VNode => Footer({}, ...children);
+export const footer = (...children: TuiChild[]): VNode => Footer({}, ...children);
 
 /** Sidebar without props - just pass children */
-export const sidebar = (...children: ReckChild[]): VNode => Sidebar({}, ...children);
+export const sidebar = (...children: TuiChild[]): VNode => Sidebar({}, ...children);

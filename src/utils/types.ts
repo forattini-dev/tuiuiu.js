@@ -1,5 +1,5 @@
 /**
- * Reck Types - Component and VNode definitions
+ * Tuiuiu Types - Component and VNode definitions
  */
 
 /** Color names supported */
@@ -202,7 +202,7 @@ export interface BoxProps extends BoxStyle, MouseEventProps {
   /** Unique key for reconciliation */
   key?: string | number;
   /** Child elements */
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
 /** Text component props */
@@ -234,8 +234,8 @@ export interface VNode {
 }
 
 /** What can be a child of a component */
-export type ReckChild = VNode | string | number | boolean | null | undefined;
-export type ReckNode = ReckChild | ReckChild[];
+export type TuiChild = VNode | string | number | boolean | null | undefined;
+export type TuiNode = TuiChild | TuiChild[];
 
 /** Component function type */
 export type Component<P = {}> = (props: P) => VNode | null;

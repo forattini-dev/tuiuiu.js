@@ -1,5 +1,5 @@
 /**
- * Reck Log Update - Incremental terminal rendering
+ * Tuiuiu Log Update - Incremental terminal rendering
  *
  * Provides efficient terminal updates by only redrawing changed lines
  */

@@ -88,7 +88,7 @@ createEffect(() => {
 
 ### Rendering
 
-#### `render(component: Component, options?: RenderOptions): ReckInstance`
+#### `render(component: Component, options?: RenderOptions): TuiInstance`
 
 Renders an interactive terminal application.
 

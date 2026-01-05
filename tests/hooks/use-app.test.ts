@@ -57,7 +57,7 @@ describe('useApp', () => {
   });
 
   it('throws when called outside app', () => {
-    expect(() => useApp()).toThrow('useApp must be called within a Reck app');
+    expect(() => useApp()).toThrow('useApp must be called within a Tuiuiu app');
   });
 
   it('returns app context when within app', () => {

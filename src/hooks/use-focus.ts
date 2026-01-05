@@ -144,7 +144,7 @@ export function useFocusManager(): {
 } {
   const focusManager = getActiveFocusManager();
   if (!focusManager) {
-    throw new Error('useFocusManager must be called within a Reck app');
+    throw new Error('useFocusManager must be called within a Tuiuiu app');
   }
 
   return {

@@ -1,5 +1,5 @@
 /**
- * Split Panel Component - Two-column/row layouts for Reck
+ * Split Panel Component - Two-column/row layouts for Tuiuiu
  *
  * Features:
  * - Horizontal split (side by side)

@@ -1,5 +1,5 @@
 /**
- * Reck Signals - Minimal reactive primitives
+ * Tuiuiu Signals - Minimal reactive primitives
  *
  * ~100 lines of reactive state management
  */

@@ -9,13 +9,13 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
-import type { BoxStyle, ReckChild, ReckNode, VNode } from '../utils/types.js';
+import type { BoxStyle, TuiChild, TuiNode, VNode } from '../utils/types.js';
 import { VStack, HStack, Spacer, Divider } from './stack.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import type { SemanticVariant } from '../core/theme-types.js';
 
-/** Normalize ReckNode to ReckChild[] */
-function normalizeChildren(propsChildren: ReckNode | undefined): ReckChild[] {
+/** Normalize TuiNode to TuiChild[] */
+function normalizeChildren(propsChildren: TuiNode | undefined): TuiChild[] {
   if (!propsChildren) return [];
   if (Array.isArray(propsChildren)) return propsChildren;
   return [propsChildren];
@@ -509,7 +509,7 @@ export interface HeaderProps {
 
 export interface LayoutHeaderProps extends BoxStyle {
   /** Header content */
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
 /**
@@ -529,8 +529,8 @@ export interface LayoutHeaderProps extends BoxStyle {
  * ```
  */
 export function Header(props: HeaderProps): VNode;
-export function Header(props: LayoutHeaderProps, ...children: ReckChild[]): VNode;
-export function Header(props: HeaderProps | LayoutHeaderProps, ...children: ReckChild[]): VNode {
+export function Header(props: LayoutHeaderProps, ...children: TuiChild[]): VNode;
+export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiChild[]): VNode {
   const hasLayoutChildren = children.length > 0 || (props as LayoutHeaderProps).children !== undefined;
   const isLayoutHeader = hasLayoutChildren || !('title' in props);
 
@@ -644,7 +644,7 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: Reck
 }
 
 /** Header without props - just pass children (layout mode) */
-export const header = (...children: ReckChild[]): VNode => Header({}, ...children);
+export const header = (...children: TuiChild[]): VNode => Header({}, ...children);
 
 // =============================================================================
 // CONTAINER - Generic container with max-width

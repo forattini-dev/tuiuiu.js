@@ -5,8 +5,8 @@
 // Types
 export type {
   VNode,
-  ReckNode,
-  ReckChild,
+  TuiNode,
+  TuiChild,
   BoxProps,
   TextProps,
   SpacerProps,

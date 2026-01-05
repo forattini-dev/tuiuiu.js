@@ -11,15 +11,15 @@ import type {
   TextProps, 
   SpacerProps, 
   NewlineProps, 
-  ReckNode, 
-  ReckChild, 
+  TuiNode, 
+  TuiChild, 
   BoxStyle 
 } from '../utils/types.js';
 
 /**
  * Normalize children into VNode array
  */
-export function normalizeChildren(children: ReckNode): VNode[] {
+export function normalizeChildren(children: TuiNode): VNode[] {
   if (children === null || children === undefined || children === false || children === true) {
     return [];
   }
@@ -44,7 +44,7 @@ export function normalizeChildren(children: ReckNode): VNode[] {
  *   Text({ color: 'green' }, 'World')
  * )
  */
-export function Box(props: BoxProps, ...children: ReckChild[]): VNode {
+export function Box(props: BoxProps, ...children: TuiChild[]): VNode {
   return {
     type: 'box',
     props: { ...props },
@@ -115,7 +115,7 @@ export function Newline(props: NewlineProps = {}): VNode {
  *   Text({}, 'Line 2')
  * )
  */
-export function Fragment(...children: ReckChild[]): VNode {
+export function Fragment(...children: TuiChild[]): VNode {
   return {
     type: 'fragment',
     props: {},
@@ -131,7 +131,7 @@ export function Fragment(...children: ReckChild[]): VNode {
  *   Text({}, 'Loading...')
  * )
  */
-export function When(condition: boolean, ...children: ReckChild[]): VNode | null {
+export function When(condition: boolean, ...children: TuiChild[]): VNode | null {
   if (!condition) return null as any;
   return Fragment(...children);
 }
@@ -168,10 +168,10 @@ export interface TransformProps extends BoxStyle {
   transform: (text: string, lineIndex: number) => string;
   /** Accessibility label for screen readers */
   accessibilityLabel?: string;
-  children?: ReckNode;
+  children?: TuiNode;
 }
 
-export function Transform(props: TransformProps, ...children: ReckChild[]): VNode {
+export function Transform(props: TransformProps, ...children: TuiChild[]): VNode {
   const { transform, accessibilityLabel, ...boxProps } = props;
   return {
     type: 'box',
@@ -255,7 +255,7 @@ export interface SlotProps {
   width?: number;
 }
 
-export function Slot(props: SlotProps, ...children: ReckChild[]): VNode {
+export function Slot(props: SlotProps, ...children: TuiChild[]): VNode {
   const { visible, height = 0, minHeight, flexGrow, width } = props;
 
   if (visible) {

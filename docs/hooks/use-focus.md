@@ -163,7 +163,7 @@ import {
 // Returns FocusManager or null
 const fm = useFocusContext();
 
-// Throws if not in a Reck app
+// Throws if not in a Tuiuiu app
 const fm = useFocusContextRequired();
 
 // Check if context exists

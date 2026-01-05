@@ -61,7 +61,7 @@ export {
 
 export type {
   RenderOptions,
-  ReckInstance,
+  TuiInstance,
 } from '../app/render-loop.js';
 
 // Theme system

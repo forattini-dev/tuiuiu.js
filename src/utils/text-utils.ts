@@ -1,5 +1,5 @@
 /**
- * Reck Text Utilities - ANSI-aware text manipulation
+ * Tuiuiu Text Utilities - ANSI-aware text manipulation
  *
  * Features:
  * - Text wrapping with ANSI preservation

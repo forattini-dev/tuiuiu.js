@@ -58,7 +58,7 @@ export function useFocusContext(): FocusManager | null {
 export function useFocusContextRequired(): FocusManager {
   const fm = useFocusContext();
   if (!fm) {
-    throw new Error('useFocusContextRequired must be called within a FocusContext.Provider (inside a Reck app)');
+    throw new Error('useFocusContextRequired must be called within a FocusContext.Provider (inside a Tuiuiu app)');
   }
   return fm;
 }

@@ -288,7 +288,7 @@ describe('useFocusManager', () => {
 
   it('throws when no focus manager', () => {
     setFocusManager(null);
-    expect(() => useFocusManager()).toThrow('useFocusManager must be called within a Reck app');
+    expect(() => useFocusManager()).toThrow('useFocusManager must be called within a Tuiuiu app');
   });
 
   it('focusNext works', () => {

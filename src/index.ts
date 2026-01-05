@@ -77,7 +77,7 @@ export {
 
 export type {
   RenderOptions,
-  ReckInstance,
+  TuiInstance,
 } from './core/index.js';
 
 // =============================================================================
@@ -237,7 +237,7 @@ export type {
 // Re-export types from utils for convenience
 export type {
   VNode,
-  ReckNode,
+  TuiNode,
   BoxStyle as BoxProps,
   TextStyle as TextProps,
   LayoutRect,
@@ -600,7 +600,7 @@ export type {
   LogUpdate,
   LogUpdateOptions,
   UpdateBatcher,
-  ReckChild,
+  TuiChild,
 } from './utils/index.js';
 
 // =============================================================================

@@ -1,7 +1,7 @@
 /**
  * App Layer - Application lifecycle and rendering
  *
- * This module provides the main entry point for Reck applications.
+ * This module provides the main entry point for Tuiuiu applications.
  */
 
 // Render loop
@@ -9,7 +9,7 @@ export {
   render,
   renderOnce,
   type RenderOptions,
-  type ReckInstance,
+  type TuiInstance,
 } from './render-loop.js';
 
 // Re-export lifecycle functions from hooks for convenience
