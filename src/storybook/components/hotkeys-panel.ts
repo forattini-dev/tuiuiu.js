@@ -26,7 +26,7 @@ const HOTKEYS: Hotkey[] = [
   { key: 'Esc', description: 'Back/Quit' },
   { key: 'Enter', description: 'Select' },
   { key: 'Tab', description: 'Focus' },
-  { key: 'F1', description: 'Search' },
+  { key: 'Ctrl+F', description: 'Search' },
   { key: 'F2', description: 'Theme' },
   { key: 'F12', description: 'Console' },
   { key: '↑↓', description: 'Navigate' },
