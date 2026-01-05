@@ -37,6 +37,8 @@ export interface LogUpdateOptions {
   showCursor?: boolean;
   /** Use incremental rendering for better performance (default: true) */
   incremental?: boolean;
+  /** Reserve lines at the top (for static output) */
+  topOffset?: number;
 }
 
 export interface LogUpdate {
@@ -55,11 +57,12 @@ export interface LogUpdate {
  * Tracks line widths and clears only what's necessary when content shrinks
  */
 function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
-  const { showCursor: showCursorOption = false } = options;
+  const { showCursor: showCursorOption = false, topOffset = 0 } = options;
   let previousOutput = '';
   let previousLineCount = 0;
   let previousLineWidths: number[] = [];
   let hasHiddenCursor = false;
+  const cursorHomeWithOffset = topOffset > 0 ? `${ESC}${topOffset + 1}H` : cursorHome;
 
   const render = (content: string) => {
     if (!showCursorOption && !hasHiddenCursor) {
@@ -110,11 +113,11 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
     previousLineWidths = lineWidths;
 
     // Move cursor to home, write output with line clears, clear extra lines, then clear remaining
-    stream.write(cursorHome + outputLines.join('\n') + clearExtraLines + '\n' + clearFromCursor);
+    stream.write(cursorHomeWithOffset + outputLines.join('\n') + clearExtraLines + '\n' + clearFromCursor);
   };
 
   render.clear = () => {
-    stream.write(cursorHome + clearFromCursor);
+    stream.write(cursorHomeWithOffset + clearFromCursor);
     previousOutput = '';
     previousLineCount = 0;
     previousLineWidths = [];
@@ -146,10 +149,11 @@ function createStandard(stream: Writable, options: LogUpdateOptions = {}): LogUp
  * This reduces flickering and improves performance
  */
 function createIncremental(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
-  const { showCursor: showCursorOption = false } = options;
+  const { showCursor: showCursorOption = false, topOffset = 0 } = options;
   let previousLines: string[] = [];
   let previousOutput = '';
   let hasHiddenCursor = false;
+  const cursorHomeWithOffset = topOffset > 0 ? `${ESC}${topOffset + 1}H` : cursorHome;
 
   const render = (content: string) => {
     if (!showCursorOption && !hasHiddenCursor) {
@@ -169,7 +173,7 @@ function createIncremental(stream: Writable, options: LogUpdateOptions = {}): Lo
 
     // Full redraw if first render or content was empty
     if (output === '\n' || previousOutput.length === 0) {
-      stream.write(eraseLines(previousCount) + output);
+      stream.write(cursorHomeWithOffset + eraseLines(previousCount) + output);
       previousOutput = output;
       previousLines = nextLines;
       return;
@@ -204,7 +208,7 @@ function createIncremental(stream: Writable, options: LogUpdateOptions = {}): Lo
   };
 
   render.clear = () => {
-    stream.write(eraseLines(previousLines.length));
+    stream.write(cursorHomeWithOffset + clearFromCursor);
     previousOutput = '';
     previousLines = [];
   };

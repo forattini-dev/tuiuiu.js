@@ -135,10 +135,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Create log updater for efficient incremental rendering
   // Uses line-diffing to reduce flickering
   // NOTE: Incremental mode temporarily disabled to debug line sync issues
-  const logUpdate: LogUpdate = createLogUpdate(stdout, {
+  let logUpdate: LogUpdate = createLogUpdate(stdout, {
     showCursor,
     incremental: false, // Disabled: was causing ghost lines
+    topOffset: 0,
   });
+  let logUpdateTopOffset = 0;
 
   // State
   let currentNode: VNode | null = null;
@@ -155,6 +157,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     stdout.write(ansi.clearTerminal);
     // 3. Reset render loop state
     lastOutput = '';
+    renderedStaticIds.clear();
+    staticLineCount = 0;
+    logUpdateTopOffset = 0;
+    logUpdate = createLogUpdate(stdout, {
+      showCursor,
+      incremental: false,
+      topOffset: 0,
+    });
   });
   let exitPromise: Promise<void>;
   let resolveExit: () => void;
@@ -252,6 +262,16 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
           // Write static content (it becomes permanent)
           stdout.write(staticOutput + '\n');
           staticLineCount += staticOutput.split('\n').length;
+
+          if (staticLineCount !== logUpdateTopOffset) {
+            logUpdateTopOffset = staticLineCount;
+            logUpdate = createLogUpdate(stdout, {
+              showCursor,
+              incremental: false,
+              topOffset: logUpdateTopOffset,
+            });
+            lastOutput = '';
+          }
 
           renderedStaticIds.add(staticId);
         }

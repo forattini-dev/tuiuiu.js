@@ -12,16 +12,24 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
-import { useInput } from '../hooks/index.js';
+import { useInput, useLayoutRef } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
+export type ScrollAreaHeight = number | 'auto' | 'fill';
+
 export interface ScrollAreaOptions {
-  /** Visible height (lines) */
-  height: number;
+  /** Visible height (lines). Defaults to fill. */
+  height?: ScrollAreaHeight;
+  /** Minimum height when auto/fill sizing */
+  minHeight?: number;
+  /** Maximum height when auto/fill sizing */
+  maxHeight?: number;
+  /** Flex grow for auto/fill sizing */
+  flexGrow?: number;
   /** Content to scroll */
   content: string[] | VNode[];
   /** Initial scroll position */
@@ -46,7 +54,13 @@ export interface ScrollAreaOptions {
   isActive?: boolean;
 }
 
+export interface ScrollAreaStateOptions extends Omit<ScrollAreaOptions, 'height' | 'minHeight' | 'maxHeight' | 'flexGrow'> {
+  height: number;
+}
+
 export interface ScrollAreaState {
+  height: () => number;
+  setHeight: (height: number) => void;
   scrollTop: () => number;
   maxScroll: () => number;
   visibleItems: () => (string | VNode)[];
@@ -65,7 +79,7 @@ export interface ScrollAreaState {
 /**
  * Create a ScrollArea state manager
  */
-export function createScrollArea(options: ScrollAreaOptions): ScrollAreaState {
+export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaState {
   const {
     height,
     content,
@@ -75,9 +89,10 @@ export function createScrollArea(options: ScrollAreaOptions): ScrollAreaState {
     onScroll,
   } = options;
 
+  const [viewportHeight, setViewportHeight] = createSignal(height);
   const [scrollTop, setScrollTop] = createSignal(initialScrollTop);
 
-  const maxScroll = createMemo(() => Math.max(0, content.length - height));
+  const maxScroll = createMemo(() => Math.max(0, content.length - viewportHeight()));
 
   const clampScroll = (pos: number) => Math.max(0, Math.min(pos, maxScroll()));
 
@@ -96,16 +111,27 @@ export function createScrollArea(options: ScrollAreaOptions): ScrollAreaState {
   const scrollToTop = () => scrollTo(0);
   const scrollToBottom = () => scrollTo(maxScroll());
 
-  const effectivePageSize = pageSize ?? Math.max(1, height - 1);
-  const pageUp = () => scrollBy(-effectivePageSize);
-  const pageDown = () => scrollBy(effectivePageSize);
+  const effectivePageSize = () => pageSize ?? Math.max(1, viewportHeight() - 1);
+  const pageUp = () => scrollBy(-effectivePageSize());
+  const pageDown = () => scrollBy(effectivePageSize());
 
   const visibleItems = createMemo(() => {
     const top = scrollTop();
-    return content.slice(top, top + height);
+    const currentHeight = viewportHeight();
+    return content.slice(top, top + currentHeight);
   });
 
   return {
+    height: viewportHeight,
+    setHeight: (next: number) => {
+      const safeHeight = Math.max(1, next);
+      if (safeHeight === viewportHeight()) {
+        return;
+      }
+      setViewportHeight(safeHeight);
+      const max = Math.max(0, content.length - safeHeight);
+      setScrollTop((current) => Math.min(current, max));
+    },
     scrollTop,
     maxScroll,
     visibleItems,
@@ -129,6 +155,29 @@ export interface ScrollAreaProps extends ScrollAreaOptions {
   width?: number;
 }
 
+function resolveScrollHeight(
+  height: ScrollAreaHeight | undefined,
+  measuredHeight: number,
+  minHeight?: number,
+  maxHeight?: number
+): number {
+  const baseHeight = typeof height === 'number'
+    ? height
+    : (measuredHeight > 0 ? measuredHeight : 1);
+
+  let resolved = baseHeight;
+
+  if (maxHeight !== undefined) {
+    resolved = Math.min(maxHeight, resolved);
+  }
+
+  if (minHeight !== undefined) {
+    resolved = Math.max(minHeight, resolved);
+  }
+
+  return Math.max(1, resolved);
+}
+
 /**
  * ScrollArea - Scrollable content with scrollbar
  *
@@ -150,7 +199,10 @@ export interface ScrollAreaProps extends ScrollAreaOptions {
  */
 export function ScrollArea(props: ScrollAreaProps): VNode {
   const {
-    height,
+    height: heightProp,
+    minHeight,
+    maxHeight,
+    flexGrow,
     content,
     showScrollbar = true,
     scrollbarColor = 'primary',
@@ -159,9 +211,28 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
     isActive = true,
     width,
     state: externalState,
+    initialScrollTop,
+    pageSize,
+    onScroll,
   } = props;
 
-  const state = externalState || createScrollArea(props);
+  const autoHeight = heightProp === undefined || heightProp === 'auto' || heightProp === 'fill';
+  const layoutRef = autoHeight ? useLayoutRef() : undefined;
+  const measuredHeight = autoHeight ? layoutRef.height() : 0;
+  const resolvedHeight = resolveScrollHeight(heightProp, measuredHeight, minHeight, maxHeight);
+
+  const state = externalState || createScrollArea({
+    height: resolvedHeight,
+    content,
+    initialScrollTop,
+    scrollStep,
+    pageSize,
+    onScroll,
+  });
+  if (state.height() !== resolvedHeight) {
+    state.setHeight(resolvedHeight);
+  }
+  const viewportHeight = state.height();
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 
@@ -193,18 +264,18 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   });
 
   // Pad with empty lines if content is shorter than height
-  while (contentNodes.length < height) {
+  while (contentNodes.length < viewportHeight) {
     contentNodes.push(Text({}, ''));
   }
 
   // Render scrollbar
   let scrollbar: VNode | null = null;
   if (showScrollbar && maxScroll > 0) {
-    const thumbHeight = Math.max(1, Math.floor((height / content.length) * height));
-    const thumbPosition = Math.floor((scrollTop / maxScroll) * (height - thumbHeight));
+    const thumbHeight = Math.max(1, Math.floor((viewportHeight / content.length) * viewportHeight));
+    const thumbPosition = Math.floor((scrollTop / maxScroll) * (viewportHeight - thumbHeight));
 
     const scrollbarLines: VNode[] = [];
-    for (let i = 0; i < height; i++) {
+    for (let i = 0; i < viewportHeight; i++) {
       const isThumb = i >= thumbPosition && i < thumbPosition + thumbHeight;
       const char = isThumb
         ? (isAscii ? '#' : chars.scrollbar.thumb)
@@ -231,7 +302,16 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
 
   // Compose layout with scroll event handler
   return Box(
-    { flexDirection: 'row', width, onScroll: handleScroll },
+    {
+      flexDirection: 'row',
+      width,
+      height: typeof heightProp === 'number' ? heightProp : undefined,
+      minHeight,
+      maxHeight,
+      flexGrow: autoHeight ? (flexGrow ?? 1) : flexGrow,
+      layoutRef,
+      onScroll: handleScroll,
+    },
     Box(
       { flexDirection: 'column', flexGrow: 1 },
       ...contentNodes

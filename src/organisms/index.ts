@@ -124,6 +124,7 @@ export {
   createVirtualList,
   // Types
   type ScrollAreaOptions,
+  type ScrollAreaHeight,
   type ScrollAreaState,
   type ScrollAreaProps,
   type VirtualListItem,
@@ -133,6 +134,11 @@ export {
   type ScrollableTextProps,
   type LogViewerOptions,
 } from './scroll-area.js';
+
+export {
+  ScrollPanel,
+  type ScrollPanelProps,
+} from './scroll-panel.js';
 
 // =============================================================================
 // ScrollList - Simplified scroll list API

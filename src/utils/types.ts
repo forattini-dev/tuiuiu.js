@@ -7,6 +7,26 @@ export type ForegroundColorName =
   | 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' | 'grey'
   | 'blackBright' | 'redBright' | 'greenBright' | 'yellowBright' | 'blueBright' | 'magentaBright' | 'cyanBright' | 'whiteBright';
 
+/** Computed layout bounds */
+export interface LayoutRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Layout measurement reference */
+export interface LayoutRef {
+  /** Current layout bounds */
+  current: () => LayoutRect;
+  x: () => number;
+  y: () => number;
+  width: () => number;
+  height: () => number;
+  /** Internal updater used by layout engine */
+  __update?: (rect: LayoutRect) => void;
+}
+
 /** Box style properties (flexbox layout) */
 export interface BoxStyle {
   // Display & Position
@@ -53,8 +73,8 @@ export interface BoxStyle {
   rowGap?: number;
 
   // Size
-  width?: number | string;
-  height?: number | string;
+  width?: number | string | 'auto' | 'fill';
+  height?: number | string | 'auto' | 'fill';
   minWidth?: number;
   minHeight?: number;
   maxWidth?: number;
@@ -91,6 +111,9 @@ export interface BoxStyle {
 
   // Background color (for filled backgrounds)
   backgroundColor?: ColorValue;
+
+  // Layout measurement
+  layoutRef?: LayoutRef;
 }
 
 /** Text style properties */
