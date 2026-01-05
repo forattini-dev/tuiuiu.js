@@ -1,2075 +1,1379 @@
 /**
  * Molecules Stories
  *
- * Molecules are simple combinations of atoms that form functional units:
- * - Utility components (When, Each, Fragment)
- * - Form controls (TextInput, Checkbox, RadioGroup, Select)
- * - ProgressBar: Task progress indicator
- * - Alert: Status messages
- * - Toast: Notification popups
- * - Tabs: Tab navigation
- * - Sparkline & Gauge: Simple data visualizations
- * - Advanced Charts: LineChart, ScatterPlot, RadarChart, GanttChart, TimeHeatmap, Legend
+ * Molecules combine atoms into functional units: inputs, navigation, data display,
+ * and structured UI patterns.
  */
 
-import { Box, Text, When, Each, Fragment, Spacer, Newline } from '../../../primitives/nodes.js';
-import { Divider } from '../../../primitives/divider.js';
-import { TextInput } from '../../../atoms/text-input.js';
-import { ToggleGroup } from '../../../atoms/switch.js';
-import { Select, Checkbox } from '../../../molecules/select.js';
-import { RadioGroup } from '../../../molecules/radio-group.js';
+import { Box, Text } from '../../../primitives/nodes.js';
+import { TextInput } from '../../../atoms/index.js';
 import {
+  Select,
+  Confirm,
+  Checkbox,
+  MultiSelect,
+  RadioGroup,
+  InlineRadio,
+  Autocomplete,
+  AutocompleteInput,
+  AutocompleteSuggestions,
+  createAutocomplete,
+  Combobox,
+  TagInput,
+  SearchInput,
+  PasswordInput,
+  NumberInput,
+  ConfirmButton,
+  Table,
+  SimpleTable,
+  KeyValueTable,
+  Tabs,
+  TabPanel,
+  VerticalTabs,
+  LazyTabs,
+  Tree,
+  DirectoryTree,
+  Calendar,
+  MiniCalendar,
+  DatePicker,
+  CodeBlock,
+  InlineCode,
+  Markdown,
   Collapsible,
   Accordion,
   Details,
   ExpandableText,
-  createCollapsible,
-  createAccordion,
-} from '../../../molecules/collapsible.js';
-import { ProgressBar } from '../../../atoms/progress-bar.js';
-import {
+  FormField,
+  FormGroup,
+  SplitView,
+  SplashScreen,
+  TuiuiuSplash,
+  ImpactSplashScreen,
+  MinimalSplash,
+  ProgressSplash,
+  parseColoredBBCode,
+  Sparkline,
+  BarChart,
+  VerticalBarChart,
+  StackedBarChart,
   LineChart,
+  AreaChart,
+  Gauge,
+  LinearGauge,
+  MeterGauge,
+  ArcGauge,
+  DialGauge,
+  BatteryGauge,
+  Heatmap,
+  ContributionGraph,
+  CalendarHeatmap,
+  CorrelationMatrix,
+  Legend,
   ScatterPlot,
   RadarChart,
   GanttChart,
   TimeHeatmap,
-  Legend,
-} from '../../../molecules/data-viz/index.js';
+} from '../../../molecules/index.js';
+import type { AutocompleteItem, TreeNode, DirectoryNode } from '../../../molecules/index.js';
 import { story, defaultControls } from '../../core/registry.js';
-import { getTheme, getContrastColor } from '../../../core/theme.js';
 import type { Story } from '../../types.js';
 
-// Chart helpers
-const sparklineChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-function textSparkline(data: number[]): string {
-  if (data.length === 0) return '';
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  return data.map((v) => {
-    const idx = Math.floor(((v - min) / range) * 7);
-    return sparklineChars[idx];
-  }).join('');
-}
-
-function textProgressBar(
-  value: number,
-  max: number,
-  width: number,
-  filled: string = '█',
-  empty: string = '░'
-): string {
-  const filledWidth = Math.round((value / max) * width);
-  return filled.repeat(filledWidth) + empty.repeat(width - filledWidth);
-}
-
-/**
- * Utility components stories (When, Each, Fragment)
- */
-export const utilityStories: Story[] = [
-  story('When - Conditional')
-    .category('Molecules')
-    .description('Conditional rendering with When')
-    .controls({
-      show: defaultControls.boolean('Show Content', true),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'column' },
-        Text({}, 'Always visible'),
-        When(props.show, Text({ color: 'success' }, 'Conditionally visible')),
-        Text({}, 'Also always visible')
-      )
-    ),
-
-  story('Each - List Rendering')
-    .category('Molecules')
-    .description('Render lists with Each')
-    .controls({
-      count: defaultControls.range('Item Count', 5, 1, 10),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'column' },
-        Each(
-          Array.from({ length: props.count }, (_, i) => `Item ${i + 1}`),
-          (item, index) =>
-            Box(
-              {},
-              Text({ color: index % 2 === 0 ? 'primary' : 'mutedForeground' }, `${index + 1}. ${item}`)
-            )
-        )
-      )
-    ),
-
-  story('Fragment - Grouping')
-    .category('Molecules')
-    .description('Group elements without wrapper')
-    .render(() =>
-      Box(
-        { flexDirection: 'column' },
-        Text({}, 'Before fragment'),
-        Fragment(
-          Text({ color: 'primary' }, 'Inside fragment 1'),
-          Text({ color: 'success' }, 'Inside fragment 2'),
-          Text({ color: 'warning' }, 'Inside fragment 3')
-        ),
-        Text({}, 'After fragment')
-      )
-    ),
+const selectItems = [
+  { label: 'Alpha', value: 'alpha' },
+  { label: 'Beta', value: 'beta' },
+  { label: 'Gamma', value: 'gamma' },
+  { label: 'Delta', value: 'delta', disabled: true },
 ];
 
-/**
- * TextInput component stories
- */
-export const textInputStories: Story[] = [
-  story('TextInput - Basic')
-    .category('Molecules')
-    .description('Basic text input field')
-    .controls({
-      initialValue: defaultControls.text('Initial Value', 'Hello, World!'),
-      placeholder: defaultControls.text('Placeholder', 'Enter text...'),
-    })
-    .render((props) =>
-      TextInput({
-        initialValue: props.initialValue,
-        placeholder: props.placeholder,
-        onChange: (val: string) => console.log('Input changed:', val),
-        onSubmit: (val: string) => console.log('Input submitted:', val),
-      })
-    ),
-
-  story('TextInput - Password')
-    .category('Molecules')
-    .description('Password input with masked characters')
-    .controls({
-      initialValue: defaultControls.text('Initial Value', 'secret'),
-      maskChar: defaultControls.text('Mask Char', '*'),
-    })
-    .render((props) =>
-      TextInput({
-        initialValue: props.initialValue,
-        password: true,
-        maskChar: props.maskChar,
-        onChange: (val: string) => console.log('Password changed:', val),
-      })
-    ),
-
-  story('TextInput - Multi-line')
-    .category('Molecules')
-    .description('Multi-line text input (Shift+Enter for newline)')
-    .controls({
-      initialValue: defaultControls.text('Initial Value', 'Line 1\nLine 2'),
-    })
-    .render((props) =>
-      TextInput({
-        initialValue: props.initialValue,
-        multiline: true,
-        onChange: (val: string) => console.log('Multi-line changed:', val),
-      })
-    ),
-
-  story('TextInput - Auto-grow')
-    .category('Molecules')
-    .description('Auto-grow text input with overflow scrollbar')
-    .controls({
-      initialValue: defaultControls.text(
-        'Initial Value',
-        'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6'
-      ),
-    })
-    .render((props) =>
-      TextInput({
-        initialValue: props.initialValue,
-        multiline: true,
-        wordWrap: true,
-        autoGrow: true,
-        maxLines: 5,
-        showScrollbar: true,
-        onChange: (val: string) => console.log('Auto-grow changed:', val),
-      })
-    ),
-
-  story('TextInput - With Label')
-    .category('Molecules')
-    .description('TextInput with label and full-width')
-    .controls({
-      label: defaultControls.text('Label', 'Username:'),
-      initialValue: defaultControls.text('Initial Value', 'john_doe'),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: 'primary' }, props.label),
-        TextInput({
-          initialValue: props.initialValue,
-          fullWidth: true,
-          onChange: (val: string) => console.log('Input changed:', val),
-        })
-      )
-    ),
+const radioOptions = [
+  { label: 'Daily', value: 'daily' },
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Monthly', value: 'monthly' },
 ];
 
-/**
- * Checkbox stories
- */
-export const checkboxStories: Story[] = [
-  story('Checkbox - Basic')
-    .category('Molecules')
-    .description('Basic interactive checkbox')
-    .controls({
-      label: defaultControls.text('Label', 'Accept terms'),
-    })
-    .render((props) =>
-      Checkbox({
-        items: [{ label: props.label, value: 'accept', description: 'Click me!' }],
-        onChange: (val) => console.log('Checkbox changed:', val),
-        showCount: false,
-        searchable: false,
-        cursorIndicator: ' ', // Hide cursor for simple checkbox feel
-      })
-    ),
-
-  story('Checkbox - List')
-    .category('Molecules')
-    .description('Multiple checkboxes in a list')
-    .render(() => 
-      Checkbox({
-        items: [
-          { label: 'Option 1', value: '1' },
-          { label: 'Option 2', value: '2' },
-          { label: 'Option 3', value: '3', disabled: true },
-          { label: 'Option 4', value: '4' },
-        ],
-        initialValue: ['1', '3'],
-        onChange: (vals) => console.log('Selected:', vals),
-        showCount: true,
-        searchable: false,
-      })
-    ),
+const autocompleteItems: AutocompleteItem<string>[] = [
+  { value: 'node', label: 'Node.js', description: 'Runtime' },
+  { value: 'deno', label: 'Deno', description: 'Runtime' },
+  { value: 'bun', label: 'Bun', description: 'Runtime' },
+  { value: 'react', label: 'React', description: 'UI library' },
+  { value: 'vue', label: 'Vue', description: 'UI framework' },
+  { value: 'solid', label: 'Solid', description: 'UI library' },
 ];
 
-/**
- * RadioGroup stories
- */
-export const radioStories: Story[] = [
-  story('RadioGroup - Basic')
-    .category('Molecules')
-    .description('Basic radio button group')
-    .render(() => 
-      RadioGroup({
-        options: [
-          { value: '1', label: 'Option 1' },
-          { value: '2', label: 'Option 2' },
-          { value: '3', label: 'Option 3' },
-        ],
-        initialValue: '1',
-        onChange: (val) => console.log('Radio changed:', val),
-      })
-    ),
-
-  story('RadioGroup - Horizontal')
-    .category('Molecules')
-    .description('Radio buttons in horizontal layout')
-    .render(() => 
-      RadioGroup({
-        direction: 'horizontal',
-        gap: 2,
-        options: [
-          { value: 'xs', label: 'XS' },
-          { value: 'sm', label: 'SM' },
-          { value: 'md', label: 'MD' },
-          { value: 'lg', label: 'LG' },
-          { value: 'xl', label: 'XL' },
-        ],
-        initialValue: 'md',
-      })
-    ),
+const tableRows = [
+  { name: 'Ada Lovelace', role: 'Engineer', score: 92 },
+  { name: 'Alan Turing', role: 'Research', score: 88 },
+  { name: 'Grace Hopper', role: 'Lead', score: 96 },
+  { name: 'Barbara Liskov', role: 'Architect', score: 90 },
 ];
 
-/**
- * Select component stories
- */
-export const selectStories: Story[] = [
-  story('Select - Basic')
-    .category('Molecules')
-    .description('Basic dropdown selection')
-    .render(() => 
-      Select({
-        items: [
-          { label: 'Option 1', value: '1' },
-          { label: 'Option 2', value: '2' },
-          { label: 'Option 3', value: '3' },
-          { label: 'Option 4', value: '4' },
-        ],
-        searchable: true,
-      })
-    ),
-
-  story('Select - With Categories')
-    .category('Molecules')
-    .description('Select with grouped options')
-    .render(() => 
-      Select({
-        items: [
-          { label: 'Apple', value: 'apple', group: 'Fruits' },
-          { label: 'Banana', value: 'banana', group: 'Fruits' },
-          { label: 'Carrot', value: 'carrot', group: 'Vegetables' },
-          { label: 'Broccoli', value: 'broccoli', group: 'Vegetables' },
-        ],
-        initialValue: 'apple',
-      })
-    ),
-
-  story('Select - Multi-Select')
-    .category('Molecules')
-    .description('Select multiple items')
-    .render(() => 
-      Select({
-        multiple: true,
-        items: [
-          { label: 'JavaScript', value: 'js' },
-          { label: 'TypeScript', value: 'ts' },
-          { label: 'Python', value: 'py' },
-          { label: 'Rust', value: 'rs' },
-          { label: 'Go', value: 'go' },
-        ],
-        initialValue: ['js', 'ts', 'go'],
-      })
-    ),
+const treeNodes: TreeNode[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    children: [
+      { id: 'apps', label: 'apps', children: [{ id: 'web', label: 'web' }] },
+      { id: 'packages', label: 'packages', children: [{ id: 'ui', label: 'ui' }] },
+      { id: 'docs', label: 'docs' },
+    ],
+  },
 ];
 
-/**
- * ProgressBar stories
- */
-export const progressBarStories: Story[] = [
-  story('ProgressBar - Basic')
+const directoryNodes: DirectoryNode[] = [
+  {
+    id: 'src',
+    label: 'src',
+    data: { type: 'directory' },
+    children: [
+      { id: 'index.ts', label: 'index.ts', data: { type: 'file', size: 1200 } },
+      { id: 'app.ts', label: 'app.ts', data: { type: 'file', size: 2400 } },
+      {
+        id: 'components',
+        label: 'components',
+        data: { type: 'directory' },
+        children: [
+          { id: 'button.ts', label: 'button.ts', data: { type: 'file', size: 600 } },
+        ],
+      },
+    ],
+  },
+  { id: 'README.md', label: 'README.md', data: { type: 'file', size: 2048 } },
+];
+
+const calendarEvents = [
+  { date: '2024-02-10', label: 'Launch', color: 'success' },
+  { date: '2024-02-14', label: 'Review', color: 'warning' },
+  { date: '2024-02-21', label: 'Demo', color: 'info' },
+];
+
+const codeSample = [
+  "export function greet(name: string) {",
+  "  return `Hello, ${name}!`;",
+  "}",
+].join('\n');
+
+const markdownSample = [
+  '# Release Notes',
+  '',
+  '- Added new input components',
+  '- Improved navigation performance',
+  '- Fixed tab focus handling',
+  '',
+  '```ts',
+  'export const version = "1.2.0";',
+  '```',
+].join('\n');
+
+const splitViewItems = [
+  { id: 'req-1', name: 'Login API', status: '200 OK' },
+  { id: 'req-2', name: 'Users API', status: '502 Bad Gateway' },
+  { id: 'req-3', name: 'Analytics API', status: '204 No Content' },
+];
+
+const sparklineData = [3, 6, 4, 8, 7, 9, 6, 10, 8, 12];
+
+const barData = [
+  { label: 'Alpha', value: 30 },
+  { label: 'Beta', value: 45 },
+  { label: 'Gamma', value: 22 },
+  { label: 'Delta', value: 55 },
+];
+
+const stackedData = [
+  {
+    label: 'Q1',
+    segments: [
+      { value: 30, color: 'primary', label: 'Core' },
+      { value: 20, color: 'success', label: 'Add-ons' },
+      { value: 10, color: 'warning', label: 'Services' },
+    ],
+  },
+  {
+    label: 'Q2',
+    segments: [
+      { value: 35, color: 'primary', label: 'Core' },
+      { value: 25, color: 'success', label: 'Add-ons' },
+      { value: 15, color: 'warning', label: 'Services' },
+    ],
+  },
+];
+
+const lineSeries = [
+  { name: 'Visits', data: [5, 8, 6, 12, 10, 14, 11], color: 'primary' },
+  { name: 'Signups', data: [2, 3, 4, 6, 5, 7, 6], color: 'success' },
+];
+
+const scatterPoints = [
+  { x: 1, y: 2, category: 'A' },
+  { x: 2, y: 3, category: 'A' },
+  { x: 3, y: 4, category: 'B' },
+  { x: 4, y: 3, category: 'B' },
+  { x: 5, y: 5, category: 'C' },
+];
+
+const radarAxes = [
+  { name: 'Speed', max: 100 },
+  { name: 'Quality', max: 100 },
+  { name: 'Cost', max: 100 },
+  { name: 'Reliability', max: 100 },
+];
+
+const radarSeries = [
+  { name: 'Plan A', values: [80, 70, 60, 75], color: 'primary' },
+  { name: 'Plan B', values: [65, 85, 70, 80], color: 'success' },
+];
+
+const heatmapData = [
+  [1, 2, 3, 4],
+  [2, 3, 4, 5],
+  [3, 4, 2, 1],
+];
+
+const contributionData = [
+  { date: '2024-02-01', count: 2 },
+  { date: '2024-02-02', count: 5 },
+  { date: '2024-02-05', count: 8 },
+  { date: '2024-02-08', count: 3 },
+  { date: '2024-02-12', count: 6 },
+  { date: '2024-02-15', count: 9 },
+];
+
+const correlationLabels = ['CPU', 'RAM', 'IO'];
+const correlationMatrix = [
+  [1, 0.6, -0.2],
+  [0.6, 1, 0.1],
+  [-0.2, 0.1, 1],
+];
+
+const ganttTasks = [
+  { id: '1', name: 'Design', startDate: '2024-01-01', endDate: '2024-01-12', progress: 100, status: 'complete' },
+  { id: '2', name: 'Build', startDate: '2024-01-13', endDate: '2024-01-28', progress: 70, status: 'in-progress' },
+  { id: '3', name: 'QA', startDate: '2024-01-29', endDate: '2024-02-05', progress: 20, status: 'pending' },
+];
+
+const timeHeatmapData = [
+  { date: '2024-02-01', value: 2 },
+  { date: '2024-02-04', value: 5 },
+  { date: '2024-02-07', value: 8 },
+  { date: '2024-02-10', value: 3 },
+  { date: '2024-02-12', value: 6 },
+];
+
+const birdArt = parseColoredBBCode(`
+[cyan]..##..[/cyan]
+[cyan].####.[/cyan]
+[cyan]..##..[/cyan]
+`);
+
+// ============================================================================
+// Composite Inputs
+// ============================================================================
+
+export const compositeInputStories: Story[] = [
+  story('SearchInput - Basic')
     .category('Molecules')
-    .description('Basic progress bar')
+    .description('Search input with icons')
     .controls({
-      value: defaultControls.range('Progress', 65, 0, 100),
-      width: defaultControls.range('Width', 30, 15, 50),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: 'primary' }, textProgressBar(props.value, 100, props.width)),
-        Text({ color: 'primary' }, `${props.value}%`)
-      )
-    ),
-
-  story('ProgressBar - Colors')
-    .category('Molecules')
-    .description('Progress bar with custom colors')
-    .controls({
-      value: defaultControls.range('Progress', 75, 0, 100),
-      color: defaultControls.color('Color', 'green'),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: props.color }, textProgressBar(props.value, 100, 30)),
-        Text({ color: props.color }, `${props.value}%`)
-      )
-    ),
-
-  story('ProgressBar - With Label')
-    .category('Molecules')
-    .description('Progress bar with label')
-    .controls({
-      value: defaultControls.range('Progress', 42, 0, 100),
-      showLabel: defaultControls.boolean('Show Label', true),
-    })
-    .render((props) =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'mutedForeground' }, 'Progress:'),
-          Text({ color: 'primary' }, textProgressBar(props.value, 100, 25)),
-          props.showLabel ? Text({ color: 'primary' }, `${props.value}%`) : null
-        )
-      )
-    ),
-
-  story('ProgressBar - Multiple')
-    .category('Molecules')
-    .description('Multiple progress bars')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Downloading:')),
-          Text({ color: 'accent' }, textProgressBar(75, 100, 20)),
-          Text({ color: 'accent' }, '75%')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Installing:')),
-          Text({ color: 'success' }, textProgressBar(45, 100, 20)),
-          Text({ color: 'success' }, '45%')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 12 }, Text({ color: 'mutedForeground' }, 'Configuring:')),
-          Text({ color: 'warning' }, textProgressBar(10, 100, 20)),
-          Text({ color: 'warning' }, '10%')
-        )
-      )
-    ),
-
-  story('ProgressBar - Indeterminate Styles')
-    .category('Molecules')
-    .description('Different indeterminate loading styles')
-    .controls({
-      style: defaultControls.select('Style', ['classic', 'marquee', 'fill-and-clear'], 'marquee'),
-      fillStep: defaultControls.range('Fill Step', 1, 1, 5),
-      width: defaultControls.range('Width', 30, 10, 50),
-    })
-    .animated(50)
-    .render((props, frame = 0) => {
-      // Simulate indeterminate animation logic for story preview
-      const { style, fillStep, width } = props;
-      let barContent = '';
-      
-      const t = Math.floor(Date.now() / 50); // Use real time or frame for consistency
-      
-      if (style === 'marquee') {
-        const blockWidth = Math.max(3, Math.floor(width * 0.25));
-        const totalWidth = width + blockWidth;
-        const pos = Math.floor(frame / 1.5) % totalWidth; // Slow down a bit
-        
-        const start = Math.max(0, pos - blockWidth);
-        const end = Math.min(width, pos);
-        const length = Math.max(0, end - start);
-        const emptyLeft = Math.max(0, start);
-        const emptyRight = Math.max(0, width - end);
-        
-        barContent = '░'.repeat(emptyLeft) + '█'.repeat(length) + '░'.repeat(emptyRight);
-      } else if (style === 'fill-and-clear') {
-        const totalSteps = Math.ceil(width / fillStep);
-        const rawCycle = Math.floor(frame) % ((totalSteps * 2) + 4);
-        const effectiveCycle = rawCycle * fillStep;
-        
-        if (rawCycle < totalSteps) {
-           const filledLen = Math.min(width, effectiveCycle);
-           barContent = '█'.repeat(filledLen) + '░'.repeat(width - filledLen);
-        } else {
-           const emptyLeftLen = Math.min(width, effectiveCycle - width);
-           const filledLen = Math.max(0, width - emptyLeftLen);
-           barContent = '░'.repeat(emptyLeftLen) + '█'.repeat(filledLen);
-        }
-      } else {
-        // Classic
-        const frames = ['[    ]', '[=   ]', '[==  ]', '[=== ]', '[ ===]', '[  ==]', '[   =]', '[    ]'];
-        barContent = frames[frame % frames.length].padEnd(width, ' ');
-      }
-
-      return Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'primary' }, barContent),
-          Text({ color: 'mutedForeground' }, style)
-        ),
-        style === 'fill-and-clear' ? Text({ color: 'mutedForeground', dim: true }, `Step: ${fillStep}`) : null
-      );
-    }),
-
-  story('ProgressBar - Thresholds')
-    .category('Molecules')
-    .description('Progress bar with color thresholds')
-    .controls({
-      value: defaultControls.range('Value', 80, 0, 100),
+      value: defaultControls.text('Value', ''),
+      placeholder: defaultControls.text('Placeholder', 'Search...'),
+      showSearchIcon: defaultControls.boolean('Show Icon', true),
+      showClearButton: defaultControls.boolean('Show Clear', true),
+      width: defaultControls.range('Width', 30, 15, 60),
+      borderStyle: defaultControls.select('Border', ['none', 'single', 'round', 'double'], 'round'),
     })
     .render((props) => {
-      const color = props.value > 80 ? 'red' : props.value > 60 ? 'yellow' : 'green';
-      const status = props.value > 80 ? 'Critical!' : props.value > 60 ? 'Warning' : 'Normal';
+      const isActive = props.__storybookActive ?? true;
+      return SearchInput({
+        value: props.value,
+        placeholder: props.placeholder,
+        showSearchIcon: props.showSearchIcon,
+        showClearButton: props.showClearButton,
+        width: props.width,
+        borderStyle: props.borderStyle,
+        isActive,
+        inputOptions: { isActive },
+        onChange: () => {},
+        onSubmit: () => {},
+        onClear: () => {},
+      });
+    }),
+
+  story('PasswordInput - Basic')
+    .category('Molecules')
+    .description('Password input with toggle')
+    .controls({
+      value: defaultControls.text('Value', ''),
+      placeholder: defaultControls.text('Placeholder', 'Password'),
+      showToggle: defaultControls.boolean('Show Toggle', true),
+      width: defaultControls.range('Width', 30, 15, 60),
+      borderStyle: defaultControls.select('Border', ['none', 'single', 'round', 'double'], 'round'),
+    })
+    .render((props) => {
+      const isActive = props.__storybookActive ?? true;
+      return PasswordInput({
+        value: props.value,
+        placeholder: props.placeholder,
+        showToggle: props.showToggle,
+        width: props.width,
+        borderStyle: props.borderStyle,
+        isActive,
+        inputOptions: { isActive },
+        onChange: () => {},
+        onSubmit: () => {},
+      });
+    }),
+
+  story('NumberInput - Basic')
+    .category('Molecules')
+    .description('Number input with stepper buttons')
+    .controls({
+      value: defaultControls.number('Value', 5),
+      min: defaultControls.number('Min', 0),
+      max: defaultControls.number('Max', 10),
+      step: defaultControls.number('Step', 1),
+      showButtons: defaultControls.boolean('Show Buttons', true),
+      buttonPosition: defaultControls.select('Button Position', ['sides', 'right'], 'sides'),
+      width: defaultControls.range('Width', 10, 6, 20),
+      borderStyle: defaultControls.select('Border', ['none', 'single', 'round', 'double'], 'round'),
+    })
+    .render((props) => {
+      const isActive = props.__storybookActive ?? true;
+      return NumberInput({
+        value: props.value,
+        min: props.min,
+        max: props.max,
+        step: props.step,
+        showButtons: props.showButtons,
+        buttonPosition: props.buttonPosition,
+        width: props.width,
+        borderStyle: props.borderStyle,
+        isActive,
+        onChange: () => {},
+      });
+    }),
+
+  story('ConfirmButton - Basic')
+    .category('Molecules')
+    .description('Two-click confirmation button')
+    .controls({
+      label: defaultControls.text('Label', 'Delete'),
+      confirmLabel: defaultControls.text('Confirm Label', 'Are you sure?'),
+      variant: defaultControls.select('Variant', ['solid', 'outline', 'ghost', 'link'], 'ghost'),
+      confirmVariant: defaultControls.select('Confirm Variant', ['solid', 'outline', 'ghost', 'link'], 'solid'),
+      timeout: defaultControls.number('Timeout (ms)', 3000),
+      showCountdown: defaultControls.boolean('Show Countdown', true),
+      disabled: defaultControls.boolean('Disabled', false),
+      focused: defaultControls.boolean('Focused', false),
+    })
+    .render((props) =>
+      ConfirmButton({
+        label: props.label,
+        confirmLabel: props.confirmLabel,
+        variant: props.variant,
+        confirmVariant: props.confirmVariant,
+        timeout: props.timeout,
+        showCountdown: props.showCountdown,
+        disabled: props.disabled,
+        focused: props.focused,
+        onConfirm: () => {},
+        onCancel: () => {},
+      })
+    ),
+];
+
+// ============================================================================
+// Selection & Choice
+// ============================================================================
+
+export const selectionStories: Story[] = [
+  story('Select - Basic')
+    .category('Molecules')
+    .description('Selectable list with search and multi-select')
+    .controls({
+      multiple: defaultControls.boolean('Multiple', false),
+      searchable: defaultControls.boolean('Searchable', true),
+      maxVisible: defaultControls.range('Max Visible', 6, 3, 10),
+      showCount: defaultControls.boolean('Show Count', true),
+      fullWidth: defaultControls.boolean('Full Width', false),
+    })
+    .render((props) =>
+      Select({
+        items: selectItems,
+        multiple: props.multiple,
+        searchable: props.searchable,
+        maxVisible: props.maxVisible,
+        showCount: props.showCount,
+        fullWidth: props.fullWidth,
+        initialValue: props.multiple ? ['alpha', 'gamma'] : 'alpha',
+      })
+    ),
+
+  story('Confirm - Basic')
+    .category('Molecules')
+    .description('Confirm prompt based on Select')
+    .controls({
+      message: defaultControls.text('Message', 'Proceed with deployment?'),
+      defaultValue: defaultControls.boolean('Default Value', false),
+      yesLabel: defaultControls.text('Yes Label', 'Yes'),
+      noLabel: defaultControls.text('No Label', 'No'),
+    })
+    .render((props) =>
+      Confirm({
+        message: props.message,
+        defaultValue: props.defaultValue,
+        yesLabel: props.yesLabel,
+        noLabel: props.noLabel,
+      })
+    ),
+
+  story('Checkbox - Basic')
+    .category('Molecules')
+    .description('Checkbox list for multiple selections')
+    .render(() =>
+      Checkbox({
+        items: selectItems,
+        initialValue: ['alpha', 'gamma'],
+        showCount: false,
+      })
+    ),
+
+  story('MultiSelect - Basic')
+    .category('Molecules')
+    .description('Multi-select with tags and search')
+    .controls({
+      searchable: defaultControls.boolean('Searchable', true),
+      showTags: defaultControls.boolean('Show Tags', true),
+      showCount: defaultControls.boolean('Show Count', true),
+      maxVisible: defaultControls.range('Max Visible', 6, 3, 12),
+    })
+    .render((props) =>
+      MultiSelect({
+        items: selectItems,
+        initialValue: ['alpha', 'gamma'],
+        searchable: props.searchable,
+        showTags: props.showTags,
+        showCount: props.showCount,
+        maxVisible: props.maxVisible,
+      })
+    ),
+
+  story('RadioGroup - Basic')
+    .category('Molecules')
+    .description('Radio group with direction control')
+    .controls({
+      direction: defaultControls.select('Direction', ['vertical', 'horizontal'], 'vertical'),
+      gap: defaultControls.range('Gap', 1, 0, 3),
+    })
+    .render((props) =>
+      RadioGroup({
+        options: radioOptions,
+        initialValue: 'weekly',
+        direction: props.direction,
+        gap: props.gap,
+      })
+    ),
+
+  story('InlineRadio - Basic')
+    .category('Molecules')
+    .description('Inline radio display')
+    .controls({
+      selected: defaultControls.boolean('Selected', true),
+      disabled: defaultControls.boolean('Disabled', false),
+    })
+    .render((props) =>
+      InlineRadio({
+        label: 'Option',
+        selected: props.selected,
+        disabled: props.disabled,
+      })
+    ),
+];
+
+// ============================================================================
+// Autocomplete
+// ============================================================================
+
+export const autocompleteStories: Story[] = [
+  story('Autocomplete - Basic')
+    .category('Molecules')
+    .description('Type-ahead input with suggestions')
+    .controls({
+      placeholder: defaultControls.text('Placeholder', 'Search frameworks...'),
+      minChars: defaultControls.range('Min Chars', 1, 1, 3),
+      maxSuggestions: defaultControls.range('Max Suggestions', 5, 3, 8),
+      allowFreeText: defaultControls.boolean('Allow Free Text', true),
+      dropdownPosition: defaultControls.select('Dropdown Position', ['bottom', 'top', 'left', 'right'], 'bottom'),
+      width: defaultControls.range('Width', 32, 20, 60),
+    })
+    .render((props) =>
+      Autocomplete({
+        items: autocompleteItems,
+        placeholder: props.placeholder,
+        minChars: props.minChars,
+        maxSuggestions: props.maxSuggestions,
+        allowFreeText: props.allowFreeText,
+        dropdownPosition: props.dropdownPosition,
+        width: props.width,
+      })
+    ),
+
+  story('AutocompleteInput + Suggestions')
+    .category('Molecules')
+    .description('Input and suggestion list as separate components')
+    .controls({
+      value: defaultControls.text('Value', 're'),
+      placeholder: defaultControls.text('Placeholder', 'Type...'),
+      maxSuggestions: defaultControls.range('Max Suggestions', 5, 3, 8),
+      width: defaultControls.range('Width', 32, 20, 60),
+    })
+    .render((props) => {
+      const state = createAutocomplete({
+        items: autocompleteItems,
+        initialValue: props.value,
+        maxSuggestions: props.maxSuggestions,
+      });
+      state.setInput(props.value);
 
       return Box(
         { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'mutedForeground' }, 'Memory:'),
-          Text({ color }, textProgressBar(props.value, 100, 25)),
-          Text({ color }, `${props.value}%`)
-        ),
-        Text({ color, dim: true }, status)
+        AutocompleteInput({
+          state,
+          placeholder: props.placeholder,
+          width: props.width,
+        }),
+        AutocompleteSuggestions({
+          state,
+          width: props.width,
+        })
       );
     }),
-];
 
-/**
- * Alert stories
- */
-export const alertStories: Story[] = [
-  story('Alert - Info')
+  story('Combobox - Basic')
     .category('Molecules')
-    .description('Information alert')
+    .description('Autocomplete requiring selection')
     .controls({
-      message: defaultControls.text('Message', 'This is an informational message.'),
+      placeholder: defaultControls.text('Placeholder', 'Pick a runtime...'),
+      width: defaultControls.range('Width', 32, 20, 60),
     })
     .render((props) =>
-      Box(
-        {
-          borderStyle: 'single',
-          borderColor: 'accent',
-          padding: 1,
-          width: 50,
-        },
-        Text({ color: 'accent' }, 'ℹ '),
-        Text({ color: 'foreground' }, props.message)
-      )
+      Combobox({
+        items: autocompleteItems,
+        placeholder: props.placeholder,
+        width: props.width,
+      })
     ),
 
-  story('Alert - Success')
+  story('TagInput - Basic')
     .category('Molecules')
-    .description('Success alert')
-    .render(() => {
-      return Box(
-        {
-          borderStyle: 'round',
-          borderColor: 'success',
-          backgroundColor: 'success',
-          padding: 1,
-          width: 50,
-        },
-        Text({ color: 'successForeground', bold: true }, '✓ Operation completed successfully!')
-      );
-    }),
-
-  story('Alert - Warning')
-    .category('Molecules')
-    .description('Warning alert')
-    .render(() =>
-      Box(
-        {
-          borderStyle: 'single',
-          borderColor: 'warning',
-          padding: 1,
-          width: 50,
-        },
-        Box(
-          { flexDirection: 'column' },
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'warning', bold: true }, '⚠ Warning')
-          ),
-          Text({ color: 'warning' }, 'This action may have unintended consequences.')
-        )
-      )
-    ),
-
-  story('Alert - Error')
-    .category('Molecules')
-    .description('Error alert')
-    .render(() =>
-      Box(
-        {
-          borderStyle: 'bold',
-          borderColor: 'destructive',
-          padding: 1,
-          width: 50,
-        },
-        Box(
-          { flexDirection: 'column' },
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'destructive', bold: true }, '✗ Error')
-          ),
-          Text({ color: 'destructive' }, 'Failed to complete the operation.'),
-          Text({ color: 'mutedForeground', dim: true }, 'Error code: E_CONNECTION_TIMEOUT')
-        )
-      )
-    ),
-
-  story('Alert - Dismissible')
-    .category('Molecules')
-    .description('Alert with dismiss action')
-    .render(() =>
-      Box(
-        {
-          borderStyle: 'single',
-          borderColor: 'primary',
-          padding: 1,
-          width: 50,
-        },
-        Box(
-          { flexDirection: 'row', justifyContent: 'space-between' },
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'primary' }, 'ℹ'),
-            Text({ color: 'foreground' }, 'New updates available.')
-          ),
-          Text({ color: 'mutedForeground' }, '[x]')
-        )
-      )
+    .description('Tag input with autocomplete suggestions')
+    .controls({
+      maxTags: defaultControls.range('Max Tags', 5, 2, 10),
+      width: defaultControls.range('Width', 40, 20, 60),
+      fullWidth: defaultControls.boolean('Full Width', false),
+    })
+    .render((props) =>
+      TagInput({
+        items: autocompleteItems,
+        placeholder: 'Add tags...',
+        maxTags: props.maxTags,
+        width: props.width,
+        fullWidth: props.fullWidth,
+      })
     ),
 ];
 
-/**
- * Toast notification stories
- */
-export const toastStories: Story[] = [
-  story('Toast - Stack')
+// ============================================================================
+// Tables
+// ============================================================================
+
+export const tableStories: Story[] = [
+  story('Table - Basic')
     .category('Molecules')
-    .description('Stack of toast notifications')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, alignItems: 'flex-end', width: 50 },
-        Box(
-          {
-            borderStyle: 'round',
-            borderColor: 'success',
-            paddingX: 2,
-            paddingY: 0,
-          },
-          Text({ color: 'success' }, '✓ File saved successfully')
-        ),
-        Box(
-          {
-            borderStyle: 'round',
-            borderColor: 'accent',
-            paddingX: 2,
-            paddingY: 0,
-          },
-          Text({ color: 'accent' }, 'ℹ 3 new messages')
-        ),
-        Box(
-          {
-            borderStyle: 'round',
-            borderColor: 'warning',
-            paddingX: 2,
-            paddingY: 0,
-          },
-          Text({ color: 'warning' }, '⚠ Low disk space')
-        )
-      )
+    .description('Table with columns and formatting')
+    .controls({
+      borderStyle: defaultControls.select('Border', ['single', 'double', 'round', 'bold', 'ascii', 'none'], 'single'),
+      striped: defaultControls.boolean('Striped', false),
+      rowSeparator: defaultControls.boolean('Row Separator', false),
+      compact: defaultControls.boolean('Compact', false),
+    })
+    .render((props) =>
+      Table({
+        columns: [
+          { key: 'name', header: 'Name' },
+          { key: 'role', header: 'Role' },
+          { key: 'score', header: 'Score', align: 'right' },
+        ],
+        data: tableRows,
+        borderStyle: props.borderStyle,
+        striped: props.striped,
+        rowSeparator: props.rowSeparator,
+        compact: props.compact,
+      })
     ),
 
-  story('Toast - With Actions')
+  story('SimpleTable - Basic')
     .category('Molecules')
-    .description('Toast with action buttons')
+    .description('Simple table from rows array')
     .render(() =>
-      Box(
-        {
-          borderStyle: 'single',
-          borderColor: 'primary',
-          padding: 1,
-          width: 45,
+      SimpleTable({
+        headers: ['Service', 'Status', 'Latency'],
+        rows: [
+          ['Auth', 'OK', '120ms'],
+          ['Payments', 'WARN', '420ms'],
+          ['Search', 'OK', '85ms'],
+        ],
+        borderStyle: 'round',
+        align: ['left', 'center', 'right'],
+      })
+    ),
+
+  story('KeyValueTable - Basic')
+    .category('Molecules')
+    .description('Key-value table for metadata')
+    .render(() =>
+      KeyValueTable({
+        entries: {
+          version: '1.2.0',
+          uptime: '3h 24m',
+          region: 'us-east-1',
         },
-        Box(
-          { flexDirection: 'column', gap: 1 },
-          Text({ color: 'foreground' }, 'New version available (v2.0.0)'),
-          Box(
-            { flexDirection: 'row', gap: 2 },
-            Text({ color: 'primary', inverse: true }, ' Update '),
-            Text({ color: 'mutedForeground' }, 'Dismiss')
-          )
-        )
-      )
+        borderStyle: 'single',
+      })
     ),
 ];
 
-/**
- * Tabs stories
- */
+// ============================================================================
+// Tabs
+// ============================================================================
+
 export const tabsStories: Story[] = [
   story('Tabs - Basic')
     .category('Molecules')
-    .description('Basic tabbed interface')
+    .description('Tabbed content switcher')
     .controls({
-      activeTab: defaultControls.range('Active Tab', 0, 0, 2),
-    })
-    .render((props) => {
-      const tabs = ['Overview', 'Details', 'Settings'];
-
-      return Box(
-        { width: 50, flexDirection: 'column' },
-        Box(
-          { flexDirection: 'row', borderStyle: 'single', borderColor: 'border' },
-          ...tabs.map((tab, idx) => {
-            const isActive = idx === props.activeTab;
-            return Box(
-              {
-                paddingX: 2,
-                backgroundColor: isActive ? 'primary' : undefined,
-              },
-              Text(
-                {
-                  color: isActive ? 'white' : 'mutedForeground',
-                  bold: isActive,
-                },
-                tab
-              )
-            );
-          })
-        ),
-        Box(
-          { borderStyle: 'single', borderColor: 'accent', padding: 1, height: 5 },
-          Text({}, `${tabs[props.activeTab]} content here...`)
-        )
-      );
-    }),
-
-  story('Tabs - With Icons')
-    .category('Molecules')
-    .description('Tabs with icons')
-    .render(() => {
-      return Box(
-        { width: 50, flexDirection: 'column' },
-        Box(
-          { flexDirection: 'row', borderStyle: 'single', borderColor: 'border' },
-          Box(
-            { paddingX: 2, backgroundColor: 'primary' },
-            Text({ color: 'primaryForeground', bold: true }, '🏠 Home')
-          ),
-          Box({ paddingX: 2 }, Text({ color: 'mutedForeground' }, '📁 Files')),
-          Box({ paddingX: 2 }, Text({ color: 'mutedForeground' }, '⚙️ Settings'))
-        ),
-        Box(
-          { borderStyle: 'single', borderColor: 'accent', padding: 1, height: 5 },
-          Text({}, 'Home content')
-        )
-      );
-    }),
-
-  story('Tabs - Styled')
-    .category('Molecules')
-    .description('Tabs with custom styling')
-    .controls({
-      activeColor: defaultControls.color('Active Color', 'cyan'),
+      style: defaultControls.select('Style', ['line', 'box', 'pills'], 'line'),
+      position: defaultControls.select('Position', ['top', 'bottom'], 'top'),
+      variant: defaultControls.select('Variant', ['default', 'primary', 'secondary'], 'default'),
+      showCount: defaultControls.boolean('Show Count', false),
     })
     .render((props) =>
-      Box(
-        { width: 50, flexDirection: 'column' },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: props.activeColor, inverse: true }, ' Tab 1 '),
-          Text({ color: 'mutedForeground' }, 'Tab 2'),
-          Text({ color: 'mutedForeground' }, 'Tab 3')
-        ),
-        Box(
-          { borderStyle: 'single', borderColor: props.activeColor, padding: 1, marginTop: 1 },
-          Text({}, 'Content 1')
-        )
-      )
+      Tabs({
+        tabs: [
+          { key: 'overview', label: 'Overview', content: Text({}, 'Overview content') },
+          { key: 'details', label: 'Details', content: Text({}, 'Details content') },
+          { key: 'settings', label: 'Settings', content: Text({}, 'Settings content') },
+        ],
+        style: props.style,
+        position: props.position,
+        variant: props.variant,
+        showCount: props.showCount,
+        width: 50,
+      })
     ),
 
-  story('Tabs - Variants')
+  story('TabPanel - Basic')
     .category('Molecules')
-    .description('Tabs with semantic variants from theme')
+    .description('Standalone tab panel container')
+    .controls({
+      active: defaultControls.boolean('Active', true),
+      padding: defaultControls.range('Padding', 1, 0, 3),
+    })
+    .render((props) =>
+      TabPanel({
+        active: props.active,
+        padding: props.padding,
+        children: Text({ color: 'mutedForeground' }, 'Tab content panel'),
+      })
+    ),
+
+  story('VerticalTabs - Basic')
+    .category('Molecules')
+    .description('Vertical tabs with list on the left')
     .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 2 },
-        Text({ bold: true }, 'Primary Variant:'),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'primary', inverse: true }, ' Active '),
-          Text({ color: 'mutedForeground' }, 'Inactive'),
-        ),
-        Text({ bold: true }, 'Secondary Variant:'),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'secondary', inverse: true }, ' Active '),
-          Text({ color: 'mutedForeground' }, 'Inactive'),
-        ),
-        Text({ dim: true }, 'Note: Tabs component inherits colors from theme.components.tabs'),
-      )
+      VerticalTabs({
+        tabs: [
+          { key: 'core', label: 'Core', content: Text({}, 'Core settings') },
+          { key: 'ui', label: 'UI', content: Text({}, 'Theme options') },
+          { key: 'dev', label: 'Dev', content: Text({}, 'Debug flags') },
+        ],
+        tabWidth: 18,
+        contentWidth: 30,
+      })
+    ),
+
+  story('LazyTabs - Basic')
+    .category('Molecules')
+    .description('Tabs that load content lazily')
+    .render(() =>
+      LazyTabs({
+        tabs: [
+          { key: 'home', label: 'Home', content: () => Text({}, 'Home loaded') },
+          { key: 'logs', label: 'Logs', content: () => Text({}, 'Logs loaded') },
+          { key: 'stats', label: 'Stats', content: () => Text({}, 'Stats loaded') },
+        ],
+        width: 50,
+      })
     ),
 ];
 
-/**
- * Collapsible stories
- */
+// ============================================================================
+// Trees & Calendars
+// ============================================================================
+
+export const treeStories: Story[] = [
+  story('Tree - Basic')
+    .category('Molecules')
+    .description('Expandable tree view')
+    .controls({
+      selectionMode: defaultControls.select('Selection', ['none', 'single', 'multiple'], 'single'),
+      showGuides: defaultControls.boolean('Show Guides', true),
+      indentSize: defaultControls.range('Indent', 2, 2, 4),
+    })
+    .render((props) =>
+      Tree({
+        nodes: treeNodes,
+        selectionMode: props.selectionMode,
+        showGuides: props.showGuides,
+        indentSize: props.indentSize,
+        initialExpanded: ['workspace', 'apps'],
+      })
+    ),
+
+  story('DirectoryTree - Basic')
+    .category('Molecules')
+    .description('Directory tree with file icons')
+    .controls({
+      showSizes: defaultControls.boolean('Show Sizes', true),
+      showHidden: defaultControls.boolean('Show Hidden', false),
+    })
+    .render((props) =>
+      DirectoryTree({
+        nodes: directoryNodes,
+        showSizes: props.showSizes,
+        showHidden: props.showHidden,
+        initialExpanded: ['src', 'components'],
+      })
+    ),
+];
+
+export const calendarStories: Story[] = [
+  story('Calendar - Basic')
+    .category('Molecules')
+    .description('Month calendar with events')
+    .controls({
+      selectionMode: defaultControls.select('Selection', ['none', 'single', 'range', 'multiple'], 'single'),
+      firstDayOfWeek: defaultControls.select('First Day', ['0', '1'], '1'),
+      showWeekNumbers: defaultControls.boolean('Week Numbers', false),
+    })
+    .render((props) =>
+      Calendar({
+        events: calendarEvents,
+        selectionMode: props.selectionMode,
+        firstDayOfWeek: props.firstDayOfWeek === '1' ? 1 : 0,
+        showWeekNumbers: props.showWeekNumbers,
+      })
+    ),
+
+  story('MiniCalendar - Basic')
+    .category('Molecules')
+    .description('Compact calendar widget')
+    .controls({
+      showNavigation: defaultControls.boolean('Navigation', true),
+    })
+    .render((props) =>
+      MiniCalendar({
+        events: calendarEvents,
+        showNavigation: props.showNavigation,
+        cellWidth: 3,
+      })
+    ),
+
+  story('DatePicker - Basic')
+    .category('Molecules')
+    .description('Date picker with input field')
+    .controls({
+      placeholder: defaultControls.text('Placeholder', 'Select date...'),
+      inputWidth: defaultControls.range('Input Width', 20, 12, 30),
+      dropdownPosition: defaultControls.select('Dropdown', ['below', 'above'], 'below'),
+    })
+    .render((props) =>
+      DatePicker({
+        placeholder: props.placeholder,
+        inputWidth: props.inputWidth,
+        dropdownPosition: props.dropdownPosition,
+        selectionMode: 'single',
+      })
+    ),
+];
+
+// ============================================================================
+// Code & Markdown
+// ============================================================================
+
+export const codeStories: Story[] = [
+  story('CodeBlock - Basic')
+    .category('Molecules')
+    .description('Code block with syntax highlighting')
+    .controls({
+      language: defaultControls.select('Language', ['typescript', 'javascript', 'json', 'bash', 'plain'], 'typescript'),
+      lineNumbers: defaultControls.boolean('Line Numbers', true),
+      wrap: defaultControls.boolean('Wrap', false),
+      maxWidth: defaultControls.range('Max Width', 50, 30, 80),
+    })
+    .render((props) =>
+      CodeBlock({
+        code: codeSample,
+        language: props.language,
+        lineNumbers: props.lineNumbers,
+        wrap: props.wrap,
+        maxWidth: props.maxWidth,
+        highlightLines: [2],
+      })
+    ),
+
+  story('InlineCode - Basic')
+    .category('Molecules')
+    .description('Inline code tag')
+    .render(() =>
+      Box(
+        { flexDirection: 'row', gap: 1 },
+        Text({ color: 'mutedForeground' }, 'Install with'),
+        InlineCode({ code: 'pnpm add tuiuiu.js' })
+      )
+    ),
+
+  story('Markdown - Basic')
+    .category('Molecules')
+    .description('Markdown renderer')
+    .controls({
+      maxWidth: defaultControls.range('Max Width', 60, 40, 90),
+      codeLineNumbers: defaultControls.boolean('Code Line Numbers', true),
+    })
+    .render((props) =>
+      Markdown({
+        content: markdownSample,
+        maxWidth: props.maxWidth,
+        codeLineNumbers: props.codeLineNumbers,
+      })
+    ),
+];
+
+// ============================================================================
+// Collapsible & Forms
+// ============================================================================
+
 export const collapsibleStories: Story[] = [
   story('Collapsible - Basic')
     .category('Molecules')
-    .description('Basic expandable section')
+    .description('Expandable section')
     .render(() =>
       Collapsible({
         title: 'Advanced Options',
         children: Box(
           { flexDirection: 'column', gap: 1 },
-          Text({}, 'Option 1: Enable auto-save'),
-          Text({}, 'Option 2: Show notifications'),
-          Text({}, 'Option 3: Dark mode'),
+          Text({}, 'Enable auto-save'),
+          Text({}, 'Show notifications'),
+          Text({}, 'Use experimental API')
         ),
       })
     ),
 
-  story('Collapsible - Custom Icons')
-    .category('Molecules')
-    .description('Collapsible with folder icons')
-    .render(() =>
-      Collapsible({
-        title: 'Project Files',
-        collapsedIcon: '📁',
-        expandedIcon: '📂',
-        initialExpanded: true,
-        children: Box(
-          { flexDirection: 'column' },
-          Text({ color: 'primary' }, '  📄 index.ts'),
-          Text({ color: 'primary' }, '  📄 package.json'),
-          Text({ color: 'primary' }, '  📄 README.md'),
-        ),
-      })
-    ),
-
-  story('Collapsible - Nested')
-    .category('Molecules')
-    .description('Nested collapsible sections')
-    .render(() =>
-      Collapsible({
-        title: 'Category A',
-        initialExpanded: true,
-        children: Box(
-          { flexDirection: 'column', gap: 1 },
-          Collapsible({
-            title: 'Subcategory A.1',
-            indent: 4,
-            children: Text({}, 'Content A.1'),
-          }),
-          Collapsible({
-            title: 'Subcategory A.2',
-            indent: 4,
-            children: Text({}, 'Content A.2'),
-          }),
-        ),
-      })
-    ),
-
-  story('Collapsible - Disabled')
-    .category('Molecules')
-    .description('Disabled collapsible section')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Collapsible({
-          title: 'Available Section',
-          children: Text({}, 'This section is interactive'),
-        }),
-        Collapsible({
-          title: 'Locked Section (Premium)',
-          disabled: true,
-          children: Text({}, 'This content is locked'),
-        }),
-      )
-    ),
-
-  story('Collapsible - Interactive')
-    .category('Molecules')
-    .description('Collapsible with selectable variant and custom color')
-    .controls({
-      title: defaultControls.text('Title', 'Settings'),
-      variant: defaultControls.select('Variant', ['default', 'primary', 'secondary'], 'default'),
-      customColor: defaultControls.color('Custom Color', ''),
-      disabled: defaultControls.boolean('Disabled', false),
-    })
-    .render((props) =>
-      Collapsible({
-        title: props.title,
-        variant: props.customColor ? undefined : props.variant,
-        color: props.customColor || undefined,
-        disabled: props.disabled,
-        children: Box(
-          { flexDirection: 'column', gap: 1 },
-          Text({}, 'Content line 1'),
-          Text({}, 'Content line 2'),
-          Text({}, 'Content line 3'),
-        ),
-      })
-    ),
-
-  story('Collapsible - All Variants')
-    .category('Molecules')
-    .description('Collapsible sections showing all semantic variants')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Collapsible({
-          title: 'Default Variant',
-          variant: 'default',
-          children: Text({}, 'Default styling from theme'),
-        }),
-        Collapsible({
-          title: 'Primary Variant',
-          variant: 'primary',
-          children: Text({}, 'Primary accent styling'),
-        }),
-        Collapsible({
-          title: 'Secondary Variant',
-          variant: 'secondary',
-          children: Text({}, 'Secondary/muted styling'),
-        }),
-      )
-    ),
-
-  story('Collapsible - Custom Colors')
-    .category('Molecules')
-    .description('Collapsible with custom header colors')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Collapsible({
-          title: 'Cyan Header',
-          color: 'cyan',
-          children: Text({}, 'Custom cyan header with auto-contrast text'),
-        }),
-        Collapsible({
-          title: 'Magenta Header',
-          color: 'magenta',
-          children: Text({}, 'Custom magenta header'),
-        }),
-        Collapsible({
-          title: 'Orange Header',
-          color: '#ff6600',
-          children: Text({}, 'Custom hex color header'),
-        }),
-      )
-    ),
-];
-
-/**
- * Accordion stories
- */
-export const accordionStories: Story[] = [
   story('Accordion - Basic')
     .category('Molecules')
-    .description('Basic accordion with single open section')
+    .description('Accordion list')
     .render(() =>
       Accordion({
         sections: [
-          { key: 'general', title: 'General Settings', content: Text({}, 'General settings content here...') },
-          { key: 'appearance', title: 'Appearance', content: Text({}, 'Theme, colors, fonts...') },
-          { key: 'advanced', title: 'Advanced', content: Text({}, 'Developer options...') },
+          { key: 'general', title: 'General', content: Text({}, 'General settings') },
+          { key: 'display', title: 'Display', content: Text({}, 'Display settings') },
+          { key: 'security', title: 'Security', content: Text({}, 'Security settings') },
         ],
         initialExpanded: 'general',
       })
     ),
 
-  story('Accordion - Multiple Open')
-    .category('Molecules')
-    .description('Accordion allowing multiple sections open')
-    .render(() =>
-      Accordion({
-        sections: [
-          { key: 'frontend', title: '1. Frontend', content: Text({}, 'React, Vue, Angular...') },
-          { key: 'backend', title: '2. Backend', content: Text({}, 'Node, Python, Go...') },
-          { key: 'database', title: '3. Database', content: Text({}, 'PostgreSQL, MongoDB...') },
-        ],
-        multiple: true,
-        gap: 1,
-      })
-    ),
-
-  story('Accordion - With Icons')
-    .category('Molecules')
-    .description('Accordion sections with custom icons')
-    .render(() =>
-      Accordion({
-        sections: [
-          { key: 'home', title: 'Home', icon: '🏠', content: Text({}, 'Welcome to the app!') },
-          { key: 'settings', title: 'Settings', icon: '⚙️', content: Text({}, 'Configure your preferences') },
-          { key: 'help', title: 'Help', icon: '❓', content: Text({}, 'Get support and documentation') },
-        ],
-      })
-    ),
-
-  story('Accordion - FAQ')
-    .category('Molecules')
-    .description('FAQ-style accordion')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Text({ bold: true, color: 'primary' }, 'Frequently Asked Questions'),
-        Divider({}),
-        Accordion({
-          sections: [
-            { key: 'q1', title: 'How do I install?', content: Text({ color: 'mutedForeground' }, 'Run: pnpm add tuiuiu.js') },
-            { key: 'q2', title: 'Is it zero-dependency?', content: Text({ color: 'mutedForeground' }, 'Yes! No external dependencies.') },
-            { key: 'q3', title: 'Does it support themes?', content: Text({ color: 'mutedForeground' }, '8+ built-in themes available.') },
-          ],
-          gap: 1,
-        }),
-      )
-    ),
-
-  story('Accordion - Disabled Sections')
-    .category('Molecules')
-    .description('Accordion with some disabled sections')
-    .render(() =>
-      Accordion({
-        sections: [
-          { key: 'free', title: 'Free Plan', content: Text({}, 'Basic features included') },
-          { key: 'pro', title: 'Pro Plan (Locked)', disabled: true, content: Text({}, 'Pro features') },
-          { key: 'enterprise', title: 'Enterprise (Locked)', disabled: true, content: Text({}, 'Enterprise features') },
-        ],
-      })
-    ),
-
-  story('Accordion - Variants')
-    .category('Molecules')
-    .description('Accordion with semantic variants')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 2 },
-        Text({ bold: true }, 'Primary Variant:'),
-        Accordion({
-          variant: 'primary',
-          sections: [
-            { key: 'a', title: 'Section A', content: Text({}, 'Primary variant styling') },
-            { key: 'b', title: 'Section B', content: Text({}, 'Consistent accent colors') },
-          ],
-        }),
-        Text({ bold: true }, 'Secondary Variant:'),
-        Accordion({
-          variant: 'secondary',
-          sections: [
-            { key: 'a', title: 'Section A', content: Text({}, 'Secondary/muted styling') },
-            { key: 'b', title: 'Section B', content: Text({}, 'Subtle appearance') },
-          ],
-        }),
-      )
-    ),
-];
-
-/**
- * Details stories
- */
-export const detailsStories: Story[] = [
   story('Details - Basic')
     .category('Molecules')
-    .description('Simple details element like HTML')
+    .description('Details element with summary')
     .render(() =>
       Details({
-        summary: 'Click to see more',
-        children: Text({}, 'Additional information that was hidden.'),
+        summary: 'View details',
+        children: Text({ color: 'mutedForeground' }, 'Detailed description goes here.'),
       })
     ),
 
-  story('Details - Error Log')
-    .category('Molecules')
-    .description('Details for showing error stack')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Text({ color: 'destructive', bold: true }, '✗ Build failed'),
-        Details({
-          summary: 'View error details',
-          open: true,
-          children: Box(
-            { flexDirection: 'column' },
-            Text({ color: 'destructive' }, 'Error: Module not found'),
-            Text({ color: 'mutedForeground', dim: true }, '  at compile (build.ts:45)'),
-            Text({ color: 'mutedForeground', dim: true }, '  at run (main.ts:12)'),
-          ),
-        }),
-      )
-    ),
-];
-
-/**
- * ExpandableText stories
- */
-export const expandableTextStories: Story[] = [
   story('ExpandableText - Basic')
     .category('Molecules')
-    .description('Long text with show more/less')
+    .description('Expandable text snippet')
     .render(() =>
       ExpandableText({
-        text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.\nSed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\nUt enim ad minim veniam, quis nostrud exercitation.\nDuis aute irure dolor in reprehenderit.\nExcepteur sint occaecat cupidatat non proident.',
+        text: 'This is a long text block that collapses after a few lines. It can be expanded or collapsed as needed to save space in compact UIs.',
         maxLines: 2,
-      })
-    ),
-
-  story('ExpandableText - Custom Labels')
-    .category('Molecules')
-    .description('Expandable text with custom labels')
-    .render(() =>
-      ExpandableText({
-        text: 'This is a very long description that spans multiple lines.\nIt contains important information about the feature.\nUsers can expand it to read the full content.\nOr collapse it to save space.',
-        maxLines: 2,
-        showMoreLabel: 'Read full description...',
-        showLessLabel: 'Collapse',
-        color: 'mutedForeground',
       })
     ),
 ];
 
-/**
- * Sparkline stories
- */
-export const sparklineStories: Story[] = [
+export const formStories: Story[] = [
+  story('FormField - Basic')
+    .category('Molecules')
+    .description('Label + input wrapper')
+    .controls({
+      label: defaultControls.text('Label', 'Email'),
+      required: defaultControls.boolean('Required', true),
+      error: defaultControls.text('Error', ''),
+      helperText: defaultControls.text('Helper', 'We will never share your email'),
+      direction: defaultControls.select('Direction', ['vertical', 'horizontal'], 'vertical'),
+      labelWidth: defaultControls.range('Label Width', 12, 8, 20),
+    })
+    .render((props) =>
+      FormField({
+        label: props.label,
+        required: props.required,
+        error: props.error || undefined,
+        helperText: props.helperText || undefined,
+        direction: props.direction,
+        labelWidth: props.labelWidth,
+        children: TextInput({
+          placeholder: 'name@company.com',
+          width: 30,
+          isActive: false,
+        }),
+      })
+    ),
+
+  story('FormGroup - Basic')
+    .category('Molecules')
+    .description('Grouped form fields')
+    .controls({
+      title: defaultControls.text('Title', 'Profile'),
+      description: defaultControls.text('Description', 'Update personal details'),
+      borderStyle: defaultControls.select('Border', ['none', 'single', 'round', 'double'], 'round'),
+      padding: defaultControls.range('Padding', 1, 0, 2),
+      gap: defaultControls.range('Gap', 1, 0, 2),
+    })
+    .render((props) =>
+      FormGroup({
+        title: props.title,
+        description: props.description,
+        borderStyle: props.borderStyle,
+        padding: props.padding,
+        gap: props.gap,
+        children: [
+          FormField({
+            label: 'Name',
+            children: TextInput({ placeholder: 'Jane Doe', width: 24, isActive: false }),
+          }),
+          FormField({
+            label: 'Role',
+            children: TextInput({ placeholder: 'Engineer', width: 24, isActive: false }),
+          }),
+        ],
+      })
+    ),
+];
+
+// ============================================================================
+// Split View
+// ============================================================================
+
+export const splitViewStories: Story[] = [
+  story('SplitView - Basic')
+    .category('Molecules')
+    .description('Master-detail split view')
+    .controls({
+      ratio: defaultControls.range('Ratio %', 35, 20, 80),
+      direction: defaultControls.select('Direction', ['horizontal', 'vertical'], 'horizontal'),
+      divider: defaultControls.boolean('Divider', true),
+    })
+    .render((props) =>
+      SplitView({
+        items: splitViewItems,
+        ratio: props.ratio / 100,
+        direction: props.direction,
+        divider: props.divider,
+        renderItem: (item, _index, selected) =>
+          Box(
+            { paddingX: 1 },
+            Text({ color: selected ? 'primary' : 'foreground' }, `${item.name}`),
+            Text({ color: 'mutedForeground', dim: true }, item.status)
+          ),
+        renderDetail: (item) =>
+          item
+            ? Box(
+                { flexDirection: 'column', gap: 1 },
+                Text({ color: 'foreground', bold: true }, item.name),
+                Text({ color: 'mutedForeground' }, `Status: ${item.status}`)
+              )
+            : Text({ color: 'mutedForeground' }, 'Select a request')
+      })
+    ),
+];
+
+// ============================================================================
+// Data Visualization
+// ============================================================================
+
+export const dataVizStories: Story[] = [
   story('Sparkline - Basic')
     .category('Molecules')
-    .description('Inline sparkline chart using block characters')
-    .render(() => {
-      const data = [5, 10, 8, 15, 12, 18, 14, 22, 19, 25];
-      return Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: 'mutedForeground' }, 'Trend:'),
-        Text({ color: 'primary' }, textSparkline(data))
-      );
-    }),
-
-  story('Sparkline - Colors')
-    .category('Molecules')
-    .description('Sparklines with different colors')
+    .description('Inline sparkline')
     .controls({
-      color: defaultControls.color('Color', 'green'),
+      style: defaultControls.select('Style', ['block', 'braille', 'ascii'], 'block'),
+      width: defaultControls.range('Width', 20, 10, 40),
+      showLabels: defaultControls.boolean('Labels', true),
     })
-    .render((props) => {
-      const data = [3, 7, 4, 9, 6, 8, 5, 10, 7, 12];
-      return Box(
-        { flexDirection: 'row', gap: 1 },
-        Text({ color: 'mutedForeground' }, 'Data:'),
-        Text({ color: props.color }, textSparkline(data))
-      );
-    }),
+    .render((props) =>
+      Sparkline({
+        data: sparklineData,
+        style: props.style,
+        width: props.width,
+        showLabels: props.showLabels,
+        label: 'CPU',
+      })
+    ),
 
-  story('Sparkline - Multiple')
+  story('BarChart - Horizontal')
     .category('Molecules')
-    .description('Multiple sparklines for comparison')
-    .render(() => {
-      const revenue = [30, 45, 38, 52, 48, 55, 60, 58, 65, 70];
-      const costs = [25, 28, 32, 30, 35, 38, 40, 42, 45, 48];
-      const profit = [5, 17, 6, 22, 13, 17, 20, 16, 20, 22];
+    .description('Horizontal bar chart')
+    .controls({
+      showValues: defaultControls.boolean('Show Values', true),
+      showPercentage: defaultControls.boolean('Show Percentage', false),
+      width: defaultControls.range('Width', 50, 30, 70),
+    })
+    .render((props) =>
+      BarChart({
+        data: barData,
+        showValues: props.showValues,
+        showPercentage: props.showPercentage,
+        width: props.width,
+      })
+    ),
 
-      return Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Revenue:')),
-          Text({ color: 'success' }, textSparkline(revenue))
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Costs:')),
-          Text({ color: 'destructive' }, textSparkline(costs))
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 10 }, Text({ color: 'mutedForeground' }, 'Profit:')),
-          Text({ color: 'primary' }, textSparkline(profit))
-        )
-      );
-    }),
-];
-
-/**
- * Gauge stories
- */
-export const gaugeStories: Story[] = [
-  story('Gauge - Linear')
+  story('VerticalBarChart - Basic')
     .category('Molecules')
-    .description('Linear gauge indicator')
+    .description('Vertical bar chart')
+    .controls({
+      height: defaultControls.range('Height', 8, 5, 12),
+    })
+    .render((props) =>
+      VerticalBarChart({
+        data: barData,
+        height: props.height,
+      })
+    ),
+
+  story('StackedBarChart - Basic')
+    .category('Molecules')
+    .description('Stacked bar chart')
+    .render(() =>
+      StackedBarChart({
+        data: stackedData,
+        maxBarLength: 30,
+      })
+    ),
+
+  story('LineChart - Basic')
+    .category('Molecules')
+    .description('Line chart with multiple series')
+    .render(() =>
+      LineChart({
+        series: lineSeries,
+        width: 50,
+        height: 8,
+        title: 'Weekly Traffic',
+        showLegend: true,
+      })
+    ),
+
+  story('AreaChart - Basic')
+    .category('Molecules')
+    .description('Area chart with filled series')
+    .render(() =>
+      AreaChart({
+        series: lineSeries,
+        width: 50,
+        height: 8,
+        title: 'Weekly Signups',
+      })
+    ),
+
+  story('ScatterPlot - Basic')
+    .category('Molecules')
+    .description('Scatter plot with categories')
+    .controls({
+      markerStyle: defaultControls.select('Marker', ['circle', 'square', 'diamond', 'plus', 'star', 'cross'], 'circle'),
+      colorMode: defaultControls.select('Color Mode', ['category', 'value', 'uniform'], 'category'),
+    })
+    .render((props) =>
+      ScatterPlot({
+        points: scatterPoints,
+        width: 50,
+        height: 10,
+        markerStyle: props.markerStyle,
+        colorMode: props.colorMode,
+        title: 'Latency Scatter',
+      })
+    ),
+
+  story('RadarChart - Basic')
+    .category('Molecules')
+    .description('Radar chart for multi-axis comparison')
+    .render(() =>
+      RadarChart({
+        axes: radarAxes,
+        series: radarSeries,
+        size: 16,
+        showLegend: true,
+      })
+    ),
+
+  story('Gauge - Basic')
+    .category('Molecules')
+    .description('Gauge with selectable style')
     .controls({
       value: defaultControls.range('Value', 65, 0, 100),
+      style: defaultControls.select('Style', ['linear', 'arc', 'meter', 'dial'], 'linear'),
+      showValue: defaultControls.boolean('Show Value', true),
     })
     .render((props) =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Text({ color: 'mutedForeground' }, 'Progress'),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'primary' }, textProgressBar(props.value, 100, 30)),
-          Text({ color: 'primary' }, `${props.value}%`)
-        )
-      )
-    ),
-
-  story('Gauge - Thresholds')
-    .category('Molecules')
-    .description('Gauge with color thresholds')
-    .controls({
-      value: defaultControls.range('Value', 80, 0, 100),
-    })
-    .render((props) => {
-      const color =
-        props.value > 80 ? 'red' :
-        props.value > 60 ? 'yellow' :
-        'green';
-
-      const status =
-        props.value > 80 ? 'Critical!' :
-        props.value > 60 ? 'Warning' :
-        'Normal';
-
-      return Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({ color: 'mutedForeground' }, 'Memory:'),
-          Text({ color }, textProgressBar(props.value, 100, 25)),
-          Text({ color }, `${props.value}%`)
-        ),
-        Text({ color, dim: true }, status)
-      );
-    }),
-
-  story('Gauge - Dashboard')
-    .category('Molecules')
-    .description('Multiple gauges dashboard style')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'CPU:')),
-          Text({ color: 'success' }, textProgressBar(45, 100, 20)),
-          Text({ color: 'success' }, ' 45%')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'Memory:')),
-          Text({ color: 'warning' }, textProgressBar(72, 100, 20)),
-          Text({ color: 'warning' }, ' 72%')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Box({ width: 8 }, Text({ color: 'mutedForeground' }, 'Disk:')),
-          Text({ color: 'primary' }, textProgressBar(28, 100, 20)),
-          Text({ color: 'primary' }, ' 28%')
-        )
-      )
-    ),
-];
-
-/**
- * Mouse interaction stories
- * Demonstrates useMouse hook capabilities for terminal mouse input
- */
-export const mouseStories: Story[] = [
-  story('Mouse - Basic Click')
-    .category('Molecules')
-    .description('Detect mouse clicks with position')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'primary' },
-        Text({ bold: true, color: 'primary' }, '🖱️  Mouse Click Detection'),
-        Divider({}),
-        Text({ color: 'mutedForeground' }, 'Click anywhere in the terminal to see:'),
-        Spacer({ size: 1 }),
-        Box(
-          { flexDirection: 'column', gap: 0 },
-          Text({}, '  Position: x=12, y=5'),
-          Text({}, '  Button: left'),
-          Text({}, '  Action: click')
-        ),
-        Spacer({ size: 1 }),
-        Text({ color: 'mutedForeground', dim: true }, 'useMouse((event) => { ... })')
-      )
-    ),
-
-  story('Mouse - All Buttons')
-    .category('Molecules')
-    .description('Detect left, right, and middle clicks')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, 'Mouse Button Detection'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'success' },
-            Text({ color: 'success', bold: true }, '  LEFT  '),
-            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 3')
-          ),
-          Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'warning' },
-            Text({ color: 'warning', bold: true }, ' MIDDLE '),
-            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 1')
-          ),
-          Box(
-            { flexDirection: 'column', padding: 1, borderStyle: 'round', borderColor: 'destructive' },
-            Text({ color: 'destructive', bold: true }, ' RIGHT  '),
-            Text({ color: 'mutedForeground', dim: true }, 'Clicks: 0')
-          )
-        ),
-        Text({ color: 'mutedForeground', dim: true }, "event.button === 'left' | 'middle' | 'right'")
-      )
-    ),
-
-  story('Mouse - Position Tracker')
-    .category('Molecules')
-    .description('Real-time mouse position tracking')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'double', borderColor: 'secondary' },
-        Text({ bold: true, color: 'accent' }, '📍 Mouse Position Tracker'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 4 },
-          Box(
-            { flexDirection: 'column' },
-            Text({ color: 'mutedForeground' }, 'X Position'),
-            Text({ color: 'primary', bold: true }, '   24   ')
-          ),
-          Box(
-            { flexDirection: 'column' },
-            Text({ color: 'mutedForeground' }, 'Y Position'),
-            Text({ color: 'primary', bold: true }, '   12   ')
-          )
-        ),
-        Spacer({ size: 1 }),
-        Box(
-          { flexDirection: 'column', backgroundColor: 'muted' },
-          Text({ color: 'mutedForeground' }, '                              '),
-          Text({ color: 'mutedForeground' }, '     Move mouse here...       '),
-          Text({ color: 'mutedForeground' }, '          ●                   '),
-          Text({ color: 'mutedForeground' }, '                              ')
-        ),
-        Text({ color: 'mutedForeground', dim: true }, "action === 'move' for tracking")
-      )
-    ),
-
-  story('Mouse - Double Click')
-    .category('Molecules')
-    .description('Detect double-click events')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'warning' },
-        Text({ bold: true, color: 'warning' }, '⚡ Double Click Detection'),
-        Divider({}),
-        Box(
-          { padding: 2, borderStyle: 'single', borderColor: 'primary' },
-          Text({ color: 'primary' }, '   Double-click this area   ')
-        ),
-        Spacer({ size: 1 }),
-        Text({}, 'Last action: double-click'),
-        Text({ color: 'success' }, '✓ Double-click detected!'),
-        Spacer({ size: 1 }),
-        Text({ color: 'mutedForeground', dim: true }, "event.action === 'double-click'")
-      )
-    ),
-
-  story('Mouse - Drag Events')
-    .category('Molecules')
-    .description('Handle mouse drag operations')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'accent' },
-        Text({ bold: true, color: 'accent' }, '↔️  Drag Detection'),
-        Divider({}),
-        Text({ color: 'mutedForeground' }, 'Drag state: dragging'),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          Text({}, 'Start: (5, 10)'),
-          Text({ color: 'mutedForeground' }, '→'),
-          Text({}, 'Current: (25, 10)')
-        ),
-        Spacer({ size: 1 }),
-        Box(
-          { flexDirection: 'column' },
-          Text({ color: 'mutedForeground' }, '╔══════════════════════════╗'),
-          Text({ color: 'mutedForeground' }, '║                          ║'),
-          Text({ color: 'mutedForeground' }, '║   ●────────────○         ║'),
-          Text({ color: 'mutedForeground' }, '║                          ║'),
-          Text({ color: 'mutedForeground' }, '╚══════════════════════════╝')
-        ),
-        Text({ color: 'mutedForeground', dim: true }, "action === 'drag' | 'release'")
-      )
-    ),
-
-  story('Mouse - Scroll Wheel')
-    .category('Molecules')
-    .description('Detect scroll up/down events')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '🔄 Scroll Wheel Events'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          Box(
-            { flexDirection: 'column', alignItems: 'center' },
-            Text({ color: 'success' }, '▲'),
-            Text({ color: 'mutedForeground', dim: true }, 'scroll-up'),
-            Text({ color: 'primary' }, '×5')
-          ),
-          Box(
-            { width: 1 },
-            Text({ color: 'mutedForeground' }, '│')
-          ),
-          Box(
-            { flexDirection: 'column', alignItems: 'center' },
-            Text({ color: 'destructive' }, '▼'),
-            Text({ color: 'mutedForeground', dim: true }, 'scroll-down'),
-            Text({ color: 'primary' }, '×12')
-          )
-        ),
-        Spacer({ size: 1 }),
-        Text({}, 'Scroll position: 72'),
-        Text({ color: 'mutedForeground', dim: true }, "button === 'scroll-up' | 'scroll-down'")
-      )
-    ),
-
-  story('Mouse - With Modifiers')
-    .category('Molecules')
-    .description('Detect Ctrl, Shift, Alt + click')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'primary' },
-        Text({ bold: true, color: 'primary' }, '⌨️  Mouse + Modifiers'),
-        Divider({}),
-        Box(
-          { flexDirection: 'column', gap: 0 },
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'success' }, '✓'),
-            Text({}, 'Ctrl + Click'),
-            Text({ color: 'mutedForeground', dim: true }, '- Open in new tab')
-          ),
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'mutedForeground' }, '○'),
-            Text({}, 'Shift + Click'),
-            Text({ color: 'mutedForeground', dim: true }, '- Select range')
-          ),
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'mutedForeground' }, '○'),
-            Text({}, 'Alt + Click'),
-            Text({ color: 'mutedForeground', dim: true }, '- Quick action')
-          ),
-          Box(
-            { flexDirection: 'row', gap: 1 },
-            Text({ color: 'mutedForeground' }, '○'),
-            Text({}, 'Ctrl + Shift + Click'),
-            Text({ color: 'mutedForeground', dim: true }, '- Advanced mode')
-          )
-        ),
-        Spacer({ size: 1 }),
-        Text({ color: 'mutedForeground', dim: true }, 'event.modifiers.ctrl | shift | alt')
-      )
-    ),
-
-  story('Mouse - Click Hitbox')
-    .category('Molecules')
-    .description('Detect clicks on specific regions')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '🎯 Hitbox Detection'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 1 },
-          (() => {
-            return Box(
-              { padding: 1, borderStyle: 'round', borderColor: 'success', backgroundColor: 'success' },
-              Text({ color: 'successForeground', bold: true }, ' Button 1 ')
-            );
-          })(),
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'accent' },
-            Text({ color: 'accent' }, ' Button 2 ')
-          ),
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'destructive' },
-            Text({ color: 'destructive' }, ' Button 3 ')
-          )
-        ),
-        Spacer({ size: 1 }),
-        Text({}, 'Clicked: Button 1'),
-        Text({ color: 'mutedForeground', dim: true }, 'Check x,y against element bounds')
-      )
-    ),
-
-  story('Mouse - Interactive Canvas')
-    .category('Molecules')
-    .description('Draw with mouse clicks')
-    .render(() => {
-      // Simulated canvas with some "drawn" points
-      const canvasLines = [
-        '┌────────────────────────────────┐',
-        '│                                │',
-        '│    ●  ●●●                      │',
-        '│   ●●●●●●●●                     │',
-        '│    ●●●●●●   ●●●               │',
-        '│     ●●●    ●●●●●              │',
-        '│            ●●●                │',
-        '│                                │',
-        '└────────────────────────────────┘',
-      ];
-
-      return Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'accent' },
-        Text({ bold: true, color: 'accent' }, '🎨 Interactive Canvas'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          Text({ color: isActive('pen') ? 'primary' : 'mutedForeground' }, '[✏️ Pen]'),
-          Text({ color: 'mutedForeground' }, '[🧹 Eraser]'),
-          Text({ color: 'mutedForeground' }, '[⬜ Clear]')
-        ),
-        Spacer({ size: 1 }),
-        Box(
-          { flexDirection: 'column' },
-          ...canvasLines.map((line) => Text({ color: 'primary' }, line))
-        ),
-        Text({ color: 'mutedForeground', dim: true }, 'Click to draw, drag for lines')
-      );
-
-      function isActive(tool: string): boolean {
-        return tool === 'pen';
-      }
-    }),
-
-  story('Mouse - Event Log')
-    .category('Molecules')
-    .description('Log all mouse events')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '📋 Mouse Event Log'),
-        Divider({}),
-        Box(
-          { flexDirection: 'column', height: 8, borderStyle: 'round', borderColor: 'border', padding: 1 },
-          Text({ color: 'primary' }, '[12:34:56] click left @ (24, 8)'),
-          Text({ color: 'primary' }, '[12:34:57] release @ (24, 8)'),
-          Text({ color: 'warning' }, '[12:34:58] scroll-down @ (24, 8)'),
-          Text({ color: 'success' }, '[12:34:59] double-click left @ (24, 8)'),
-          Text({ color: 'accent' }, '[12:35:00] drag @ (25, 8)'),
-          Text({ color: 'accent' }, '[12:35:00] drag @ (26, 8)'),
-          Text({ color: 'primary' }, '[12:35:01] release @ (28, 8)')
-        ),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          Text({ color: 'mutedForeground' }, 'Events: 7'),
-          Text({ color: 'mutedForeground' }, '|'),
-          Text({ color: 'mutedForeground' }, '[Clear Log]')
-        )
-      )
-    ),
-
-  story('Mouse - Hover State')
-    .category('Molecules')
-    .description('Track hover state over elements')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '👆 Hover Detection'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          (() => {
-            const bg = 'blue';
-            const fg = getContrastColor(bg);
-            return Box(
-              { padding: 1, borderStyle: 'round', borderColor: 'primary', backgroundColor: bg },
-              Text({ color: fg, backgroundColor: bg, bold: true }, ' Hovered! ')
-            );
-          })(),
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'border' },
-            Text({ color: 'mutedForeground' }, ' Normal ')
-          ),
-          Box(
-            { padding: 1, borderStyle: 'round', borderColor: 'border' },
-            Text({ color: 'mutedForeground' }, ' Normal ')
-          )
-        ),
-        Spacer({ size: 1 }),
-        Text({ color: 'mutedForeground' }, 'Hovering: Item 1'),
-        Text({ color: 'mutedForeground', dim: true }, "Track mouse position for hover effects")
-      )
-    ),
-
-  story('Mouse - Context Menu')
-    .category('Molecules')
-    .description('Right-click context menu trigger')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '📜 Context Menu'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 0 },
-          (() => {
-            const selBg = 'blue';
-            const selFg = getContrastColor(selBg);
-            return Box(
-              { flexDirection: 'column', width: 20 },
-              Text({}, '  📄 Document.txt'),
-              Text({}, '  📁 Folder'),
-              Text({ backgroundColor: selBg, color: selFg }, '  📄 Selected.md ')
-            );
-          })(),
-          Box(
-            { flexDirection: 'column', borderStyle: 'single', borderColor: 'primary', padding: 1 },
-            Text({ color: 'primary' }, '  Open        '),
-            Text({}, '  Edit        '),
-            Text({}, '  Copy        '),
-            Text({ color: 'mutedForeground' }, '  ──────────  '),
-            Text({ color: 'destructive' }, '  Delete      ')
-          )
-        ),
-        Text({ color: 'mutedForeground', dim: true }, "if (event.button === 'right') showMenu()")
-      )
-    ),
-
-  story('Mouse - Drag & Drop')
-    .category('Molecules')
-    .description('Visual drag and drop interface')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'success' },
-        Text({ bold: true, color: 'success' }, '📦 Drag & Drop'),
-        Divider({}),
-        Box(
-          { flexDirection: 'row', gap: 2 },
-          Box(
-            { flexDirection: 'column', borderStyle: 'single', borderColor: 'border', padding: 1 },
-            Text({ color: 'mutedForeground', dim: true }, 'Source'),
-            Text({}, '  📄 File 1'),
-            Text({ color: 'warning' }, '  📄 Dragging...'),
-            Text({}, '  📄 File 3')
-          ),
-          Box(
-            { flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
-            Text({ color: 'warning' }, '→→→'),
-            Text({ color: 'warning', dim: true }, '📄')
-          ),
-          Box(
-            { flexDirection: 'column', borderStyle: 'double', borderColor: 'success', padding: 1 },
-            Text({ color: 'success' }, 'Drop Zone'),
-            Text({}, '  📄 Existing'),
-            Text({ color: 'success', dim: true }, '  ┄┄┄┄┄┄┄┄')
-          )
-        ),
-        Text({ color: 'mutedForeground', dim: true }, 'Combine drag events with position tracking')
-      )
-    ),
-
-  story('Mouse - Selection Box')
-    .category('Molecules')
-    .description('Drag to create selection rectangle')
-    .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'single' },
-        Text({ bold: true }, '⬜ Selection Box')  ,
-        Divider({}),
-        Box(
-          { flexDirection: 'column' },
-          Text({ color: 'mutedForeground' }, '┌──────────────────────────────┐'),
-          Text({ color: 'mutedForeground' }, '│  ○       ●       ○       ○   │'),
-          Text({ color: 'mutedForeground' }, '│      ┏━━━━━━━━━━━┓           │'),
-          Text({ color: 'mutedForeground' }, '│  ○   ┃ ●     ●   ┃   ○       │'),
-          Text({ color: 'mutedForeground' }, '│      ┃   ●       ┃           │'),
-          Text({ color: 'mutedForeground' }, '│      ┗━━━━━━━━━━━┛   ○       │'),
-          Text({ color: 'mutedForeground' }, '│  ○           ○               │'),
-          Text({ color: 'mutedForeground' }, '└──────────────────────────────┘')
-        ),
-        Text({ color: 'primary' }, 'Selected: 4 items'),
-        Text({ color: 'mutedForeground', dim: true }, 'Track start & end drag positions')
-      )
-    ),
-];
-
-/**
- * LineChart stories - Multi-series with color coding
- */
-export const lineChartStories: Story[] = [
-  story('LineChart - Single Series')
-    .category('Molecules')
-    .description('Single data series line chart')
-    .render(() =>
-      LineChart({
-        series: [
-          { name: 'Usage', data: [10, 25, 30, 45, 60, 55, 70], color: 'primary' },
-        ],
-        width: 50,
-        height: 8,
-        title: 'System Usage Over Time',
-        showLegend: true,
+      Gauge({
+        value: props.value,
+        style: props.style,
+        showValue: props.showValue,
+        label: 'Usage',
       })
     ),
 
-  story('LineChart - Multi-Series Colors')
+  story('LinearGauge - Basic')
     .category('Molecules')
-    .description('Multiple series with automatic color assignment')
-    .render(() =>
-      LineChart({
-        series: [
-          { name: 'Frontend', data: [10, 25, 30, 45, 60, 55, 70] },
-          { name: 'Backend', data: [15, 20, 35, 40, 55, 65, 75] },
-          { name: 'Database', data: [5, 15, 25, 35, 45, 50, 60] },
-        ],
-        width: 50,
-        height: 10,
-        title: 'Performance Metrics',
-        showLegend: true,
-      })
-    ),
-
-  story('LineChart - Custom Colors')
-    .category('Molecules')
-    .description('Line chart with custom series colors')
+    .description('Linear gauge')
     .controls({
-      color1: defaultControls.color('Series 1 Color', 'green'),
-      color2: defaultControls.color('Series 2 Color', 'yellow'),
+      value: defaultControls.range('Value', 55, 0, 100),
+      showMinMax: defaultControls.boolean('Min/Max', false),
     })
     .render((props) =>
-      LineChart({
-        series: [
-          { name: 'Profit', data: [50, 65, 75, 70, 85, 90, 95], color: props.color1 },
-          { name: 'Costs', data: [30, 35, 40, 45, 40, 38, 35], color: props.color2 },
-        ],
-        width: 50,
-        height: 8,
-        title: 'Revenue Analysis',
-        showLegend: true,
-      })
-    ),
-];
-
-/**
- * ScatterPlot stories - 2D correlation analysis
- */
-export const scatterPlotStories: Story[] = [
-  story('ScatterPlot - Basic Correlation')
-    .category('Molecules')
-    .description('2D scatter plot for correlation analysis')
-    .render(() =>
-      ScatterPlot({
-        points: [
-          { x: 1, y: 2 },
-          { x: 2, y: 4 },
-          { x: 3, y: 6 },
-          { x: 4, y: 8 },
-          { x: 5, y: 10 },
-          { x: 6, y: 12 },
-        ],
-        width: 40,
-        height: 10,
-        title: 'X vs Y Correlation',
-        markerStyle: 'circle',
+      LinearGauge({
+        value: props.value,
+        showMinMax: props.showMinMax,
+        width: 30,
       })
     ),
 
-  story('ScatterPlot - Multiple Markers')
+  story('MeterGauge - Basic')
     .category('Molecules')
-    .description('Scatter plot with different marker styles')
+    .description('Segmented meter gauge')
     .controls({
-      markerStyle: defaultControls.select('Marker Style', ['circle', 'square', 'diamond', 'plus', 'star', 'cross']),
+      value: defaultControls.range('Value', 72, 0, 100),
+      segments: defaultControls.range('Segments', 10, 5, 20),
     })
     .render((props) =>
-      ScatterPlot({
-        points: [
-          { x: 1, y: 3 },
-          { x: 2, y: 5 },
-          { x: 3, y: 4 },
-          { x: 4, y: 7 },
-          { x: 5, y: 6 },
-          { x: 6, y: 9 },
-          { x: 7, y: 8 },
-        ],
-        width: 40,
-        height: 10,
-        title: 'Data Distribution',
-        markerStyle: props.markerStyle as 'circle' | 'square' | 'diamond' | 'plus' | 'star' | 'cross',
+      MeterGauge({
+        value: props.value,
+        segments: props.segments,
+        width: 30,
       })
     ),
 
-  story('ScatterPlot - Scatter with Color')
+  story('ArcGauge - Basic')
     .category('Molecules')
-    .description('Scatter plot with color highlighting')
+    .description('Arc gauge')
+    .controls({
+      value: defaultControls.range('Value', 40, 0, 100),
+    })
+    .render((props) =>
+      ArcGauge({
+        value: props.value,
+        width: 20,
+        showValue: true,
+      })
+    ),
+
+  story('DialGauge - Basic')
+    .category('Molecules')
+    .description('Dial gauge')
+    .controls({
+      value: defaultControls.range('Value', 75, 0, 100),
+    })
+    .render((props) =>
+      DialGauge({
+        value: props.value,
+        width: 20,
+        showValue: true,
+      })
+    ),
+
+  story('BatteryGauge - Basic')
+    .category('Molecules')
+    .description('Battery gauge')
+    .controls({
+      level: defaultControls.range('Level', 80, 0, 100),
+      charging: defaultControls.boolean('Charging', false),
+      showLevel: defaultControls.boolean('Show Level', true),
+    })
+    .render((props) =>
+      BatteryGauge({
+        level: props.level,
+        charging: props.charging,
+        showLevel: props.showLevel,
+        width: 12,
+      })
+    ),
+
+  story('Heatmap - Basic')
+    .category('Molecules')
+    .description('Heatmap grid')
+    .controls({
+      showValues: defaultControls.boolean('Show Values', true),
+    })
+    .render((props) =>
+      Heatmap({
+        data: heatmapData,
+        columnHeaders: ['Mon', 'Tue', 'Wed', 'Thu'],
+        rowHeaders: ['W1', 'W2', 'W3'],
+        showValues: props.showValues,
+        cellWidth: 4,
+      })
+    ),
+
+  story('ContributionGraph - Basic')
+    .category('Molecules')
+    .description('GitHub-style contribution graph')
     .render(() =>
-      ScatterPlot({
-        points: Array.from({ length: 15 }, () => ({
-          x: Math.floor(Math.random() * 10) + 1,
-          y: Math.floor(Math.random() * 10) + 1,
-        })),
-        width: 40,
-        height: 10,
-        title: 'Random Distribution',
-        markerStyle: 'circle',
-        color: 'success',
+      ContributionGraph({
+        data: contributionData,
+        weeks: 6,
+        showMonths: false,
+        showDays: true,
       })
     ),
-];
 
-/**
- * RadarChart stories - Multi-dimensional comparison
- */
-export const radarChartStories: Story[] = [
-  story('RadarChart - Product Comparison')
+  story('CalendarHeatmap - Basic')
     .category('Molecules')
-    .description('Compare multiple products across dimensions')
+    .description('Year calendar heatmap')
     .render(() =>
-      RadarChart({
-        axes: [
-          { name: 'Speed', max: 100 },
-          { name: 'Power', max: 100 },
-          { name: 'Efficiency', max: 100 },
-          { name: 'Durability', max: 100 },
-          { name: 'Cost', max: 100 },
-        ],
-        series: [
-          { name: 'Model A', values: [80, 75, 70, 85, 60], color: 'primary' },
-          { name: 'Model B', values: [70, 85, 80, 75, 80], color: 'success' },
-        ],
-        showLegend: true,
+      CalendarHeatmap({
+        data: contributionData,
+        year: 2024,
+        showLegend: false,
       })
     ),
 
-  story('RadarChart - Skills Assessment')
+  story('CorrelationMatrix - Basic')
     .category('Molecules')
-    .description('Compare skill levels across multiple domains')
+    .description('Correlation matrix heatmap')
     .render(() =>
-      RadarChart({
-        axes: [
-          { name: 'Frontend', max: 100 },
-          { name: 'Backend', max: 100 },
-          { name: 'DevOps', max: 100 },
-          { name: 'Security', max: 100 },
-          { name: 'Testing', max: 100 },
-          { name: 'Documentation', max: 100 },
-        ],
-        series: [
-          { name: 'Developer 1', values: [85, 75, 65, 70, 80, 75], color: 'warning' },
-          { name: 'Developer 2', values: [70, 85, 80, 75, 70, 80], color: 'accent' },
-        ],
-        showLegend: true,
+      CorrelationMatrix({
+        labels: correlationLabels,
+        correlations: correlationMatrix,
+        showValues: true,
+        decimals: 2,
       })
     ),
-];
 
-/**
- * GanttChart stories - Project timeline
- */
-export const ganttChartStories: Story[] = [
-  story('GanttChart - Project Timeline')
+  story('GanttChart - Basic')
     .category('Molecules')
-    .description('Project timeline with task dependencies')
+    .description('Gantt chart timeline')
     .render(() =>
       GanttChart({
-        tasks: [
-          {
-            id: '1',
-            name: 'Design',
-            startDate: '2024-01-01',
-            endDate: '2024-01-15',
-            progress: 100,
-            status: 'complete',
-          },
-          {
-            id: '2',
-            name: 'Development',
-            startDate: '2024-01-15',
-            endDate: '2024-02-15',
-            progress: 65,
-            status: 'in-progress',
-          },
-          {
-            id: '3',
-            name: 'Testing',
-            startDate: '2024-02-01',
-            endDate: '2024-02-20',
-            progress: 30,
-            status: 'in-progress',
-            dependsOn: '2',
-          },
-          {
-            id: '4',
-            name: 'Deployment',
-            startDate: '2024-02-20',
-            endDate: '2024-02-25',
-            progress: 0,
-            status: 'pending',
-            dependsOn: '3',
-          },
-        ],
+        tasks: ganttTasks,
         width: 60,
-        title: 'Project Timeline Q1 2024',
+        title: 'Release Plan',
         showLegend: true,
       })
     ),
 
-  story('GanttChart - Sprint Planning')
+  story('TimeHeatmap - Basic')
     .category('Molecules')
-    .description('Sprint timeline with multiple tasks')
+    .description('Time heatmap')
     .render(() =>
-      GanttChart({
-        tasks: [
-          {
-            id: '1',
-            name: 'Epic Planning',
-            startDate: '2024-01-01',
-            endDate: '2024-01-03',
-            progress: 100,
-            status: 'complete',
-          },
-          {
-            id: '2',
-            name: 'Feature A',
-            startDate: '2024-01-03',
-            endDate: '2024-01-07',
-            progress: 100,
-            status: 'complete',
-          },
-          {
-            id: '3',
-            name: 'Feature B',
-            startDate: '2024-01-05',
-            endDate: '2024-01-10',
-            progress: 75,
-            status: 'in-progress',
-          },
-          {
-            id: '4',
-            name: 'QA Review',
-            startDate: '2024-01-07',
-            endDate: '2024-01-12',
-            progress: 50,
-            status: 'in-progress',
-          },
-          {
-            id: '5',
-            name: 'Release',
-            startDate: '2024-01-12',
-            endDate: '2024-01-15',
-            progress: 0,
-            status: 'pending',
-          },
-        ],
-        width: 60,
-        title: 'Sprint 2024-01',
+      TimeHeatmap({
+        data: timeHeatmapData,
+        granularity: 'day',
         showLegend: true,
+        title: 'Activity',
+      })
+    ),
+
+  story('Legend - Basic')
+    .category('Molecules')
+    .description('Legend component')
+    .render(() =>
+      Legend({
+        items: [
+          { label: 'Success', color: 'success' },
+          { label: 'Warning', color: 'warning' },
+          { label: 'Error', color: 'destructive' },
+        ],
+        position: 'bottom',
+        showSymbols: true,
       })
     ),
 ];
 
-/**
- * TimeHeatmap stories - Activity calendar
- */
-export const timeHeatmapStories: Story[] = [
-  story('TimeHeatmap - Daily Activity')
-    .category('Molecules')
-    .description('Daily activity heatmap')
-    .render(() =>
-      TimeHeatmap({
-        data: [
-          { date: '2024-12-01', value: 5 },
-          { date: '2024-12-02', value: 10 },
-          { date: '2024-12-03', value: 8 },
-          { date: '2024-12-04', value: 15 },
-          { date: '2024-12-05', value: 12 },
-          { date: '2024-12-06', value: 20 },
-          { date: '2024-12-07', value: 18 },
-          { date: '2024-12-08', value: 5 },
-          { date: '2024-12-09', value: 10 },
-          { date: '2024-12-10', value: 25 },
-          { date: '2024-12-11', value: 30 },
-          { date: '2024-12-12', value: 22 },
-        ],
-        granularity: 'day',
-        colorScale: 'greens',
-        title: 'Daily Activity Heatmap',
-        showLegend: true,
-      })
-    ),
+// ============================================================================
+// Splash Screens
+// ============================================================================
 
-  story('TimeHeatmap - Color Scales')
+export const splashStories: Story[] = [
+  story('SplashScreen - Basic')
     .category('Molecules')
-    .description('Heatmap with different color scales')
+    .description('Configurable splash screen')
     .controls({
-      colorScale: defaultControls.select('Color Scale', ['greens', 'blues', 'reds', 'heat']),
+      title: defaultControls.text('Title', 'TUIUIU'),
+      subtitle: defaultControls.text('Subtitle', 'Initializing workspace'),
+      loadingType: defaultControls.select('Loading', ['spinner', 'progress', 'dots', 'none'], 'none'),
+      font: defaultControls.select('Font', ['block', 'slant', 'small', 'standard', 'banner', 'mini', 'shadow', 'doom', 'graffiti'], 'block'),
     })
     .render((props) =>
-      TimeHeatmap({
-        data: [
-          { date: '2024-12-01', value: 5 },
-          { date: '2024-12-02', value: 15 },
-          { date: '2024-12-03', value: 8 },
-          { date: '2024-12-04', value: 25 },
-          { date: '2024-12-05', value: 12 },
-          { date: '2024-12-06', value: 30 },
-          { date: '2024-12-07', value: 18 },
-          { date: '2024-12-08', value: 10 },
-          { date: '2024-12-09', value: 20 },
-          { date: '2024-12-10', value: 28 },
-          { date: '2024-12-11', value: 22 },
-          { date: '2024-12-12', value: 15 },
-        ],
-        granularity: 'day',
-        colorScale: props.colorScale as 'greens' | 'blues' | 'reds' | 'heat',
-        title: 'Activity Distribution',
-        showLegend: true,
+      SplashScreen({
+        title: props.title,
+        subtitle: props.subtitle,
+        loadingType: props.loadingType,
+        font: props.font,
+        duration: 0,
       })
     ),
-];
 
-/**
- * Legend stories - Reusable legend component
- */
-export const legendStories: Story[] = [
-  story('Legend - Horizontal Bottom')
+  story('TuiuiuSplash - Preset')
     .category('Molecules')
-    .description('Legend positioned at bottom')
+    .description('Branded splash preset')
     .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 1 },
-        Box(
-          { flexDirection: 'row', height: 5, borderStyle: 'single', borderColor: 'border', padding: 1 },
-          Text({ color: 'mutedForeground' }, 'Chart Area')
-        ),
-        Legend({
-          items: [
-            { label: 'Series 1', color: 'primary' },
-            { label: 'Series 2', color: 'success' },
-            { label: 'Series 3', color: 'warning' },
-          ],
-          position: 'bottom',
-          showSymbols: true,
-        })
-      )
+      TuiuiuSplash({ duration: 0, loadingType: 'none' })
     ),
 
-  story('Legend - Priority Levels')
+  story('ImpactSplashScreen - Preset')
     .category('Molecules')
-    .description('Legend for priority classification')
+    .description('Impact splash with colored art')
     .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 2, padding: 1 },
-        Text({ bold: true, color: 'primary' }, 'Task Priority Levels'),
-        Newline(),
-        Legend({
-          items: [
-            { label: 'Critical', color: 'destructive' },
-            { label: 'High', color: 'warning' },
-            { label: 'Medium', color: 'accent' },
-            { label: 'Low', color: 'success' },
-          ],
-          position: 'bottom',
-          showSymbols: true,
-        })
-      )
+      ImpactSplashScreen({
+        birdArt,
+        subtitle: 'Welcome',
+        showLogo: true,
+        loadingType: 'none',
+        duration: 0,
+      })
     ),
 
-  story('Legend - Status Indicators')
+  story('MinimalSplash - Preset')
     .category('Molecules')
-    .description('Legend for status tracking')
+    .description('Minimal splash variant')
     .render(() =>
-      Box(
-        { flexDirection: 'column', gap: 2, padding: 1 },
-        Text({ bold: true, color: 'accent' }, 'Build Status Legend'),
-        Newline(),
-        Legend({
-          items: [
-            { label: 'Passing', color: 'success' },
-            { label: 'Failing', color: 'destructive' },
-            { label: 'Pending', color: 'warning' },
-            { label: 'Skipped', color: 'mutedForeground' },
-          ],
-          position: 'bottom',
-          showSymbols: true,
-        })
-      )
+      MinimalSplash({
+        title: 'Minimal',
+        loadingType: 'dots',
+        duration: 0,
+      })
+    ),
+
+  story('ProgressSplash - Preset')
+    .category('Molecules')
+    .description('Progress splash variant')
+    .render(() =>
+      ProgressSplash({
+        title: 'Loading',
+        loadingType: 'progress',
+        duration: 0,
+      })
     ),
 ];
 
@@ -2077,28 +1381,19 @@ export const legendStories: Story[] = [
  * All molecule stories
  */
 export const allMoleculeStories: Story[] = [
-  ...utilityStories,
-  ...textInputStories,
-  ...checkboxStories,
-  ...radioStories,
-  ...selectStories,
-  ...progressBarStories,
-  ...alertStories,
-  ...toastStories,
+  ...compositeInputStories,
+  ...selectionStories,
+  ...autocompleteStories,
+  ...tableStories,
   ...tabsStories,
+  ...treeStories,
+  ...calendarStories,
+  ...codeStories,
   ...collapsibleStories,
-  ...accordionStories,
-  ...detailsStories,
-  ...expandableTextStories,
-  ...sparklineStories,
-  ...gaugeStories,
-  ...lineChartStories,
-  ...scatterPlotStories,
-  ...radarChartStories,
-  ...ganttChartStories,
-  ...timeHeatmapStories,
-  ...legendStories,
-  ...mouseStories,
+  ...formStories,
+  ...splitViewStories,
+  ...dataVizStories,
+  ...splashStories,
 ];
 
 export default allMoleculeStories;
