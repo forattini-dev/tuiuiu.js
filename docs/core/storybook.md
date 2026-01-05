@@ -8,6 +8,11 @@ Tuiuiu includes a built-in **Storybook** system for developing, testing, and doc
 - **Playground**: Live-edit component props and see updates in real-time.
 - **Split Views**: Compare different variations side-by-side.
 - **Documentation**: View component props, types, and usage examples.
+- **Coverage Tracking**: A checklist ensures every exported component has stories and controls.
+
+See:
+- `docs/core/component-hierarchy.md`
+- `docs/core/storybook-coverage.md`
 
 ## Getting Started
 
@@ -85,7 +90,7 @@ story('Button')
 ### Features
 | Key | Action |
 |:----|:-------|
-| `F1` | Toggle search mode |
+| `Ctrl+F` | Toggle search mode |
 | `F2` | Cycle through themes |
 | `F12` | Toggle console/debug panel |
 
