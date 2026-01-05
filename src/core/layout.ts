@@ -376,6 +376,9 @@ function layoutColumn(
           layout = layoutNode(info.node, { x: 0, y, width, height });
         }
 
+        // Fix: Update y position for non-flex children (they were pre-calculated with y=0)
+        layout.y = y;
+
         if (alignItems === 'center') {
           layout.x = Math.floor((width - layout.width) / 2);
         } else if (alignItems === 'flex-end') {
