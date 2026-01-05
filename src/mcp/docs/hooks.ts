@@ -106,6 +106,30 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
+    name: 'useLayoutRef',
+    description: 'Measure the computed layout bounds of a Box after render.',
+    signature: 'useLayoutRef(initial?: Partial<LayoutRect>): LayoutRef',
+    params: [
+      { name: 'initial', type: 'Partial<LayoutRect>', required: false, description: 'Initial bounds before first layout' },
+    ],
+    returns: 'LayoutRef with x(), y(), width(), height() accessors',
+    examples: [
+      `const ref = useLayoutRef();\nreturn Box({ layoutRef: ref }, Text({}, String(ref.height())));`,
+    ],
+  },
+  {
+    name: 'createLayoutRef',
+    description: 'Create a layout ref for measurement outside hooks.',
+    signature: 'createLayoutRef(initial?: Partial<LayoutRect>): LayoutRef',
+    params: [
+      { name: 'initial', type: 'Partial<LayoutRect>', required: false, description: 'Initial bounds before first layout' },
+    ],
+    returns: 'LayoutRef with x(), y(), width(), height() accessors',
+    examples: [
+      `const ref = createLayoutRef();\nBox({ layoutRef: ref }, Text({}, String(ref.width())));`,
+    ],
+  },
+  {
     name: 'useModalInput',
     description: 'Convenience hook for modal-like components with higher input priority. Handlers with stopPropagation prevent input from reaching lower-priority handlers.',
     signature: 'useModalInput(handler: InputHandler, options?: Omit<UseInputOptions, "priority">): void',

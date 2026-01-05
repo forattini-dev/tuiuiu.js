@@ -33,6 +33,12 @@ export const apiPatterns: ApiPatternDoc[] = [
       'Fragment',
       'Spacer',
       'Newline',
+      'Screen',
+      'Header',
+      'Main',
+      'Footer',
+      'Sidebar',
+      'Panel',
     ],
     signature: 'Component(props, ...children)',
     correctExamples: [
@@ -58,6 +64,23 @@ VStack({ gap: 1 },
   Text({}, 'Line 2'),
   Text({}, 'Line 3')
 )`,
+      `// Layout primitives with sizing tokens
+Screen({},
+  Header({}, Title('Dashboard'), Spacer(), Caption('v1.0')),
+  Main({}, Content()),       // height: 'fill' (takes remaining space)
+  Footer({}, StatusBar())    // height: 'auto' (sizes to content)
+)`,
+      `// Shorthand helpers (no props needed!)
+import { screen, header, main, footer } from 'tuiuiu.js';
+
+screen(
+  header(Title('App'), Spacer(), Caption('v1.0')),
+  main(Content()),
+  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
+)`,
+      `// Layout primitives ALSO support props.children as fallback
+Screen({ children: Content() })  // Works!
+Main({ children: Form() })       // Works!`,
     ],
     wrongExamples: [
       `// WRONG - using children prop
@@ -363,10 +386,34 @@ export const quickReference = `
 | Pattern | Components | Example |
 |---------|------------|---------|
 | Variadic | Box, Text, VStack, HStack | \`Box({}, child1, child2)\` |
+| Variadic | Screen, Header, Main, Footer, Sidebar, Panel | \`Screen({}, Header(), Main(), Footer())\` |
+| Shorthand | screen, header, main, footer, sidebar | \`screen(header(...), main(...), footer(...))\` |
 | Props | Page, AppShell, Modal | \`Page({ children: content })\` |
 | Data | Tabs, Select, ButtonGroup | \`Tabs({ tabs: [{ content }] })\` |
 | Compound | AutocompleteInput/Suggestions | \`const s = createAutocomplete({}); AutocompleteInput({ state: s })\` |
 | Render | ScrollList, Static, Each | \`ScrollList({ items, children: fn })\` |
+
+## Layout Primitives Default Sizing
+
+| Primitive | Default Sizing |
+|-----------|----------------|
+| Screen | Terminal width/height, column layout |
+| Header | height: 'auto', width: 'fill', row layout |
+| Main | height: 'fill', column layout |
+| Footer | height: 'auto', row layout |
+| Sidebar | height: 'fill', width: 'auto', column layout |
+| Panel | Bordered container with padding |
+
+\`\`\`typescript
+// Shorthand helpers - no props needed!
+import { screen, header, main, footer, Title, Caption, Spacer } from 'tuiuiu.js';
+
+screen(
+  header(Title('App'), Spacer(), Caption('v1.0')),
+  main(Content()),
+  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
+)
+\`\`\`
 
 ## Reactive Data Sources
 
@@ -452,6 +499,19 @@ export const componentPatternMap: Record<string, string> = {
   Fragment: 'variadic',
   Spacer: 'variadic',
   Newline: 'variadic',
+  // Layout Primitives (variadic with props.children fallback)
+  Screen: 'variadic',
+  Header: 'variadic',
+  Main: 'variadic',
+  Footer: 'variadic',
+  Sidebar: 'variadic',
+  Panel: 'variadic',
+  // Shorthand helpers (also variadic)
+  screen: 'variadic',
+  header: 'variadic',
+  main: 'variadic',
+  footer: 'variadic',
+  sidebar: 'variadic',
 
   // Props Children
   Page: 'props',

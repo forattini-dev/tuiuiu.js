@@ -602,6 +602,24 @@ chat.scrollToBottom()`,
     ],
   },
   {
+    name: 'ScrollPanel',
+    category: 'organisms',
+    description: 'Panel container with a titled header and a scrollable body.',
+    props: [
+      { name: 'title', type: 'string', required: false, description: 'Panel title' },
+      { name: 'content', type: 'string[] | VNode[]', required: true, description: 'Scrollable content lines' },
+      { name: 'height', type: "number | 'auto' | 'fill'", required: false, default: "'fill'", description: 'Panel height' },
+      { name: 'width', type: "number | string | 'auto' | 'fill'", required: false, description: 'Panel width' },
+      { name: 'flexGrow', type: 'number', required: false, description: 'Flex grow for layout' },
+      { name: 'borderStyle', type: 'BorderStyle', required: false, default: "'round'", description: 'Border style' },
+      { name: 'borderColor', type: 'ColorValue', required: false, default: "'muted'", description: 'Border color' },
+      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
+    ],
+    examples: [
+      `ScrollPanel({\n  title: 'Live Requests',\n  content: logs(),\n  height: 'fill',\n})`,
+    ],
+  },
+  {
     name: 'Scroll',
     category: 'primitives',
     description: `**Universal scroll wrapper for any VNode content.**

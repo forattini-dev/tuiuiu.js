@@ -13,8 +13,8 @@ export const primitives: ComponentDoc[] = [
       { name: 'flexDirection', type: "'row' | 'column'", required: false, default: "'row'", description: 'Main axis direction' },
       { name: 'justifyContent', type: "'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around'", required: false, default: "'flex-start'", description: 'Alignment along main axis' },
       { name: 'alignItems', type: "'flex-start' | 'center' | 'flex-end' | 'stretch'", required: false, default: "'stretch'", description: 'Alignment along cross axis' },
-      { name: 'width', type: "number | string", required: false, description: 'Width in columns or percentage' },
-      { name: 'height', type: "number | string", required: false, description: 'Height in rows or percentage' },
+      { name: 'width', type: "number | string | 'auto' | 'fill'", required: false, description: 'Width in columns, percentage, or tokens' },
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, description: 'Height in rows, percentage, or tokens' },
       { name: 'padding', type: "number", required: false, default: '0', description: 'Padding on all sides' },
       { name: 'paddingX', type: "number", required: false, description: 'Horizontal padding' },
       { name: 'paddingY', type: "number", required: false, description: 'Vertical padding' },
@@ -25,6 +25,7 @@ export const primitives: ComponentDoc[] = [
       { name: 'borderStyle', type: "'single' | 'double' | 'round' | 'bold' | 'none'", required: false, description: 'Border style' },
       { name: 'borderColor', type: "ColorValue", required: false, description: 'Border color' },
       { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
+      { name: 'layoutRef', type: "LayoutRef", required: false, description: 'Layout measurement reference' },
     ],
     examples: [
       `// ✅ CORRECT - children after props object\nBox({ flexDirection: 'column', padding: 1 },\n  Text({}, 'Hello'),\n  Text({}, 'World')\n)`,
@@ -50,6 +51,60 @@ export const primitives: ComponentDoc[] = [
       `// ✅ CORRECT - strings after props object\nText({ color: 'cyan', bold: true }, 'Hello World')`,
       `// ✅ Multiple strings concatenated\nText({}, 'Count: ', count(), ' items')`,
       `Text({ color: '#ff6b6b', backgroundColor: 'black' }, 'Custom colors')`,
+    ],
+  },
+  {
+    name: 'Title',
+    category: 'primitives',
+    description: 'Typography preset for section titles. Defaults: `color: "primary", bold: true`.',
+    props: [
+      { name: 'text', type: "string | number", required: true, description: 'Title text' },
+      { name: 'props', type: "TextStyle", required: false, description: 'Optional style overrides' },
+    ],
+    examples: [
+      `Title('Dashboard')`,
+      `Title('Stats', { color: 'success' })`,
+      `// With layout primitives\nheader(\n  Title('My App'),\n  Spacer(),\n  Caption('v1.0')\n)`,
+    ],
+  },
+  {
+    name: 'Subtitle',
+    category: 'primitives',
+    description: 'Typography preset for secondary headings. Defaults: `color: "secondary"`.',
+    props: [
+      { name: 'text', type: "string | number", required: true, description: 'Subtitle text' },
+      { name: 'props', type: "TextStyle", required: false, description: 'Optional style overrides' },
+    ],
+    examples: [
+      `Subtitle('Overview')`,
+      `Subtitle('Active', { bold: true, color: 'success' })`,
+    ],
+  },
+  {
+    name: 'Caption',
+    category: 'primitives',
+    description: 'Typography preset for muted helper text. Defaults: `color: "mutedForeground", dim: true`.',
+    props: [
+      { name: 'text', type: "string | number", required: true, description: 'Caption text' },
+      { name: 'props', type: "TextStyle", required: false, description: 'Optional style overrides' },
+    ],
+    examples: [
+      `Caption('Last updated: 5m ago')`,
+      `Caption('Important note', { dim: false, color: 'warning' })`,
+      `// In footer\nfooter(\n  Caption('[Q] Quit'),\n  Spacer(),\n  Caption('Ready')\n)`,
+    ],
+  },
+  {
+    name: 'Label',
+    category: 'primitives',
+    description: 'Typography preset for form labels. Defaults: `color: "foreground"`.',
+    props: [
+      { name: 'text', type: "string | number", required: true, description: 'Label text' },
+      { name: 'props', type: "TextStyle", required: false, description: 'Optional style overrides' },
+    ],
+    examples: [
+      `Label('Username')`,
+      `Label('Required', { color: 'error' })`,
     ],
   },
   {
@@ -135,6 +190,19 @@ export const primitives: ComponentDoc[] = [
     ],
     examples: [
       `Static({\n  items: completedTasks,\n  children: (task, i) => Text({ key: i, color: 'green' }, \`✓ \${task.name}\`)\n})`,
+    ],
+  },
+  {
+    name: 'AppendList',
+    category: 'primitives',
+    description: 'Append-only list helper for log-style output. Optimizes for new items only and falls back to normal rendering if order changes.',
+    props: [
+      { name: 'items', type: "T[]", required: true, description: 'Append-only items to render' },
+      { name: 'children', type: "(item: T, index: number) => VNode", required: true, description: 'Render function for each item' },
+      { name: 'style', type: "BoxStyle", required: false, description: 'Optional container styles for fallback rendering' },
+    ],
+    examples: [
+      `AppendList({\n  items: logs(),\n  children: (line) => Text({}, line)\n})`,
     ],
   },
   {

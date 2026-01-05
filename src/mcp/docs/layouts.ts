@@ -6,6 +6,68 @@ import type { ComponentDoc } from '../types.js';
 
 export const layouts: ComponentDoc[] = [
   {
+    name: 'Screen',
+    category: 'templates',
+    description: 'Top-level terminal container that fills the screen and uses column layout by default.',
+    props: [
+      { name: 'padding', type: "number", required: false, description: 'Padding on all sides' },
+      { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
+      { name: 'width', type: "number | string | 'auto' | 'fill'", required: false, description: 'Override width' },
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, description: 'Override height' },
+    ],
+    examples: [
+      `Screen({},\n  Header({}, Title('Dashboard')),\n  Main({}, Content()),\n  Footer({}, StatusBar())\n)`,
+    ],
+  },
+  {
+    name: 'Main',
+    category: 'templates',
+    description: 'Primary content area that fills remaining space in a Screen layout.',
+    props: [
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, default: "'fill'", description: 'Main area height' },
+    ],
+    examples: [
+      `Main({},\n  Content()\n)`,
+    ],
+  },
+  {
+    name: 'Footer',
+    category: 'templates',
+    description: 'Footer row with auto height by default.',
+    props: [
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, default: "'auto'", description: 'Footer height' },
+    ],
+    examples: [
+      `Footer({},\n  Text({}, 'Ready')\n)`,
+    ],
+  },
+  {
+    name: 'Sidebar',
+    category: 'templates',
+    description: 'Sidebar column with fill height and auto width by default.',
+    props: [
+      { name: 'width', type: "number | string | 'auto' | 'fill'", required: false, default: "'auto'", description: 'Sidebar width' },
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, default: "'fill'", description: 'Sidebar height' },
+    ],
+    examples: [
+      `Box({ flexDirection: 'row', height: 'fill' },\n  Sidebar({ width: 24 }, Nav()),\n  Main({}, Content())\n)`,
+    ],
+  },
+  {
+    name: 'Panel',
+    category: 'templates',
+    description: 'Bordered container with optional title and padding.',
+    props: [
+      { name: 'title', type: "string", required: false, description: 'Panel title' },
+      { name: 'borderStyle', type: "BoxStyle['borderStyle']", required: false, default: "'round'", description: 'Border style' },
+      { name: 'borderColor', type: "ColorValue", required: false, default: "'muted'", description: 'Border color' },
+      { name: 'padding', type: "number", required: false, default: '1', description: 'Inner padding' },
+    ],
+    examples: [
+      `Panel({ title: 'Stats' },\n  Text({}, 'OK')\n)`,
+    ],
+  },
+  {
     name: 'VStack',
     category: 'primitives',
     description: 'Vertical stack layout (shorthand for Box with column direction).',
@@ -111,19 +173,68 @@ export const layouts: ComponentDoc[] = [
   {
     name: 'Header',
     category: 'templates',
-    description: 'Application header bar with title, subtitle, and action areas.',
+    description: 'Application header bar with title, subtitle, and action areas. Supports two modes: **Styled mode** (with title prop) or **Layout mode** (with children). Use lowercase `header()` shorthand for cleaner layout code.',
     props: [
-      { name: 'title', type: "string", required: true, description: 'App title' },
-      { name: 'titleColor', type: "ColorValue", required: false, default: "'white'", description: 'Title color' },
+      { name: 'title', type: "string", required: false, description: 'App title (styled mode)' },
       { name: 'subtitle', type: "string", required: false, description: 'Subtitle/version' },
-      { name: 'leftActions', type: "VNode", required: false, description: 'Left actions/icons' },
-      { name: 'rightActions', type: "VNode", required: false, description: 'Right actions/menu' },
-      { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
+      { name: 'variant', type: "HeaderVariant", required: false, default: "'default'", description: 'Theme variant' },
+      { name: 'color', type: "string", required: false, description: 'Custom background color (auto-contrast text)' },
+      { name: 'leftActions', type: "string | VNode", required: false, description: 'Left actions/icons' },
+      { name: 'rightActions', type: "string | VNode", required: false, description: 'Right actions/menu' },
       { name: 'border', type: "boolean", required: false, default: 'false', description: 'Show bottom border' },
-      { name: 'borderColor', type: "ColorValue", required: false, default: "'border'", description: 'Border color (theme-aware)' },
+      { name: 'height', type: "number | string | 'auto' | 'fill'", required: false, default: "'auto'", description: 'Layout mode height override' },
+      { name: 'width', type: "number | string | 'auto' | 'fill'", required: false, default: "'fill'", description: 'Layout mode width (fills by default)' },
+      { name: 'children', type: "VNode[]", required: false, description: 'Layout mode children (row layout)' },
     ],
     examples: [
-      `Header({\n  title: 'My App',\n  subtitle: 'v1.0.0',\n  rightActions: HStack({ gap: 2 },\n    Text({}, '[H]elp'),\n    Text({}, '[Q]uit'),\n  ),\n  backgroundColor: 'blue'\n})`,
+      `// Styled mode (with title prop)\nHeader({\n  title: 'My App',\n  subtitle: 'v1.0.0',\n  rightActions: HStack({ gap: 2 },\n    Text({}, '[H]elp'),\n    Text({}, '[Q]uit'),\n  ),\n  color: 'blue'\n})`,
+      `// Layout mode (with children)\nHeader({},\n  Title('Dashboard'),\n  Spacer(),\n  Caption('v1.2.0')\n)`,
+      `// Shorthand helper\nheader(\n  Title('Dashboard'),\n  Spacer(),\n  Caption('v1.2.0')\n)`,
+    ],
+  },
+  {
+    name: 'screen',
+    category: 'templates',
+    description: 'Shorthand helper for Screen. Accepts children directly without props object.',
+    props: [],
+    examples: [
+      `screen(\n  header(Title('Dashboard')),\n  main(Content()),\n  footer(StatusText())\n)`,
+    ],
+  },
+  {
+    name: 'header',
+    category: 'templates',
+    description: 'Shorthand helper for Header in layout mode. Row layout with auto height and fill width.',
+    props: [],
+    examples: [
+      `header(\n  Title('My App'),\n  Spacer(),\n  Caption('v1.0')\n)`,
+    ],
+  },
+  {
+    name: 'main',
+    category: 'templates',
+    description: 'Shorthand helper for Main. Column layout that fills remaining height.',
+    props: [],
+    examples: [
+      `main(\n  Content()\n)`,
+    ],
+  },
+  {
+    name: 'footer',
+    category: 'templates',
+    description: 'Shorthand helper for Footer. Row layout with auto height.',
+    props: [],
+    examples: [
+      `footer(\n  Caption('[Q] Quit'),\n  Spacer(),\n  Caption('Ready')\n)`,
+    ],
+  },
+  {
+    name: 'sidebar',
+    category: 'templates',
+    description: 'Shorthand helper for Sidebar. Column layout with fill height and auto width.',
+    props: [],
+    examples: [
+      `sidebar(\n  Navigation()\n)`,
     ],
   },
   {
