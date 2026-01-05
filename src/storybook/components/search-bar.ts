@@ -1,7 +1,7 @@
 /**
  * SearchBar Component
  *
- * Quick search for components. Hidden by default, toggled with F2.
+ * Quick search for components. Hidden by default, toggled with Ctrl+F.
  * Shows results with full path: "Category > Component"
  */
 
