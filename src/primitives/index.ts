@@ -29,6 +29,8 @@ export {
 } from './context.js';
 
 export * from './nodes.js';
+export * from './typography.js';
+export * from './append-list.js';
 export * from './divider.js';
 export * from './store.js';
 export * from './canvas.js';

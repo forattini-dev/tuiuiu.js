@@ -57,11 +57,36 @@ export {
   AppShell,
   StatusBar,
   Header,
+  header,
   Container,
   // Types
   type PageProps,
   type AppShellProps,
   type StatusBarProps,
   type HeaderProps,
+  type LayoutHeaderProps,
   type ContainerProps,
 } from './app.js';
+
+// =============================================================================
+// Layout Primitives
+// =============================================================================
+
+export {
+  // Components
+  Screen,
+  screen,
+  Main,
+  main,
+  Footer,
+  footer,
+  Sidebar,
+  sidebar,
+  Panel,
+  // Types
+  type ScreenProps,
+  type MainProps,
+  type FooterProps,
+  type SidebarProps,
+  type PanelProps,
+} from './layout.js';

@@ -93,7 +93,7 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     // Get children, reversing order if needed
     const orderedChildren = isReverse ? [...node.children].reverse() : node.children;
 
-    const hasExplicitHeight = style.height !== undefined;
+    const hasExplicitHeight = style.height !== undefined && style.height !== 'auto';
 
     if (isRow) {
       childLayouts.push(...layoutRow(orderedChildren, contentWidth, contentHeight, currentGap, style, hasExplicitHeight));
@@ -149,7 +149,7 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
 
   // Check if element should fill available space
   const flexGrow = style.flexGrow ?? 0;
-  const shouldFillWidth = flexGrow > 0;
+  const shouldFillWidth = flexGrow > 0 || style.width === 'fill';
 
   // Final size
   // If flexGrow > 0, use context width (fill available space)
@@ -158,7 +158,7 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
   const width = explicitWidth || (shouldFillWidth ? ctx.width : contentBasedWidth);
   const height = explicitHeight || (totalHeight + paddingTop + paddingBottom + borderSize * 2);
 
-  return {
+  const layout = {
     x: ctx.x + marginLeft,
     y: ctx.y + marginTop,
     width: Math.min(width, ctx.width - marginLeft - marginRight),
@@ -166,6 +166,11 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     node,
     children: childLayouts,
   };
+
+  const layoutRef = style.layoutRef as { __update?: (rect: { x: number; y: number; width: number; height: number }) => void } | undefined;
+  layoutRef?.__update?.({ x: layout.x, y: layout.y, width: layout.width, height: layout.height });
+
+  return layout;
 }
 
 /**
@@ -188,7 +193,10 @@ function layoutRow(
 
   for (const child of children) {
     const style = child.props as BoxStyle;
-    const flex = style.flexGrow ?? (child.type === 'spacer' ? 1 : 0);
+    let flex = style.flexGrow;
+    if (flex === undefined) {
+      flex = style.width === 'fill' ? 1 : (child.type === 'spacer' ? 1 : 0);
+    }
     const minWidth = style.minWidth ?? 0;
     const marginLeft = resolveMarginValue(style.marginLeft ?? style.marginX ?? style.margin);
     const marginRight = resolveMarginValue(style.marginRight ?? style.marginX ?? style.margin);
@@ -271,7 +279,12 @@ function layoutRow(
     const alignSelf = style.alignSelf;
     const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
 
-    if (alignItems === 'center') {
+    if (alignItems === 'stretch') {
+      if (style.height === undefined) {
+        layout.height = Math.max(layout.height, alignHeight);
+      }
+      layout.y = 0;
+    } else if (alignItems === 'center') {
       layout.y = Math.floor((alignHeight - layout.height) / 2);
     } else if (alignItems === 'flex-end') {
       layout.y = alignHeight - layout.height;
@@ -279,7 +292,6 @@ function layoutRow(
       // For baseline, align to top (simplified - true baseline needs font metrics)
       layout.y = 0;
     }
-    // 'stretch' is default - no adjustment needed
 
     results.push(layout);
   }
@@ -298,6 +310,92 @@ function layoutColumn(
   parentStyle: BoxStyle
 ): LayoutNode[] {
   const results: LayoutNode[] = [];
+  const hasExplicitHeight = parentStyle.height !== undefined && parentStyle.height !== 'auto';
+
+  if (hasExplicitHeight) {
+    let fixedHeight = 0;
+    let flexTotal = 0;
+    const childInfos: {
+      node: VNode;
+      flex: number;
+      minHeight: number;
+      maxHeight?: number;
+      marginTop: number;
+      marginBottom: number;
+      layout?: LayoutNode;
+    }[] = [];
+
+    for (const child of children) {
+      const childStyle = child.props as BoxStyle;
+      const marginTop = resolveMarginValue(childStyle.marginTop ?? childStyle.marginY ?? childStyle.margin);
+      const marginBottom = resolveMarginValue(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
+      let flex = childStyle.flexGrow;
+      if (flex === undefined) {
+        flex = childStyle.height === 'fill' ? 1 : (child.type === 'spacer' ? 1 : 0);
+      }
+      const minHeight = childStyle.minHeight ?? 0;
+      const maxHeight = childStyle.maxHeight;
+
+      if (flex > 0) {
+        flexTotal += flex;
+        fixedHeight += marginTop + marginBottom;
+        childInfos.push({ node: child, flex, minHeight, maxHeight, marginTop, marginBottom });
+      } else {
+        const layout = layoutNode(child, { x: 0, y: 0, width, height });
+        fixedHeight += layout.height + marginTop + marginBottom;
+        childInfos.push({ node: child, flex: 0, minHeight, maxHeight, marginTop, marginBottom, layout });
+      }
+    }
+
+    fixedHeight += gap * Math.max(0, children.length - 1);
+
+    if (flexTotal > 0) {
+      const availableHeight = Math.max(0, height - fixedHeight);
+      const flexUnit = availableHeight / flexTotal;
+      let y = 0;
+
+      for (let i = 0; i < childInfos.length; i++) {
+        const info = childInfos[i];
+        const childStyle = info.node.props as BoxStyle;
+        const alignSelf = childStyle.alignSelf;
+        const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
+
+        let layout = info.layout;
+        if (info.flex > 0) {
+          let allocatedHeight = Math.floor(flexUnit * info.flex);
+          allocatedHeight = Math.max(info.minHeight, allocatedHeight);
+          if (info.maxHeight !== undefined) {
+            allocatedHeight = Math.min(info.maxHeight, allocatedHeight);
+          }
+
+          layout = layoutNode(info.node, { x: 0, y, width, height: allocatedHeight });
+          layout.height = allocatedHeight;
+        }
+
+        if (!layout) {
+          layout = layoutNode(info.node, { x: 0, y, width, height });
+        }
+
+        if (alignItems === 'center') {
+          layout.x = Math.floor((width - layout.width) / 2);
+        } else if (alignItems === 'flex-end') {
+          layout.x = width - layout.width;
+        } else if (alignItems === 'stretch') {
+          layout.width = width;
+        }
+
+        results.push(layout);
+
+        y += info.marginTop + layout.height + info.marginBottom;
+        if (i < childInfos.length - 1) {
+          y += gap;
+        }
+      }
+
+      return results;
+    }
+  }
+
   let y = 0;
 
   // First pass: layout all children normally
@@ -381,6 +479,8 @@ function layoutColumn(
  */
 function resolveSize(size: number | string | undefined, available: number): number {
   if (size === undefined) return 0;
+  if (size === 'auto') return 0;
+  if (size === 'fill') return available;
   if (typeof size === 'number') return size;
   if (size.endsWith('%')) {
     return Math.floor((parseFloat(size) / 100) * available);
