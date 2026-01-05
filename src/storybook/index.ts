@@ -99,8 +99,9 @@ export {
   storiesByCategory,
   registerAllStories,
   getStoryCounts,
+  allPrimitiveStories,
   allAtomStories,
   allMoleculeStories,
   allOrganismStories,
-  allAppStories,
+  allTemplateStories,
 } from './stories/index.js';
