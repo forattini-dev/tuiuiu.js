@@ -25,6 +25,53 @@ The basic component for rendering text. Supports colors and text modifiers.
 Text({ color: 'green', bold: true }, 'Success!')
 ```
 
+## Typography Presets
+
+Convenience helpers built on top of `Text` with semantic styling defaults.
+
+```typescript
+import { Title, Subtitle, Caption, Label } from 'tuiuiu.js';
+
+Title('Dashboard');
+Subtitle('Overview');
+Caption('Last updated: 2m ago');
+Label('Username');
+```
+
+### Preset Defaults
+
+| Preset | Default Color | Default Style |
+|:-------|:--------------|:--------------|
+| `Title` | `primary` | `bold: true` |
+| `Subtitle` | `secondary` | - |
+| `Caption` | `mutedForeground` | `dim: true` |
+| `Label` | `foreground` | - |
+
+### Overriding Styles
+
+Each preset accepts optional `TextStyle` overrides as the second parameter:
+
+```typescript
+Title('Errors', { color: 'error' });
+Caption('Important note', { dim: false, color: 'warning' });
+Subtitle('Active', { bold: true, color: 'success' });
+Label('Required', { color: 'error' });
+```
+
+### Usage with Layout Primitives
+
+Typography presets work seamlessly with layout primitives:
+
+```typescript
+import { screen, header, main, footer, Title, Caption, Spacer } from 'tuiuiu.js';
+
+screen(
+  header(Title('My App'), Spacer(), Caption('v1.0.0')),
+  main(Content()),
+  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
+)
+```
+
 ## Markdown
 
 Renders rich Markdown content in the terminal.

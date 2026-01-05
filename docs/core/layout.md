@@ -34,7 +34,7 @@ Every visual element in Tuiuiu is a rectangular box. The layout engine calculate
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `width`, `height` | `number` \| `string` | Fixed dimensions (e.g. `20`, `'50%'`). |
+| `width`, `height` | `number` \| `string` \| `'auto'` \| `'fill'` | Fixed dimensions or sizing tokens (e.g. `20`, `'50%'`). |
 | `minWidth`, `minHeight` | `number` | Minimum dimensions. |
 | `maxWidth`, `maxHeight` | `number` | Maximum dimensions. |
 | `padding` | `number` | Padding on all sides. |
@@ -45,6 +45,51 @@ Every visual element in Tuiuiu is a rectangular box. The layout engine calculate
 | `marginTop`, `marginBottom`, `marginLeft`, `marginRight` | `number` | Individual side margin. |
 | `borderStyle` | `string` | Style of the border (e.g., `'round'`, `'single'`). |
 | `borderColor` | `string` | Color of the border. |
+
+### Auto & Fill Tokens
+
+Tuiuiu adds two terminal-friendly sizing tokens:
+
+| Token | Behavior | Use Case |
+|:------|:---------|:---------|
+| `'auto'` | Size to content | Headers, footers, buttons |
+| `'fill'` | Expand to fill remaining space | Main content, sidebars |
+
+```typescript
+// Fill remaining height in a column
+Box({ flexDirection: 'column', height: 'fill' },
+  Header(),
+  Box({ height: 'fill' }, Content())
+)
+
+// Size to content width/height
+Box({ width: 'auto', height: 'auto' }, Text({}, 'Hello'))
+```
+
+### Layout Primitives
+
+For common terminal layouts, use the **layout primitives** which have sensible sizing defaults:
+
+```typescript
+import { screen, header, main, footer, sidebar } from 'tuiuiu.js';
+
+screen(
+  header(Title('App')),     // height: 'auto', width: 'fill'
+  main(Content()),          // height: 'fill'
+  footer(Status())          // height: 'auto'
+)
+```
+
+| Primitive | Default Sizing |
+|:----------|:---------------|
+| `Screen` | Terminal width/height, column layout |
+| `Header` | `height: 'auto'`, `width: 'fill'`, row layout |
+| `Main` | `height: 'fill'`, column layout |
+| `Footer` | `height: 'auto'`, row layout |
+| `Sidebar` | `height: 'fill'`, `width: 'auto'`, column layout |
+| `Panel` | Bordered container with padding |
+
+See [Layout Components](/components/layout.md) for full documentation.
 
 ## Flexbox System
 

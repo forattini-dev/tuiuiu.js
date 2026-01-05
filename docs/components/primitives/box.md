@@ -83,6 +83,10 @@ Box({ minWidth: 10, maxWidth: 50 }, Text({}, 'Constrained'))
 // Percentage (relative to parent)
 Box({ width: '50%' }, Text({}, 'Half width'))
 
+// Auto and fill tokens
+Box({ width: 'auto' }, Text({}, 'Fit to content'))
+Box({ height: 'fill' }, Content())
+
 // Flex grow
 Box({ flexDirection: 'row' },
   Box({ flexGrow: 1 }, Text({}, 'Grows')),
@@ -122,8 +126,8 @@ Box({
 
 | Prop | Type | Description |
 |:-----|:-----|:------------|
-| `width` | `number \| string` | Box width |
-| `height` | `number \| string` | Box height |
+| `width` | `number \| string \| 'auto' \| 'fill'` | Box width |
+| `height` | `number \| string \| 'auto' \| 'fill'` | Box height |
 | `minWidth` | `number` | Minimum width |
 | `maxWidth` | `number` | Maximum width |
 | `minHeight` | `number` | Minimum height |

@@ -18,9 +18,11 @@ Understanding how to pass children and content to Tuiuiu components is **essenti
 
 ## 1. Variadic Children
 
-**Used by:** `Box`, `Text`, `VStack`, `HStack`, `Center`, `Fragment`
+**Used by:** `Box`, `Text`, `VStack`, `HStack`, `Center`, `Fragment`, `Screen`, `Header`, `Main`, `Footer`, `Sidebar`, `Panel`
 
 Children are passed as **additional arguments** after the props object.
+
+> **Note:** Layout primitives (`Screen`, `Header`, `Main`, `Footer`, `Sidebar`, `Panel`) also support `props.children` as a fallback. Variadic children take priority.
 
 ```typescript
 // ✅ CORRECT - children after props
@@ -62,6 +64,59 @@ Box({ padding: 1 }, [Text({}, 'A'), Text({}, 'B')])
 ```typescript
 function Box(props: BoxProps, ...children: VNode[]): VNode
 function Text(props: TextProps, ...children: string[]): VNode
+```
+
+### Layout Primitives (Screen, Header, Main, Footer, Sidebar, Panel)
+
+Layout primitives use the variadic pattern but also support `props.children` as a fallback for React-like patterns:
+
+```typescript
+// ✅ RECOMMENDED - variadic (cleaner)
+Screen({},
+  Header({}, Title('Dashboard')),
+  Main({}, Content()),
+  Footer({}, StatusBar())
+)
+
+// ✅ ALSO WORKS - props.children
+Screen({ children: Content() })
+Main({ children: Form() })
+Header({ children: Title('App') })
+```
+
+**Shorthand Helpers** - For cleaner code without empty props:
+
+```typescript
+import { screen, header, main, footer, sidebar } from 'tuiuiu.js';
+
+// No props needed!
+screen(
+  header(Title('Dashboard'), Spacer(), Caption('v1.0')),
+  main(Content()),
+  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
+)
+```
+
+| Component | Shorthand | Default Sizing |
+|-----------|-----------|----------------|
+| `Screen(props, ...children)` | `screen(...children)` | Terminal width/height |
+| `Header(props, ...children)` | `header(...children)` | `height: 'auto'`, `width: 'fill'` |
+| `Main(props, ...children)` | `main(...children)` | `height: 'fill'` |
+| `Footer(props, ...children)` | `footer(...children)` | `height: 'auto'` |
+| `Sidebar(props, ...children)` | `sidebar(...children)` | `height: 'fill'`, `width: 'auto'` |
+
+**Sizing Tokens**: Use `'auto'` (content-sized) and `'fill'` (expand) instead of manual calculations:
+
+```typescript
+// ❌ Before: manual math
+Box({ height: termHeight - headerHeight - footerHeight }, Content())
+
+// ✅ After: semantic sizing
+screen(
+  header(Title('App')),     // height: 'auto' (1 line)
+  main(Content()),          // height: 'fill' (remaining space)
+  footer(Status())          // height: 'auto' (1 line)
+)
 ```
 
 ---
@@ -437,6 +492,12 @@ interface ScrollListProps<T> {
 | `Text` | Variadic | `Text({}, 'Hello ', 'World')` |
 | `VStack` | Variadic | `VStack({ gap: 1 }, a, b, c)` |
 | `HStack` | Variadic | `HStack({ gap: 1 }, a, b, c)` |
+| `Screen` | Variadic | `Screen({}, header, main, footer)` or `screen(...)` |
+| `Header` | Variadic | `Header({}, title, spacer)` or `header(...)` |
+| `Main` | Variadic | `Main({}, content)` or `main(...)` |
+| `Footer` | Variadic | `Footer({}, status)` or `footer(...)` |
+| `Sidebar` | Variadic | `Sidebar({}, nav)` or `sidebar(...)` |
+| `Panel` | Variadic | `Panel({ title: 'Info' }, content)` |
 | `Page` | Props | `Page({ children: content })` |
 | `AppShell` | Props | `AppShell({ header, children })` |
 | `Modal` | Props | `Modal({ title, children })` |

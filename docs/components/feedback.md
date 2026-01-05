@@ -330,6 +330,103 @@ function StatusDashboard() {
 }
 ```
 
+## SplashScreen
+
+Animated splash/loading screen with fade-in effects. Use before showing your main layout.
+
+### Creating Splash State
+
+```typescript
+import { createSplashScreen } from 'tuiuiu.js'
+
+const splash = createSplashScreen({
+  duration: 2000,        // Auto-hide after 2s (0 = manual control)
+  fadeInDuration: 300,   // Fade-in animation duration
+  onComplete: () => {},  // Called when splash hides
+})
+
+// State accessors
+splash.isVisible()  // Is splash showing
+splash.progress()   // Fade-in progress (0-1)
+
+// Manual control (when duration: 0)
+splash.hide()
+```
+
+### SplashScreen Component
+
+| Prop | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `state` | `SplashScreenState` | - | State from createSplashScreen |
+| `title` | `string` | - | Title text (uses BigText) |
+| `subtitle` | `string` | - | Subtitle below title |
+| `font` | `BigTextFont` | `'block'` | BigText font style |
+| `color` | `ColorValue` | `'primary'` | Title color |
+| `showLoading` | `boolean` | `true` | Show loading spinner |
+| `loadingStyle` | `SpinnerStyle` | `'dots'` | Spinner animation style |
+
+### Examples
+
+```typescript
+import { render, screen, header, main, footer } from 'tuiuiu.js'
+import { createSplashScreen, SplashScreen, Title } from 'tuiuiu.js'
+
+// Create splash state
+const splash = createSplashScreen({ duration: 2000 })
+
+function App() {
+  // Show splash while visible
+  if (splash.isVisible()) {
+    return SplashScreen({
+      state: splash,
+      title: 'MyApp',
+      subtitle: 'Loading...',
+      font: 'block',
+      showLoading: true,
+    })
+  }
+
+  // Then show main layout
+  return screen(
+    header(Title('MyApp')),
+    main(Content()),
+    footer(Status())
+  )
+}
+
+render(App)
+```
+
+### Built-in Presets
+
+```typescript
+import { TuiuiuSplash, MinimalSplash, ProgressSplash } from 'tuiuiu.js'
+
+// Tuiuiu branded splash
+TuiuiuSplash({ state: splash })
+
+// Minimal centered text
+MinimalSplash({ state: splash, title: 'App', color: 'cyan' })
+
+// With progress bar
+ProgressSplash({
+  state: splash,
+  title: 'Installing',
+  progress: downloadProgress()
+})
+```
+
+### Integration Pattern
+
+The SplashScreen lives **outside** the layout primitives - it's a **transition layer** before your app:
+
+```typescript
+// Pattern: splash ? Splash : Layout
+splash.isVisible()
+  ? SplashScreen({ state: splash, ... })
+  : screen(header(...), main(...), footer(...))
+```
+
 ## Related
 
 - [Button](/components/atoms/button.md) - Interactive buttons

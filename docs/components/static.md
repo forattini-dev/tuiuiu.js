@@ -34,6 +34,34 @@ function App() {
 }
 ```
 
+## AppendList
+
+`AppendList` is a convenience helper for append-only logs. It renders only new items using `Static` and automatically falls back to normal rendering if the list is reordered or items are removed.
+
+```typescript
+import { AppendList, Text } from 'tuiuiu.js';
+
+AppendList({
+  items: logs(),
+  children: (line) => Text({ color: 'mutedForeground' }, line),
+})
+```
+
+### Throttling Guidance
+
+Static output is fast, but terminal writes are still real IO. For high-frequency logs:
+
+- Batch or throttle updates (e.g. push every 200-500ms)
+- Keep lists bounded (e.g. `slice(-200)`)
+- Avoid reordering/removing items when using `AppendList`
+
+```typescript
+useInterval(() => {
+  setLogs(prev => [...prev, ...buffer()].slice(-200));
+  clearBuffer();
+}, 250);
+```
+
 ## API Reference
 
 ### `Static<T>(props: StaticProps<T>): VNode`

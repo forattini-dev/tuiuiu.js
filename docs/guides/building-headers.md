@@ -9,6 +9,73 @@ Headers are the first thing users see. A well-designed header communicates:
 - **Current context** (file, page, mode)
 - **Status information** (connection, metrics, time)
 
+## The Header Component
+
+Tuiuiu provides a built-in `Header` component with **two modes**:
+
+### Styled Mode (with `title` prop)
+
+Pre-styled header with theme variants:
+
+```typescript
+import { Header } from 'tuiuiu.js';
+
+Header({
+  title: 'My App',
+  subtitle: 'v1.0.0',
+  variant: 'primary',  // 'default' | 'primary' | 'success' | 'warning' | 'danger'
+  rightActions: Text({}, '[H]elp  [Q]uit'),
+})
+```
+
+### Layout Mode (with children)
+
+Flexible layout for custom content:
+
+```typescript
+import { Header, header, Title, Caption, Spacer } from 'tuiuiu.js';
+
+// With empty props
+Header({},
+  Title('Dashboard'),
+  Spacer(),
+  Caption('v1.0.0')
+)
+
+// Shorthand helper (no props needed!)
+header(
+  Title('Dashboard'),
+  Spacer(),
+  Caption('v1.0.0')
+)
+```
+
+**Defaults for Layout Mode:**
+- `height: 'auto'` - Sizes to content
+- `width: 'fill'` - Fills container width
+- `flexDirection: 'row'` - Horizontal layout
+- `alignItems: 'center'` - Vertically centered
+
+### Full-Screen Layout with Header
+
+```typescript
+import { screen, header, main, footer, Title, Caption, Spacer } from 'tuiuiu.js';
+
+screen(
+  header(
+    Title('My App'),
+    Spacer(),
+    Caption('v1.0')
+  ),
+  main(Content()),
+  footer(
+    Caption('[Q] Quit'),
+    Spacer(),
+    Caption('Ready')
+  )
+)
+```
+
 ## Basic Header
 
 The simplest header uses a `Box` with horizontal layout:

@@ -41,6 +41,107 @@ import { Center } from 'tuiuiu.js';
 Center({ width: 40, height: 10, children: Spinner() })
 ```
 
+## Sizing Tokens
+
+Tuiuiu provides two special sizing tokens for `width` and `height` props:
+
+| Token | Behavior | Use Case |
+|:------|:---------|:---------|
+| `'auto'` | Size to content | Headers, footers, buttons |
+| `'fill'` | Expand to fill remaining space | Main content, sidebars |
+
+```typescript
+// 'auto' - sizes to content
+Header({ height: 'auto' }, Title('App'))  // Height = 1 line
+
+// 'fill' - expands to fill remaining space
+Main({ height: 'fill' }, Content())  // Takes all remaining height
+```
+
+These tokens eliminate manual height calculations:
+
+```typescript
+// ❌ Before: manual math
+Box({ height: termHeight - headerHeight - footerHeight }, Content())
+
+// ✅ After: semantic sizing
+screen(
+  header(Title('App')),     // height: 'auto' (1 line)
+  main(Content()),          // height: 'fill' (remaining space)
+  footer(Status())          // height: 'auto' (1 line)
+)
+```
+
+## Terminal Layout Primitives
+
+High-level helpers for full-screen terminal layouts. These components default to sensible sizing and let you use `'fill'`/`'auto'` tokens instead of manual height math.
+
+### Screen / Header / Main / Footer
+
+```typescript
+import { Box, Screen, Header, Main, Footer, Sidebar, Panel, Title, Caption, Spacer, Text } from 'tuiuiu.js';
+
+Screen({},
+  Header({ backgroundColor: 'muted', width: 'fill', paddingX: 1 },
+    Title('System Dashboard', { color: 'foreground' }),
+    Spacer(),
+    Caption('v2.1.0')
+  ),
+  Main({ gap: 1, padding: 1 },
+    Box({ flexDirection: 'row', gap: 1, height: 'fill' },
+      Sidebar({ width: 24 }, Nav()),
+      Panel({ title: 'Overview', flexGrow: 1 }, Stats())
+    )
+  ),
+  Footer({ backgroundColor: 'muted', width: 'fill', paddingX: 1 },
+    Text({ color: 'mutedForeground' }, '[Q] Quit'),
+    Spacer(),
+    Text({ color: 'mutedForeground' }, 'Ready')
+  )
+)
+```
+
+### `Panel` + `Sidebar`
+
+```typescript
+import { Box, Sidebar, Panel } from 'tuiuiu.js';
+
+Box({ flexDirection: 'row', height: 'fill' },
+  Sidebar({ width: 22 }, Nav()),
+  Panel({ title: 'Details', flexGrow: 1 }, Details())
+)
+```
+
+### Shorthand Helpers
+
+For cleaner code when you don't need custom props, use the lowercase shorthand helpers:
+
+```typescript
+import { screen, header, main, footer, sidebar } from 'tuiuiu.js';
+
+// Clean syntax without empty props
+screen(
+  header(Title('Dashboard'), Spacer(), Caption('v1.0')),
+  main(Content()),
+  footer(Text({}, '[Q] Quit'), Spacer(), Text({}, 'Ready'))
+)
+
+// Equivalent to:
+Screen({},
+  Header({}, Title('Dashboard'), Spacer(), Caption('v1.0')),
+  Main({}, Content()),
+  Footer({}, Text({}, '[Q] Quit'), Spacer(), Text({}, 'Ready'))
+)
+```
+
+| Component | Shorthand | Default Props |
+|:----------|:----------|:--------------|
+| `Screen(props, ...children)` | `screen(...children)` | Terminal width/height, column layout |
+| `Header(props, ...children)` | `header(...children)` | Row layout, auto height, fill width |
+| `Main(props, ...children)` | `main(...children)` | Fill height, column layout |
+| `Footer(props, ...children)` | `footer(...children)` | Auto height, row layout |
+| `Sidebar(props, ...children)` | `sidebar(...children)` | Auto width, fill height |
+
 ## Grid
 
 CSS Grid-like layout system.
