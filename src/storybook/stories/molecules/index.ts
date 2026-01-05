@@ -74,7 +74,7 @@ import {
   GanttChart,
   TimeHeatmap,
 } from '../../../molecules/index.js';
-import type { AutocompleteItem, TreeNode, DirectoryNode } from '../../../molecules/index.js';
+import type { AutocompleteItem, TreeNode, DirectoryNode, GanttTask } from '../../../molecules/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 
@@ -245,7 +245,7 @@ const correlationMatrix = [
   [-0.2, 0.1, 1],
 ];
 
-const ganttTasks = [
+const ganttTasks: GanttTask[] = [
   { id: '1', name: 'Design', startDate: '2024-01-01', endDate: '2024-01-12', progress: 100, status: 'complete' },
   { id: '2', name: 'Build', startDate: '2024-01-13', endDate: '2024-01-28', progress: 70, status: 'in-progress' },
   { id: '3', name: 'QA', startDate: '2024-01-29', endDate: '2024-02-05', progress: 20, status: 'pending' },
@@ -683,7 +683,7 @@ export const tabsStories: Story[] = [
         active: props.active,
         padding: props.padding,
         children: Text({ color: 'mutedForeground' }, 'Tab content panel'),
-      })
+      }) ?? Box({})
     ),
 
   story('VerticalTabs - Basic')
@@ -1090,7 +1090,9 @@ export const dataVizStories: Story[] = [
     .description('Area chart with filled series')
     .render(() =>
       AreaChart({
-        series: lineSeries,
+        data: lineSeries[0]?.data ?? [],
+        name: lineSeries[0]?.name,
+        color: lineSeries[0]?.color,
         width: 50,
         height: 8,
         title: 'Weekly Signups',
@@ -1331,14 +1333,14 @@ export const splashStories: Story[] = [
         loadingType: props.loadingType,
         font: props.font,
         duration: 0,
-      })
+      }) ?? Box({})
     ),
 
   story('TuiuiuSplash - Preset')
     .category('Molecules')
     .description('Branded splash preset')
     .render(() =>
-      TuiuiuSplash({ duration: 0, loadingType: 'none' })
+      TuiuiuSplash({ duration: 0, loadingType: 'none' }) ?? Box({})
     ),
 
   story('ImpactSplashScreen - Preset')
@@ -1351,7 +1353,7 @@ export const splashStories: Story[] = [
         showLogo: true,
         loadingType: 'none',
         duration: 0,
-      })
+      }) ?? Box({})
     ),
 
   story('MinimalSplash - Preset')
@@ -1362,7 +1364,7 @@ export const splashStories: Story[] = [
         title: 'Minimal',
         loadingType: 'dots',
         duration: 0,
-      })
+      }) ?? Box({})
     ),
 
   story('ProgressSplash - Preset')
@@ -1373,7 +1375,7 @@ export const splashStories: Story[] = [
         title: 'Loading',
         loadingType: 'progress',
         duration: 0,
-      })
+      }) ?? Box({})
     ),
 ];
 
