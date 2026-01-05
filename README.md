@@ -367,22 +367,6 @@ pnpm tsx examples/app-chat.ts      # Chat application
 | Storybook | [→ Component Explorer](https://forattini-dev.github.io/tuiuiu.js/#/core/storybook) |
 | MCP Server | [→ AI Integration](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp) |
 
-## Numbers
-
-| Metric | Value |
-|:-------|:------|
-| Components | 50+ |
-| Dependencies | 0 |
-| Subpath Imports | 12 |
-| Hooks | 15 |
-| MCP Tools | 10 |
-| Examples | 20+ |
-| Border Styles | 10 |
-| Named Colors | 18 |
-| Tests | 5300+ |
-| Tree Shakeable | ✅ |
-| MCP Ready | ✅ |
-
 ## Why "Tuiuiu"?
 
 The [Tuiuiu](https://en.wikipedia.org/wiki/Jabiru) (Jabiru mycteria) is a majestic Brazilian bird — the tallest flying bird in South America. Just like this bird stands out in its environment, Tuiuiu stands out in the terminal UI landscape: elegant, powerful, and distinctly Brazilian.
