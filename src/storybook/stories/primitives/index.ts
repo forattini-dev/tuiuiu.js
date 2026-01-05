@@ -220,9 +220,9 @@ export const textStories: Story[] = [
       return Box(
         { flexDirection: 'column', gap: 1 },
         Text({ color: theme.accents.info }, 'Primary accent'),
-        Text({ color: theme.accents.success }, 'Success accent'),
+        Text({ color: theme.accents.positive }, 'Success accent'),
         Text({ color: theme.accents.warning }, 'Warning accent'),
-        Text({ color: theme.accents.error }, 'Error accent')
+        Text({ color: theme.accents.critical }, 'Error accent')
       );
     }),
 ];
@@ -286,7 +286,7 @@ export const dividerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2, height: props.height },
         Text({}, 'Left'),
-        Divider({ direction: 'vertical', color: props.color, height: props.height }),
+        Divider({ direction: 'vertical', color: props.color, width: props.height }),
         Text({}, 'Right')
       )
     ),
