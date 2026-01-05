@@ -45,7 +45,7 @@ import {
   FileIcon,
   DirectoryIndicator,
 } from '../../../organisms/index.js';
-import type { CommandItem, FileItem } from '../../../organisms/index.js';
+import type { CommandItem, FileItem, VirtualListItem } from '../../../organisms/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 
@@ -61,9 +61,9 @@ const commandItems: CommandItem[] = [
 
 const scrollLines = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} - scrolling content`);
 
-const virtualItems = Array.from({ length: 60 }, (_, i) => ({
-  id: `item-${i + 1}`,
-  label: `Virtual item ${i + 1}`,
+const virtualItems: VirtualListItem<{ label: string }>[] = Array.from({ length: 60 }, (_, i) => ({
+  key: `item-${i + 1}`,
+  data: { label: `Virtual item ${i + 1}` },
 }));
 
 const listItems = Array.from({ length: 30 }, (_, i) => ({
@@ -148,7 +148,7 @@ const demoFileTree: FileItem[] = [
   },
 ];
 
-const demoFileList = [
+const demoFileList: FileItem[] = [
   {
     name: 'index.ts',
     path: '/demo/src/index.ts',
@@ -178,7 +178,7 @@ const demoFileList = [
   },
 ];
 
-const demoFile = {
+const demoFile: FileItem = {
   name: 'index.ts',
   path: '/demo/src/index.ts',
   type: 'file',
@@ -582,7 +582,7 @@ export const scrollAreaStories: Story[] = [
         width: props.width,
         showScrollbar: props.showScrollbar,
         renderItem: (item, _index, selected) =>
-          Text({ color: selected ? 'primary' : 'foreground' }, item.label),
+          Text({ color: selected ? 'primary' : 'foreground' }, item.data.label),
       })
     ),
 
