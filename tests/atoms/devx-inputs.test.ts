@@ -18,7 +18,7 @@ import {
   type SearchInputState,
   type PasswordInputState,
   type NumberInputState,
-} from '../../src/atoms/devx-inputs.js';
+} from '../../src/molecules/devx-inputs.js';
 
 // =============================================================================
 // SearchInput Tests
