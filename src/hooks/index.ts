@@ -106,6 +106,9 @@ export type {
 // Terminal hook
 export { useTerminalSize, type TerminalSize } from './use-terminal-size.js';
 
+// Layout measurement hook
+export { createLayoutRef, useLayoutRef } from './use-layout-ref.js';
+
 // Hotkeys
 export {
   useHotkeys,

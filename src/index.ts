@@ -93,6 +93,8 @@ export {
   useFocusManager,
   parseKeypress,
   useTerminalSize,
+  createLayoutRef,
+  useLayoutRef,
   useMouse,
   // Hotkeys
   useHotkeys,
@@ -171,6 +173,11 @@ export {
   Static,
   Divider,
   Slot,
+  AppendList,
+  Title,
+  Subtitle,
+  Caption,
+  Label,
   // SplitBox
   SplitBox,
   // Canvas
@@ -207,6 +214,7 @@ export {
 export type {
   TransformProps,
   StaticProps,
+  AppendListProps,
   DividerProps,
   // Scroll types
   ScrollProps,
@@ -232,6 +240,8 @@ export type {
   ReckNode,
   BoxStyle as BoxProps,
   TextStyle as TextProps,
+  LayoutRect,
+  LayoutRef,
 } from './utils/types.js';
 
 // Spacer/Newline props
