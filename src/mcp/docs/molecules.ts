@@ -302,6 +302,101 @@ export const molecules: ComponentDoc[] = [
   },
 
   // =============================================================================
+  // Composite Inputs
+  // =============================================================================
+  {
+    name: 'SearchInput',
+    category: 'molecules',
+    description: 'Text input with search icon and clear button. Use createSearchInput() for state management.',
+    props: [
+      { name: 'state', type: 'SearchInputState', required: false, description: 'State from createSearchInput()' },
+      { name: 'value', type: 'string', required: false, description: 'Initial value (standalone mode)' },
+      { name: 'placeholder', type: 'string', required: false, default: "'Search...'", description: 'Placeholder text' },
+      { name: 'onChange', type: '(value: string) => void', required: false, description: 'Change handler' },
+      { name: 'onSubmit', type: '(value: string) => void', required: false, description: 'Enter key handler' },
+      { name: 'onClear', type: '() => void', required: false, description: 'Clear button handler' },
+      { name: 'isActive', type: 'boolean | (() => boolean)', required: false, default: 'true', description: 'Is input focused' },
+      { name: 'showSearchIcon', type: 'boolean', required: false, default: 'true', description: 'Show search icon' },
+      { name: 'showClearButton', type: 'boolean', required: false, default: 'true', description: 'Show clear button when value' },
+      { name: 'width', type: 'number', required: false, description: 'Input width' },
+      { name: 'borderStyle', type: "'none' | 'single' | 'round' | 'double'", required: false, default: "'round'", description: 'Border style' },
+    ],
+    examples: [
+      `// With state manager\nconst search = createSearchInput({\n  onSubmit: (query) => handleSearch(query),\n  onClear: () => clearResults(),\n});\nSearchInput({ state: search })`,
+      `// Standalone\nSearchInput({\n  placeholder: 'Search files...',\n  onSubmit: (query) => searchFiles(query),\n})`,
+    ],
+    relatedComponents: ['TextInput', 'PasswordInput'],
+  },
+  {
+    name: 'PasswordInput',
+    category: 'molecules',
+    description: 'Password input with visibility toggle. Use createPasswordInput() for state management.',
+    props: [
+      { name: 'state', type: 'PasswordInputState', required: false, description: 'State from createPasswordInput()' },
+      { name: 'value', type: 'string', required: false, description: 'Initial value (standalone mode)' },
+      { name: 'placeholder', type: 'string', required: false, default: "'Password'", description: 'Placeholder text' },
+      { name: 'onChange', type: '(value: string) => void', required: false, description: 'Change handler' },
+      { name: 'onSubmit', type: '(value: string) => void', required: false, description: 'Enter key handler' },
+      { name: 'isActive', type: 'boolean | (() => boolean)', required: false, default: 'true', description: 'Is input focused' },
+      { name: 'showToggle', type: 'boolean', required: false, default: 'true', description: 'Show visibility toggle' },
+      { name: 'width', type: 'number', required: false, description: 'Input width' },
+      { name: 'borderStyle', type: "'none' | 'single' | 'round' | 'double'", required: false, default: "'round'", description: 'Border style' },
+    ],
+    examples: [
+      `const password = createPasswordInput({\n  onSubmit: (value) => login(value),\n});\nPasswordInput({ state: password })`,
+      `// Toggle visibility programmatically\npassword.toggleVisibility();`,
+    ],
+    relatedComponents: ['TextInput', 'SearchInput'],
+  },
+  {
+    name: 'NumberInput',
+    category: 'molecules',
+    description: 'Numeric input with increment/decrement buttons. Supports keyboard arrows.',
+    props: [
+      { name: 'state', type: 'NumberInputState', required: false, description: 'State from createNumberInput()' },
+      { name: 'value', type: 'number', required: false, description: 'Initial value (standalone mode)' },
+      { name: 'min', type: 'number', required: false, description: 'Minimum value' },
+      { name: 'max', type: 'number', required: false, description: 'Maximum value' },
+      { name: 'step', type: 'number', required: false, default: '1', description: 'Increment/decrement step' },
+      { name: 'onChange', type: '(value: number) => void', required: false, description: 'Change handler' },
+      { name: 'isActive', type: 'boolean | (() => boolean)', required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'showButtons', type: 'boolean', required: false, default: 'true', description: 'Show +/- buttons' },
+      { name: 'buttonPosition', type: "'sides' | 'right'", required: false, default: "'sides'", description: 'Button layout' },
+      { name: 'width', type: 'number', required: false, default: '10', description: 'Input width' },
+      { name: 'borderStyle', type: "'none' | 'single' | 'round' | 'double'", required: false, default: "'round'", description: 'Border style' },
+    ],
+    examples: [
+      `const quantity = createNumberInput({\n  initialValue: 1,\n  min: 0,\n  max: 100,\n  step: 1,\n});\nNumberInput({ state: quantity })`,
+      `// Programmatic control\nquantity.increment();\nquantity.setValue(50);`,
+    ],
+    relatedComponents: ['Slider', 'RangeSlider'],
+  },
+  {
+    name: 'ConfirmButton',
+    category: 'molecules',
+    description: 'Two-click safety button for destructive actions. First click shows confirmation, second click executes.',
+    props: [
+      { name: 'state', type: 'ConfirmButtonState', required: false, description: 'State from createConfirmButton()' },
+      { name: 'label', type: 'string', required: true, description: 'Button label' },
+      { name: 'confirmLabel', type: 'string', required: false, default: "'Are you sure?'", description: 'Label during confirmation' },
+      { name: 'variant', type: 'ButtonVariant', required: false, default: "'ghost'", description: 'Initial variant' },
+      { name: 'confirmVariant', type: 'ButtonVariant', required: false, default: "'solid'", description: 'Variant during confirmation' },
+      { name: 'size', type: 'ButtonSize', required: false, description: 'Button size' },
+      { name: 'onConfirm', type: '() => void', required: false, description: 'Called when confirmed' },
+      { name: 'onCancel', type: '() => void', required: false, description: 'Called when cancelled/timeout' },
+      { name: 'timeout', type: 'number', required: false, default: '3000', description: 'Confirmation timeout (ms)' },
+      { name: 'showCountdown', type: 'boolean', required: false, default: 'true', description: 'Show remaining time' },
+      { name: 'disabled', type: 'boolean', required: false, default: 'false', description: 'Disable button' },
+      { name: 'focused', type: 'boolean', required: false, default: 'false', description: 'Focus state' },
+    ],
+    examples: [
+      `ConfirmButton({\n  label: 'Delete',\n  confirmLabel: 'Click again to delete',\n  onConfirm: () => deleteItem(),\n})`,
+      `// With state for programmatic control\nconst btn = createConfirmButton({ onConfirm: handleDelete });\nConfirmButton({ state: btn, label: 'Delete' });\n// Cancel with Escape: btn.cancel();`,
+    ],
+    relatedComponents: ['Button', 'Modal'],
+  },
+
+  // =============================================================================
   // Table Components
   // =============================================================================
   {
