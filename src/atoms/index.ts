@@ -157,38 +157,6 @@ export {
 } from './badge.js';
 
 // =============================================================================
-// DevX Composite Inputs
-// =============================================================================
-export {
-  SearchInput,
-  createSearchInput,
-  PasswordInput,
-  createPasswordInput,
-  NumberInput,
-  createNumberInput,
-  type SearchInputOptions,
-  type SearchInputState,
-  type SearchInputProps,
-  type PasswordInputOptions,
-  type PasswordInputState,
-  type PasswordInputProps,
-  type NumberInputOptions,
-  type NumberInputState,
-  type NumberInputProps,
-} from './devx-inputs.js';
-
-// =============================================================================
-// ConfirmButton - Two-click safety button
-// =============================================================================
-export {
-  ConfirmButton,
-  createConfirmButton,
-  type ConfirmButtonOptions,
-  type ConfirmButtonState,
-  type ConfirmButtonProps,
-} from './confirm-button.js';
-
-// =============================================================================
 // StatusIndicator - Semantic status display
 // =============================================================================
 export {
@@ -310,4 +278,3 @@ export {
   type Sprite,
   type GradientStop,
 } from './picture.js';
-
