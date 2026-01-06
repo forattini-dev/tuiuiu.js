@@ -1,80 +1,93 @@
-# Tuiuiu Storybook - Component Showcase (Hero)
-# A curated tour of the most visually impressive components
+# Tuiuiu Storybook - Component Explorer (Hero)
+# Navigate through categories, preview components, explore the design system
 
 Output docs/recordings/examples/demo-hero.gif
 
 Set Shell bash
-Set FontSize 16
-Set Width 1920
-Set Height 1080
-Set Padding 30
-Set PlaybackSpeed 1.2
+Set FontSize 14
+Set Width 1400
+Set Height 900
+Set Padding 20
+Set PlaybackSpeed 1.0
 Set TypingSpeed 0.003s
 
 # Run storybook
 Type "pnpm storybook"
 Enter
 
-# Let it initialize
+# Wait for splash screen to complete (1.5s duration + fade + buffer)
+Sleep 3s
+
+# === Navigate to Atoms category ===
+Down
+Sleep 300ms
+Down
+Sleep 300ms
+Enter
+Sleep 500ms
+
+# Browse Spinner stories
+Down
+Sleep 200ms
+Down
+Sleep 200ms
+Enter
 Sleep 1.5s
 
-# === SHOWCASE: Curated Component Tour ===
+# Back to menu
+Escape
+Sleep 300ms
 
-# Navigate to Atoms
+# === Navigate to Molecules category ===
 Down
 Sleep 200ms
 Enter
-Sleep 400ms
+Sleep 500ms
 
-# Go to Spinner - animated visual
+# Browse Select component
 Down
-Sleep 150ms
+Sleep 200ms
 Down
-Sleep 150ms
+Sleep 200ms
+Down
+Sleep 200ms
 Enter
-Sleep 1.2s
+Sleep 1.5s
 
-# Appreciate the animation
-# (Spinners animate automatically)
-
-# Go back
+# Back to menu
 Escape
 Sleep 300ms
 
-# Navigate to Organisms - the heavy hitters
+# === Navigate to Data Viz ===
 Down
-Sleep 150ms
+Sleep 200ms
 Down
-Sleep 150ms
-Down
-Sleep 150ms
+Sleep 200ms
 Enter
-Sleep 400ms
+Sleep 500ms
 
-# Select Charts/DataViz
+# Browse BarChart
 Down
-Sleep 150ms
+Sleep 200ms
 Enter
-Sleep 1.2s
+Sleep 1.5s
 
-# Appreciate the charts
-
-# Go back
+# Back to menu
 Escape
 Sleep 300ms
 
-# Quick look at Apps category
+# === Navigate to Waveform ===
 Down
-Sleep 150ms
-Enter
-Sleep 400ms
-
-# Select first app template
+Sleep 200ms
 Down
-Sleep 150ms
+Sleep 200ms
+Down
+Sleep 200ms
+Down
+Sleep 200ms
 Enter
-Sleep 1s
+Sleep 1.5s
 
 # Exit
-Ctrl+C
-Sleep 200ms
+Type "q"
+Sleep 300ms

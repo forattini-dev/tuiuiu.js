@@ -1,77 +1,93 @@
-# Tuiuiu Storybook - Developer Playground
-# The component explorer experience: navigate, preview, discover
+# Tuiuiu Storybook - Component Explorer
+# Navigate through categories, preview components, explore the design system
 
 Output docs/recordings/examples/demo-storybook.gif
 
 Set Shell bash
-Set FontSize 16
-Set Width 1920
-Set Height 1080
-Set Padding 30
-Set PlaybackSpeed 1.2
+Set FontSize 14
+Set Width 1400
+Set Height 900
+Set Padding 20
+Set PlaybackSpeed 1.0
 Set TypingSpeed 0.003s
 
 # Run storybook
 Type "pnpm storybook"
 Enter
 
-# Wait for splash screen to complete (1.5s duration + 0.3s fade + buffer)
-Sleep 2.5s
+# Wait for splash screen to complete (1.5s duration + fade + buffer)
+Sleep 3s
 
-# === SHOWCASE: Developer Playground ===
-
-# Explore the menu smoothly
+# === Navigate to Atoms category ===
 Down
-Sleep 150ms
+Sleep 300ms
 Down
-Sleep 150ms
-Down
-Sleep 150ms
+Sleep 300ms
 Enter
 Sleep 500ms
 
-# Browse components in category
+# Browse Spinner stories
 Down
-Sleep 150ms
+Sleep 200ms
 Down
-Sleep 150ms
+Sleep 200ms
 Enter
-Sleep 800ms
+Sleep 1.5s
 
-# Instant preview - that's the magic!
-# The component renders immediately
-
-# Back to explore more
+# Back to menu
 Escape
-Sleep 250ms
+Sleep 300ms
 
-# Navigate to another category
+# === Navigate to Molecules category ===
 Down
-Sleep 150ms
+Sleep 200ms
 Enter
 Sleep 500ms
 
-# Deep dive into a component
+# Browse Select component
 Down
-Sleep 150ms
+Sleep 200ms
+Down
+Sleep 200ms
+Down
+Sleep 200ms
 Enter
-Sleep 800ms
+Sleep 1.5s
 
-# Show the preview renders instantly
-Sleep 400ms
-
-# Back one more time
+# Back to menu
 Escape
-Sleep 250ms
+Sleep 300ms
 
-# One more quick peek
+# === Navigate to Data Viz ===
 Down
-Sleep 150ms
+Sleep 200ms
 Down
-Sleep 150ms
+Sleep 200ms
 Enter
-Sleep 600ms
+Sleep 500ms
+
+# Browse BarChart
+Down
+Sleep 200ms
+Enter
+Sleep 1.5s
+
+# Back to menu
+Escape
+Sleep 300ms
+
+# === Navigate to Waveform ===
+Down
+Sleep 200ms
+Down
+Sleep 200ms
+Down
+Sleep 200ms
+Down
+Sleep 200ms
+Enter
+Sleep 1.5s
 
 # Exit
-Ctrl+C
-Sleep 200ms
+Type "q"
+Sleep 300ms
