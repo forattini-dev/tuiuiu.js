@@ -176,6 +176,21 @@ export type {
   PointAnnotation,
 } from './annotations.js';
 
+// Waveform (Audio Visualization)
+export {
+  Waveform,
+  WaveformBuffer,
+  createWaveformBuffer,
+  generateWaveformData,
+  generateSpectrumData,
+} from './waveform.js';
+
+export type {
+  WaveformStyle,
+  WaveformOptions,
+  WaveformBufferOptions,
+} from './waveform.js';
+
 // Interactive Hooks
 export {
   useChartSelection,
