@@ -517,6 +517,12 @@ export {
   CalendarHeatmap,
   CorrelationMatrix,
   COLOR_SCALES,
+  // Waveform (Audio Visualization)
+  Waveform,
+  WaveformBuffer,
+  createWaveformBuffer,
+  generateWaveformData,
+  generateSpectrumData,
 } from './molecules/data-viz/index.js';
 
 export type {
@@ -554,6 +560,10 @@ export type {
   ContributionGraphOptions,
   CalendarHeatmapOptions,
   CorrelationMatrixOptions,
+  // Waveform
+  WaveformStyle,
+  WaveformOptions,
+  WaveformBufferOptions,
 } from './molecules/data-viz/index.js';
 
 // =============================================================================
