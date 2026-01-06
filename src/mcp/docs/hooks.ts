@@ -308,4 +308,19 @@ export const hooks: HookDoc[] = [
       `// Built-in validators\nconst validate = createFormValidator({\n  email: [required(), email()],\n  password: [required(), minLength(8)],\n  confirmPassword: [required(), matchField('password', 'Passwords must match')],\n});`,
     ],
   },
+  {
+    name: 'useThresholdColor',
+    description: 'Reactive color resolution based on numeric thresholds.',
+    signature: 'useThresholdColor(value: number | (() => number), thresholds: ExtendedThresholdConfig, defaultColor?: string): () => string',
+    params: [
+      { name: 'value', type: 'number | (() => number)', required: true, description: 'Value or reactive getter' },
+      { name: 'thresholds', type: 'ExtendedThresholdConfig', required: true, description: 'Threshold ranges by semantic or custom color keys' },
+      { name: 'defaultColor', type: 'string', required: false, default: "'foreground'", description: 'Fallback color when no range matches' },
+    ],
+    returns: 'Signal that returns the resolved color string. Helper functions: getThresholdColor() and getThresholdColorName().',
+    examples: [
+      `const latencyColor = useThresholdColor(latency, {\n  success: [0, 100],\n  warning: [100, 500],\n  error: [500, Infinity],\n});\n\nText({ color: latencyColor() }, 'Latency: ' + latency() + 'ms')`,
+      `// Custom ranges\nconst scoreColor = useThresholdColor(score, {\n  red: [0, 40],\n  yellow: [40, 70],\n  green: [70, 100],\n});`,
+    ],
+  },
 ];

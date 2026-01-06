@@ -426,22 +426,30 @@ DataTable({
   {
     name: 'DirectoryTree',
     category: 'organisms',
-    description: 'Tree view of directory structure with expandable nodes.',
+    description: 'File browser tree view built from FileItem data (pairs with FileBrowser).',
     props: [
-      { name: 'root', type: 'string', required: true, description: 'Root directory path' },
+      { name: 'items', type: 'FileItem[]', required: true, description: 'Tree items (files/directories with children)' },
+      { name: 'selected', type: 'string', required: false, description: 'Selected item path' },
       { name: 'expanded', type: 'Set<string>', required: false, description: 'Expanded directories' },
-      { name: 'selected', type: 'string', required: false, description: 'Selected path' },
+      { name: 'onSelect', type: '(item: FileItem) => void', required: false, description: 'Selection callback' },
+      { name: 'onToggle', type: '(item: FileItem, expanded: boolean) => void', required: false, description: 'Expand/collapse callback' },
+      { name: 'onOpen', type: '(item: FileItem) => void', required: false, description: 'Open callback (Enter/double click)' },
       { name: 'showHidden', type: 'boolean', required: false, default: 'false', description: 'Show hidden files' },
-      { name: 'showFiles', type: 'boolean', required: false, default: 'true', description: 'Show files (not just directories)' },
-      { name: 'onSelect', type: '(path: string) => void', required: false, description: 'Selection callback' },
-      { name: 'onExpand', type: '(path: string) => void', required: false, description: 'Expand callback' },
-      { name: 'onCollapse', type: '(path: string) => void', required: false, description: 'Collapse callback' },
+      { name: 'icons', type: 'Partial<FileIcons>', required: false, description: 'Custom icon set' },
+      { name: 'indentSize', type: 'number', required: false, description: 'Indent size' },
+      { name: 'lineStyle', type: "'none' | 'ascii' | 'unicode'", required: false, description: 'Tree line style' },
+      { name: 'width', type: 'number | string', required: false, description: 'Container width' },
+      { name: 'height', type: 'number | string', required: false, description: 'Container height' },
+      { name: 'maxDepth', type: 'number', required: false, description: 'Max depth to display' },
+      { name: 'selectedStyle', type: 'TextStyleProps', required: false, description: 'Selected item style' },
+      { name: 'directoryStyle', type: 'TextStyleProps', required: false, description: 'Directory style' },
+      { name: 'fileStyle', type: 'TextStyleProps', required: false, description: 'File style' },
     ],
     examples: [
       `DirectoryTree({
-  root: process.cwd(),
-  showFiles: false,
-  onSelect: (dir) => setCurrentDir(dir),
+  items: fileItems,
+  onSelect: (item) => openFile(item.path),
+  onToggle: (item, expanded) => setExpanded(item.path, expanded),
 })`,
     ],
   },
@@ -620,47 +628,6 @@ chat.scrollToBottom()`,
     ],
   },
   {
-    name: 'Scroll',
-    category: 'primitives',
-    description: `**Universal scroll wrapper for any VNode content.**
-
-Use this when scrolling complex layouts, not lists of items.
-Supports smooth line-by-line scrolling with ANSI preservation.`,
-    props: [
-      { name: 'height', type: 'number', required: true, description: 'Visible height in lines' },
-      { name: 'width', type: 'number', required: false, default: '80', description: 'Width for content layout' },
-      { name: 'showScrollbar', type: 'boolean', required: false, default: 'true', description: 'Show scrollbar' },
-      { name: 'keysEnabled', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation' },
-      { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is focused' },
-      { name: 'scrollbarColor', type: 'ColorValue', required: false, default: "'primary'", description: 'Thumb color (theme-aware)' },
-      { name: 'trackColor', type: 'ColorValue', required: false, default: "'muted'", description: 'Track color (theme-aware)' },
-      { name: 'state', type: 'ScrollState', required: false, description: 'External state from useScroll()' },
-    ],
-    examples: [
-      `// Wrap any content
-Scroll({ height: 10 },
-  Text({}, veryLongText),
-)`,
-      `// Complex layouts
-Scroll({ height: 20, width: 60 },
-  Box({ flexDirection: 'column' },
-    Header(),
-    Content(),
-    Footer(),
-  ),
-)`,
-      `// With programmatic control
-const scroll = useScroll()
-
-Scroll(
-  { ...scroll.bind, height: 20 },
-  ...contentNodes
-)
-
-scroll.scrollToBottom()`,
-    ],
-  },
-  {
     name: 'VirtualList',
     category: 'organisms',
     description: `**For very large datasets (10k+ items) with selection support.**
@@ -744,14 +711,25 @@ VirtualList({
     category: 'organisms',
     description: 'CSS Grid-like layout for terminal. Supports tracks, areas, and alignment.',
     props: [
-      { name: 'columns', type: 'string | TrackSize[]', required: false, description: 'Column tracks (e.g., "1fr 2fr 1fr" or [{ fr: 1 }, { px: 20 }])' },
-      { name: 'rows', type: 'string | TrackSize[]', required: false, description: 'Row tracks' },
-      { name: 'areas', type: 'string[][]', required: false, description: 'Named grid areas' },
-      { name: 'gap', type: 'number', required: false, default: '0', description: 'Gap between cells' },
+      { name: 'columns', type: 'string | TrackSize[] | number', required: false, description: 'Column tracks (e.g., "1fr 2fr 1fr", [10, "1fr"], or 3 for equal columns)' },
+      { name: 'rows', type: 'string | TrackSize[] | number', required: false, description: 'Row tracks' },
+      { name: 'areas', type: 'string', required: false, description: 'Named grid areas template string' },
+      { name: 'gap', type: 'number | [number, number]', required: false, default: '0', description: 'Gap between cells (or [rowGap, columnGap])' },
+      { name: 'rowGap', type: 'number', required: false, description: 'Vertical gap override' },
+      { name: 'columnGap', type: 'number', required: false, description: 'Horizontal gap override' },
+      { name: 'autoFlow', type: "'row' | 'column' | 'row dense' | 'column dense'", required: false, description: 'Auto-placement direction' },
+      { name: 'autoRows', type: 'TrackSize', required: false, description: 'Size for auto-generated rows' },
+      { name: 'autoColumns', type: 'TrackSize', required: false, description: 'Size for auto-generated columns' },
       { name: 'justifyItems', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Horizontal alignment of items' },
       { name: 'alignItems', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Vertical alignment of items' },
+      { name: 'justifyContent', type: "'start' | 'end' | 'center' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly'", required: false, description: 'Horizontal alignment of grid within container' },
+      { name: 'alignContent', type: "'start' | 'end' | 'center' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly'", required: false, description: 'Vertical alignment of grid within container' },
       { name: 'width', type: 'number', required: false, description: 'Grid width' },
       { name: 'height', type: 'number', required: false, description: 'Grid height' },
+      { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border around grid' },
+      { name: 'borderStyle', type: "BoxStyle['borderStyle']", required: false, description: 'Border style' },
+      { name: 'borderColor', type: 'string', required: false, description: 'Border color' },
+      { name: 'padding', type: 'number', required: false, description: 'Inner padding' },
       { name: 'children', type: 'VNode[]', required: false, description: 'Grid items (use GridItem for positioning)' },
     ],
     examples: [
@@ -759,30 +737,85 @@ VirtualList({
   columns: '1fr 2fr 1fr',
   rows: 'auto 1fr auto',
   gap: 1,
-  areas: [
+  areas: gridAreasToTemplate([
     ['header', 'header', 'header'],
     ['sidebar', 'main', 'aside'],
     ['footer', 'footer', 'footer'],
-  ],
+  ]),
 },
   GridItem({ area: 'header' }, Header()),
   GridItem({ area: 'sidebar' }, Sidebar()),
   GridItem({ area: 'main' }, MainContent()),
 )`,
     ],
+    relatedComponents: ['GridItem', 'AutoGrid', 'DashboardGrid'],
+  },
+  {
+    name: 'GridItem',
+    category: 'organisms',
+    description: 'Grid item wrapper for explicit placement inside Grid.',
+    props: [
+      { name: 'area', type: 'string', required: false, description: 'Named grid area' },
+      { name: 'column', type: "number | `${number} / ${number}` | `span ${number}`", required: false, description: 'Column placement' },
+      { name: 'row', type: "number | `${number} / ${number}` | `span ${number}`", required: false, description: 'Row placement' },
+      { name: 'columnSpan', type: 'number', required: false, description: 'Column span' },
+      { name: 'rowSpan', type: 'number', required: false, description: 'Row span' },
+      { name: 'justifySelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Horizontal alignment inside cell' },
+      { name: 'alignSelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Vertical alignment inside cell' },
+      { name: 'children', type: 'VNode | VNode[]', required: true, description: 'Item content' },
+    ],
+    examples: [
+      `GridItem({ area: 'sidebar' }, Sidebar())`,
+    ],
+    relatedComponents: ['Grid'],
+  },
+  {
+    name: 'GridRow',
+    category: 'organisms',
+    description: 'Convenience row layout with equal-width columns.',
+    props: [
+      { name: 'columnCount', type: 'number', required: false, description: 'Override column count (defaults to children length)' },
+      { name: 'gap', type: 'number | [number, number]', required: false, default: '0', description: 'Gap between items' },
+      { name: 'width', type: 'number', required: false, description: 'Row width' },
+      { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border' },
+      { name: 'padding', type: 'number', required: false, description: 'Inner padding' },
+      { name: 'children', type: 'VNode[]', required: false, description: 'Row items' },
+    ],
+    examples: [
+      `GridRow({ gap: 1 }, CardA(), CardB(), CardC())`,
+    ],
+    relatedComponents: ['Grid'],
+  },
+  {
+    name: 'GridColumn',
+    category: 'organisms',
+    description: 'Convenience column layout with equal-height rows.',
+    props: [
+      { name: 'rowCount', type: 'number', required: false, description: 'Override row count (defaults to children length)' },
+      { name: 'gap', type: 'number | [number, number]', required: false, default: '0', description: 'Gap between items' },
+      { name: 'height', type: 'number', required: false, description: 'Column height' },
+      { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border' },
+      { name: 'padding', type: 'number', required: false, description: 'Inner padding' },
+      { name: 'children', type: 'VNode[]', required: false, description: 'Column items' },
+    ],
+    examples: [
+      `GridColumn({ gap: 1 }, RowA(), RowB(), RowC())`,
+    ],
+    relatedComponents: ['Grid'],
   },
   {
     name: 'AutoGrid',
     category: 'organisms',
     description: 'Auto-layout grid that automatically wraps items based on available space.',
     props: [
-      { name: 'minItemWidth', type: 'number', required: false, default: '20', description: 'Minimum item width' },
-      { name: 'gap', type: 'number', required: false, default: '1', description: 'Gap between items' },
+      { name: 'minColumnWidth', type: 'number', required: true, description: 'Minimum column width' },
+      { name: 'gap', type: 'number | [number, number]', required: false, default: '0', description: 'Gap between items' },
       { name: 'width', type: 'number', required: false, description: 'Grid width' },
+      { name: 'height', type: 'number', required: false, description: 'Grid height' },
       { name: 'children', type: 'VNode[]', required: false, description: 'Grid items' },
     ],
     examples: [
-      `AutoGrid({ minItemWidth: 25, gap: 1 },
+      `AutoGrid({ minColumnWidth: 25, gap: 1 },
   ...cards.map(card => Card({ ...card }))
 )`,
     ],
@@ -792,19 +825,46 @@ VirtualList({
     category: 'organisms',
     description: 'Dashboard-style grid with named regions for header, sidebar, main, and footer.',
     props: [
-      { name: 'header', type: 'VNode', required: false, description: 'Header content' },
-      { name: 'sidebar', type: 'VNode', required: false, description: 'Sidebar content' },
-      { name: 'main', type: 'VNode', required: true, description: 'Main content' },
-      { name: 'footer', type: 'VNode', required: false, description: 'Footer content' },
-      { name: 'sidebarWidth', type: 'number', required: false, default: '20', description: 'Sidebar width (percentage)' },
+      { name: 'options.width', type: 'number', required: false, default: '80', description: 'Grid width' },
+      { name: 'options.height', type: 'number', required: false, description: 'Grid height' },
+      { name: 'options.gap', type: 'number', required: false, default: '0', description: 'Gap between regions' },
+      { name: 'options.headerHeight', type: 'number', required: false, default: '3', description: 'Header height' },
+      { name: 'options.footerHeight', type: 'number', required: false, default: '1', description: 'Footer height' },
+      { name: 'options.sidebarWidth', type: 'number', required: false, default: '20', description: 'Sidebar width' },
+      { name: 'options.border', type: 'boolean', required: false, default: 'false', description: 'Show border' },
+      { name: 'options.borderStyle', type: "BoxStyle['borderStyle']", required: false, description: 'Border style' },
+      { name: 'options.borderColor', type: 'string', required: false, description: 'Border color' },
+      { name: 'areas.header', type: 'VNode', required: false, description: 'Header content' },
+      { name: 'areas.sidebar', type: 'VNode', required: false, description: 'Sidebar content' },
+      { name: 'areas.main', type: 'VNode', required: true, description: 'Main content' },
+      { name: 'areas.footer', type: 'VNode', required: false, description: 'Footer content' },
     ],
     examples: [
-      `DashboardGrid({
-  header: StatusBar(),
-  sidebar: Navigation(),
-  main: Dashboard(),
-  footer: HelpText(),
-})`,
+      `DashboardGrid(
+  { width: 80, sidebarWidth: 25 },
+  {
+    header: StatusBar(),
+    sidebar: Navigation(),
+    main: Dashboard(),
+    footer: HelpText(),
+  }
+)`,
+    ],
+  },
+  {
+    name: 'MasonryGrid',
+    category: 'organisms',
+    description: 'Masonry-style grid for variable-height items.',
+    props: [
+      { name: 'columns', type: 'number', required: true, description: 'Number of columns' },
+      { name: 'gap', type: 'number', required: false, default: '0', description: 'Gap between columns' },
+      { name: 'width', type: 'number', required: false, default: '80', description: 'Grid width' },
+      { name: 'children', type: 'VNode[]', required: false, description: 'Grid items' },
+    ],
+    examples: [
+      `MasonryGrid({ columns: 3, gap: 1 },
+  ...cards.map(card => Card(card))
+)`,
     ],
   },
 

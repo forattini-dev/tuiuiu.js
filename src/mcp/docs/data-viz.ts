@@ -557,6 +557,94 @@ Gauge({ value: 50, style: 'arc', label: 'Progress' })`,
   },
 
   // =============================================================================
+  // Audio Visualization
+  // =============================================================================
+  {
+    name: 'Waveform',
+    category: 'molecules',
+    description: 'Audio visualization component with multiple styles: bars (equalizer), mirrored (SoundCloud-style), spectrum analyzer, waveform, and oscilloscope.',
+    props: [
+      { name: 'data', type: 'number[]', required: true, description: 'Amplitude data (0-1 range or auto-normalized)' },
+      { name: 'width', type: 'number', required: false, default: '40', description: 'Width in characters' },
+      { name: 'height', type: 'number', required: false, default: '8', description: 'Height in rows' },
+      { name: 'style', type: "'bars' | 'waveform' | 'mirrored' | 'spectrum' | 'oscilloscope'", required: false, default: "'bars'", description: 'Visualization style' },
+      { name: 'color', type: 'ColorValue', required: false, default: "'success'", description: 'Primary color for bars/waveform' },
+      { name: 'colorHigh', type: 'ColorValue', required: false, description: 'Secondary color for gradient (top of bars)' },
+      { name: 'background', type: 'ColorValue', required: false, description: 'Background color for empty space' },
+      { name: 'showPeaks', type: 'boolean', required: false, default: 'false', description: 'Show peak indicators' },
+      { name: 'peakColor', type: 'ColorValue', required: false, default: "'error'", description: 'Peak indicator color' },
+      { name: 'min', type: 'number', required: false, description: 'Minimum value for normalization' },
+      { name: 'max', type: 'number', required: false, description: 'Maximum value for normalization' },
+      { name: 'barGap', type: 'number', required: false, default: '0', description: 'Gap between bars (bars style only)' },
+      { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border around visualization' },
+      { name: 'borderColor', type: 'ColorValue', required: false, default: "'border'", description: 'Border color' },
+    ],
+    examples: [
+      `// Equalizer bars
+Waveform({
+  data: audioLevels,
+  width: 40,
+  height: 8,
+  style: 'bars',
+  color: 'success',
+  colorHigh: 'warning',
+  showPeaks: true,
+})`,
+      `// SoundCloud-style mirrored waveform
+Waveform({
+  data: waveformData,
+  width: 60,
+  height: 10,
+  style: 'mirrored',
+  color: 'primary',
+})`,
+      `// Spectrum analyzer
+Waveform({
+  data: fftData,
+  width: 32,
+  height: 8,
+  style: 'spectrum',
+})`,
+    ],
+  },
+  {
+    name: 'WaveformBuffer',
+    category: 'molecules',
+    description: 'Rolling buffer for real-time audio visualization with smoothing and peak detection. Use with Waveform component for animated displays.',
+    props: [
+      { name: 'bins', type: 'number', required: false, default: '32', description: 'Number of frequency bins/bars' },
+      { name: 'smoothing', type: 'number', required: false, default: '0.8', description: 'Smoothing factor (0-1, higher = smoother)' },
+      { name: 'peakDecay', type: 'number', required: false, default: '0.95', description: 'Peak decay rate (0-1, per frame)' },
+    ],
+    examples: [
+      `// Create buffer for real-time visualization
+const buffer = createWaveformBuffer({
+  bins: 32,
+  smoothing: 0.8,
+  peakDecay: 0.95,
+});
+
+// Update with new audio data each frame
+buffer.update(fftData);
+
+// Render with current data
+Waveform({
+  data: buffer.data(),
+  width: 32,
+  height: 8,
+  showPeaks: true,
+})`,
+      `// WaveformBuffer methods
+buffer.data()       // Get current smoothed data
+buffer.peaks()      // Get peak values
+buffer.history()    // Get historical data
+buffer.resetPeaks() // Reset peak values
+buffer.clear()      // Clear all data
+buffer.toVNode()    // Create Waveform with current data`,
+    ],
+  },
+
+  // =============================================================================
   // Legend & Utilities
   // =============================================================================
   {
