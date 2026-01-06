@@ -1,5 +1,5 @@
-# Tuiuiu Player - Terminal Music Player
-# Winamp-inspired player with waveform visualization, playlist, and controls
+# Tuiuiu Player - Terminal Music Player (Compact)
+# Quick showcase of waveform, playlist, and controls
 
 Output docs/recordings/examples/demo-player.gif
 
@@ -8,61 +8,55 @@ Set FontSize 14
 Set Width 1400
 Set Height 900
 Set Padding 20
-Set PlaybackSpeed 1.0
-Set TypingSpeed 0.003s
+Set PlaybackSpeed 2.5
+Set TypingSpeed 0.001s
+Set Framerate 30
 
 # Run the player
 Type "pnpm tsx examples/tuiuiu-player.ts"
 Enter
 
-# Let waveform fade-in and show initial animation
-Sleep 5s
+# Show waveform animation
+Sleep 2s
 
-# Navigate playlist with arrow keys
+# Navigate playlist
 Down
-Sleep 500ms
+Sleep 200ms
 Down
-Sleep 500ms
-Down
-Sleep 500ms
-
-# Select track (Enter)
+Sleep 200ms
 Enter
-Sleep 3s
-
-# Pause
-Type " "
 Sleep 1.5s
 
-# Play
+# Pause/Play
 Type " "
-Sleep 3s
+Sleep 500ms
+Type " "
+Sleep 1s
 
 # Next track
 Type "n"
-Sleep 3s
-
-# Change theme
-Type "t"
-Sleep 2s
-
-Type "t"
-Sleep 2s
-
-# Adjust volume
-Type "+"
-Sleep 300ms
-Type "+"
-Sleep 300ms
-Type "+"
 Sleep 1s
+
+# Change theme twice
+Type "t"
+Sleep 800ms
+Type "t"
+Sleep 800ms
+
+# Volume
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 500ms
 
 # Mute/unmute
 Type "m"
-Sleep 1s
+Sleep 400ms
 Type "m"
-Sleep 2s
+Sleep 800ms
 
 # Exit
 Type "q"
-Sleep 500ms
+Sleep 200ms
