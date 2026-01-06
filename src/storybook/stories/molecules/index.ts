@@ -73,6 +73,9 @@ import {
   RadarChart,
   GanttChart,
   TimeHeatmap,
+  Waveform,
+  generateWaveformData,
+  generateSpectrumData,
 } from '../../../molecules/index.js';
 import type { AutocompleteItem, TreeNode, DirectoryNode, GanttTask } from '../../../molecules/index.js';
 import { story, defaultControls } from '../../core/registry.js';
@@ -299,6 +302,10 @@ const timeHeatmapData = [
   { date: '2024-02-10', value: 3 },
   { date: '2024-02-12', value: 6 },
 ];
+
+// Waveform sample data
+const waveformData = generateWaveformData(40, { frequency: 0.08, noise: 0.15, amplitude: 0.7 });
+const spectrumData = generateSpectrumData(32, { peakBin: 6, spread: 8, variation: 0.25 });
 
 const birdArt = parseColoredBBCode(`
 [cyan]..##..[/cyan]
@@ -1349,6 +1356,99 @@ export const dataVizStories: Story[] = [
         ],
         position: 'bottom',
         showSymbols: true,
+      })
+    ),
+
+  story('Waveform - Bars')
+    .category('Molecules')
+    .description('Equalizer-style bar visualization')
+    .controls({
+      width: defaultControls.range('Width', 40, 20, 60),
+      height: defaultControls.range('Height', 8, 4, 12),
+      showPeaks: defaultControls.boolean('Show Peaks', true),
+      barGap: defaultControls.range('Bar Gap', 0, 0, 2),
+    })
+    .render((props) =>
+      Waveform({
+        data: spectrumData,
+        width: props.width,
+        height: props.height,
+        style: 'bars',
+        color: 'success',
+        colorHigh: 'warning',
+        showPeaks: props.showPeaks,
+        peakColor: 'error',
+        barGap: props.barGap,
+      })
+    ),
+
+  story('Waveform - Mirrored')
+    .category('Molecules')
+    .description('SoundCloud-style mirrored waveform')
+    .controls({
+      width: defaultControls.range('Width', 50, 30, 70),
+      height: defaultControls.range('Height', 10, 6, 14),
+    })
+    .render((props) =>
+      Waveform({
+        data: waveformData,
+        width: props.width,
+        height: props.height,
+        style: 'mirrored',
+        color: 'primary',
+        colorHigh: 'info',
+      })
+    ),
+
+  story('Waveform - Spectrum')
+    .category('Molecules')
+    .description('Spectrum analyzer with frequency gradient')
+    .controls({
+      width: defaultControls.range('Width', 32, 20, 50),
+      height: defaultControls.range('Height', 8, 4, 12),
+    })
+    .render((props) =>
+      Waveform({
+        data: spectrumData,
+        width: props.width,
+        height: props.height,
+        style: 'spectrum',
+        color: 'cyan',
+        colorHigh: 'magenta',
+      })
+    ),
+
+  story('Waveform - Oscilloscope')
+    .category('Molecules')
+    .description('Oscilloscope-style line display')
+    .controls({
+      width: defaultControls.range('Width', 50, 30, 70),
+      height: defaultControls.range('Height', 10, 6, 14),
+    })
+    .render((props) =>
+      Waveform({
+        data: waveformData,
+        width: props.width,
+        height: props.height,
+        style: 'oscilloscope',
+        color: 'success',
+      })
+    ),
+
+  story('Waveform - Classic')
+    .category('Molecules')
+    .description('Classic centered waveform')
+    .controls({
+      width: defaultControls.range('Width', 50, 30, 70),
+      height: defaultControls.range('Height', 8, 4, 12),
+    })
+    .render((props) =>
+      Waveform({
+        data: waveformData,
+        width: props.width,
+        height: props.height,
+        style: 'waveform',
+        color: 'primary',
       })
     ),
 ];
