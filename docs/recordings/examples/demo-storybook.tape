@@ -15,8 +15,8 @@ Set TypingSpeed 0.003s
 Type "pnpm storybook"
 Enter
 
-# Let it initialize
-Sleep 1.2s
+# Wait for splash screen to complete (1.5s duration + 0.3s fade + buffer)
+Sleep 2.5s
 
 # === SHOWCASE: Developer Playground ===
 
