@@ -39,6 +39,8 @@ export interface LogUpdateOptions {
   incremental?: boolean;
   /** Reserve lines at the top (for static output) */
   topOffset?: number;
+  /** Full screen mode - clears everything before each render (default: false) */
+  fullScreen?: boolean;
 }
 
 export interface LogUpdate {
@@ -233,13 +235,89 @@ function createIncremental(stream: Writable, options: LogUpdateOptions = {}): Lo
 }
 
 /**
+ * Create a simple full-screen log updater
+ * Clears everything and redraws - simple but reliable
+ */
+function createFullScreen(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
+  const { showCursor: showCursorOption = false } = options;
+  let previousOutput = '';
+  let previousLineCount = 0;
+  let hasHiddenCursor = false;
+
+  const render = (content: string) => {
+    if (!showCursorOption && !hasHiddenCursor) {
+      hideCursor(stream);
+      hasHiddenCursor = true;
+    }
+
+    const output = content;
+    if (output === previousOutput) {
+      return;
+    }
+
+    const lines = output.split('\n');
+    const currentLineCount = lines.length;
+
+    // If we have more lines than before, just write content + clear rest
+    // If we have fewer lines, we need to explicitly clear the extra lines
+    let finalOutput = output;
+
+    // Clear each line explicitly to avoid ghost content
+    // Add clearToEndOfLine to each line
+    const clearedLines = lines.map(line => line + clearToEndOfLine);
+    finalOutput = clearedLines.join('\n');
+
+    // If previous content had more lines, add empty lines with clear
+    if (previousLineCount > currentLineCount) {
+      const extraLines = previousLineCount - currentLineCount;
+      for (let i = 0; i < extraLines; i++) {
+        finalOutput += '\n' + clearToEndOfLine;
+      }
+    }
+
+    // Move cursor home and write
+    stream.write(cursorHome + finalOutput + clearFromCursor);
+
+    previousOutput = output;
+    previousLineCount = currentLineCount;
+  };
+
+  render.clear = () => {
+    stream.write(cursorHome + clearFromCursor);
+    previousOutput = '';
+    previousLineCount = 0;
+  };
+
+  render.done = () => {
+    previousOutput = '';
+    previousLineCount = 0;
+    if (!showCursorOption && hasHiddenCursor) {
+      showCursor(stream);
+      hasHiddenCursor = false;
+    }
+  };
+
+  render.sync = (content: string) => {
+    previousOutput = content;
+    previousLineCount = content.split('\n').length;
+  };
+
+  return render;
+}
+
+/**
  * Create a log updater
  */
 export function createLogUpdate(
   stream: Writable = process.stdout,
   options: LogUpdateOptions = {}
 ): LogUpdate {
-  const { incremental = true } = options;
+  const { incremental = true, fullScreen = false } = options;
+
+  // Full screen mode - simple clear and redraw
+  if (fullScreen) {
+    return createFullScreen(stream, options);
+  }
 
   if (incremental) {
     return createIncremental(stream, options);

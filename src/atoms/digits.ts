@@ -263,9 +263,12 @@ export interface ClockOptions {
  * setInterval(() => setTime(new Date()), 1000);
  *
  * Clock({ time: time(), format: '24h', showSeconds: true })
+ *
+ * // Or with a string
+ * Clock({ time: '14:30', format: '24h' })
  */
 export function Clock(
-  props: ClockOptions & { time: Date }
+  props: ClockOptions & { time: Date | string }
 ): VNode {
   const {
     time,
@@ -275,9 +278,22 @@ export function Clock(
     color = 'success',
   } = props;
 
-  let hours = time.getHours();
-  const minutes = time.getMinutes();
-  const seconds = time.getSeconds();
+  // Handle both Date objects and strings like "12:34" or "12:34:56"
+  let hours: number;
+  let minutes: number;
+  let seconds: number;
+
+  if (time instanceof Date) {
+    hours = time.getHours();
+    minutes = time.getMinutes();
+    seconds = time.getSeconds();
+  } else {
+    // Parse string format "HH:MM" or "HH:MM:SS"
+    const parts = String(time).split(':').map(Number);
+    hours = parts[0] || 0;
+    minutes = parts[1] || 0;
+    seconds = parts[2] || 0;
+  }
 
   // 12-hour format
   let suffix = '';

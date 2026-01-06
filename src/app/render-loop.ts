@@ -133,11 +133,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
 
   // Create log updater for efficient incremental rendering
-  // Uses line-diffing to reduce flickering
-  // NOTE: Incremental mode temporarily disabled to debug line sync issues
+  // Uses fullScreen mode when fullHeight is enabled for reliable clearing
   let logUpdate: LogUpdate = createLogUpdate(stdout, {
     showCursor,
-    incremental: false, // Disabled: was causing ghost lines
+    incremental: false,
+    fullScreen: fullHeight, // Use simple clear-and-redraw for fullHeight mode
     topOffset: 0,
   });
   let logUpdateTopOffset = 0;
@@ -163,6 +163,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     logUpdate = createLogUpdate(stdout, {
       showCursor,
       incremental: false,
+      fullScreen: fullHeight,
       topOffset: 0,
     });
   });

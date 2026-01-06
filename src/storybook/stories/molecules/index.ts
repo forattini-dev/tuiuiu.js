@@ -230,12 +230,53 @@ const heatmapData = [
 ];
 
 const contributionData = [
+  // January
+  { date: '2024-01-05', count: 4 },
+  { date: '2024-01-12', count: 7 },
+  { date: '2024-01-15', count: 3 },
+  { date: '2024-01-20', count: 9 },
+  { date: '2024-01-25', count: 5 },
+  // February
   { date: '2024-02-01', count: 2 },
-  { date: '2024-02-02', count: 5 },
   { date: '2024-02-05', count: 8 },
-  { date: '2024-02-08', count: 3 },
   { date: '2024-02-12', count: 6 },
   { date: '2024-02-15', count: 9 },
+  { date: '2024-02-20', count: 4 },
+  // March
+  { date: '2024-03-03', count: 6 },
+  { date: '2024-03-10', count: 8 },
+  { date: '2024-03-15', count: 5 },
+  { date: '2024-03-22', count: 7 },
+  // April
+  { date: '2024-04-05', count: 3 },
+  { date: '2024-04-18', count: 9 },
+  { date: '2024-04-25', count: 4 },
+  // May
+  { date: '2024-05-02', count: 6 },
+  { date: '2024-05-15', count: 8 },
+  { date: '2024-05-28', count: 5 },
+  // June
+  { date: '2024-06-10', count: 7 },
+  { date: '2024-06-20', count: 4 },
+  // July
+  { date: '2024-07-04', count: 9 },
+  { date: '2024-07-15', count: 6 },
+  // August
+  { date: '2024-08-08', count: 5 },
+  { date: '2024-08-22', count: 7 },
+  // September
+  { date: '2024-09-05', count: 8 },
+  { date: '2024-09-18', count: 4 },
+  // October
+  { date: '2024-10-10', count: 6 },
+  { date: '2024-10-25', count: 9 },
+  // November
+  { date: '2024-11-05', count: 5 },
+  { date: '2024-11-20', count: 7 },
+  // December
+  { date: '2024-12-01', count: 8 },
+  { date: '2024-12-15', count: 6 },
+  { date: '2024-12-25', count: 9 },
 ];
 
 const correlationLabels = ['CPU', 'RAM', 'IO'];

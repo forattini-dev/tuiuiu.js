@@ -682,9 +682,12 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
       const count = dateMap.get(dateStr) ?? 0;
       const normalized = normalizeValue(count, 0, maxCount);
       const color = getColorForValue(normalized, scale);
-      const char = isAscii ? (count > 0 ? '#' : '·') : '█';
 
-      monthCells.push(Text({ color: count > 0 ? color : 'mutedForeground' }, char));
+      // Use subtle character for empty days, solid block for days with data
+      const char = count > 0 ? '█' : (isAscii ? '·' : '░');
+      const cellColor = count > 0 ? color : 'muted';
+
+      monthCells.push(Text({ color: cellColor }, char));
     }
 
     // Pad to 31 days

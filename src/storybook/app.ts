@@ -13,12 +13,11 @@ import { setTheme, useTheme, getNextTheme, getTheme } from '../core/theme.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
-import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
-import { ImpactSplashScreen, createSplashScreen } from '../molecules/splash-screen.js';
+import { COLORS } from './data/ascii-art.js';
 import { createTextInput, renderTextInput } from '../atoms/text-input.js';
 
 // Version
-import { getVersion, getVersionSync } from '../version.js';
+import { getVersion } from '../version.js';
 
 // Storybook Global State & Logger
 import { storybookStore, interceptConsole } from './store.js';
@@ -41,8 +40,8 @@ import {
 // Initialization
 // =============================================================================
 
-// Patch console immediately to capture logs
-interceptConsole();
+// DISABLED: interceptConsole was causing render issues in some terminals
+// interceptConsole();
 
 // =============================================================================
 // Metrics Tracking
@@ -557,40 +556,11 @@ function formatTime(seconds: number): string {
 
 
 // =============================================================================
-// Splash Screen
+// Splash Screen (DISABLED - was causing black screen issues)
 // =============================================================================
 
-// Module-level splash state (created once when storybook starts)
-let splashState: ReturnType<typeof createSplashScreen> | null = null;
-// Module-level flag for splash completion
-let splashCompleted = false;
-let splashCompletionCallbacks: (() => void)[] = [];
-
-function getSplashState(): ReturnType<typeof createSplashScreen> {
-  if (!splashState) {
-    splashState = createSplashScreen({
-      duration: 1500,
-      fadeInDuration: 300,
-      onComplete: () => {
-        splashCompleted = true;
-        // Notify all callbacks
-        for (const cb of splashCompletionCallbacks) {
-          cb();
-        }
-        splashCompletionCallbacks = [];
-      },
-    });
-  }
-  return splashState;
-}
-
-function onSplashComplete(callback: () => void): void {
-  if (splashCompleted) {
-    callback();
-  } else {
-    splashCompletionCallbacks.push(callback);
-  }
-}
+// Splash is currently disabled to avoid rendering issues in some terminals
+// TODO: Investigate and fix splash screen timing/animation issues
 
 /**
  * Main Storybook App
@@ -599,15 +569,12 @@ function StorybookApp(): VNode {
   const theme = getTheme();
   const app = useApp();
 
-  // Get or create splash state
-  const splash = getSplashState();
-
   // =========================================================================
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   // This ensures consistent hook ordering across renders
   // =========================================================================
 
-  // State - always call these regardless of splash visibility
+  // State
   const categories = getCategories();
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(0);
@@ -622,9 +589,6 @@ function StorybookApp(): VNode {
 
   // Animation state - now uses global tick
   const [isPaused, setIsPaused] = useState(false);
-
-  // Track if we've already cleared screen after splash
-  const [splashDone, setSplashDone] = useState(false);
 
   // Get animation frame from global tick
   const animationFrame = () => getTick();
@@ -1001,41 +965,8 @@ function StorybookApp(): VNode {
   });
 
   // =========================================================================
-  // SPLASH→MAIN TRANSITION
-  // Use callback-based approach to ensure state update triggers re-render
+  // MAIN CONTENT (splash screen disabled)
   // =========================================================================
-
-  // Register callback to update state when splash completes
-  useEffect(() => {
-    if (!splashDone()) {
-      onSplashComplete(() => {
-        app.clearScreen?.();
-        setSplashDone(true);
-      });
-    }
-  });
-
-  // Render splash while not done (use module-level flag + state for reactivity)
-  if (!splashDone() && !splashCompleted) {
-    const splashNode = ImpactSplashScreen({
-      birdArt: TUIUIU_BIRD_COLORED,
-      showLogo: true,
-      logoColor: '#8ba622', // Verde-amarelado do passarinho
-      color: '#8ba622',
-      subtitle: 'Component Explorer',
-      version: getVersionSync(),
-      loadingType: 'spinner',
-      spinnerStyle: 'dots',
-      loadingMessage: 'Loading stories...',
-      state: splash,
-    });
-    return splashNode ?? Box({});
-  }
-
-  // Wait for state to update
-  if (!splashDone()) {
-    return Box({});
-  }
 
   if (!currentStory) {
     return Box(
@@ -1148,7 +1079,8 @@ export async function runStorybook(): Promise<void> {
   startTick(100);
 
   const { waitUntilExit } = render(() => StorybookApp(), {
-    // fullHeight disabled to fix incremental renderer sync issues
+    // Enable fullHeight for proper flexGrow layout
+    fullHeight: true,
   });
   await waitUntilExit();
 
