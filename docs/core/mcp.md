@@ -18,6 +18,34 @@ When you're working with Claude Code or other AI assistants, the MCP server prov
 npx tuiuiu.js@latest mcp
 ```
 
+## Transports
+
+Tuiuiu MCP supports three transport protocols:
+
+| Transport | Flag | Use Case | Clients |
+|:----------|:-----|:---------|:--------|
+| **stdio** | (default) | Local CLI tools via stdin/stdout | Claude Code, Codex CLI |
+| **http** | `--http`, `-H` | HTTP POST requests | Custom apps, APIs |
+| **sse** | `--sse`, `-S` | Server-Sent Events streaming | Cursor, Continue, web apps |
+
+### CLI Options
+
+```bash
+# stdio (default) - for Claude Code, Codex CLI
+npx tuiuiu.js mcp
+
+# HTTP - for web integrations
+npx tuiuiu.js mcp --http --port=3200
+
+# SSE - for streaming clients (Cursor, Continue)
+npx tuiuiu.js mcp --sse --port=3200
+
+# Debug logging (any transport)
+npx tuiuiu.js mcp --debug
+```
+
+---
+
 ## Quick Start
 
 ### With Claude Code
@@ -29,30 +57,51 @@ Add to your project's `.mcp.json`:
   "mcpServers": {
     "tuiuiu": {
       "command": "npx",
-      "args": ["tuiuiu", "mcp"],
-      "env": { "NODE_ENV": "development" }
+      "args": ["tuiuiu.js", "mcp"]
     }
   }
 }
 ```
 
-Now Claude has full access to Tuiuiu documentation and can help you build terminal UIs.
+Or in `~/.claude/settings.json` for global access:
 
-### CLI Options
+```json
+{
+  "mcpServers": {
+    "tuiuiu": {
+      "command": "npx",
+      "args": ["tuiuiu.js", "mcp"]
+    }
+  }
+}
+```
+
+### With Codex CLI
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.tuiuiu]
+command = "npx"
+args = ["tuiuiu.js", "mcp"]
+```
+
+> **Note:** Codex CLI only supports stdio transport. Remote SSE servers require [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) as a bridge.
+
+### With Cursor / Continue
+
+Start the SSE server:
 
 ```bash
-# Standard mode (stdio) - for Claude Code
-npx tuiuiu.js@latest mcp
-
-# HTTP mode - for web-based AI tools
-npx tuiuiu.js@latest mcp --http
-
-# Custom port (default: 3200)
-npx tuiuiu.js@latest mcp --http --port=8080
-
-# Debug logging
-npx tuiuiu.js@latest mcp --debug
+npx tuiuiu.js mcp --sse --port=3200
 ```
+
+Then configure your editor to connect to:
+```
+http://localhost:3200/sse
+```
+
+Now Claude has full access to Tuiuiu documentation and can help you build terminal UIs.
 
 ---
 
@@ -60,7 +109,7 @@ npx tuiuiu.js@latest mcp --debug
 
 | Feature | Description |
 |:--------|:------------|
-| **9 Tools** | Query docs, search, get quickstart recipes, create themes |
+| **10 Tools** | Query docs, search, get quickstart recipes, create themes, API patterns |
 | **8 Resource Templates** | Dynamic URIs for components, hooks, themes, guides |
 | **15 Prompts** | Pre-built templates for dashboards, forms, games, migrations |
 | **Completions** | Smart argument suggestions for tools and prompts |
@@ -70,7 +119,7 @@ npx tuiuiu.js@latest mcp --debug
 
 ## Tools
 
-The MCP server exposes 9 tools to AI assistants:
+The MCP server exposes 10 tools to AI assistants:
 
 ### Core Tools
 
@@ -198,6 +247,30 @@ tuiuiu_version()
 - Node.js version requirements
 - Documentation sync status (`in-sync`, `docs-ahead`, `docs-behind`)
 - Upgrade guidance if needed
+
+#### `tuiuiu_api_patterns`
+
+**CRITICAL:** Get documentation on the 4 API patterns for passing children/content to Tuiuiu components.
+
+```typescript
+tuiuiu_api_patterns()
+// → Full documentation on Variadic, Props, Data-Driven, and Render Function patterns
+
+tuiuiu_api_patterns({ component: 'Tabs' })
+// → Specific pattern for Tabs component with examples
+
+tuiuiu_api_patterns({ pattern: 'variadic' })
+// → All components using variadic pattern
+```
+
+**Why this matters**: Different components use different patterns - using the wrong one causes failures:
+
+| Pattern | Components | Example |
+|:--------|:-----------|:--------|
+| **Variadic** | Box, Text, VStack, HStack | `Box({}, child1, child2)` |
+| **Props** | Page, AppShell, Modal | `Page({ children: content })` |
+| **Data-Driven** | Tabs, Select, Tree | `Tabs({ tabs: [...] })` |
+| **Render Function** | ScrollList, Each | `ScrollList({ children: (item) => ... })` |
 
 ---
 
@@ -406,10 +479,49 @@ npx tuiuiu.js@latest mcp --debug
   "mcpServers": {
     "tuiuiu": {
       "command": "npx",
-      "args": ["tuiuiu", "mcp"]
+      "args": ["tuiuiu.js", "mcp"]
     }
   }
 }
+```
+
+### SSE Endpoints
+
+When using `--sse` transport, the following endpoints are available:
+
+| Endpoint | Method | Description |
+|:---------|:-------|:------------|
+| `/sse` | GET | SSE stream connection - receive server events |
+| `/message` | POST | Send JSON-RPC requests |
+| `/health` | GET | Health check with server info |
+
+**Example SSE connection:**
+
+```javascript
+// Connect to SSE stream
+const eventSource = new EventSource('http://localhost:3200/sse');
+
+eventSource.addEventListener('endpoint', (event) => {
+  const { endpoint, sessionId } = JSON.parse(event.data);
+  console.log('Message endpoint:', endpoint);
+});
+
+eventSource.addEventListener('message', (event) => {
+  const response = JSON.parse(event.data);
+  console.log('Response:', response);
+});
+
+// Send request
+fetch('http://localhost:3200/message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: { name: 'tuiuiu_list_components', arguments: {} },
+    id: 1
+  })
+});
 ```
 
 ### With Custom MCP Client
@@ -502,9 +614,10 @@ curl -X POST http://localhost:3200 \
 ## Architecture
 
 ```
-┌─────────────────┐     stdio/http     ┌─────────────────┐
+┌─────────────────┐   stdio/http/sse   ┌─────────────────┐
 │   Claude Code   │ ◄─────────────────► │  Tuiuiu MCP     │
-│   or AI Tool    │                     │  Server         │
+│   Codex CLI     │                     │  Server         │
+│   Cursor/etc    │                     │                 │
 └─────────────────┘                     └────────┬────────┘
                                                  │
                     ┌────────────────────────────┼────────────────────────────┐

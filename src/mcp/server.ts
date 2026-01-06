@@ -70,7 +70,7 @@ import type {
 // =============================================================================
 
 export interface MCPServerOptions {
-  transport?: 'stdio' | 'http';
+  transport?: 'stdio' | 'http' | 'sse';
   port?: number;
   debug?: boolean;
 }
@@ -1081,6 +1081,8 @@ export class MCPServer {
 
     if (this.options.transport === 'http') {
       await this.startHttp();
+    } else if (this.options.transport === 'sse') {
+      await this.startSse();
     } else {
       await this.startStdio();
     }
@@ -1173,6 +1175,118 @@ export class MCPServer {
     server.listen(port, () => {
       console.log(`Tuiuiu MCP Server v${this.version}`);
       console.log(`Listening on http://localhost:${port}`);
+      console.log(`Health: http://localhost:${port}/health`);
+    });
+  }
+
+  private async startSse(): Promise<void> {
+    // Track active SSE connections for broadcasting notifications
+    const sseConnections = new Set<http.ServerResponse>();
+
+    const server = http.createServer(async (req, res) => {
+      // CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      // Health check
+      if (req.method === 'GET' && req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'ok',
+          name: 'tuiuiu',
+          version: this.version,
+          transport: 'sse',
+          components: allComponents.length,
+          hooks: allHooks.length,
+          themes: allThemes.length,
+        }));
+        return;
+      }
+
+      // SSE endpoint - client connects here to receive server events
+      if (req.method === 'GET' && req.url === '/sse') {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        });
+
+        // Add to active connections
+        sseConnections.add(res);
+        this.log(`SSE client connected (${sseConnections.size} active)`);
+
+        // Send initial connection event with endpoint info
+        const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        res.write(`event: endpoint\ndata: ${JSON.stringify({
+          endpoint: `/message?sessionId=${sessionId}`,
+          sessionId
+        })}\n\n`);
+
+        // Keep-alive ping every 30 seconds
+        const pingInterval = setInterval(() => {
+          if (!res.writableEnded) {
+            res.write(': ping\n\n');
+          }
+        }, 30000);
+
+        // Handle client disconnect
+        req.on('close', () => {
+          sseConnections.delete(res);
+          clearInterval(pingInterval);
+          this.log(`SSE client disconnected (${sseConnections.size} active)`);
+        });
+
+        return;
+      }
+
+      // Message endpoint - client sends requests here
+      if (req.method === 'POST' && (req.url === '/message' || req.url?.startsWith('/message?'))) {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const request = JSON.parse(body) as JsonRpcRequest;
+            this.log(`SSE Request: ${request.method}`);
+            const response = await this.handleRequest(request);
+
+            // Also broadcast response to all SSE connections as an event
+            const eventData = JSON.stringify(response);
+            for (const conn of sseConnections) {
+              if (!conn.writableEnded) {
+                conn.write(`event: message\ndata: ${eventData}\n\n`);
+              }
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(response));
+          } catch (error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              id: 0,
+              error: { code: -32700, message: 'Parse error' },
+            }));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404);
+      res.end('Not Found');
+    });
+
+    const port = this.options.port!;
+    server.listen(port, () => {
+      console.log(`Tuiuiu MCP Server v${this.version} (SSE)`);
+      console.log(`SSE endpoint: http://localhost:${port}/sse`);
+      console.log(`Message endpoint: http://localhost:${port}/message`);
       console.log(`Health: http://localhost:${port}/health`);
     });
   }
