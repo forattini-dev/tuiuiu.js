@@ -13,11 +13,12 @@ import { setTheme, useTheme, getNextTheme, getTheme } from '../core/theme.js';
 import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
-import { COLORS } from './data/ascii-art.js';
+import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
 import { createTextInput, renderTextInput } from '../atoms/text-input.js';
+import { ImpactSplashScreen, createSplashScreen } from '../molecules/splash-screen.js';
 
 // Version
-import { getVersion } from '../version.js';
+import { getVersion, getVersionSync } from '../version.js';
 
 // Storybook Global State & Logger
 import { storybookStore, interceptConsole } from './store.js';
@@ -556,11 +557,40 @@ function formatTime(seconds: number): string {
 
 
 // =============================================================================
-// Splash Screen (DISABLED - was causing black screen issues)
+// Splash Screen
 // =============================================================================
 
-// Splash is currently disabled to avoid rendering issues in some terminals
-// TODO: Investigate and fix splash screen timing/animation issues
+// Module-level splash state (created once when storybook starts)
+let splashState: ReturnType<typeof createSplashScreen> | null = null;
+// Module-level flag for splash completion
+let splashCompleted = false;
+let splashCompletionCallbacks: (() => void)[] = [];
+
+function getSplashState(): ReturnType<typeof createSplashScreen> {
+  if (!splashState) {
+    splashState = createSplashScreen({
+      duration: 1500,
+      fadeInDuration: 300,
+      onComplete: () => {
+        splashCompleted = true;
+        // Notify all callbacks
+        for (const cb of splashCompletionCallbacks) {
+          cb();
+        }
+        splashCompletionCallbacks = [];
+      },
+    });
+  }
+  return splashState;
+}
+
+function onSplashComplete(callback: () => void): void {
+  if (splashCompleted) {
+    callback();
+  } else {
+    splashCompletionCallbacks.push(callback);
+  }
+}
 
 /**
  * Main Storybook App
@@ -569,10 +599,16 @@ function StorybookApp(): VNode {
   const theme = getTheme();
   const app = useApp();
 
+  // Get or create splash state
+  const splash = getSplashState();
+
   // =========================================================================
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   // This ensures consistent hook ordering across renders
   // =========================================================================
+
+  // Splash state - must be declared with other hooks
+  const [splashDone, setSplashDone] = useState(false);
 
   // State
   const categories = getCategories();
@@ -965,7 +1001,43 @@ function StorybookApp(): VNode {
   });
 
   // =========================================================================
-  // MAIN CONTENT (splash screen disabled)
+  // SPLASH→MAIN TRANSITION
+  // =========================================================================
+
+  // Register callback to update state when splash completes
+  useEffect(() => {
+    if (!splashDone()) {
+      onSplashComplete(() => {
+        app.clearScreen?.();
+        setSplashDone(true);
+      });
+    }
+  });
+
+  // Render splash while not done (use module-level flag + state for reactivity)
+  if (!splashDone() && !splashCompleted) {
+    const splashNode = ImpactSplashScreen({
+      birdArt: TUIUIU_BIRD_COLORED,
+      showLogo: true,
+      logoColor: '#8ba622', // Verde-amarelado do passarinho
+      color: '#8ba622',
+      subtitle: 'Component Explorer',
+      version: getVersionSync(),
+      loadingType: 'spinner',
+      spinnerStyle: 'dots',
+      loadingMessage: 'Loading stories...',
+      state: splash,
+    });
+    return splashNode ?? Box({});
+  }
+
+  // Wait for state to update
+  if (!splashDone()) {
+    return Box({});
+  }
+
+  // =========================================================================
+  // MAIN CONTENT
   // =========================================================================
 
   if (!currentStory) {
