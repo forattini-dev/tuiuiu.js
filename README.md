@@ -132,6 +132,16 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 <img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/examples/tuiuiu-brush.gif" alt="Tuiuiu Brush" width="100%">
 </td>
 </tr>
+<tr>
+<td align="center">
+<strong>🎵 Music Player</strong><br>
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-player.gif" alt="Music Player" width="100%">
+</td>
+<td align="center">
+<strong>📊 Data Visualization</strong><br>
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/components/charts.gif" alt="Charts" width="100%">
+</td>
+</tr>
 </table>
 
 ## Highlights
@@ -352,6 +362,7 @@ pnpm tsx examples/app-mtr.ts       # Network tracer (mtr clone)
 pnpm tsx examples/app-ping.ts      # Latency monitor (ping clone)
 pnpm tsx examples/app-dashboard.ts # Real-time dashboard
 pnpm tsx examples/app-chat.ts      # Chat application
+pnpm tsx examples/tuiuiu-player.ts # Music player with waveform
 ```
 
 ## Documentation
