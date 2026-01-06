@@ -22,6 +22,7 @@ Tuiuiu provides a comprehensive set of data visualization components for buildin
 | **Bar Charts** | BarChart, VerticalBarChart, StackedBarChart |
 | **Gauges** | Gauge, MeterGauge, ArcGauge, DialGauge, BatteryGauge |
 | **Heatmaps** | Heatmap, ContributionGraph, CalendarHeatmap, CorrelationMatrix, TimeHeatmap |
+| **Audio** | Waveform, WaveformBuffer |
 | **Other** | ScatterPlot, RadarChart, GanttChart, Legend |
 
 ## Import
@@ -36,6 +37,8 @@ import {
   Gauge, MeterGauge, ArcGauge, DialGauge, BatteryGauge,
   // Heatmaps
   Heatmap, ContributionGraph, CalendarHeatmap, CorrelationMatrix,
+  // Audio visualization
+  Waveform, WaveformBuffer, createWaveformBuffer,
   // Other
   ScatterPlot, RadarChart, GanttChart, Legend,
 } from 'tuiuiu.js'
@@ -133,6 +136,7 @@ Heatmap({
 - [Charts](charts.md) - Line charts, area charts, scatter plots
 - [Gauges](gauges.md) - Circular and linear gauges
 - [Heatmaps](heatmaps.md) - Grid-based visualizations
+- [Waveform](waveform.md) - Audio visualization (equalizer, spectrum, oscilloscope)
 
 ## Dashboard Example
 

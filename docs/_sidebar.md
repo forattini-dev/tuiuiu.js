@@ -76,6 +76,7 @@
   - [Charts](/components/viz/charts.md)
   - [Gauges](/components/viz/gauges.md)
   - [Heatmaps](/components/viz/heatmaps.md)
+  - [Waveform](/components/viz/waveform.md)
 
 - **Hooks**
   - [useState](/hooks/use-state.md)

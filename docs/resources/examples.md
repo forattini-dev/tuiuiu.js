@@ -6,10 +6,10 @@ Here are some common patterns and examples to help you build with Tuiuiu.
 
 <div align="center">
 
-| Dashboard | Chat | Forms |
-|:---------:|:----:|:-----:|
-| ![Dashboard](../recordings/examples/demo-dashboard.gif) | ![Chat](../recordings/examples/demo-chat.gif) | ![Forms](../recordings/examples/demo-forms.gif) |
-| Real-time metrics | Chat interface | Form wizard |
+| Dashboard | Chat | Forms | Player |
+|:---------:|:----:|:-----:|:------:|
+| ![Dashboard](../recordings/examples/demo-dashboard.gif) | ![Chat](../recordings/examples/demo-chat.gif) | ![Forms](../recordings/examples/demo-forms.gif) | ![Player](../recordings/examples/demo-player.gif) |
+| Real-time metrics | Chat interface | Form wizard | Winamp-style audio |
 
 </div>
 
@@ -22,6 +22,7 @@ All examples can be run directly with `tsx`:
 npx tsx examples/01-basic-counter.ts
 npx tsx examples/06-dashboard.ts
 npx tsx examples/12-animation-system.ts
+npx tsx examples/tuiuiu-player.ts
 ```
 
 ## Example Index
@@ -45,6 +46,7 @@ npx tsx examples/12-animation-system.ts
 | `15-constraint-layout.ts` | Constraint-based layouts (alternative to flexbox) |
 | `16-graphics-braille.ts` | Braille graphics, patterns, animations |
 | `17-event-system.ts` | Event bubbling, delegation, custom events |
+| `tuiuiu-player.ts` | Winamp-style music player with waveform visualization |
 
 ## 1. Counter App
 
