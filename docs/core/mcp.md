@@ -574,6 +574,26 @@ When you enable Tuiuiu MCP, Claude gets access to:
 
 ## Debugging
 
+### MCP Inspector
+
+The easiest way to explore and test the MCP server is using the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+npx @modelcontextprotocol/inspector npx tuiuiu.js@latest mcp
+```
+
+This opens a web UI at `http://localhost:5173` where you can:
+
+- **Browse Tools** — See all 10 tools with descriptions and parameters
+- **Test Tool Calls** — Execute tools and see responses in real-time
+- **Explore Resources** — Navigate the URI-based resource system
+- **View Prompts** — Preview all 15 prompt templates
+- **Inspect Messages** — Debug JSON-RPC requests and responses
+
+<img src="../recordings/mcp-inspector.png" alt="MCP Inspector" width="100%">
+
+> **Tip:** The Inspector is perfect for learning the API before integrating with Claude Code or other clients.
+
 ### Check MCP Status
 
 ```bash

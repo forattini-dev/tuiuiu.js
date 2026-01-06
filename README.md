@@ -335,6 +335,16 @@ Now Claude has full access to Tuiuiu's 50+ components, hooks, themes, and exampl
 
 **Available tools:** `tuiuiu_list_components`, `tuiuiu_get_component`, `tuiuiu_get_hook`, `tuiuiu_search`, `tuiuiu_list_themes`, `tuiuiu_create_theme`, `tuiuiu_getting_started`, `tuiuiu_quickstart`, `tuiuiu_version`, `tuiuiu_api_patterns`
 
+### Debug with MCP Inspector
+
+Test and explore the MCP server interactively using the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+npx @modelcontextprotocol/inspector npx tuiuiu.js@latest mcp
+```
+
+This opens a web UI where you can browse tools, test resources, and inspect the full MCP capabilities.
+
 [→ Full MCP Documentation](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp)
 
 ## Storybook
