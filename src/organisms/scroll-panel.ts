@@ -62,7 +62,7 @@ export function ScrollPanel(props: ScrollPanelProps): VNode {
       flexDirection: 'column',
       alignItems: 'stretch',
       width,
-      height: typeof height === 'number' ? height : undefined,
+      height: height === 'fill' ? 'fill' : (typeof height === 'number' ? height : undefined),
       minHeight,
       maxHeight,
       flexGrow: autoHeight ? (flexGrow ?? 1) : flexGrow,

@@ -33,8 +33,9 @@ import {
   Footer,
   Panel,
 } from '../src/index.js';
+import { Divider } from '../src/primitives/divider.js';
 import { useTerminalSize } from '../src/hooks/index.js';
-import { createSpinner, renderSpinner, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
+import { createSpinner, renderSpinner, getSpinnerConfig, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
 import { ScrollPanel } from '../src/organisms/scroll-panel.js';
 import type { BoxStyle, VNode } from '../src/utils/types.js';
 import { TuiuiuHeader, trackFrame, resetFps, getFps } from './_shared/tuiuiu-header.js';
@@ -141,7 +142,7 @@ const LCD_DIGITS: Record<string, string[]> = {
   '8': ['┏━┓', '┣━┫', '┗━┛'],
   '9': ['┏━┓', '┗━┫', '╺━┛'],
   '.': ['  ', '  ', '• '],
-  ',': ['   ', '   ', ' ╷ '],
+  ',': [' ', ' ', ','],
   '%': ['○ ╱', ' ╱ ', '╱ ○'],
   ' ': ['   ', '   ', '   '],
   'K': ['╻ ╱', '┣╸ ', '╹ ╲'],
@@ -379,24 +380,98 @@ function Card(props: {
   height?: BoxStyle['height'];
   minWidth?: number;
   color?: string;
+  background?: string;
   flexGrow?: number;
   children: (VNode | null)[];
 }): VNode {
   const content = props.children.filter(Boolean) as VNode[];
 
-  return Panel(
+  return Box(
     {
-      title: props.title,
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      borderStyle: 'round',
       borderColor: (props.color || resolveColor('muted')) as any,
+      backgroundColor: props.background as any,
       width: props.width,
       height: props.height,
       minWidth: props.minWidth,
       flexGrow: props.flexGrow,
-      padding: 0,
       paddingX: 1,
-      paddingBottom: 1,
     },
+    Text({ color: 'mutedForeground', dim: true }, props.title),
     ...content
+  );
+}
+
+/** Section inside a GroupedPanel - no borders, just content with title */
+function Section(props: {
+  title: string;
+  color?: string;
+  children: (VNode | null)[];
+}): VNode {
+  const content = props.children.filter(Boolean) as VNode[];
+
+  return Box(
+    { flexDirection: 'column', paddingX: 1, paddingY: 1 },
+    Text({ color: 'mutedForeground', dim: true }, props.title),
+    ...content
+  );
+}
+
+/** GroupedPanel - Multiple sections with a single outer border
+ *
+ * Renders a single bordered container with multiple sections.
+ * Uses simple separator lines between sections (not full dividers).
+ */
+function GroupedPanel(props: {
+  sections: { title: string; content: (VNode | null)[]; }[];
+  color?: string;
+  background?: string;
+  width?: BoxStyle['width'];
+  flexGrow?: number;
+}): VNode {
+  const borderColor = (props.color || resolveColor('success')) as any;
+
+  // Filter out sections with no content
+  const validSections = props.sections.filter(s => s.content.some(c => c !== null));
+
+  // Build section nodes with simple separator lines
+  const sectionNodes: VNode[] = [];
+
+  validSections.forEach((section, i) => {
+    const content = section.content.filter(Boolean) as VNode[];
+
+    // Add simple separator line between sections (just a text line, no box)
+    if (i > 0) {
+      sectionNodes.push(
+        Text({ color: borderColor, dim: true }, '─'.repeat(50))
+      );
+    }
+
+    // Section title
+    sectionNodes.push(
+      Text({ color: 'mutedForeground', dim: true }, section.title)
+    );
+
+    // Section content - add each item directly (no wrapper Box)
+    content.forEach(item => {
+      sectionNodes.push(item);
+    });
+  });
+
+  return Box(
+    {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      borderStyle: 'round',
+      borderColor: borderColor,
+      backgroundColor: props.background as any,
+      width: props.width,
+      flexGrow: props.flexGrow,
+      paddingX: 1,
+    },
+    ...sectionNodes
   );
 }
 
@@ -405,6 +480,7 @@ function BigMetric(props: {
   value: string;
   suffix?: string;
   color: string;
+  background?: string;
   spark?: string;
   width?: BoxStyle['width'];
   minWidth?: number;
@@ -413,6 +489,7 @@ function BigMetric(props: {
   return Card({
     title: props.title,
     color: props.color,
+    background: props.background,
     width: props.width,
     minWidth: props.minWidth,
     flexGrow: props.flexGrow,
@@ -462,7 +539,7 @@ function GaugeBar(props: {
   );
 }
 
-function ActivityFeed(props: { entries: LogEntry[] }): VNode {
+function ActivityFeed(props: { entries: LogEntry[]; background?: string; flexGrow?: number }): VNode {
   const logContent = props.entries.map((e) =>
     Box(
       { flexDirection: 'row' },
@@ -474,16 +551,24 @@ function ActivityFeed(props: { entries: LogEntry[] }): VNode {
     )
   );
 
-  return ScrollPanel({
-    title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES}) [↑↓/jk scroll]`,
-    borderColor: resolveColor('primary'),
-    scrollbarColor: resolveColor('primary'),
-    content: logContent,
-    height: 'fill',
-    showScrollbar: true,
-    flexGrow: 1,
-    isActive: true,
-  });
+  // Wrap ScrollPanel in a Box with background
+  return Box(
+    {
+      flexDirection: 'column',
+      flexGrow: props.flexGrow ?? 1,
+      backgroundColor: props.background as any,
+    },
+    ScrollPanel({
+      title: `◉ LIVE REQUESTS (${props.entries.length}/${MAX_LOG_ENTRIES}) [↑↓/jk scroll]`,
+      borderColor: resolveColor('primary'),
+      scrollbarColor: resolveColor('primary'),
+      content: logContent,
+      height: 'fill',
+      showScrollbar: true,
+      flexGrow: 1,
+      isActive: true,
+    })
+  );
 }
 
 function ServicesList(props: {
@@ -774,7 +859,12 @@ function Dashboard(): VNode {
   const metricMinWidth = Math.max(18, Math.floor(termWidth / 4));
   const leftColumnApprox = Math.max(24, Math.floor(termWidth / 2));
   const leftColContentWidth = Math.max(10, leftColumnApprox - 4);
-  const gaugeBarWidth = Math.max(10, leftColContentWidth - 10);
+  const gaugeBarWidth = leftColContentWidth; // Same width as sparkline for visual alignment
+
+  // Theme backgrounds for cards
+  const theme = useTheme();
+  const cardBg = theme.background.surface;
+  const panelBg = theme.background.subtle;
 
   resetFps();
 
@@ -829,6 +919,7 @@ function Dashboard(): VNode {
           value: m.rps().toString(),
           suffix: '/s',
           color: resolveColor('primary'),
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.rpsHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -838,6 +929,7 @@ function Dashboard(): VNode {
           value: m.latency().toString(),
           suffix: 'ms',
           color: latColor,
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.latencyHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -847,6 +939,7 @@ function Dashboard(): VNode {
           value: m.errors().toFixed(1),
           suffix: '%',
           color: errColor,
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.errorsHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -861,6 +954,7 @@ function Dashboard(): VNode {
           value: formatWhole(m.activeUsers()),
           suffix: 'usr',
           color: usersColor,
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.activeUsersHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -870,6 +964,7 @@ function Dashboard(): VNode {
           value: m.p95Latency().toString(),
           suffix: 'ms',
           color: p95Color,
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.p95LatencyHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -879,6 +974,7 @@ function Dashboard(): VNode {
           value: m.cacheHit().toFixed(1),
           suffix: '%',
           color: cacheColor,
+          background: cardBg,
           spark: showBigSparks ? sparkline(m.cacheHitHistory(), metricSparkWidth) : undefined,
           flexGrow: 1,
           minWidth: metricMinWidth,
@@ -895,30 +991,67 @@ function Dashboard(): VNode {
       secondaryMetrics,
       Box(
         { flexDirection: 'row', gap: 1, flexGrow: 1, alignItems: 'stretch' },
-        Box(
-          { flexDirection: 'column', gap: 1, flexGrow: 1, alignItems: 'stretch' },
-          Card({
-            title: '◇ SYSTEM RESOURCES',
-            color: resolveColor('success'),
-            children: [
-              GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),
-            showSystemSparks ? Text({ color: cpuColor as any, dim: true, wrap: 'truncate' }, sparkline(m.cpuHistory(), leftColContentWidth)) : null,
-            GaugeBar({ title: 'MEM', value: m.mem(), max: 100, color: memColor, barWidth: gaugeBarWidth }),
-            showSystemSparks ? Text({ color: memColor as any, dim: true, wrap: 'truncate' }, sparkline(m.memHistory(), leftColContentWidth)) : null,
+        GroupedPanel({
+          color: resolveColor('success'),
+          background: panelBg,
+          flexGrow: 1,
+          sections: [
+            {
+              title: '◇ SYSTEM RESOURCES',
+              content: [
+                GaugeBar({ title: 'CPU', value: m.cpu(), max: 100, color: cpuColor, barWidth: gaugeBarWidth }),
+                showSystemSparks ? Text({ color: cpuColor as any, dim: true, wrap: 'truncate' }, sparkline(m.cpuHistory(), leftColContentWidth)) : null,
+                GaugeBar({ title: 'MEM', value: m.mem(), max: 100, color: memColor, barWidth: gaugeBarWidth }),
+                showSystemSparks ? Text({ color: memColor as any, dim: true, wrap: 'truncate' }, sparkline(m.memHistory(), leftColContentWidth)) : null,
+              ],
+            },
+            ...(showNetwork ? [{
+              title: '◈ NETWORK',
+              content: [
+                Box(
+                  { flexDirection: 'row', gap: 2 },
+                  Text({ color: resolveColor('success') as any }, `↓ ${m.bandwidth().in.toFixed(1)} MB/s`),
+                  Text({ color: resolveColor('warning') as any }, `↑ ${m.bandwidth().out.toFixed(1)} MB/s`),
+                  Text({ color: 'muted' as any }, `${m.connections()} conn`),
+                  Text({ color: (m.rtt() > 100 ? resolveColor('error') : m.rtt() > 50 ? resolveColor('warning') : resolveColor('success')) as any }, `${m.rtt()}ms`),
+                ),
+              ],
+            }] : []),
+            {
+              title: '◎ SERVICES',
+              content: [
+                ...m.services().slice(0, servicesVisible).map((s) =>
+                  Box(
+                    { flexDirection: 'row', gap: 1 },
+                    Text({ color: s.status === 'running' ? resolveColor('success') as any : resolveColor('error') as any }, s.status === 'running' ? '●' : '○'),
+                    Text({}, s.name),
+                    Spacer({}),
+                    Text({ color: 'muted' as any, dim: true }, s.load),
+                  )
+                ),
+              ],
+            },
+            ...(showJobs ? [{
+              title: '◆ BACKGROUND JOBS',
+              content: [
+                ...Array.from({ length: Math.min(jobsToShow, m.queueDepth()) }, (_, i) => {
+                  const style: SpinnerStyle = (['dots', 'line', 'arc', 'bounce'] as const)[i % 4];
+                  const config = getSpinnerConfig(style);
+                  const frameIndex = Math.floor(Date.now() / config.interval) % config.frames.length;
+                  const spinnerChar = config.frames[frameIndex];
+                  return Box(
+                    { flexDirection: 'row', gap: 1 },
+                    Text({ color: resolveColor('primary') as any }, spinnerChar),
+                    Text({}, `Job ${i + 1}`),
+                    Spacer({}),
+                    Text({ color: 'muted' as any, dim: true }, `${Math.floor(Math.random() * 100)}%`),
+                  );
+                }),
+              ],
+            }] : []),
           ],
         }),
-          showNetwork ? NetworkStats({
-            inMb: m.bandwidth().in,
-            outMb: m.bandwidth().out,
-            connections: m.connections(),
-            rtt: m.rtt(),
-            packetLoss: m.packetLoss(),
-            compact: compactNetwork,
-          }) : null,
-          ServicesList({ services: m.services(), maxItems: servicesVisible, showOverflow: showServicesOverflow }),
-          showJobs ? SpinnersPanel({ queueDepth: m.queueDepth(), maxItems: jobsToShow }) : null
-        ),
-        ActivityFeed({ entries: m.activityLog() })
+        ActivityFeed({ entries: m.activityLog(), background: panelBg, flexGrow: 1 })
       )
     ),
     DashboardFooter()
@@ -929,5 +1062,5 @@ function Dashboard(): VNode {
 // Run
 // ============================================================================
 
-const { waitUntilExit } = render(Dashboard, { autoTabNavigation: false, fullHeight: true });
+const { waitUntilExit } = render(Dashboard, { autoTabNavigation: false });
 await waitUntilExit();

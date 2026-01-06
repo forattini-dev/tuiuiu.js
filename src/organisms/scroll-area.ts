@@ -70,6 +70,8 @@ export interface ScrollAreaState {
   scrollToBottom: () => void;
   pageUp: () => void;
   pageDown: () => void;
+  setContent: (content: string[] | VNode[]) => void;
+  contentLength: () => number;
 }
 
 // =============================================================================
@@ -82,7 +84,7 @@ export interface ScrollAreaState {
 export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaState {
   const {
     height,
-    content,
+    content: initialContent,
     initialScrollTop = 0,
     scrollStep = 1,
     pageSize,
@@ -91,8 +93,9 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
 
   const [viewportHeight, setViewportHeight] = createSignal(height);
   const [scrollTop, setScrollTop] = createSignal(initialScrollTop);
+  const [content, setContentSignal] = createSignal(initialContent);
 
-  const maxScroll = createMemo(() => Math.max(0, content.length - viewportHeight()));
+  const maxScroll = createMemo(() => Math.max(0, content().length - viewportHeight()));
 
   const clampScroll = (pos: number) => Math.max(0, Math.min(pos, maxScroll()));
 
@@ -118,8 +121,15 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
   const visibleItems = createMemo(() => {
     const top = scrollTop();
     const currentHeight = viewportHeight();
-    return content.slice(top, top + currentHeight);
+    const currentContent = content();
+    return currentContent.slice(top, top + currentHeight);
   });
+
+  const setContent = (newContent: string[] | VNode[]) => {
+    setContentSignal(newContent);
+  };
+
+  const contentLength = createMemo(() => content().length);
 
   return {
     height: viewportHeight,
@@ -129,7 +139,7 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
         return;
       }
       setViewportHeight(safeHeight);
-      const max = Math.max(0, content.length - safeHeight);
+      const max = Math.max(0, content().length - safeHeight);
       setScrollTop((current) => Math.min(current, max));
     },
     scrollTop,
@@ -141,6 +151,8 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
     scrollToBottom,
     pageUp,
     pageDown,
+    setContent,
+    contentLength,
   };
 }
 
@@ -158,12 +170,16 @@ export interface ScrollAreaProps extends ScrollAreaOptions {
 function resolveScrollHeight(
   height: ScrollAreaHeight | undefined,
   measuredHeight: number,
+  contentLength: number,
   minHeight?: number,
   maxHeight?: number
 ): number {
+  // For numeric height, use it directly
+  // For auto/fill, use the larger of measured height or content length
+  // This ensures all content is visible when layout hasn't fully resolved
   const baseHeight = typeof height === 'number'
     ? height
-    : (measuredHeight > 0 ? measuredHeight : 1);
+    : Math.max(measuredHeight, contentLength, 1);
 
   let resolved = baseHeight;
 
@@ -219,7 +235,7 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   const autoHeight = heightProp === undefined || heightProp === 'auto' || heightProp === 'fill';
   const layoutRef = autoHeight ? useLayoutRef() : undefined;
   const measuredHeight = autoHeight && layoutRef ? layoutRef.height() : 0;
-  const resolvedHeight = resolveScrollHeight(heightProp, measuredHeight, minHeight, maxHeight);
+  const resolvedHeight = resolveScrollHeight(heightProp, measuredHeight, content.length, minHeight, maxHeight);
 
   const state = externalState || createScrollArea({
     height: resolvedHeight,
@@ -231,6 +247,10 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   });
   if (state.height() !== resolvedHeight) {
     state.setHeight(resolvedHeight);
+  }
+  // Update content when it changes
+  if (state.contentLength() !== content.length) {
+    state.setContent(content);
   }
   const viewportHeight = state.height();
   const chars = getChars();
