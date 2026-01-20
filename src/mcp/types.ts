@@ -224,7 +224,7 @@ export interface MethodDefinition {
 
 export interface ComponentDoc {
   name: string;
-  category: 'atoms' | 'molecules' | 'organisms' | 'templates' | 'primitives' | 'hooks' | 'utils' | 'media' | 'animation';
+  category: 'atoms' | 'molecules' | 'organisms' | 'templates' | 'primitives' | 'hooks' | 'utils' | 'media' | 'animation' | 'colors';
   description: string;
   props: PropDefinition[];
   methods?: MethodDefinition[];

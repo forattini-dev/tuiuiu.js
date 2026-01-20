@@ -14,6 +14,7 @@ export { organisms } from './organisms.js';
 export { layouts } from './layouts.js';
 export { media } from './media.js';
 export { animation, animationTimingGuide } from './animation.js';
+export { colors, colorsGuide } from './colors.js';
 
 // Hook documentation
 export { hooks } from './hooks.js';

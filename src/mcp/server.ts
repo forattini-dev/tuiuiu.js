@@ -82,13 +82,13 @@ export interface MCPServerOptions {
 const tools: MCPTool[] = [
   {
     name: 'tuiuiu_list_components',
-    description: 'List all available Tuiuiu components by category. Returns component names grouped by category (primitives, atoms, molecules, organisms, layouts).',
+    description: 'List all available Tuiuiu components by category. Returns component names grouped by category (primitives, atoms, molecules, organisms, layouts, colors).',
     inputSchema: {
       type: 'object',
       properties: {
         category: {
           type: 'string',
-          description: 'Filter by category: primitives, atoms, molecules, organisms, layouts, hooks, signals, themes',
+          description: 'Filter by category: primitives, atoms, molecules, organisms, layouts, colors, hooks, signals, themes',
         },
       },
     },

@@ -243,6 +243,35 @@ Sparkline({ data: [1, 5, 2, 8, 3, 9], width: 20, style: 'braille' });
 Gauge({ value: 75, max: 100, label: 'CPU', color: 'green' });
 ```
 
+### 🎨 Terminal Colors API (Standalone)
+
+Zero-dependency ANSI colors for CLI tools. Use it without the full UI framework.
+
+```typescript
+import { red, bold, compose, c, tpl } from 'tuiuiu.js/colors';
+
+// Simple functions
+console.log(red('Error!'));
+console.log(bold('Important'));
+
+// Composition
+const errorStyle = compose(red, bold);
+console.log(errorStyle('Critical failure!'));
+
+// Chainable API
+console.log(c.red.bold('Critical!'));
+console.log(c.bgBlue.white('Info'));
+console.log(c.hex('#ff6600')('Orange'));
+
+// Template literal
+console.log(tpl`{red Error:} Something went wrong`);
+
+// Theme-aware colors
+import { theme, tw } from 'tuiuiu.js/colors';
+console.log(theme.primary('Action'));
+console.log(tw.blue[500]('Tailwind Blue'));
+```
+
 ### 🏗️ Atomic Design + Tree Shaking
 
 Components organized in a clear hierarchy. Import only what you need — unused code is automatically removed from your bundle.
@@ -283,6 +312,7 @@ import { BarChart, Gauge } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |
 | `tuiuiu.js/app` | render, renderOnce, useApp |
 | `tuiuiu.js/utils` | Text measurement, ANSI utilities |
+| `tuiuiu.js/colors` | Terminal ANSI colors (standalone, zero dependencies) |
 | `tuiuiu.js/design-system` | Full design system (charts, forms, navigation) |
 | `tuiuiu.js/storybook` | Component explorer utilities |
 

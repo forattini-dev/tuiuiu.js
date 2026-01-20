@@ -1094,3 +1094,111 @@ export {
   listPresetsByCategory,
   type PresetName,
 } from './presets/index.js';
+
+// =============================================================================
+// Colors - Terminal ANSI colors API
+// =============================================================================
+
+export {
+  // Types
+  type ColorFn,
+  type ColorLevel,
+
+  // Foreground colors (prefixed to avoid conflict with Tailwind palette exports)
+  black as ansiBlack,
+  red as ansiRed,
+  green as ansiGreen,
+  yellow as ansiYellow,
+  blue as ansiBlue,
+  magenta as ansiMagenta,
+  cyan as ansiCyan,
+  white as ansiWhite,
+  gray as ansiGray,
+  grey as ansiGrey,
+  blackBright as ansiBlackBright,
+  redBright as ansiRedBright,
+  greenBright as ansiGreenBright,
+  yellowBright as ansiYellowBright,
+  blueBright as ansiBlueBright,
+  magentaBright as ansiMagentaBright,
+  cyanBright as ansiCyanBright,
+  whiteBright as ansiWhiteBright,
+
+  // Background colors
+  bgBlack,
+  bgRed,
+  bgGreen,
+  bgYellow,
+  bgBlue,
+  bgMagenta,
+  bgCyan,
+  bgWhite,
+  bgGray,
+  bgGrey,
+  bgBlackBright,
+  bgRedBright,
+  bgGreenBright,
+  bgYellowBright,
+  bgBlueBright,
+  bgMagentaBright,
+  bgCyanBright,
+  bgWhiteBright,
+
+  // Modifiers
+  reset as ansiReset,
+  bold as ansiBold,
+  dim as ansiDim,
+  italic as ansiItalic,
+  underline as ansiUnderline,
+  overline as ansiOverline,
+  inverse as ansiInverse,
+  hidden as ansiHidden,
+  strikethrough as ansiStrikethrough,
+  strike as ansiStrike,
+
+  // RGB/Hex/256
+  rgb as ansiRgb,
+  bgRgb as ansiBgRgb,
+  hex as ansiHex,
+  bgHex as ansiBgHex,
+  ansi256,
+  bgAnsi256,
+
+  // Composition
+  compose as ansiCompose,
+  styled as ansiStyled,
+
+  // Chainable API
+  c,
+
+  // Utilities
+  stripAnsi as ansiStrip,
+  hasAnsi,
+  visibleLength,
+
+  // Semantic aliases
+  success as ansiSuccess,
+  error as ansiError,
+  warning as ansiWarning,
+  info as ansiInfo,
+  muted as ansiMuted,
+  primary as ansiPrimary,
+  secondary as ansiSecondary,
+
+  // Color detection
+  supportsColor as ansiSupportsColor,
+  supportsTrueColor as ansiSupportsTrueColor,
+  getColorLevel as ansiGetColorLevel,
+
+  // Template literal
+  tpl,
+
+  // Theme integration
+  theme as colorsTheme,
+
+  // Tailwind colors
+  tw,
+
+  // Pre-composed styles
+  styles as ansiStyles,
+} from './colors/index.js';
