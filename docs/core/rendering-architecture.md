@@ -52,13 +52,45 @@ Measuring string width (especially with ANSI codes and Unicode characters) is ex
 When a Signal changes:
 1.  The effect bound to that signal triggers.
 2.  Updates are **batched** via the `UpdateBatcher`.
-3.  Multiple rapid signal changes result in a single re-render frame (throttled to ~60fps).
+3.  Multiple rapid signal changes result in a single re-render frame (throttled to ~30fps by default).
 
-### Diffing (Incremental Rendering)
-To minimize data sent over the wire (crucial for SSH sessions), Tuiuiu uses `log-update` principles:
+### Delta Renderer (Default)
+
+Tuiuiu uses a **cell-level delta renderer** by default for optimal performance:
+
+```mermaid
+graph LR
+    A[VNode Tree] --> B[Layout Calculation]
+    B --> C[Back Buffer]
+    C --> D{Diff with Front Buffer}
+    D -->|Changed cells only| E[Terminal Output]
+    D -->|Swap buffers| C
+```
+
+**How it works:**
+1.  **Double Buffering**: Maintains two cell buffers (front and back)
+2.  **Cell-level Diffing**: Compares each cell (char, fg, bg, attrs) between buffers
+3.  **Minimal Output**: Only writes ANSI sequences for changed cells
+4.  **ANSI State Tracking**: Minimizes escape codes by tracking current terminal state
+
+**Cell structure:**
+```typescript
+interface Cell {
+  char: string;      // Character to display
+  fg?: Color;        // Foreground color (hex, rgb, or named)
+  bg?: Color;        // Background color
+  attrs: CellAttrs;  // bold, dim, italic, underline, strikethrough, inverse
+}
+```
+
+### String Renderer (Legacy)
+
+The legacy string-based renderer uses `log-update` principles:
 1.  Compare the new frame string with the previous frame string.
 2.  Move the cursor up/down to the changed lines.
 3.  Overwrite only the changed lines.
+
+Use `useDeltaRenderer: false` to enable this mode (useful for Static component support).
 
 ## Coordinate System
 
