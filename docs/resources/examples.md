@@ -11,6 +11,11 @@ Here are some common patterns and examples to help you build with Tuiuiu.
 | ![Dashboard](../recordings/examples/demo-dashboard.gif) | ![Chat](../recordings/examples/demo-chat.gif) | ![Forms](../recordings/examples/demo-forms.gif) | ![Player](../recordings/examples/demo-player.gif) |
 | Real-time metrics | Chat interface | Form wizard | Winamp-style audio |
 
+| Tuiuiu Defence |
+|:--------------:|
+| ![Tuiuiu Defence](../recordings/examples/demo-tuiuiu-defence.gif) |
+| Tower defense game with monsters, towers, upgrades, and waves |
+
 </div>
 
 ## Running Examples
@@ -47,6 +52,7 @@ npx tsx examples/tuiuiu-player.ts
 | `16-graphics-braille.ts` | Braille graphics, patterns, animations |
 | `17-event-system.ts` | Event bubbling, delegation, custom events |
 | `tuiuiu-player.ts` | Winamp-style music player with waveform visualization |
+| `tuiuiu-defence.ts` | Tower defense game with path-following monsters, tower upgrades, waves |
 
 ## 1. Counter App
 

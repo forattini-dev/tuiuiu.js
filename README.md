@@ -148,6 +148,13 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 <img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/components/charts.gif" alt="Charts" width="100%">
 </td>
 </tr>
+<tr>
+<td align="center" colspan="2">
+<strong>🏰 Tuiuiu Defence</strong><br>
+<em>Tower Defense Game</em><br>
+<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-tuiuiu-defence.gif" alt="Tuiuiu Defence" width="100%">
+</td>
+</tr>
 </table>
 
 ## Highlights

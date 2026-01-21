@@ -8,7 +8,7 @@
  * - Tower upgrades with scaling stats
  * - Waves, gold economy, and lives
  *
- * Run: pnpm tsx examples/app-tuiuiu-defence.ts
+ * Run: pnpm tsx examples/tuiuiu-defence.ts
  */
 
 import {
