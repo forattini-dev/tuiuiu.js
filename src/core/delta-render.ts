@@ -28,6 +28,7 @@ import {
 } from './buffer.js';
 import { getDirtyRegistry, needsRender, markClean, clearChanges } from './dirty.js';
 import { hideCursor, showCursor } from '../utils/cursor.js';
+import { resolveColor as resolveThemeColor } from './theme.js';
 import type { Writable } from 'node:stream';
 
 // =============================================================================
@@ -293,9 +294,22 @@ function renderBoxToBuffer(
 
   // Parse colors
   const borderColor = style.borderColor ? parseColor(style.borderColor) : undefined;
+  const boxBg = style.backgroundColor ? parseColor(style.backgroundColor) : bgColor;
 
-  // Note: Background is NOT filled here to avoid flickering.
-  // Text children inherit parentBg and render with the correct background.
+  // Fill background if specified
+  if (boxBg) {
+    const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
+    const fillX = x + borderSize;
+    const fillY = y + borderSize;
+    const fillWidth = Math.max(0, width - borderSize * 2);
+    const fillHeight = Math.max(0, height - borderSize * 2);
+
+    for (let row = 0; row < fillHeight; row++) {
+      for (let col = 0; col < fillWidth; col++) {
+        buffer.writeChar(fillX + col, fillY + row, ' ', undefined, boxBg, {});
+      }
+    }
+  }
 
   if (style.borderStyle && style.borderStyle !== 'none') {
     const borderChars = BORDER_STYLES[style.borderStyle] ?? BORDER_STYLES.single;
@@ -334,6 +348,123 @@ function renderBoxToBuffer(
 /**
  * Render a Text node to buffer
  */
+/**
+ * Parse ANSI escape sequences and extract color/style information
+ * Returns segments of text with their associated styles
+ */
+interface AnsiSegment {
+  text: string;
+  fg?: Color;
+  bg?: Color;
+  attrs: CellAttrs;
+}
+
+function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: CellAttrs = {}): AnsiSegment[] {
+  const segments: AnsiSegment[] = [];
+  let currentFg: Color | undefined = baseFg;
+  let currentBg: Color | undefined = baseBg;
+  let currentAttrs: CellAttrs = { ...baseAttrs };
+  let currentText = '';
+
+  let i = 0;
+  while (i < text.length) {
+    // Check for ANSI escape sequence
+    if (text[i] === '\x1b' && text[i + 1] === '[') {
+      // Flush current text
+      if (currentText) {
+        segments.push({ text: currentText, fg: currentFg, bg: currentBg, attrs: { ...currentAttrs } });
+        currentText = '';
+      }
+
+      // Find end of ANSI sequence
+      let j = i + 2;
+      while (j < text.length && !/[A-Za-z]/.test(text[j]!)) {
+        j++;
+      }
+
+      if (j < text.length && text[j] === 'm') {
+        // Parse SGR (Select Graphic Rendition) codes
+        const codes = text.slice(i + 2, j).split(';').map(c => parseInt(c, 10) || 0);
+
+        for (let k = 0; k < codes.length; k++) {
+          const code = codes[k]!;
+
+          if (code === 0) {
+            // Reset
+            currentFg = baseFg;
+            currentBg = baseBg;
+            currentAttrs = { ...baseAttrs };
+          } else if (code === 1) {
+            currentAttrs.bold = true;
+          } else if (code === 2) {
+            currentAttrs.dim = true;
+          } else if (code === 3) {
+            currentAttrs.italic = true;
+          } else if (code === 4) {
+            currentAttrs.underline = true;
+          } else if (code === 7) {
+            currentAttrs.inverse = true;
+          } else if (code === 9) {
+            currentAttrs.strikethrough = true;
+          } else if (code >= 30 && code <= 37) {
+            // Standard foreground colors
+            const colorNames = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+            currentFg = colorNames[code - 30];
+          } else if (code >= 40 && code <= 47) {
+            // Standard background colors
+            const colorNames = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+            currentBg = colorNames[code - 40];
+          } else if (code >= 90 && code <= 97) {
+            // Bright foreground colors
+            const colorNames = ['blackBright', 'redBright', 'greenBright', 'yellowBright', 'blueBright', 'magentaBright', 'cyanBright', 'whiteBright'];
+            currentFg = colorNames[code - 90];
+          } else if (code >= 100 && code <= 107) {
+            // Bright background colors
+            const colorNames = ['blackBright', 'redBright', 'greenBright', 'yellowBright', 'blueBright', 'magentaBright', 'cyanBright', 'whiteBright'];
+            currentBg = colorNames[code - 100];
+          } else if (code === 38 && codes[k + 1] === 2) {
+            // 24-bit foreground: 38;2;r;g;b
+            const r = codes[k + 2] ?? 0;
+            const g = codes[k + 3] ?? 0;
+            const b = codes[k + 4] ?? 0;
+            currentFg = { r, g, b };
+            k += 4;
+          } else if (code === 48 && codes[k + 1] === 2) {
+            // 24-bit background: 48;2;r;g;b
+            const r = codes[k + 2] ?? 0;
+            const g = codes[k + 3] ?? 0;
+            const b = codes[k + 4] ?? 0;
+            currentBg = { r, g, b };
+            k += 4;
+          } else if (code === 38 && codes[k + 1] === 5) {
+            // 256-color foreground: 38;5;n
+            currentFg = { ansi256: codes[k + 2] ?? 0 };
+            k += 2;
+          } else if (code === 48 && codes[k + 1] === 5) {
+            // 256-color background: 48;5;n
+            currentBg = { ansi256: codes[k + 2] ?? 0 };
+            k += 2;
+          }
+        }
+      }
+
+      i = j + 1;
+      continue;
+    }
+
+    // Regular character
+    currentText += text[i];
+    i++;
+  }
+
+  // Flush remaining text
+  if (currentText) {
+    segments.push({ text: currentText, fg: currentFg, bg: currentBg, attrs: { ...currentAttrs } });
+  }
+
+  return segments;
+}
+
 function renderTextToBuffer(
   node: VNode,
   buffer: CellBuffer,
@@ -346,9 +477,9 @@ function renderTextToBuffer(
   const text = String(props.children ?? '');
 
   // Parse colors and attributes (inherit bg from parent if not set)
-  const fg = props.color ? parseColor(props.color) : undefined;
-  const bg = props.backgroundColor ? parseColor(props.backgroundColor) : parentBg;
-  const attrs: CellAttrs = {
+  const baseFg = props.color ? parseColor(props.color) : undefined;
+  const baseBg = props.backgroundColor ? parseColor(props.backgroundColor) : parentBg;
+  const baseAttrs: CellAttrs = {
     bold: props.bold,
     dim: props.dim,
     italic: props.italic,
@@ -357,26 +488,55 @@ function renderTextToBuffer(
     strikethrough: props.strikethrough,
   };
 
-  // Handle wrapping
-  const lines = wrapTextForBuffer(text, maxWidth, props.wrap);
+  // Check if text contains ANSI sequences
+  const hasAnsi = text.includes('\x1b[');
 
-  for (let i = 0; i < lines.length; i++) {
+  if (hasAnsi) {
+    // Parse ANSI and render segments
+    const segments = parseAnsiText(text, baseFg, baseBg, baseAttrs);
     let col = 0;
-    for (const char of lines[i]) {
-      if (col >= maxWidth) break;
-      const charWidth = stringWidth(char);
-      buffer.writeChar(x + col, y + i, char, fg, bg, attrs);
-      col += charWidth;
+    let row = 0;
+
+    for (const segment of segments) {
+      for (const char of segment.text) {
+        if (char === '\n') {
+          row++;
+          col = 0;
+          continue;
+        }
+        if (col >= maxWidth) {
+          row++;
+          col = 0;
+        }
+        const charWidth = stringWidth(char);
+        buffer.writeChar(x + col, y + row, char, segment.fg, segment.bg, segment.attrs);
+        col += charWidth;
+      }
+    }
+  } else {
+    // Handle wrapping for non-ANSI text
+    const lines = wrapTextForBuffer(text, maxWidth, props.wrap);
+
+    for (let i = 0; i < lines.length; i++) {
+      let col = 0;
+      for (const char of lines[i]!) {
+        if (col >= maxWidth) break;
+        const charWidth = stringWidth(char);
+        buffer.writeChar(x + col, y + i, char, baseFg, baseBg, baseAttrs);
+        col += charWidth;
+      }
     }
   }
 }
 
 /**
  * Parse a color string to Color type
+ * Resolves semantic theme colors (primary, success, etc.) to actual color values
  */
 function parseColor(color: string): Color {
-  // Named colors - return as string for colorToAnsi to handle
-  return color;
+  // Resolve semantic/theme colors (primary, success, foreground, etc.)
+  const resolved = resolveThemeColor(color);
+  return resolved;
 }
 
 /**

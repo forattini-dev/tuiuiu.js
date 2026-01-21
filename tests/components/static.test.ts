@@ -125,13 +125,15 @@ describe('Static Component', () => {
   });
 
   describe('Static node identification', () => {
-    it('should have position absolute for proper stacking', () => {
+    it('should occupy space in normal flow (not absolute positioned)', () => {
       const node = Static({
         items: ['test'],
         children: (item) => Text({}, item),
       });
 
-      expect((node.props as any).position).toBe('absolute');
+      // Static content should be in normal flow, not absolute positioned.
+      // This ensures it pushes dynamic content below it.
+      expect((node.props as any).position).toBeUndefined();
     });
 
     it('should have flexDirection column', () => {

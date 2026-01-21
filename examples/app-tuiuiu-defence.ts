@@ -1,5 +1,5 @@
 /**
- * Tower Defense - Terminal Strategy Demo
+ * Tuiuiu Defence - Terminal Strategy Demo
  *
  * Features:
  * - Path-following monsters
@@ -8,7 +8,7 @@
  * - Tower upgrades with scaling stats
  * - Waves, gold economy, and lives
  *
- * Run: pnpm tsx examples/app-tower-defense.ts
+ * Run: pnpm tsx examples/app-tuiuiu-defence.ts
  */
 
 import {
@@ -26,8 +26,43 @@ import {
   setTheme,
   darkTheme,
   useInterval,
+  useFps,
+  resolveColor,
 } from '../src/index.js';
 import type { VNode } from '../src/utils/types.js';
+
+// =============================================================================
+// ANSI Helpers for fast map rendering
+// =============================================================================
+
+const ESC = '\u001B[';
+const RESET = `${ESC}0m`;
+
+/** Convert hex color to ANSI RGB escape code */
+function hexToAnsi(hex: string, isBg: boolean): string {
+  if (!hex || !hex.startsWith('#')) return '';
+  const code = isBg ? 48 : 38;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${ESC}${code};2;${r};${g};${b}m`;
+}
+
+/** Build ANSI-styled character */
+function styledChar(
+  ch: string,
+  color: string,
+  backgroundColor: string | undefined,
+  bold: boolean,
+  dim: boolean
+): string {
+  const resolved = resolveColor(color);
+  const fg = hexToAnsi(resolved, false);
+  const bg = backgroundColor ? hexToAnsi(resolveColor(backgroundColor), true) : '';
+  const boldCode = bold ? `${ESC}1m` : '';
+  const dimCode = dim ? `${ESC}2m` : '';
+  return `${boldCode}${dimCode}${fg}${bg}${ch}${RESET}`;
+}
 
 // Set theme BEFORE render (required for proper input handling)
 setTheme(darkTheme);
@@ -44,6 +79,7 @@ type Monster = {
   maxHp: number;
   pathIndex: number;
   speed: number;
+  reward: number;
 };
 
 type Tower = {
@@ -71,12 +107,13 @@ type Projectile = {
 
 const MAP_MIN_WIDTH = 12;
 const MAP_MIN_HEIGHT = 8;
-const HEADER_HEIGHT = 1;
+const HEADER_HEIGHT = 0;
 const OUTER_PADDING = 1;
-const MAP_PANEL_PADDING = 1;
-const PANEL_BORDER = 2;
-const INFO_RESERVED_ROWS = 8; // Compact controls take less space
-const MAP_INFO_GAP = 1;
+const MAP_PANEL_PADDING = 0;
+const PANEL_BORDER = 0;
+const INFO_RESERVED_ROWS = 2; // Top + bottom compact bars
+const MAP_INFO_GAP = 0;
+const MENU_OPTIONS = ['New Game', 'Exit'] as const;
 
 function getMapSize(columns: number, rows: number): { width: number; height: number } {
   const availableWidth = columns - OUTER_PADDING * 2 - MAP_PANEL_PADDING * 2 - PANEL_BORDER;
@@ -135,10 +172,11 @@ function buildPath(waypoints: Point[]): Point[] {
   return path;
 }
 
-// Build path with width (expands path to 3 cells wide)
+// Build path with width (horizontal segments 3 wide, vertical segments 5 wide)
 function buildPathWithWidth(centerPath: Point[], width: number, height: number): Set<string> {
   const pathSet = new Set<string>();
-  const halfWidth = 1; // 3 wide = center + 1 on each side
+  const halfWidthHorizontal = 1; // 3 wide = center + 1 on each side
+  const halfWidthVertical = 2; // 5 wide = center + 2 on each side
 
   for (let i = 0; i < centerPath.length; i++) {
     const current = centerPath[i];
@@ -164,7 +202,7 @@ function buildPathWithWidth(centerPath: Point[], width: number, height: number):
     // Expand perpendicular to direction
     if (isHorizontal && !isVertical) {
       // Horizontal segment - expand vertically
-      for (let dy = -halfWidth; dy <= halfWidth; dy++) {
+      for (let dy = -halfWidthHorizontal; dy <= halfWidthHorizontal; dy++) {
         const ny = current.y + dy;
         if (ny >= 0 && ny < height) {
           pathSet.add(`${current.x},${ny}`);
@@ -172,16 +210,16 @@ function buildPathWithWidth(centerPath: Point[], width: number, height: number):
       }
     } else if (isVertical && !isHorizontal) {
       // Vertical segment - expand horizontally
-      for (let dx = -halfWidth; dx <= halfWidth; dx++) {
+      for (let dx = -halfWidthVertical; dx <= halfWidthVertical; dx++) {
         const nx = current.x + dx;
         if (nx >= 0 && nx < width) {
           pathSet.add(`${nx},${current.y}`);
         }
       }
     } else {
-      // Corner or endpoint - expand both ways
-      for (let dx = -halfWidth; dx <= halfWidth; dx++) {
-        for (let dy = -halfWidth; dy <= halfWidth; dy++) {
+      // Corner or endpoint - expand both ways (keep vertical wider)
+      for (let dx = -halfWidthVertical; dx <= halfWidthVertical; dx++) {
+        for (let dy = -halfWidthHorizontal; dy <= halfWidthHorizontal; dy++) {
           const nx = current.x + dx;
           const ny = current.y + dy;
           if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
@@ -222,40 +260,164 @@ function noise2D(x: number, y: number, scale: number, seed: number): number {
   return v0 + (v1 - v0) * ty;
 }
 
-function generateTerrainTile(x: number, y: number): string {
-  const forestNoise = noise2D(x, y, 7, 33) * 0.6 + noise2D(x, y, 4, 44) * 0.4;
-  const rockNoise = noise2D(x, y, 12, 55) * 0.7 + noise2D(x, y, 6, 66) * 0.3;
-  const waterNoise = noise2D(x, y, 15, 11);
-  const detailNoise = pseudoRandom(x, y, 77) / 100;
+const TERRAIN_ASPECT_BIAS = 1.35;
+const TERRAIN_ASPECT_MIN = 0.6;
+const TERRAIN_ASPECT_MAX = 2.2;
 
-  // Small ponds (rare, only at noise peaks)
-  if (waterNoise > 0.82) {
-    return '~';
-  }
-
-  // Rocky outcrops (sparse)
-  if (rockNoise > 0.78) {
-    return detailNoise > 0.6 ? '^' : '░';
-  }
-
-  // Forest patches
-  if (forestNoise > 0.70) {
-    return detailNoise > 0.5 ? 'T' : 't';
-  }
-
-  // Clean ground with subtle variation
-  const groundValue = pseudoRandom(x, y, 88);
-  if (groundValue < 5) return '*';   // Rare flowers
-  if (groundValue < 15) return '\''; // Grass tufts
-  if (groundValue < 40) return ',';
-  if (groundValue < 65) return '`';
-  return '.';
+function getTerrainStretch(width: number, height: number): { x: number; y: number } {
+  const aspect = height / Math.max(1, width);
+  const adjusted = Math.max(
+    TERRAIN_ASPECT_MIN,
+    Math.min(TERRAIN_ASPECT_MAX, aspect * TERRAIN_ASPECT_BIAS)
+  );
+  return { x: 1 / adjusted, y: adjusted };
 }
 
-function createBaseMap(width: number, height: number, _path: Point[]): string[][] {
+function riverCenterY(x: number, width: number, height: number, stretchX: number): number {
+  const baseY = Math.floor(height * 0.46);
+  const amplitude = Math.max(2, Math.floor(height * 0.22));
+  const waveLength = Math.max(6, Math.floor(width * 0.12));
+  const noiseValue = noise2D(x * stretchX, 0, 16, 301);
+  const sway = Math.sin((x / waveLength) * Math.PI * 2);
+  return Math.round(baseY + (noiseValue - 0.5) * amplitude + sway * (amplitude * 0.35));
+}
+
+function buildRiver(width: number, height: number, stretchX: number): Set<string> {
+  const river = new Set<string>();
+  if (width < 10 || height < 6) return river;
+  const halfWidth = Math.max(1, Math.floor(height * 0.06));
+
+  for (let x = 0; x < width; x++) {
+    const centerY = riverCenterY(x, width, height, stretchX);
+    for (let dy = -halfWidth; dy <= halfWidth; dy++) {
+      const y = centerY + dy;
+      if (y >= 0 && y < height) {
+        river.add(`${x},${y}`);
+      }
+    }
+  }
+
+  return river;
+}
+
+function buildLake(width: number, height: number, stretchX: number, stretchY: number): Set<string> {
+  const lake = new Set<string>();
+  if (width < 12 || height < 8) return lake;
+
+  const centerX = Math.floor(width * 0.68);
+  const riverY = riverCenterY(centerX, width, height, stretchX);
+  const centerY = clampCoord(riverY - Math.floor(height * 0.18), 2, Math.max(2, height - 3));
+  const radiusX = Math.max(3, Math.floor(width * 0.12));
+  const radiusY = Math.max(2, Math.floor(height * 0.09));
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = (x - centerX) / radiusX;
+      const dy = (y - centerY) / radiusY;
+      const dist = dx * dx + dy * dy;
+      const wobble = (noise2D(x * stretchX, y * stretchY, 6, 401) - 0.5) * 0.35;
+      if (dist + wobble < 1) {
+        lake.add(`${x},${y}`);
+      }
+    }
+  }
+
+  return lake;
+}
+
+// Separate noise layers for different biomes (regional clustering)
+function getBiomeAt(x: number, y: number, width: number, height: number): 'mountain' | 'forest' | 'plains' | 'flowers' {
+  // Compensate for terminal character aspect ratio (~2:1 height:width)
+  // This makes regions appear more circular instead of vertically stretched
+  const CHAR_ASPECT = 2.0;
+  const nx = x;
+  const ny = y * CHAR_ASPECT;
+
+  // Each biome uses independent noise with different seeds
+  // Larger scale = bigger regions, smaller scale = more fragmented
+
+  // Mountain regions - use larger scale (10-12) for big mountain ranges
+  // Octave noise: base + detail for natural-looking edges
+  const mountainBase = noise2D(nx, ny, 12, 201);
+  const mountainDetail = noise2D(nx, ny, 6, 202) * 0.3;
+  const mountainNoise = mountainBase + mountainDetail;
+
+  // Forest regions - use medium-large scale (14-16) for forest groves
+  // Separate seed ensures forests appear independently of mountains
+  const forestBase = noise2D(nx, ny, 14, 301);
+  const forestDetail = noise2D(nx, ny, 7, 302) * 0.25;
+  const forestNoise = forestBase + forestDetail;
+
+  // Flower meadows - smaller scale (8) for scattered patches
+  const flowerNoise = noise2D(nx, ny, 8, 401);
+
+  // Priority: mountains > forests > flowers > plains
+  // Thresholds tuned for ~15% mountains, ~20% forests, ~10% flowers
+  if (mountainNoise > 0.72) return 'mountain';
+  if (forestNoise > 0.68) return 'forest';
+  if (flowerNoise > 0.72) return 'flowers';
+  return 'plains';
+}
+
+function generateTerrainTile(x: number, y: number, width: number, height: number): string {
+  const biome = getBiomeAt(x, y, width, height);
+  const detailNoise = noise2D(x, y, 4, 102);
+  const speck = pseudoRandom(x, y, 77) / 100;
+  const groundSeed = pseudoRandom(x, y, 88);
+
+  switch (biome) {
+    case 'mountain': {
+      // Rocky terrain with variation
+      const intensity = noise2D(x, y, 3, 203);
+      if (intensity > 0.6) return speck > 0.5 ? '^' : '░';
+      if (intensity > 0.4) return '░';
+      return '`';
+    }
+
+    case 'forest': {
+      // Dense forest with variation
+      const density = noise2D(x, y, 4, 303);
+      if (density > 0.5) return speck > 0.4 ? 'T' : 't';
+      if (density > 0.3) return 't';
+      if (density > 0.2) return '\'';
+      return '.';
+    }
+
+    case 'flowers': {
+      // Flower patches
+      if (detailNoise > 0.5) return '*';
+      if (detailNoise > 0.3) return '\'';
+      return '.';
+    }
+
+    case 'plains':
+    default: {
+      // Open ground with occasional grass
+      if (detailNoise > 0.8) return '\'';
+      if (groundSeed < 15) return ',';
+      if (groundSeed < 30) return '`';
+      return '.';
+    }
+  }
+}
+
+function createBaseMap(width: number, height: number, centerPath: Point[]): string[][] {
   // Generate terrain only - path is rendered via background color
+  const { x: stretchX, y: stretchY } = getTerrainStretch(width, height);
+  const riverCells = buildRiver(width, height, stretchX);
+  const lakeCells = buildLake(width, height, stretchX, stretchY);
+  const pathCells = buildPathWithWidth(centerPath, width, height);
+
   return Array.from({ length: height }, (_, y) =>
-    Array.from({ length: width }, (_, x) => generateTerrainTile(x, y))
+    Array.from({ length: width }, (_, x) => {
+      const key = `${x},${y}`;
+      // Path is always clear - no obstacles
+      if (pathCells.has(key)) return '.';
+      // Water features
+      if (riverCells.has(key) || lakeCells.has(key)) return '~';
+      // Generate biome-based terrain
+      return generateTerrainTile(x, y, width, height);
+    })
   );
 }
 
@@ -263,10 +425,12 @@ function createBaseMap(width: number, height: number, _path: Point[]): string[][
 // Game Constants
 // =============================================================================
 
-const TICK_MS = 200;
-const SPAWN_INTERVAL_TICKS = 5;
+const BASE_TICK_MS = 16; // Base interval (~60Hz, reliable timer)
+const SPEED_OPTIONS = [1, 2, 4, 8] as const; // Speed multipliers (1x, 2x, 4x, 8x)
+type GameSpeed = (typeof SPEED_OPTIONS)[number];
+const SPAWN_INTERVAL_TICKS = 10;
 const WAVE_GAP_TICKS = 12;
-const BASE_WAVE_SIZE = 6;
+const BASE_WAVE_SIZE = 12;
 const BUILD_COST = 25;
 const INITIAL_GOLD = 60;
 const INITIAL_LIVES = 18;
@@ -330,11 +494,19 @@ function towerAtPosition(x: number, y: number, towerList: Tower[]): Tower | unde
 }
 
 function getTowerStats(level: number): { range: number; damage: number; cooldown: number; upgradeCost: number } {
-  const range = 2 + level;
+  const range = 4 + level * 2; // Base 4, +2 per level
   const damage = 2 + level;
   const cooldown = Math.max(1, 4 - Math.floor(level / 2));
   const upgradeCost = 15 + level * 10;
   return { range, damage, cooldown, upgradeCost };
+}
+
+function getMonsterStats(wave: number): { maxHp: number; speed: number; reward: number } {
+  const safeWave = Math.max(1, wave);
+  const maxHp = 6 + safeWave * 2 + Math.floor(safeWave * safeWave * 0.08);
+  const speed = Math.min(1.0, 0.34 + safeWave * 0.012 + Math.floor((safeWave - 1) / 6) * 0.02);
+  const reward = 4 + Math.floor(safeWave * 0.6);
+  return { maxHp, speed, reward };
 }
 
 function getMonsterPosition(monster: Monster, path: Point[]): Point {
@@ -387,6 +559,12 @@ function describeTile(tile: string, isPath: boolean, isSpawn: boolean, isExit: b
   }
 }
 
+function truncateBarText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  if (maxLength <= 3) return text.slice(0, maxLength);
+  return `${text.slice(0, maxLength - 3)}...`;
+}
+
 // =============================================================================
 // Module-Level Game State (MUST be outside component for proper reactivity)
 // =============================================================================
@@ -398,6 +576,8 @@ const initialPath = buildPath(buildWaypoints(initialSize.width, initialSize.heig
 
 // All signals at module level - this is critical for proper reactivity
 const [terminalSize, setTerminalSize] = createSignal(initialTerminal);
+const [screen, setScreen] = createSignal<'menu' | 'game'>('menu');
+const [menuSelection, setMenuSelection] = createSignal(0);
 const [towers, setTowers] = createSignal<Tower[]>([]);
 const [monsters, setMonsters] = createSignal<Monster[]>([]);
 const [gold, setGold] = createSignal(INITIAL_GOLD);
@@ -426,6 +606,12 @@ const [widePath, setWidePath] = createSignal<Set<string>>(
 const [baseMap, setBaseMap] = createSignal<string[][]>(
   createBaseMap(initialSize.width, initialSize.height, initialPath)
 );
+const [gameSpeed, setGameSpeed] = createSignal<GameSpeed>(1);
+
+// Mutable ref for speed - the interval callback reads this directly.
+// This pattern ensures the callback always sees the latest speed value,
+// bypassing any closure capture or callback-update timing issues.
+let speedRef = { current: 1 as GameSpeed };
 
 // =============================================================================
 // Game Component
@@ -434,6 +620,26 @@ const [baseMap, setBaseMap] = createSignal<string[][]>(
 function TowerDefense(): VNode {
   const { exit } = useApp();
   const mapRef = useLayoutRef();
+  const { fps, color: fpsColor } = useFps();
+
+  function startGame(): void {
+    resetGame();
+    setScreen('game');
+  }
+
+  function moveMenuSelection(delta: number): void {
+    const count = MENU_OPTIONS.length;
+    setMenuSelection(index => (index + delta + count) % count);
+  }
+
+  function activateMenuSelection(): void {
+    const current = MENU_OPTIONS[menuSelection()];
+    if (current === 'New Game') {
+      startGame();
+      return;
+    }
+    exit();
+  }
 
   function resetGame(
     nextWidth: number = mapWidth(),
@@ -459,20 +665,22 @@ function TowerDefense(): VNode {
       setNextTowerId(1);
       setNextProjectileId(1);
       setProjectiles([]);
+      setGameSpeed(1);
+      speedRef.current = 1;
     });
   }
 
   function spawnMonster(currentWave: number): Monster {
     const id = nextMonsterId();
     setNextMonsterId(id + 1);
-    const maxHp = 6 + currentWave * 2;
-    const speed = Math.min(0.8, 0.35 + currentWave * 0.02);
+    const stats = getMonsterStats(currentWave);
     return {
       id,
-      hp: maxHp,
-      maxHp,
+      hp: stats.maxHp,
+      maxHp: stats.maxHp,
       pathIndex: 0,
-      speed,
+      speed: stats.speed,
+      reward: stats.reward,
     };
   }
 
@@ -537,6 +745,9 @@ function TowerDefense(): VNode {
   function tickGame(): void {
     if (paused() || gameOver()) return;
 
+    // Get speed multiplier from ref (always up-to-date)
+    const speedMultiplier = speedRef.current;
+
     batch(() => {
       const currentPath = path();
       let currentWave = wave();
@@ -549,11 +760,12 @@ function TowerDefense(): VNode {
       const currentTowers = towers();
       let activeProjectiles = projectiles();
 
+      // Timers are multiplied by speed
       if (waveCooldownValue > 0) {
-        waveCooldownValue -= 1;
+        waveCooldownValue -= speedMultiplier;
         spawnTimerValue = 0;
       } else {
-        spawnTimerValue += 1;
+        spawnTimerValue += speedMultiplier;
         if (spawnTimerValue >= SPAWN_INTERVAL_TICKS && spawnsRemainingValue > 0) {
           spawnTimerValue = 0;
           spawnsRemainingValue -= 1;
@@ -561,12 +773,12 @@ function TowerDefense(): VNode {
         }
       }
 
-      // Move monsters forward
+      // Move monsters forward (speed multiplied)
       const movedMonsters: Monster[] = [];
       let escaped = 0;
 
       for (const monster of activeMonsters) {
-        const nextIndex = monster.pathIndex + monster.speed;
+        const nextIndex = monster.pathIndex + monster.speed * speedMultiplier;
         if (nextIndex >= currentPath.length - 1) {
           escaped += 1;
           continue;
@@ -576,13 +788,13 @@ function TowerDefense(): VNode {
 
       livesValue -= escaped;
 
-      // Move projectiles and apply damage on hit
+      // Move projectiles and apply damage on hit (speed multiplied)
       const PROJECTILE_SPEED = 0.4; // Progress per tick
       const remainingProjectiles: Projectile[] = [];
       const monstersAfterProjectiles = movedMonsters.map(m => ({ ...m }));
 
       for (const proj of activeProjectiles) {
-        const newProgress = proj.progress + PROJECTILE_SPEED;
+        const newProgress = proj.progress + PROJECTILE_SPEED * speedMultiplier;
 
         if (newProgress >= 1) {
           // Projectile hit - apply damage to target monster
@@ -596,11 +808,11 @@ function TowerDefense(): VNode {
         }
       }
 
-      // Towers fire new projectiles
+      // Towers fire new projectiles (cooldown reduced by speed multiplier)
       const newProjectiles: Projectile[] = [];
       const updatedTowers = currentTowers.map(tower => {
         const stats = getTowerStats(tower.level);
-        let cooldown = Math.max(0, tower.cooldown - 1);
+        let cooldown = Math.max(0, tower.cooldown - speedMultiplier);
 
         if (cooldown === 0) {
           const targetIndex = findTargetIndex(tower, monstersAfterProjectiles, currentPath, stats.range);
@@ -636,7 +848,7 @@ function TowerDefense(): VNode {
         if (monster.hp > 0) {
           survivingMonsters.push(monster);
         } else {
-          goldEarned += 4 + Math.floor(currentWave / 2);
+          goldEarned += monster.reward;
         }
       }
 
@@ -644,7 +856,7 @@ function TowerDefense(): VNode {
 
       if (spawnsRemainingValue === 0 && survivingMonsters.length === 0 && activeProjectiles.length === 0) {
         currentWave += 1;
-        spawnsRemainingValue = BASE_WAVE_SIZE + (currentWave - 1) * 2;
+        spawnsRemainingValue = BASE_WAVE_SIZE + (currentWave - 1) * 4;
         waveCooldownValue = WAVE_GAP_TICKS;
         spawnTimerValue = 0;
         goldValue += 10 + currentWave * 2;
@@ -669,17 +881,53 @@ function TowerDefense(): VNode {
     });
   }
 
-  // Game loop using useInterval (runs when not paused and not game over)
+  // Game loop - single tick per frame, speed multiplier affects movement
   useInterval(
-    () => tickGame(),
-    TICK_MS,
-    { enabled: !paused() && !gameOver() }
+    () => {
+      tickGame();
+    },
+    BASE_TICK_MS,
+    { enabled: screen() === 'game' && !paused() && !gameOver() }
   );
 
+  // Ensure component re-renders when speed changes (for UI updates)
+  const _ = gameSpeed();
+
   // Manual tick for debugging - press T
-  useHotkeys('t', () => tickGame());
+  useHotkeys('t', () => {
+    if (screen() !== 'game') return;
+    tickGame();
+  });
+
+  // Speed control - 1=1x, 2=2x, 3=4x, 4=8x
+  // Update both signal (for UI) and ref (for game loop)
+  useHotkeys('1', () => {
+    if (screen() !== 'game') return;
+    speedRef.current = 1;
+    setGameSpeed(1);
+    setMessage(`Speed: 1x`);
+  });
+  useHotkeys('2', () => {
+    if (screen() !== 'game') return;
+    speedRef.current = 2;
+    setGameSpeed(2);
+    setMessage(`Speed: 2x`);
+  });
+  useHotkeys('3', () => {
+    if (screen() !== 'game') return;
+    speedRef.current = 4;
+    setGameSpeed(4);
+    setMessage(`Speed: 4x`);
+  });
+  useHotkeys('4', () => {
+    if (screen() !== 'game') return;
+    speedRef.current = 8;
+    setGameSpeed(8);
+    setMessage(`Speed: 8x`);
+  });
 
   useMouse((event) => {
+    if (screen() !== 'game') return;
     if (gameOver()) return;
     if (mapRef.width() === 0 || mapRef.height() === 0) return;
 
@@ -729,8 +977,14 @@ function TowerDefense(): VNode {
   // Keyboard controls using useHotkeys
   useHotkeys('escape', () => exit());
   useHotkeys('q', () => exit());
-  useHotkeys('r', () => resetGame());
+  useHotkeys('r', () => {
+    if (screen() === 'game') resetGame();
+  });
+  useHotkeys('enter', () => {
+    if (screen() === 'menu') activateMenuSelection();
+  });
   useHotkeys('space', () => {
+    if (screen() !== 'game') return;
     const nextPaused = !paused();
     setPaused(nextPaused);
     setMessage(nextPaused ? 'Paused.' : 'Resumed.');
@@ -738,38 +992,54 @@ function TowerDefense(): VNode {
 
   // Movement (only when not game over)
   useHotkeys('up', () => {
+    if (screen() === 'menu') {
+      moveMenuSelection(-1);
+      return;
+    }
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y - 1, 0, mapHeight() - 1) }));
   });
   useHotkeys('w', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y - 1, 0, mapHeight() - 1) }));
   });
   useHotkeys('down', () => {
+    if (screen() === 'menu') {
+      moveMenuSelection(1);
+      return;
+    }
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y + 1, 0, mapHeight() - 1) }));
   });
   useHotkeys('s', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y + 1, 0, mapHeight() - 1) }));
   });
   useHotkeys('left', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x - 1, 0, mapWidth() - 1), y: pos.y }));
   });
   useHotkeys('a', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x - 1, 0, mapWidth() - 1), y: pos.y }));
   });
   useHotkeys('right', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x + 1, 0, mapWidth() - 1), y: pos.y }));
   });
   useHotkeys('d', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x + 1, 0, mapWidth() - 1), y: pos.y }));
   });
 
   // Actions
   useHotkeys('b', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) {
       const { x, y } = cursor();
       buildAt(x, y);
     }
   });
   useHotkeys('u', () => {
+    if (screen() !== 'game') return;
     if (!gameOver()) {
       const { x, y } = cursor();
       upgradeAt(x, y);
@@ -832,16 +1102,28 @@ function TowerDefense(): VNode {
     const exitKey = exit ? `${exit.x},${exit.y}` : '';
 
     const monsterCounts = new Map<string, number>();
+    const monsterHealth = new Map<string, { hp: number; maxHp: number }>();
     for (const monster of monsters()) {
       const pos = getMonsterPosition(monster, currentPath);
       const key = `${pos.x},${pos.y}`;
       monsterCounts.set(key, (monsterCounts.get(key) ?? 0) + 1);
+      const currentHealth = monsterHealth.get(key) ?? { hp: 0, maxHp: 0 };
+      monsterHealth.set(key, {
+        hp: currentHealth.hp + monster.hp,
+        maxHp: currentHealth.maxHp + monster.maxHp,
+      });
     }
 
     const rows: VNode[] = [];
 
+    function getHealthColor(ratio: number): string {
+      if (ratio > 0.66) return 'success';
+      if (ratio > 0.33) return 'warning';
+      return 'error';
+    }
+
     for (let y = 0; y < height; y++) {
-      const cells: VNode[] = [];
+      let rowStr = ''; // Build entire row as ANSI string for performance
       for (let x = 0; x < width; x++) {
         const key = `${x},${y}`;
         const base = map[y]?.[x] ?? '.';
@@ -916,8 +1198,8 @@ function TowerDefense(): VNode {
 
         // Projectile rendering (bullet character)
         if (projectile && !towerCell) {
-          ch = '*';
-          color = 'warning';
+          ch = 'o';
+          color = 'accent';
           bold = true;
           dim = false;
         }
@@ -925,7 +1207,9 @@ function TowerDefense(): VNode {
         // Monster overrides (highest priority after cursor)
         if (monsterCount > 0) {
           ch = monsterCount > 9 ? 'M' : String(monsterCount);
-          color = 'error';
+          const health = monsterHealth.get(key);
+          const ratio = health ? health.hp / Math.max(1, health.maxHp) : 1;
+          color = getHealthColor(ratio);
           bold = true;
           dim = false;
         }
@@ -936,13 +1220,40 @@ function TowerDefense(): VNode {
           backgroundColor = 'secondary';
         }
 
-        cells.push(Text({ color, backgroundColor, bold, dim }, ch));
+        rowStr += styledChar(ch, color, backgroundColor, bold, dim);
       }
-      rows.push(Box({ flexDirection: 'row' }, ...cells));
+      // Single Text node per row instead of 80+ nodes - massive performance gain
+      rows.push(Text({}, rowStr));
     }
 
     return Box({ flexDirection: 'column', width, height, layoutRef: mapRef }, ...rows);
   };
+
+  const menuView = (): VNode => {
+    const items = MENU_OPTIONS.map((label, index) => {
+      const selected = menuSelection() === index;
+      return Box(
+        { flexDirection: 'row', gap: 1 },
+        Text({ color: selected ? 'accent' : 'mutedForeground', bold: selected }, selected ? '>' : ' '),
+        Text({ color: selected ? 'accent' : 'foreground', bold: selected }, label)
+      );
+    });
+
+    return Box(
+      { flexDirection: 'column', height: 'fill', width: 'fill', justifyContent: 'center', alignItems: 'center', gap: 1 },
+      Text({ bold: true, color: 'primary' }, 'Tuiuiu Defence'),
+      Panel(
+        { title: 'Main Menu', padding: 1, width: 26 },
+        Box({ flexDirection: 'column', gap: 1 }, ...items),
+        Text({ dim: true }, 'Use Up/Down and Enter')
+      ),
+      Text({ dim: true }, 'Press Q to quit')
+    );
+  };
+
+  if (screen() === 'menu') {
+    return menuView();
+  }
 
   const cursorPos = cursor();
   const map = baseMap();
@@ -960,59 +1271,85 @@ function TowerDefense(): VNode {
 
   // Check if 2x2 is buildable at cursor
   const buildCheck = is2x2Buildable(cursorPos.x, cursorPos.y, map, currentWidePath, towers());
+  const tileInfoText = `Tile(${cursorPos.x},${cursorPos.y}): ${tileLabel}`;
+  const spawnInfoText = waveCooldown() > 0
+    ? `Spawns:0 Next:${waveCooldown()}t`
+    : `Spawns:${spawnsRemaining()}`;
+
+  let towerInfoText = '';
+  let towerInfoColor: string = 'mutedForeground';
+  let selectedTowerStats: { level: number; damage: number; range: number; cooldown: number; upgradeCost: number } | null = null;
+  if (towerHere) {
+    const stats = getTowerStats(towerHere.level);
+    const ready = towerHere.cooldown === 0;
+    towerInfoText = `Tower Lv${towerHere.level} Dmg:${stats.damage} Rng:${stats.range} ${ready ? 'Ready' : `CD:${towerHere.cooldown}`}`;
+    towerInfoColor = 'accent';
+    selectedTowerStats = {
+      level: towerHere.level,
+      damage: stats.damage,
+      range: stats.range,
+      cooldown: towerHere.cooldown,
+      upgradeCost: stats.upgradeCost,
+    };
+  } else if (buildCheck.ok) {
+    towerInfoText = `Build 2x2 (${BUILD_COST}g)`;
+    towerInfoColor = 'success';
+  } else {
+    towerInfoText = buildCheck.reason;
+  }
+
+  const stateLabel = paused()
+    ? 'PAUSED'
+    : gameOver()
+      ? 'GAME OVER'
+      : `Defending (${monsters().length})`;
+  const stateColor = paused() ? 'warning' : gameOver() ? 'error' : 'success';
+  const barMessage = truncateBarText(message(), 40);
+  const barTowerInfo = truncateBarText(towerInfoText, 36);
 
   return Box(
-    { flexDirection: 'column' },
-    Text({ bold: true, color: 'primary' }, 'Tower Defense'),
+    { flexDirection: 'column', position: 'relative', width: 'fill', height: 'fill' },
+    // Main content
     Box(
       { flexDirection: 'column', gap: MAP_INFO_GAP, padding: OUTER_PADDING },
-      Panel(
-        { title: 'Battlefield', padding: MAP_PANEL_PADDING, width: 'fill' },
-        mapView()
-      ),
+      // Top bar
       Box(
-        { flexDirection: 'row', gap: 1, width: 'fill' },
-        Panel(
-          { title: 'Status', flexGrow: 1 },
-          Text({}, `Gold:${gold()} Lives:${lives()} Wave:${wave()}`),
-          waveCooldown() > 0
-            ? Text({ color: 'mutedForeground' }, `Next: ${waveCooldown()}t`)
-            : Text({ color: 'mutedForeground' }, `Spawns: ${spawnsRemaining()}`),
-          paused()
-            ? Text({ color: 'warning' }, 'PAUSED')
-            : gameOver()
-              ? Text({ color: 'error' }, 'GAME OVER')
-              : Text({ color: 'success' }, `Defending (${monsters().length})`),
-          Text({ dim: true }, message())
-        ),
-        Panel(
-          { title: `Tile (${cursorPos.x},${cursorPos.y})`, flexGrow: 1 },
-          Text({}, tileLabel),
-          towerHere
-            ? (() => {
-                const stats = getTowerStats(towerHere.level);
-                const ready = towerHere.cooldown === 0;
-                return Box(
-                  { flexDirection: 'column' },
-                  Text({ color: 'accent', bold: true }, `Tower Lv${towerHere.level}`),
-                  Text({}, `Dmg:${stats.damage} Rng:${stats.range} ${ready ? 'Ready' : `CD:${towerHere.cooldown}`}`),
-                  Text({ dim: true }, `Upgrade: ${stats.upgradeCost}g`)
-                );
-              })()
-            : buildCheck.ok
-              ? Text({ color: 'success' }, `Build 2x2 (${BUILD_COST}g)`)
-              : Text({ color: 'mutedForeground' }, buildCheck.reason)
-        ),
-        Panel(
-          { title: 'Keys', flexGrow: 1 },
-          Text({}, 'Arrows Move  B Build  U Upgrade'),
-          Text({}, 'Space Pause  R Reset  Q Quit'),
-          Text({ dim: true }, 'Mouse: 2xClick=build R=upgrade')
-        )
+        { flexDirection: 'row', gap: 2, width: 'fill', paddingX: 1, backgroundColor: 'muted' },
+        Text({ color: 'primary', bold: true }, 'Tuiuiu Defence'),
+        Text({ color: 'warning', bold: true }, `Gold:${gold()}`),
+        Text({ color: 'foreground' }, `Lives:${lives()}`),
+        Text({ color: 'foreground' }, `Wave:${wave()}`),
+        Text({ color: 'foreground' }, spawnInfoText),
+        Box({ flexGrow: 1 }), // Spacer
+        Text({ color: gameSpeed() > 1 ? 'warning' : 'muted', bold: gameSpeed() > 1 }, `${gameSpeed()}x`),
+        Text({ color: fpsColor, dim: true }, `${fps}fps`)
+      ),
+      // Map
+      mapView(),
+      // Bottom bar
+      Box(
+        { flexDirection: 'row', gap: 2, width: 'fill', paddingX: 1, backgroundColor: 'muted' },
+        Text({ color: 'foreground' }, tileInfoText),
+        Text({ color: towerInfoColor }, barTowerInfo),
+        Text({ color: stateColor, bold: true }, stateLabel),
+        Text({ dim: true }, barMessage)
       )
-    )
+    ),
+    // Floating tower details panel (absolute positioned at top-right)
+    selectedTowerStats
+      ? Panel(
+          { position: 'absolute', top: 2, right: 2, title: 'Tower', padding: 1, width: 22, backgroundColor: 'background' },
+          Text({ color: 'accent', bold: true }, `Lv ${selectedTowerStats.level}`),
+          Text({}, `Dmg: ${selectedTowerStats.damage}`),
+          Text({}, `Range: ${selectedTowerStats.range}`),
+          Text({}, selectedTowerStats.cooldown === 0 ? 'Ready' : `CD: ${selectedTowerStats.cooldown}`),
+          Text({ dim: true }, `Upgrade: ${selectedTowerStats.upgradeCost}g`)
+        )
+      : null
   );
 }
 
-const { waitUntilExit } = render(TowerDefense);
+const { waitUntilExit } = render(TowerDefense, {
+  // useDeltaRenderer: true, // Disabled - adds overhead, bottleneck is elsewhere
+});
 await waitUntilExit();

@@ -12,6 +12,7 @@ import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking, s
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
 import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.js';
+import { createDeltaRenderer, type DeltaRenderer } from '../core/delta-render.js';
 
 /**
  * Check if a VNode is marked as static
@@ -93,6 +94,10 @@ export interface RenderOptions {
   autoTabNavigation?: boolean;
   /** Fill entire terminal height (default: false). Use for full-screen apps. */
   fullHeight?: boolean;
+  /** Use delta renderer for optimized cell-level updates (default: true).
+   *  When enabled, only changed cells are redrawn instead of the entire screen.
+   *  Set to false if you need Static component support or encounter rendering issues. */
+  useDeltaRenderer?: boolean;
 }
 
 export interface TuiInstance {
@@ -124,6 +129,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     showCursor = false,
     autoTabNavigation = true,
     fullHeight = false,
+    useDeltaRenderer = true,
   } = options;
 
   // Initialize app context FIRST (before calling component functions)
@@ -189,6 +195,16 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Mouse tracking state
   let mouseTrackingEnabled = false;
 
+  // Delta renderer (optional, for optimized cell-level updates)
+  let deltaRenderer: DeltaRenderer | null = null;
+  if (useDeltaRenderer) {
+    deltaRenderer = createDeltaRenderer({
+      stdout,
+      showCursor,
+      useDelta: true,
+    });
+  }
+
   // Initial setup
   if (clearOnStart && !debug) {
     stdout.write(ansi.clearTerminal);
@@ -244,6 +260,30 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const width = stdout.columns || 80;
     const height = stdout.rows || 24;
 
+    // Delta renderer path: optimized cell-level updates
+    if (deltaRenderer && !debug) {
+      // Calculate layout for hit testing
+      const layout = calculateLayout(currentNode, width, height);
+
+      // Register elements in hit-test registry for mouse events
+      registerHitTestFromLayout(layout);
+
+      // Enable/disable mouse tracking based on clickable elements
+      const hitTestRegistry = getHitTestRegistry();
+      if (hitTestRegistry.hasClickableElements() && !mouseTrackingEnabled) {
+        enableMouseTracking();
+        mouseTrackingEnabled = true;
+      } else if (!hitTestRegistry.hasClickableElements() && mouseTrackingEnabled) {
+        disableMouseTracking();
+        mouseTrackingEnabled = false;
+      }
+
+      // Use delta renderer for optimized updates
+      deltaRenderer.render(currentNode);
+      return;
+    }
+
+    // Standard renderer path: string-based rendering
     // Separate static from interactive content
     const { staticNodes, interactiveNode } = separateStaticNodes(currentNode);
 
@@ -331,7 +371,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
 
     stdout.off('resize', handleResize);
-    logUpdate.done(); // Restore cursor and cleanup
+
+    // Cleanup renderer
+    if (deltaRenderer) {
+      deltaRenderer.cleanup();
+    } else {
+      logUpdate.done(); // Restore cursor and cleanup
+    }
 
     resetHookState(); // Clear all hook state
     cleanupApp();

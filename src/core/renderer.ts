@@ -10,6 +10,24 @@ import { calculateLayout, getVisibleWidth } from './layout.js';
 import { stringWidth } from '../utils/text-utils.js';
 import { resolveColor } from './theme.js';
 
+/**
+ * Calculate the maximum bounding box of a layout tree,
+ * including absolute positioned elements that may extend beyond
+ * their parent's bounds.
+ */
+function getLayoutBounds(layout: LayoutNode): { maxY: number; maxX: number } {
+  let maxY = layout.y + layout.height;
+  let maxX = layout.x + layout.width;
+
+  for (const child of layout.children) {
+    const childBounds = getLayoutBounds(child);
+    maxY = Math.max(maxY, childBounds.maxY);
+    maxX = Math.max(maxX, childBounds.maxX);
+  }
+
+  return { maxY, maxX };
+}
+
 /** 2D character buffer */
 interface Cell {
   char: string;
@@ -196,12 +214,13 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
 
   const layout = calculateLayout(node, termWidth, termHeight);
 
-  // Calculate full bounding box height including margins
-  // layout.y already includes marginTop, so we add it to the inner height
-  // Also add marginBottom from the root node's style
+  // Calculate full bounding box height including margins AND absolute positioned elements
+  // Use getLayoutBounds to include children that may extend beyond the parent's bounds
+  // (e.g., Static component with position: absolute)
   const style = node.props as BoxStyle;
   const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
-  const layoutFullHeight = layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
+  const bounds = getLayoutBounds(layout);
+  const layoutFullHeight = bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
 
   // For fullHeight mode, use the requested height, otherwise use calculated height with margins
   const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layoutFullHeight;
@@ -213,17 +232,18 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
 }
 
 /**
- * Measure the height of a VNode tree including margins
+ * Measure the height of a VNode tree including margins and absolute positioned elements
  * Returns the full bounding box height (useful for scroll calculations)
  */
 export function measureHeight(node: VNode, width?: number): number {
   const termWidth = width ?? process.stdout.columns ?? 80;
   const layout = calculateLayout(node, termWidth, 1000);
 
-  // Calculate full bounding box height including margins
+  // Calculate full bounding box height including margins AND absolute positioned elements
   const style = node.props as BoxStyle;
   const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
-  return layout.y + layout.height + (typeof marginBottom === 'number' ? marginBottom : 0);
+  const bounds = getLayoutBounds(layout);
+  return bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
 }
 
 /**

@@ -213,11 +213,13 @@ export function Static<T>(props: StaticProps<T>): VNode {
 
   const renderedItems = items.map((item, index) => render(item, index));
 
+  // Static content occupies space in the normal flow (above dynamic content)
+  // It's rendered as a regular column box, not absolute positioned,
+  // so it pushes dynamic content below it.
   return {
     type: 'box',
     props: {
       ...style,
-      position: 'absolute',
       flexDirection: 'column',
       __static: true,
     },

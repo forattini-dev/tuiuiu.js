@@ -87,11 +87,25 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     ? (style.columnGap ?? style.gap ?? 0)
     : (style.rowGap ?? style.gap ?? 0);
 
+  // Separate absolute and normal children
+  const absoluteChildren: VNode[] = [];
+  const normalChildren: VNode[] = [];
+
   if (node.type === 'text' || node.type === 'spacer' || node.type === 'newline') {
     // Leaf nodes - no children to layout
   } else if (node.children.length > 0) {
-    // Get children, reversing order if needed
-    const orderedChildren = isReverse ? [...node.children].reverse() : node.children;
+    // Separate absolute positioned children from normal flow
+    for (const child of node.children) {
+      const childStyle = child.props as BoxStyle;
+      if (childStyle.position === 'absolute') {
+        absoluteChildren.push(child);
+      } else {
+        normalChildren.push(child);
+      }
+    }
+
+    // Get normal children, reversing order if needed
+    const orderedChildren = isReverse ? [...normalChildren].reverse() : normalChildren;
 
     const hasExplicitHeight = style.height !== undefined && style.height !== 'auto';
 
@@ -158,11 +172,54 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
   const width = explicitWidth || (shouldFillWidth ? ctx.width : contentBasedWidth);
   const height = explicitHeight || (totalHeight + paddingTop + paddingBottom + borderSize * 2);
 
+  const layoutX = ctx.x + marginLeft;
+  const layoutY = ctx.y + marginTop;
+  const layoutWidth = Math.min(width, ctx.width - marginLeft - marginRight);
+  const layoutHeight = Math.min(height, ctx.height - marginTop - marginBottom);
+
+  // Layout absolute positioned children
+  // They are positioned relative to this container's content area
+  for (const absChild of absoluteChildren) {
+    const absStyle = absChild.props as BoxStyle;
+
+    // First, layout the child to get its natural size
+    const absLayout = layoutNode(absChild, {
+      x: 0,
+      y: 0,
+      width: contentWidth,
+      height: contentHeight,
+    });
+
+    // Calculate position based on top/left/right/bottom
+    let absX = layoutX + paddingLeft + borderSize;
+    let absY = layoutY + paddingTop + borderSize;
+
+    // Horizontal positioning
+    if (absStyle.left !== undefined) {
+      absX = layoutX + paddingLeft + borderSize + absStyle.left;
+    } else if (absStyle.right !== undefined) {
+      absX = layoutX + layoutWidth - paddingRight - borderSize - absLayout.width - absStyle.right;
+    }
+
+    // Vertical positioning
+    if (absStyle.top !== undefined) {
+      absY = layoutY + paddingTop + borderSize + absStyle.top;
+    } else if (absStyle.bottom !== undefined) {
+      absY = layoutY + layoutHeight - paddingBottom - borderSize - absLayout.height - absStyle.bottom;
+    }
+
+    // Update the layout position
+    absLayout.x = absX;
+    absLayout.y = absY;
+
+    childLayouts.push(absLayout);
+  }
+
   const layout = {
-    x: ctx.x + marginLeft,
-    y: ctx.y + marginTop,
-    width: Math.min(width, ctx.width - marginLeft - marginRight),
-    height: Math.min(height, ctx.height - marginTop - marginBottom),
+    x: layoutX,
+    y: layoutY,
+    width: layoutWidth,
+    height: layoutHeight,
     node,
     children: childLayouts,
   };
