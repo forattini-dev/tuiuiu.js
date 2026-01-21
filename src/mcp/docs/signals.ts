@@ -1,20 +1,66 @@
 /**
  * Signals Documentation (Core Reactivity)
+ *
+ * ⚠️ CRITICAL: Signals MUST be created at MODULE LEVEL (outside components)!
+ * This is the #1 cause of "input works but UI doesn't update" bugs.
  */
 
 import type { HookDoc } from '../types.js';
 
+/**
+ * Critical information about signal placement that MUST be shown to users
+ */
+export const signalCriticalInfo = `
+## ⚠️ CRITICAL: Signal Placement
+
+**Signals MUST be created at MODULE LEVEL (outside the component function)!**
+
+This is the #1 cause of "input works but UI doesn't update" bugs.
+
+### ❌ WRONG - Signals inside component (WILL BREAK!)
+\`\`\`typescript
+function App() {
+  const [count, setCount] = createSignal(0);  // Recreated every render!
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
+  return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
+}
+\`\`\`
+
+### ✅ CORRECT - Signals at module level
+\`\`\`typescript
+// Outside the component!
+const [count, setCount] = createSignal(0);
+
+function App() {
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
+  return Text({}, \`Count: \${count()}\`);  // Shows THE signal
+}
+\`\`\`
+
+### Why does this happen?
+1. Signal changes → reactive effect triggers re-render
+2. Component function is called again
+3. If signals are inside → NEW signals created with initial values
+4. Hotkey handlers still reference OLD signals
+5. Updates go to old signals, UI reads new signals = nothing updates
+
+### Also remember:
+- Call \`setTheme(darkTheme)\` BEFORE \`render()\`
+- Arrow keys have empty \`input\` string (check \`key.upArrow\` instead)
+`;
+
 export const signals: HookDoc[] = [
   {
     name: 'createSignal',
-    description: 'Create a reactive signal (core primitive for state management).',
+    description: '⚠️ CRITICAL: Must be at MODULE LEVEL! Create a reactive signal (core primitive for state management). Signals created inside components will be recreated on each render, causing state loss.',
     signature: 'createSignal<T>(value: T): [Accessor<T>, Setter<T>]',
     params: [
       { name: 'value', type: 'T', required: true, description: 'Initial value' },
     ],
     returns: 'Tuple of [getter, setter]',
     examples: [
-      `const [count, setCount] = createSignal(0);\nconsole.log(count()); // 0\nsetCount(5);\nconsole.log(count()); // 5`,
+      `// ✅ CORRECT - At module level (outside component)\nconst [count, setCount] = createSignal(0);\n\nfunction App() {\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
+      `// ❌ WRONG - Inside component (will lose state!)\nfunction App() {\n  const [count, setCount] = createSignal(0);  // DON'T DO THIS!\n  // ...\n}`,
     ],
   },
   {

@@ -2,7 +2,43 @@
 
 Tuiuiu uses **Signals** for state management. Signals are a reactive primitive that automatically tracks dependencies and triggers updates when values change. This provides fine-grained reactivity.
 
-## createSignal
+## ⚠️ Important: `useState` vs `createSignal`
+
+Before diving in, understand when to use each:
+
+| API | Where to use | Persistence |
+|-----|--------------|-------------|
+| `useState(initial)` | **Inside components** | ✅ Persists across re-renders (it's a hook) |
+| `createSignal(initial)` | **Module level only** | ❌ Creates new signal each call |
+
+```typescript
+// ✅ RECOMMENDED - useState inside component
+function Counter() {
+  const [count, setCount] = useState(0);  // Hook - persists!
+  useHotkeys('up', () => setCount(c => c + 1));
+  return Text({}, `Count: ${count()}`);
+}
+
+// ✅ ALSO VALID - createSignal at module level (for global/shared state)
+const [globalCount, setGlobalCount] = createSignal(0);
+
+function Counter() {
+  useHotkeys('up', () => setGlobalCount(c => c + 1));
+  return Text({}, `Count: ${globalCount()}`);
+}
+
+// ❌ WRONG - createSignal inside component (WILL BREAK!)
+function Counter() {
+  const [count, setCount] = createSignal(0);  // Recreated every render!
+  // State will reset on every keypress!
+}
+```
+
+> **Why does `createSignal` inside components break?**
+>
+> When a signal changes, the component function is called again. `createSignal(0)` creates a NEW signal with initial value. Handlers still reference the OLD signal. Result: updates are "lost".
+
+See [useState hook](/hooks/use-state.md) for more details.
 
 ## Why Signals?
 

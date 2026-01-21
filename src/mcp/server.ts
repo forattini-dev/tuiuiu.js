@@ -366,38 +366,94 @@ npm install tuiuiu.js
 pnpm add tuiuiu.js
 \`\`\`
 
-## Basic Example
+## ⚠️ CRITICAL REQUIREMENTS (Read First!)
+
+Before writing any code, you MUST follow these rules:
+
+### 1. Use \`useState\` inside components, \`createSignal\` at module level
+- \`useState()\` - Hook that persists across re-renders (use inside components)
+- \`createSignal()\` - Primitive that creates new signal each call (use at module level only)
+
+### 2. Call \`setTheme()\` BEFORE \`render()\`
+Required for proper input handling.
+
+### 3. Arrow keys have empty \`input\` string
+Use \`key.upArrow\`, \`key.downArrow\`, etc. or \`useHotkeys('up', ...)\`
+
+## Basic Example (Recommended Pattern!)
 
 \`\`\`typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import {
+  render,
+  Box,
+  Text,
+  useState,      // Use useState for component state!
+  useHotkeys,
+  useApp,
+  setTheme,
+  darkTheme,
+} from 'tuiuiu.js';
 
+// 1. Set theme BEFORE render (required!)
+setTheme(darkTheme);
+
+// 2. Component function with useState
 function App() {
-  const [count, setCount] = useState(0);
-  const app = useApp();
+  const { exit } = useApp();
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-    if (key.escape) app.exit();
-  });
+  // useState persists across re-renders (it's a hook!)
+  const [count, setCount] = useState(0);
+
+  // Hooks go inside component
+  useHotkeys('up', () => setCount(c => c + 1));
+  useHotkeys('down', () => setCount(c => c - 1));
+  useHotkeys('q', () => exit());
 
   return Box({ flexDirection: 'column', padding: 1 },
     Text({ color: 'cyan', bold: true }, 'Counter'),
     Text({}, \`Count: \${count()}\`),
-    Text({ color: 'gray' }, 'Use ↑/↓ to change, ESC to exit')
+    Text({ color: 'gray' }, 'Use ↑/↓ to change, Q to exit')
   );
 }
 
+// 3. Render and wait
 const { waitUntilExit } = render(App);
 await waitUntilExit();
+\`\`\`
+
+## useState vs createSignal
+
+\`\`\`typescript
+// ✅ CORRECT - useState inside component (persists!)
+function App() {
+  const [count, setCount] = useState(0);  // Hook - persists!
+  // ...
+}
+
+// ✅ CORRECT - createSignal at module level (persists!)
+const [count, setCount] = createSignal(0);  // Module level - persists!
+function App() { /* use count here */ }
+
+// ❌ WRONG - createSignal inside component (BREAKS!)
+function App() {
+  const [count, setCount] = createSignal(0);  // Recreated each render!
+  // State will reset on every keypress!
+}
 \`\`\`
 
 ## Core Concepts
 
 1. **Components**: Use \`Box\` for layout, \`Text\` for content
-2. **Signals**: Use \`useState\` or \`createSignal\` for reactive state
-3. **Hooks**: Use \`useInput\` for keyboard, \`useEffect\` for side effects
-4. **Theming**: Use \`setTheme\`, \`getTheme\`, and \`resolveColor\` for consistent styling
+2. **State**: Use \`useState\` inside components, \`createSignal\` at module level
+3. **Hooks**: Use \`useHotkeys\` or \`useInput\` for keyboard (inside components)
+4. **Theming**: Call \`setTheme(darkTheme)\` BEFORE \`render()\`
+
+## Troubleshooting
+
+If input doesn't work or state resets:
+1. ✅ Is \`setTheme(darkTheme)\` called BEFORE \`render()\`?
+2. ✅ Using \`useState\` (not \`createSignal\`) inside components?
+3. ✅ For arrow keys, using \`key.upArrow\` not \`input\`?
 
 ## Explore Components
 

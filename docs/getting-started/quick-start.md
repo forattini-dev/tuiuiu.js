@@ -24,9 +24,13 @@ Add `"type": "module"` to `package.json`:
 Create `index.ts`:
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { render, Box, Text, useState, useInput, useApp, setTheme, darkTheme } from 'tuiuiu.js';
+
+// ⚠️ IMPORTANT: Set theme BEFORE render()
+setTheme(darkTheme);
 
 function Counter() {
+  // useState persists state across re-renders (it's a hook!)
   const [count, setCount] = useState(0);
   const { exit } = useApp();
 
@@ -51,6 +55,8 @@ function Counter() {
 const { waitUntilExit } = render(Counter);
 await waitUntilExit();
 ```
+
+> ⚠️ **Important**: Always call `setTheme()` before `render()` for proper input handling!
 
 ## 3. Run It
 

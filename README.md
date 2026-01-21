@@ -32,9 +32,13 @@ npm install tuiuiu.js
 ```
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { render, Box, Text, useState, useInput, useApp, setTheme, darkTheme } from 'tuiuiu.js';
+
+// ⚠️ IMPORTANT: Set theme BEFORE render() for proper input handling!
+setTheme(darkTheme);
 
 function Counter() {
+  // useState persists across re-renders (it's a hook!)
   const [count, setCount] = useState(0);
   const { exit } = useApp();
 
@@ -54,6 +58,8 @@ function Counter() {
 const { waitUntilExit } = render(Counter);
 await waitUntilExit();
 ```
+
+> ⚠️ **Critical**: Always call `setTheme()` before `render()` for proper input handling!
 
 ## What's Inside
 
@@ -153,6 +159,7 @@ Fine-grained reactivity without Virtual DOM overhead. Only what changes gets upd
 ```typescript
 import { createSignal, createEffect } from 'tuiuiu.js';
 
+// createSignal at module level = shared/global state
 const [count, setCount] = createSignal(0);
 const doubled = () => count() * 2;
 
@@ -160,6 +167,8 @@ createEffect(() => console.log(`Count: ${count()}, Doubled: ${doubled()}`));
 
 setCount(5); // → "Count: 5, Doubled: 10"
 ```
+
+> **Note:** Use `useState()` for component-local state, `createSignal()` at module level for shared state. Never use `createSignal()` inside components — it will be recreated on every render!
 
 ### 📦 Flexbox Layout
 

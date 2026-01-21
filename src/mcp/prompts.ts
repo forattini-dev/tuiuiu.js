@@ -159,6 +159,17 @@ export const prompts: MCPPrompt[] = [
   // Debug & Optimization Prompts
   // ─────────────────────────────────────────────────────────────────────────────
   {
+    name: 'troubleshoot',
+    description: 'CRITICAL: Diagnose common Tuiuiu issues including "input works but UI doesn\'t update", keyboard not working, and state loss. Start here when debugging!',
+    arguments: [
+      {
+        name: 'issue',
+        description: 'Brief description of the problem (e.g., "keyboard input not working", "state resets to 0")',
+        required: true,
+      },
+    ],
+  },
+  {
     name: 'debug_layout',
     description: 'Analyze and fix layout issues in Tuiuiu components. Identifies flexbox problems, sizing issues, and suggests fixes.',
     arguments: [
@@ -289,6 +300,8 @@ export function getPromptResult(
       return migrateFromInkPrompt(args);
     case 'migrate_from_blessed':
       return migrateFromBlessedPrompt(args);
+    case 'troubleshoot':
+      return troubleshootPrompt(args);
     case 'debug_layout':
       return debugLayoutPrompt(args);
     case 'debug_signals':
@@ -633,6 +646,171 @@ Please provide the migrated Tuiuiu code with explanations of changes.`,
   };
 }
 
+function troubleshootPrompt(args: Record<string, string>): MCPPromptResult {
+  const issue = args.issue || 'unknown issue';
+
+  return {
+    description: `Troubleshoot: ${issue}`,
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `# Tuiuiu Troubleshooting Guide
+
+**Reported Issue:** ${issue}
+
+## 🚨 CRITICAL CHECKLIST (Check These First!)
+
+These are the most common causes of issues. Check ALL of these before looking further:
+
+### 1. ⚠️ Are signals at MODULE LEVEL?
+
+**This is the #1 cause of "input works but UI doesn't update" bugs!**
+
+\`\`\`typescript
+// ❌ WRONG - Signals inside component (WILL BREAK!)
+function App() {
+  const [count, setCount] = createSignal(0);  // Recreated every render!
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
+  return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
+}
+
+// ✅ CORRECT - Signals at module level
+const [count, setCount] = createSignal(0);  // Created once!
+
+function App() {
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
+  return Text({}, \`Count: \${count()}\`);  // Shows THE signal
+}
+\`\`\`
+
+### 2. Is \`setTheme()\` called BEFORE \`render()\`?
+
+\`\`\`typescript
+import { render, setTheme, darkTheme } from 'tuiuiu.js';
+
+// ✅ CORRECT
+setTheme(darkTheme);  // FIRST!
+render(App);          // SECOND!
+
+// ❌ WRONG
+render(App);
+setTheme(darkTheme);  // Too late! Input handling may not work
+\`\`\`
+
+### 3. For arrow keys, are you checking \`key.upArrow\` (not \`input\`)?
+
+Arrow keys have an EMPTY \`input\` string!
+
+\`\`\`typescript
+useInput((input, key) => {
+  // For arrow keys:
+  // input = "" (empty string!)
+  // key.upArrow = true
+
+  // ❌ WRONG
+  if (input === 'up') { }  // Never matches!
+
+  // ✅ CORRECT
+  if (key.upArrow) { }
+});
+
+// Or use useHotkeys (easier):
+useHotkeys('up', () => moveUp());
+\`\`\`
+
+### 4. Are you running the latest version of your file?
+
+Sometimes the build is cached. Touch the file to force recompile:
+\`\`\`bash
+touch your-file.ts
+pnpm example your-file.ts
+\`\`\`
+
+## Complete Working Template
+
+Use this as your starting point:
+
+\`\`\`typescript
+import {
+  render,
+  Box,
+  Text,
+  createSignal,
+  useHotkeys,
+  useApp,
+  setTheme,
+  darkTheme,
+} from 'tuiuiu.js';
+
+// 1. Set theme BEFORE anything else
+setTheme(darkTheme);
+
+// 2. ALL signals at module level
+const [count, setCount] = createSignal(0);
+const [message, setMessage] = createSignal('Ready');
+
+// 3. Component function (stateless - just reads signals and sets up hooks)
+function App() {
+  const { exit } = useApp();
+
+  // Hotkeys inside component (they use hook state correctly)
+  useHotkeys('q', () => exit());
+  useHotkeys('up', () => setCount(c => c + 1));
+  useHotkeys('down', () => setCount(c => c - 1));
+
+  return Box(
+    { flexDirection: 'column', padding: 1 },
+    Text({ bold: true }, 'My App'),
+    Text({}, \`Count: \${count()}\`),
+    Text({ color: 'muted' }, message())
+  );
+}
+
+// 4. Render and wait
+const { waitUntilExit } = render(App);
+await waitUntilExit();
+\`\`\`
+
+## Issue-Specific Guidance
+
+Based on "${issue}":
+
+${issue.toLowerCase().includes('keyboard') || issue.toLowerCase().includes('input') || issue.toLowerCase().includes('key') ?
+`### Keyboard Input Issues
+1. Check \`setTheme(darkTheme)\` is called BEFORE \`render()\`
+2. Check signals are at module level
+3. For arrow keys, use \`key.upArrow\` not \`input\`
+4. Check \`useHotkeys\` is inside the component function` :
+issue.toLowerCase().includes('update') || issue.toLowerCase().includes('render') || issue.toLowerCase().includes('state') ?
+`### State/Update Issues
+1. **FIRST:** Check if signals are at module level (not inside component!)
+2. Check you're calling the signal getter: \`count()\` not \`count\`
+3. Check you're using the setter correctly: \`setCount(c => c + 1)\`
+4. Use \`batch()\` for multiple updates to avoid multiple renders` :
+issue.toLowerCase().includes('reset') || issue.toLowerCase().includes('zero') || issue.toLowerCase().includes('0') ?
+`### State Resetting Issues
+This is almost certainly because signals are inside the component!
+1. Move ALL \`createSignal()\` calls to module level
+2. Keep hooks (\`useHotkeys\`, \`useInput\`, etc.) inside the component
+3. The component function should only READ signals, not create them` :
+`### General Debugging
+1. Add \`process.stderr.write()\` for debug output (bypasses the UI)
+2. Check the terminal for any error messages
+3. Try the minimal template above to isolate the issue`}
+
+If the issue persists after checking all of the above, please share:
+1. Your complete code
+2. Expected behavior
+3. Actual behavior
+4. Any error messages`,
+        },
+      },
+    ],
+  };
+}
+
 function migrateFromBlessedPrompt(args: Record<string, string>): MCPPromptResult {
   const code = args.code || '// Paste your blessed code here';
 
@@ -786,7 +964,34 @@ function debugSignalsPrompt(args: Record<string, string>): MCPPromptResult {
 ${code}
 \`\`\`
 
-## Common Signal Issues
+## 🚨 CHECK THIS FIRST: Signal Placement
+
+**The #1 cause of "input works but UI doesn't update" is signals inside components!**
+
+\`\`\`typescript
+// ❌ WRONG - Signals inside component (WILL BREAK!)
+function App() {
+  const [count, setCount] = createSignal(0);  // Recreated every render!
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
+  return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
+}
+
+// ✅ CORRECT - Signals at module level
+const [count, setCount] = createSignal(0);  // Created once!
+
+function App() {
+  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
+  return Text({}, \`Count: \${count()}\`);  // Shows THE signal
+}
+\`\`\`
+
+**Why?** When a signal changes:
+1. Reactive effect triggers re-render
+2. Component function is called again
+3. If signals are inside → NEW signals with initial values
+4. Handlers reference OLD signals → updates "lost"
+
+## Other Common Signal Issues
 
 ### Not Reactive
 \`\`\`typescript

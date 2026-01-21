@@ -84,6 +84,7 @@ Add to `~/.codex/config.toml`:
 [mcp_servers.tuiuiu]
 command = "npx"
 args = ["tuiuiu.js", "mcp"]
+startup_timeout_sec = 30
 ```
 
 > **Note:** Codex CLI only supports stdio transport. Remote SSE servers require [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) as a bridge.
