@@ -696,6 +696,7 @@ function TowerDefense(): VNode {
       return;
     }
 
+    // Move cursor on any mouse movement
     if (event.action === 'move' || event.action === 'drag') {
       const current = cursor();
       if (current.x !== mapX || current.y !== mapY) {
@@ -704,14 +705,24 @@ function TowerDefense(): VNode {
       return;
     }
 
-    if (event.action !== 'click' && event.action !== 'double-click') return;
+    // Single click: just select/move cursor (safe exploration)
+    if (event.action === 'click' && event.button === 'left') {
+      setCursor({ x: mapX, y: mapY });
+      return;
+    }
 
-    setCursor({ x: mapX, y: mapY });
-
-    if (event.button === 'left') {
+    // Double-click left: build tower
+    if (event.action === 'double-click' && event.button === 'left') {
+      setCursor({ x: mapX, y: mapY });
       buildAt(mapX, mapY);
-    } else if (event.button === 'right') {
+      return;
+    }
+
+    // Right-click: upgrade tower
+    if (event.button === 'right' && (event.action === 'click' || event.action === 'double-click')) {
+      setCursor({ x: mapX, y: mapY });
       upgradeAt(mapX, mapY);
+      return;
     }
   });
 
@@ -996,7 +1007,7 @@ function TowerDefense(): VNode {
           { title: 'Keys', flexGrow: 1 },
           Text({}, 'Arrows Move  B Build  U Upgrade'),
           Text({}, 'Space Pause  R Reset  Q Quit'),
-          Text({ dim: true }, 'Mouse: L=build R=upgrade')
+          Text({ dim: true }, 'Mouse: 2xClick=build R=upgrade')
         )
       )
     )
