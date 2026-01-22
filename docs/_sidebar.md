@@ -13,6 +13,7 @@
   - [Theming](/core/theming.md)
   - [Animation](/core/animation.md)
   - [Hotkeys & Input](/core/hotkeys.md)
+  - [Prompts](/core/prompts.md)
   - [Store](/core/store.md)
   - [Capabilities](/core/capabilities.md)
   - [Utilities](/core/utilities.md)
@@ -96,6 +97,7 @@
   - [Context API](/hooks/context.md)
 
 - **Guides**
+  - [CLI Integration](/guides/cli-integration.md)
   - [Simple CLI Progress](/guides/simple-cli-progress.md)
   - [Building a Dashboard](/guides/building-a-dashboard.md)
   - [Building Headers](/guides/building-headers.md)

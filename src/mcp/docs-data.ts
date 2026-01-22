@@ -29,6 +29,11 @@ import {
   componentPatternMap,
   getComponentPattern,
 } from './docs/api-patterns.js';
+import {
+  promptsApiDocs,
+  promptsApiGuide,
+  formatPromptDoc,
+} from './docs/prompts-api.js';
 
 // Re-export everything for backwards compatibility
 export { primitives } from './docs/primitives.js';
@@ -50,6 +55,12 @@ export {
   getComponentPattern,
   type ApiPatternDoc,
 } from './docs/api-patterns.js';
+export {
+  promptsApiDocs,
+  promptsApiGuide,
+  formatPromptDoc,
+  type PromptDoc,
+} from './docs/prompts-api.js';
 
 // =============================================================================
 // All Documentation Combined

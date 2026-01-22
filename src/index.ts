@@ -1202,3 +1202,25 @@ export {
   // Pre-composed styles
   styles as ansiStyles,
 } from './colors/index.js';
+
+// =============================================================================
+// Prompts - Simple CLI prompts (non-reactive)
+// =============================================================================
+
+export {
+  prompt,
+  promptInput,
+  promptConfirm,
+  promptSelect,
+  promptPassword,
+  promptCheckbox,
+  promptAutocomplete,
+  promptNumber,
+  type InputOptions,
+  type ConfirmOptions,
+  type SelectOptions,
+  type PasswordOptions,
+  type CheckboxOptions,
+  type AutocompleteOptions,
+  type NumberOptions,
+} from './prompts/index.js';

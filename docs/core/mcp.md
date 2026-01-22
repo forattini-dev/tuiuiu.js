@@ -110,7 +110,7 @@ Now Claude has full access to Tuiuiu documentation and can help you build termin
 
 | Feature | Description |
 |:--------|:------------|
-| **10 Tools** | Query docs, search, get quickstart recipes, create themes, API patterns |
+| **11 Tools** | Query docs, search, get quickstart recipes, create themes, API patterns, prompts API |
 | **8 Resource Templates** | Dynamic URIs for components, hooks, themes, guides |
 | **15 Prompts** | Pre-built templates for dashboards, forms, games, migrations |
 | **Completions** | Smart argument suggestions for tools and prompts |
@@ -120,7 +120,7 @@ Now Claude has full access to Tuiuiu documentation and can help you build termin
 
 ## Tools
 
-The MCP server exposes 10 tools to AI assistants:
+The MCP server exposes 11 tools to AI assistants:
 
 ### Core Tools
 
@@ -272,6 +272,27 @@ tuiuiu_api_patterns({ pattern: 'variadic' })
 | **Props** | Page, AppShell, Modal | `Page({ children: content })` |
 | **Data-Driven** | Tabs, Select, Tree | `Tabs({ tabs: [...] })` |
 | **Render Function** | ScrollList, Each | `ScrollList({ children: (item) => ... })` |
+
+#### `tuiuiu_prompts_api`
+
+Get documentation for the blocking CLI prompts API.
+
+```typescript
+tuiuiu_prompts_api()
+// → Full guide for all prompts (input, confirm, select, checkbox, etc.)
+
+tuiuiu_prompts_api({ prompt: 'checkbox' })
+// → Detailed documentation for prompt.checkbox()
+```
+
+**Available prompts:**
+- `prompt.input()` — Text input with validation
+- `prompt.confirm()` — Yes/no confirmation
+- `prompt.select()` — Single selection from list
+- `prompt.checkbox()` — Multiple selection with min/max
+- `prompt.autocomplete()` — Type-ahead with fuzzy matching
+- `prompt.number()` — Numeric input with constraints
+- `prompt.password()` — Masked input for secrets
 
 ---
 
@@ -568,8 +589,9 @@ When you enable Tuiuiu MCP, Claude gets access to:
 | Themes | 11 | Theme definitions with all color tokens |
 | Guides | 8 | In-depth guides on core concepts |
 | Examples | 8 | Complete, runnable code examples |
-| Prompts | 15 | Pre-built templates for common tasks |
+| MCP Prompts | 15 | Pre-built templates for common tasks |
 | Recipes | 10 | Ready-to-use code patterns |
+| CLI Prompts | 7 | Blocking prompts API (input, confirm, select, checkbox, autocomplete, password, number) |
 
 ---
 
@@ -683,6 +705,40 @@ src/mcp/
 
 ---
 
+## CLI Prompts
+
+In addition to the reactive TUI components, Tuiuiu includes a **blocking prompts API** for simple CLI wizards and setup scripts.
+
+```typescript
+import { prompt } from 'tuiuiu.js'
+
+const name = await prompt.input('Project name:')
+const useTs = await prompt.confirm('Use TypeScript?', { default: true })
+const env = await prompt.select('Environment:', ['dev', 'staging', 'prod'] as const)
+const features = await prompt.checkbox('Features:', ['eslint', 'prettier', 'vitest'] as const)
+const country = await prompt.autocomplete('Country:', countries)
+const port = await prompt.number('Port:', { min: 1024, max: 65535 })
+const token = await prompt.password('API Token:')
+```
+
+**Available prompt types:**
+
+| Prompt | Description |
+|:-------|:------------|
+| `prompt.input()` | Text input with validation and transform |
+| `prompt.confirm()` | Yes/no confirmation (Y/n) |
+| `prompt.select()` | Single selection from list (arrow keys, numbers) |
+| `prompt.checkbox()` | Multiple selection with min/max constraints |
+| `prompt.autocomplete()` | Type-ahead with fuzzy matching |
+| `prompt.number()` | Numeric input with min/max/integer constraints |
+| `prompt.password()` | Masked input for secrets |
+
+All prompts gracefully handle non-TTY environments (CI/CD, pipes) by returning defaults immediately.
+
+**See:** [Prompts Documentation](/core/prompts.md) and [CLI Integration Guide](/guides/cli-integration.md)
+
+---
+
 ## Related
 
 - [Quick Start](/getting-started/quick-start.md) — Get started with Tuiuiu
@@ -690,3 +746,5 @@ src/mcp/
 - [Hooks](/hooks/use-input.md) — Learn about hooks
 - [Theming](/core/theming.md) — Customize themes
 - [Storybook](/core/storybook.md) — Interactive component explorer
+- [Prompts](/core/prompts.md) — Blocking CLI prompts API
+- [CLI Integration](/guides/cli-integration.md) — Build CLI tools with prompts

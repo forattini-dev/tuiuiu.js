@@ -29,6 +29,9 @@ import {
   apiPatterns,
   apiPatternsQuickReference,
   getComponentPattern,
+  promptsApiDocs,
+  promptsApiGuide,
+  formatPromptDoc,
 } from './docs-data.js';
 import { prompts, getPromptResult } from './prompts.js';
 import {
@@ -202,6 +205,19 @@ const tools: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'tuiuiu_prompts_api',
+    description: 'Get documentation for the blocking CLI prompts API. Tuiuiu provides simple, zero-dependency prompts (input, confirm, select, checkbox, autocomplete, number, password) for building CLI wizards and setup scripts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Optional: specific prompt name (input, confirm, select, checkbox, autocomplete, number, password)',
+        },
+      },
+    },
+  },
 ];
 
 // =============================================================================
@@ -322,6 +338,16 @@ function handleSearch(args: Record<string, unknown>): MCPToolResult {
       theme.description.toLowerCase().includes(query)
     ) {
       results.push(`**${theme.name}** (theme): ${theme.description}`);
+    }
+  }
+
+  // Search prompts API
+  for (const prompt of promptsApiDocs) {
+    if (
+      prompt.name.toLowerCase().includes(query) ||
+      prompt.description.toLowerCase().includes(query)
+    ) {
+      results.push(`**${prompt.name}** (prompt): ${prompt.description}`);
     }
   }
 
@@ -1084,6 +1110,63 @@ function handleApiPatterns(args: Record<string, unknown>): MCPToolResult {
 }
 
 // =============================================================================
+// Prompts API Handler
+// =============================================================================
+
+function handlePromptsApi(args: Record<string, unknown>): MCPToolResult {
+  const promptName = args.prompt as string | undefined;
+
+  // If specific prompt requested
+  if (promptName) {
+    const normalizedName = promptName.toLowerCase().replace('prompt.', '');
+    const doc = promptsApiDocs.find(p =>
+      p.name.toLowerCase().includes(normalizedName)
+    );
+
+    if (!doc) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Prompt "${promptName}" not found.\n\n` +
+            `Available prompts:\n` +
+            promptsApiDocs.map(p => `- ${p.name}`).join('\n'),
+        }],
+        isError: true,
+      };
+    }
+
+    return { content: [{ type: 'text', text: formatPromptDoc(doc) }] };
+  }
+
+  // Return full guide with all prompts
+  let output = promptsApiGuide + '\n\n---\n\n# API Reference\n\n';
+
+  for (const doc of promptsApiDocs) {
+    output += `## ${doc.name}\n\n`;
+    output += `${doc.description}\n\n`;
+    output += `**Signature:** \`${doc.signature}\`\n\n`;
+
+    if (doc.options.length > 0) {
+      output += '**Options:**\n';
+      for (const opt of doc.options) {
+        output += `- \`${opt.name}\`: ${opt.type}${opt.default ? ` (default: ${opt.default})` : ''} — ${opt.description}\n`;
+      }
+      output += '\n';
+    }
+
+    if (doc.controls && doc.controls.length > 0) {
+      output += '**Controls:** ';
+      output += doc.controls.slice(0, 3).join(', ') + '\n\n';
+    }
+
+    output += '```typescript\n' + doc.examples[0] + '\n```\n\n';
+    output += '---\n\n';
+  }
+
+  return { content: [{ type: 'text', text: output }] };
+}
+
+// =============================================================================
 // Tool Handler Map
 // =============================================================================
 
@@ -1098,6 +1181,7 @@ const toolHandlers: Record<string, MCPToolHandler> = {
   tuiuiu_quickstart: handleQuickstart,
   tuiuiu_version: handleVersion,
   tuiuiu_api_patterns: handleApiPatterns,
+  tuiuiu_prompts_api: handlePromptsApi,
 };
 
 // =============================================================================
