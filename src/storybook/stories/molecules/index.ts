@@ -659,6 +659,26 @@ export const tableStories: Story[] = [
       })
     ),
 
+  story('Table - Flex Columns')
+    .category('Molecules')
+    .description('Flex columns expand to fill available width')
+    .controls({
+      availableWidth: defaultControls.range('Available Width', 80, 60, 120),
+      borderStyle: defaultControls.select('Border', ['single', 'double', 'round', 'bold', 'ascii', 'none'], 'round'),
+    })
+    .render((props) =>
+      Table({
+        columns: [
+          { key: 'name', header: 'Name', width: 15 },        // fixed
+          { key: 'role', header: 'Role', flex: 1 },          // 1 part
+          { key: 'score', header: 'Score', width: 8, align: 'right' },  // fixed
+        ],
+        data: tableRows,
+        borderStyle: props.borderStyle,
+        availableWidth: props.availableWidth,
+      })
+    ),
+
   story('SimpleTable - Basic')
     .category('Molecules')
     .description('Simple table from rows array')

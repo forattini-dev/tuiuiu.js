@@ -40,9 +40,10 @@ Output:
 |-------|------|-------------|
 | `key` | `string` | Data key |
 | `header` | `string` | Header label |
-| `width` | `number` | Column width |
+| `width` | `number` | Fixed column width |
 | `minWidth` | `number` | Minimum width |
 | `maxWidth` | `number` | Maximum width |
+| `flex` | `number \| boolean` | Flex grow factor (fills remaining space) |
 | `align` | `'left' \| 'center' \| 'right'` | Text alignment |
 | `color` | `ColorValue` | Column color |
 | `format` | `(value) => string` | Value formatter |
@@ -61,6 +62,29 @@ Output:
 | `stripedColor` | `ColorValue` | - | Striped row color |
 | `compact` | `boolean` | `false` | Reduce padding |
 | `maxWidth` | `number` | - | Max table width |
+| `availableWidth` | `number` | terminal width | Available width for flex columns |
+
+## Flex Columns
+
+Columns with `flex` expand to fill remaining space after fixed-width columns:
+
+```typescript
+Table({
+  columns: [
+    { key: 'id', header: 'ID', width: 6 },           // fixed: 6 chars
+    { key: 'name', header: 'Name', flex: 1 },        // 1 part of remaining
+    { key: 'desc', header: 'Description', flex: 2 }, // 2 parts of remaining
+    { key: 'status', header: 'Status', width: 10 },  // fixed: 10 chars
+  ],
+  data: items,
+})
+```
+
+If 30 chars remain after fixed columns:
+- `name` gets 10 chars (1/3)
+- `desc` gets 20 chars (2/3)
+
+Use `flex: true` as shorthand for `flex: 1`.
 
 ## Border Styles
 

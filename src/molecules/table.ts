@@ -129,6 +129,18 @@ export interface TableColumn {
   minWidth?: number;
   /** Maximum width */
   maxWidth?: number;
+  /**
+   * Flex grow factor for distributing remaining space.
+   * - `true` is equivalent to `flex: 1`
+   * - Higher numbers get proportionally more space
+   * - Columns with flex expand to fill available width
+   *
+   * @example
+   * { key: 'id', header: 'ID', width: 6 }           // fixed: 6 chars
+   * { key: 'name', header: 'Name', flex: 1 }        // gets 1 part of remaining
+   * { key: 'desc', header: 'Description', flex: 2 } // gets 2 parts of remaining
+   */
+  flex?: number | boolean;
   /** Text alignment */
   align?: TextAlign;
   /** Header alignment (defaults to align) */
@@ -166,23 +178,39 @@ export interface TableOptions {
   padding?: number;
   /** Show row separator lines */
   rowSeparator?: boolean;
-  /** Max total width */
+  /** Max total width (also used as ceiling when shrinking) */
   maxWidth?: number;
+  /**
+   * Available width for the table. Flex columns will expand to fill this space.
+   * If not provided, defaults to process.stdout.columns or 80.
+   */
+  availableWidth?: number;
   /** Compact mode (minimal padding) */
   compact?: boolean;
 }
 
 /**
- * Calculate column widths
+ * Get the flex value for a column (0 if not flex)
  */
-function calculateColumnWidths(
+export function getFlexValue(col: TableColumn): number {
+  if (col.flex === true) return 1;
+  if (typeof col.flex === 'number' && col.flex > 0) return col.flex;
+  return 0;
+}
+
+/**
+ * Calculate column widths with flex support
+ */
+export function calculateColumnWidths(
   columns: TableColumn[],
   data: Record<string, any>[],
   maxWidth?: number,
-  padding: number = 1
+  padding: number = 1,
+  availableWidth?: number
 ): number[] {
   const widths: number[] = [];
 
+  // Step 1: Calculate base widths for all columns
   for (const col of columns) {
     // Start with header width
     let width = col.header.length;
@@ -197,9 +225,13 @@ function calculateColumnWidths(
       width = Math.max(width, strValue.length);
     }
 
-    // Apply constraints
+    // Apply constraints (flex columns get minWidth as base)
+    const flexValue = getFlexValue(col);
     if (col.width) {
       width = col.width;
+    } else if (flexValue > 0) {
+      // Flex columns start with minWidth as their base
+      width = col.minWidth ?? Math.max(width, 3);
     } else {
       if (col.minWidth) width = Math.max(width, col.minWidth);
       if (col.maxWidth) width = Math.min(width, col.maxWidth);
@@ -208,7 +240,40 @@ function calculateColumnWidths(
     widths.push(width);
   }
 
-  // Adjust for max total width
+  // Step 2: Calculate flex distribution
+  const flexColumns = columns.map((col, i) => ({ index: i, flex: getFlexValue(col), col }))
+    .filter(item => item.flex > 0);
+
+  if (flexColumns.length > 0 && availableWidth) {
+    const totalPadding = columns.length * padding * 2;
+    const borders = columns.length + 1;
+    const fixedWidth = widths.reduce((sum, w, i) => {
+      // Only count non-flex columns
+      return sum + (getFlexValue(columns[i]!) > 0 ? 0 : w);
+    }, 0);
+
+    // Base width already assigned to flex columns
+    const flexBaseWidth = flexColumns.reduce((sum, item) => sum + widths[item.index]!, 0);
+
+    const usedWidth = fixedWidth + flexBaseWidth + totalPadding + borders;
+    const remainingSpace = Math.max(0, availableWidth - usedWidth);
+
+    if (remainingSpace > 0) {
+      const totalFlex = flexColumns.reduce((sum, item) => sum + item.flex, 0);
+
+      for (const item of flexColumns) {
+        const extraSpace = Math.floor((item.flex / totalFlex) * remainingSpace);
+        widths[item.index] = widths[item.index]! + extraSpace;
+
+        // Respect maxWidth if set
+        if (item.col.maxWidth) {
+          widths[item.index] = Math.min(widths[item.index]!, item.col.maxWidth);
+        }
+      }
+    }
+  }
+
+  // Step 3: Shrink if exceeds maxWidth (same as before)
   if (maxWidth) {
     const totalPadding = columns.length * padding * 2;
     const borders = columns.length + 1;
@@ -217,15 +282,15 @@ function calculateColumnWidths(
     if (totalWidth > maxWidth) {
       const overflow = totalWidth - maxWidth;
       const shrinkable = widths.map((w, i) => {
-        const min = columns[i].minWidth ?? 3;
+        const min = columns[i]!.minWidth ?? 3;
         return Math.max(0, w - min);
       });
       const totalShrinkable = shrinkable.reduce((a, b) => a + b, 0);
 
       if (totalShrinkable > 0) {
         for (let i = 0; i < widths.length; i++) {
-          const shrinkAmount = Math.floor((shrinkable[i] / totalShrinkable) * overflow);
-          widths[i] = Math.max(columns[i].minWidth ?? 3, widths[i] - shrinkAmount);
+          const shrinkAmount = Math.floor((shrinkable[i]! / totalShrinkable) * overflow);
+          widths[i] = Math.max(columns[i]!.minWidth ?? 3, widths[i]! - shrinkAmount);
         }
       }
     }
@@ -264,6 +329,17 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 /**
+ * Get terminal width with fallback
+ */
+export function getTerminalWidth(): number {
+  try {
+    return process.stdout.columns || 80;
+  } catch {
+    return 80;
+  }
+}
+
+/**
  * Render a table
  */
 export function Table(options: TableOptions): VNode {
@@ -279,13 +355,18 @@ export function Table(options: TableOptions): VNode {
     padding = 1,
     rowSeparator = false,
     maxWidth,
+    availableWidth,
     compact = false,
   } = options;
 
   const actualPadding = compact ? 0 : padding;
   const borders = TABLE_BORDERS[borderStyle];
   const hasBorders = borderStyle !== 'none';
-  const widths = calculateColumnWidths(columns, data, maxWidth, actualPadding);
+
+  // Determine available width for flex calculation
+  const effectiveAvailableWidth = availableWidth ?? getTerminalWidth();
+
+  const widths = calculateColumnWidths(columns, data, maxWidth, actualPadding, effectiveAvailableWidth);
 
   const rows: VNode[] = [];
 

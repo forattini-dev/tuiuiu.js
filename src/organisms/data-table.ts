@@ -15,7 +15,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { Table, type TableColumn, type TableBorderStyle, type TextAlign } from '../molecules/table.js';
+import { Table, type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
 // =============================================================================
 // Types
@@ -69,6 +69,11 @@ export interface DataTableOptions<T = Record<string, any>> {
   colorStripe?: ColorValue;
   /** Max height (rows visible) */
   maxHeight?: number;
+  /**
+   * Available width for the table. Flex columns will expand to fill this space.
+   * If not provided, defaults to process.stdout.columns or 80.
+   */
+  availableWidth?: number;
   /** Callbacks */
   onSelect?: (rows: T[]) => void;
   onSort?: (column: string, direction: SortDirection) => void;
@@ -401,6 +406,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     striped = false,
     colorStripe = 'mutedForeground',
     isActive = true,
+    availableWidth,
     state: externalState,
   } = props;
 
@@ -496,6 +502,16 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   }
   displayColumns.push(...headerColumns);
 
+  // Calculate column widths (supports flex columns)
+  const effectiveAvailableWidth = availableWidth ?? getTerminalWidth();
+  const columnWidths = calculateColumnWidths(
+    displayColumns,
+    page as Record<string, any>[],
+    undefined, // maxWidth
+    0,         // padding (we handle marginRight separately)
+    effectiveAvailableWidth
+  );
+
   // Build data with selection and cursor
   const displayData = page.map((row, i) => {
     const rowKey = state.getRowKey(row, i);
@@ -532,7 +548,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     Box(
       { flexDirection: 'row', marginBottom: 1 },
       ...displayColumns.map((col, i) => {
-        const width = col.width ?? 15;
+        const width = columnWidths[i] ?? 15;
         return Box(
           { width, marginRight: 1 },
           Text({ color: colorHeader, bold: headerBold }, col.header.slice(0, width))
@@ -540,7 +556,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
       })
     ),
     // Rows
-    ...displayData.map((row, i) => {
+    ...displayData.map((row, rowIdx) => {
       const isCursor = row._isCursor;
       const isSelectedRow = row._isSelected;
 
@@ -549,8 +565,8 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
           flexDirection: 'row',
           backgroundColor: isCursor ? colorCursor : isSelectedRow ? colorSelected : undefined,
         },
-        ...displayColumns.map((col) => {
-          const width = col.width ?? 15;
+        ...displayColumns.map((col, colIdx) => {
+          const width = columnWidths[colIdx] ?? 15;
           let value = row[col.key];
           if (col.format) {
             value = col.format(value, row);

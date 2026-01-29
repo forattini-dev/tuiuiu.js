@@ -344,9 +344,9 @@ GoToDialog({
   {
     name: 'DataTable',
     category: 'organisms',
-    description: 'Advanced data table with sorting, filtering, pagination, and keyboard navigation.',
+    description: 'Advanced data table with sorting, filtering, pagination, keyboard navigation, and flex columns that expand to fill available width.',
     props: [
-      { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions { key, header, width?, sortable?, filterable?, align?, render? }' },
+      { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions { key, header, width?, flex?, minWidth?, maxWidth?, sortable?, filterable?, align?, render? }' },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Row data' },
       { name: 'pageSize', type: 'number', required: false, default: '10', description: 'Rows per page' },
       { name: 'sortable', type: 'boolean', required: false, default: 'true', description: 'Enable column sorting' },
@@ -355,11 +355,13 @@ GoToDialog({
       { name: 'highlightSelected', type: 'boolean', required: false, default: 'true', description: 'Highlight selected row' },
       { name: 'striped', type: 'boolean', required: false, default: 'false', description: 'Alternating row colors' },
       { name: 'bordered', type: 'boolean', required: false, default: 'true', description: 'Show borders' },
+      { name: 'availableWidth', type: 'number', required: false, default: 'terminal width', description: 'Available width for flex column calculation' },
       { name: 'onRowSelect', type: '(row: Record<string, unknown>, index: number) => void', required: false, description: 'Row selection callback' },
       { name: 'state', type: 'DataTableState', required: false, description: 'External state from createDataTable()' },
     ],
     examples: [
-      `const table = createDataTable({
+      `// Basic DataTable
+const table = createDataTable({
   columns: [
     { key: 'name', header: 'Name', sortable: true },
     { key: 'email', header: 'Email', width: 30 },
@@ -372,6 +374,16 @@ GoToDialog({
 DataTable({
   ...table.props,
   onRowSelect: (row) => openUser(row.id),
+})`,
+      `// With flex columns - fills terminal width
+DataTable({
+  columns: [
+    { key: 'id', header: 'ID', width: 6 },           // fixed
+    { key: 'name', header: 'Name', flex: 1 },        // 1 part of remaining
+    { key: 'desc', header: 'Description', flex: 2 }, // 2 parts of remaining
+    { key: 'status', header: 'Status', width: 10 },  // fixed
+  ],
+  data: items,
 })`,
     ],
   },

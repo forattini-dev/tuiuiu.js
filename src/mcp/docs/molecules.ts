@@ -442,18 +442,20 @@ export const molecules: ComponentDoc[] = [
   {
     name: 'Table',
     category: 'molecules',
-    description: 'Data table with headers, sorting, alignment, and borders.',
+    description: 'Data table with headers, sorting, alignment, borders, and flex columns that expand to fill available width.',
     props: [
-      { name: 'columns', type: "TableColumn[]", required: true, description: 'Column definitions { key, header, width?, align?, format? }' },
+      { name: 'columns', type: "TableColumn[]", required: true, description: 'Column definitions { key, header, width?, flex?, minWidth?, maxWidth?, align?, format? }' },
       { name: 'data', type: "Record<string, unknown>[]", required: true, description: 'Row data array' },
       { name: 'borderStyle', type: "'single' | 'double' | 'round' | 'bold' | 'none'", required: false, default: "'single'", description: 'Table border style' },
       { name: 'headerColor', type: "ColorValue", required: false, default: "'cyan'", description: 'Header text color' },
       { name: 'borderColor', type: "ColorValue", required: false, description: 'Border color' },
       { name: 'alternateRows', type: "boolean", required: false, default: 'false', description: 'Alternate row colors' },
       { name: 'compact', type: "boolean", required: false, default: 'false', description: 'Remove padding' },
+      { name: 'availableWidth', type: "number", required: false, default: 'terminal width', description: 'Available width for flex column calculation' },
     ],
     examples: [
-      `Table({\n  columns: [\n    { key: 'name', header: 'Name', width: 20 },\n    { key: 'age', header: 'Age', width: 5, align: 'right' },\n  ],\n  data: [\n    { name: 'Alice', age: 30 },\n    { name: 'Bob', age: 25 },\n  ],\n})`,
+      `// Basic table with fixed widths\nTable({\n  columns: [\n    { key: 'name', header: 'Name', width: 20 },\n    { key: 'age', header: 'Age', width: 5, align: 'right' },\n  ],\n  data: [\n    { name: 'Alice', age: 30 },\n    { name: 'Bob', age: 25 },\n  ],\n})`,
+      `// Flex columns - fill terminal width\nTable({\n  columns: [\n    { key: 'id', header: 'ID', width: 6 },           // fixed\n    { key: 'name', header: 'Name', flex: 1 },        // 1 part\n    { key: 'desc', header: 'Description', flex: 2 }, // 2 parts\n    { key: 'status', header: 'Status', width: 10 },  // fixed\n  ],\n  data: items,\n})`,
     ],
     relatedComponents: ['SimpleTable', 'KeyValueTable', 'DataTable'],
   },
