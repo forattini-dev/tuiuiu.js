@@ -1,76 +1,178 @@
 # Media Components
 
-Tuiuiu supports two classes of “media”:
+Tuiuiu has two image paths:
 
-- **character-rendered media** such as `Picture`, `ColoredPicture`, and `AnimatedPicture`
-- **protocol-backed terminal images** via `TerminalImage`
+- character-rendered media: `Picture`, `ColoredPicture`, `AnimatedPicture`
+- terminal-protocol media: `TerminalImage`
 
-Use the character-rendered path when you want portable output everywhere. Use `TerminalImage` when you want the runtime to negotiate Kitty, iTerm2, Sixel, or a high-quality fallback automatically.
+Use the character-rendered path when you need maximum portability.
+Use the terminal-protocol path when the terminal can render raster content through Kitty, iTerm2, or Sixel.
 
-## TerminalImage
+## TerminalImage Deep Dive
 
-`TerminalImage` renders decoded RGBA image data directly in the terminal when a graphics protocol is available, and falls back to `halfblock` or `braille` when it is not.
+`TerminalImage` is the pipeline for decoded image payloads. It supports:
+
+- Kitty Graphics Protocol (`kitty`)
+- iTerm2 inline images (`iterm2`)
+- Sixel (`sixel`)
+- `halfblock` fallback (`▀` with `fg`/`bg`)
+- `braille` fallback
+
+By default, protocol selection is automatic with terminal profile hints + active capability probing.
+
+### API and source types
+
+`TerminalImage` accepts:
+
+- `ImageData` (`pixels`, `width`, `height`) in RGBA
+- `TerminalImageSource` (precomputed `cellSize` + `desiredColumns` + `desiredRows` + `hash`)
 
 ```typescript
-import { Panel, TerminalImage, loadImageFile } from 'tuiuiu.js';
+import {
+  createImageData,
+  createTerminalImageSource,
+  loadImageFile,
+  TerminalImage,
+} from 'tuiuiu.js';
 
-const image = await loadImageFile('./tests/tuiuiu.png');
-
-Panel({ title: 'Preview', width: 40, height: 14 },
-  TerminalImage({
-    source: image,
-    width: 'fill',
-    height: 'fill',
-    fit: 'contain',
-  })
+// 1) direct RGBA data
+const raw = createImageData(
+  new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]),
+  2,
+  1,
 );
+
+// 2) precomputed source
+const source = createTerminalImageSource(raw, { cellSize: { width: 10, height: 20 } });
+
+// 3) file decoder helper
+const fileImage = await loadImageFile('./tests/tuiuiu.png');
+
+TerminalImage({ source: raw });
+TerminalImage({ source });
+TerminalImage({ source: fileImage });
 ```
 
-### Supported backends
+`loadImageFile()` is a convenience around `ffprobe` + `ffmpeg` and returns `ImageData`.
+If your environment does not have those binaries, load images in-process and pass
+`ImageData` directly.
 
-- `kitty`
-- `iterm2`
-- `sixel`
-- `halfblock`
-- `braille`
+### Rendering pipeline and sizing model
 
-### Important details
+`TerminalImage` is sized in cell units and keeps aspect ratio depending on the `fit` mode.
 
-- the core runtime accepts decoded RGBA, not raw PNG/JPEG/WebP bytes
-- `loadImageFile()` is the convenience bridge for file input and relies on `ffprobe` + `ffmpeg`
-- `TerminalImage` participates in layout and reserves its covered cell region so text does not paint over the image
+- `none` keeps source resolution and clips to target.
+- `contain` preserves aspect ratio and fits inside target.
+- `cover` fills target and crops overflow.
+- `fill` stretches to exact target columns and rows.
+- `crop` keeps source pixel scale and clips to target.
 
-### Stateful rendering
+You can set cell dimensions explicitly with `imageWidth`/`imageHeight` or rely on source metadata.
 
-For resize-heavy layouts, use `createTerminalImage()` to hold protocol cache/state across renders:
+```typescript
+TerminalImage({
+  source: fileImage,
+  width: 60,       // columns
+  height: 20,      // rows
+  fit: 'contain',
+  imageWidth: 640,
+  imageHeight: 360,
+});
+```
+
+### Protocol control
+
+`protocol` in props/state is optional and may be:
+
+- `'kitty' | 'iterm2' | 'sixel'`
+- `'halfblock' | 'braille'`
+- `'none'` (resolved through `getFallbackProtocol()`)
+
+If omitted, runtime policy is used first; explicit protocol always wins.
+
+```typescript
+import { getGraphicsProtocol, getGraphicsCapabilities } from 'tuiuiu.js';
+
+const caps = getGraphicsCapabilities();
+const negotiated = getGraphicsProtocol();
+
+TerminalImage({
+  source: fileImage,
+  protocol:
+    caps.profile?.knownCaps.preferredGraphics === 'kitty' || caps.profile?.knownCaps.preferredGraphics === 'iterm2'
+      ? caps.profile.knownCaps.preferredGraphics
+      : 'halfblock',
+});
+
+console.log(negotiated);
+```
+
+### Layering behavior and reservation
+
+`TerminalImage` commands reserve their exact terminal cell rectangle in the frame.
+
+- normal text and box painting does not overwrite this reserved area in the same commit
+- when an image leaves the tree, stale image payloads are cleaned
+
+This is what makes protocol-backed images safe inside `Panel`, `Tabs`, `ScrollPanel`, and `SplitPanel`.
+
+### Stateful mode and cache behavior
+
+For dynamic content and heavy redraws, use `createTerminalImage()` to persist protocol cache and avoid re-encoding when geometry is unchanged.
 
 ```typescript
 import { createTerminalImage, TerminalImage } from 'tuiuiu.js';
 
-const imageState = createTerminalImage({
-  source: rgbaImage,
+const imgState = createTerminalImage({
+  source: fileImage,
   fit: 'contain',
+  protocol: 'kitty',
 });
 
-TerminalImage({
-  state: imageState,
-  width: 'fill',
-  height: 'fill',
-});
+function Dashboard({ source }) {
+  imgState.updateOptions({ source, fit: 'cover' });
+
+  return TerminalImage({
+    state: imgState,
+    width: 'fill',
+    height: 12,
+  });
+}
 ```
 
-### Capability inspection
+State methods available on `TerminalImageState`:
+
+- `setSource`
+- `setFit`
+- `setProtocol`
+- `setImageSize`
+- `invalidateRenderCache`
+- `updateOptions`
+
+### Capability-aware behavior
+
+Check capability snapshots before forcing protocol mode.
 
 ```typescript
-import { getGraphicsCapabilities, queryGraphicsCapabilities } from 'tuiuiu.js';
+import { getCapabilities } from 'tuiuiu.js';
 
-const cached = getGraphicsCapabilities();
-const negotiated = await queryGraphicsCapabilities();
+const caps = getCapabilities();
+
+if (caps.profile?.knownCaps.preferredGraphics) {
+  // protocol path is reasonable
+}
 ```
+
+For advanced diagnosis, inspect:
+
+- `queryGraphicsCapabilities()`
+- `getGraphicsCapabilities()`
+- `getGraphicsProtocol()`
+- terminal profile via `detectTerminalProfile()`
 
 ## Picture
 
-The main component for ASCII art and character-grid images. It handles scaling, cropping, and alignment.
+`Picture` is the character-rendered baseline. It is best when you want deterministic output in CI, serial logs, or legacy terminals.
 
 ### Usage
 
@@ -78,7 +180,7 @@ The main component for ASCII art and character-grid images. It handles scaling, 
 import { Picture } from 'tuiuiu.js';
 
 const art = `
-  /\_/\
+  /\\_/\\
  ( o.o )
   > ^ <
 `;
@@ -86,13 +188,13 @@ const art = `
 Picture({
   source: art,
   color: 'cyan',
-  borderStyle: 'single'
-})
+  borderStyle: 'single',
+});
 ```
 
-### Alignment & Fit
+### Alignment and fit
 
-Control how the image fits within its container:
+`fit`, `alignX`, and `alignY` work similarly to other layout-bound media components.
 
 - `fit`: `'none' | 'contain' | 'cover' | 'fill' | 'crop'`
 - `alignX`: `'left' | 'center' | 'right'`
@@ -105,40 +207,37 @@ Picture({
   height: 10,
   fit: 'contain',
   alignX: 'center',
-  alignY: 'center'
-})
+  alignY: 'center',
+});
 ```
 
 ## Pixel Art
 
-Create colored pixel grids using palettes or raw colors.
+Create colored pixel grids using palettes or raw color matrices.
 
 ### Usage
 
 ```typescript
 import { createPixelGrid, ColoredPicture } from 'tuiuiu.js';
 
-// Define palette
 const palette = {
-  'R': { fg: 'red' },
-  'G': { fg: 'green' },
-  'B': { fg: 'blue' }
+  R: { fg: 'red' },
+  G: { fg: 'green' },
+  B: { fg: 'blue' },
 };
 
-// Create grid
 const grid = createPixelGrid(`
 RRR
 GGG
 BBB
 `, palette);
 
-// Render
 ColoredPicture({ pixels: grid });
 ```
 
 ## FramedPicture
 
-A convenience component that wraps a `Picture` in a border with an optional title.
+Convenience wrapper for `Picture` with title and border controls.
 
 ```typescript
 import { FramedPicture } from 'tuiuiu.js';
@@ -146,27 +245,66 @@ import { FramedPicture } from 'tuiuiu.js';
 FramedPicture({
   source: logo,
   title: 'My App',
-  borderStyle: 'double'
-})
+  borderStyle: 'double',
+});
 ```
 
 ## Effects
 
-Utilities for text effects.
+Utility helpers for terminal visual effects.
 
 ### `createGradientBar(width, stops)`
-Generates a gradient string.
 
 ```typescript
 const bar = createGradientBar(20, [
   { position: 0, color: 'red' },
-  { position: 1, color: 'blue' }
+  { position: 1, color: 'blue' },
 ]);
 ```
 
 ### `rainbowText(text)`
-Colorizes text with a rainbow pattern.
 
 ```typescript
 Text({}, rainbowText('Hello World'));
 ```
+
+## Image animation with TerminalImage
+
+The image animation API in [Image Animation](/core/image-animation.md) emits `ImageData` over time. Feed it directly to `TerminalImage`.
+
+```typescript
+import {
+  createImageData,
+  createAnimatedImageSource,
+  createAnimatedImage,
+  TerminalImage,
+} from 'tuiuiu.js';
+
+const red = createImageData([255, 0, 0, 255], 1, 1);
+const blue = createImageData([0, 0, 255, 255], 1, 1);
+const animSource = createAnimatedImageSource([red, blue], { defaultDuration: 120 });
+const anim = createAnimatedImage(animSource);
+
+anim.play();
+
+TerminalImage({
+  source: anim.currentImageData(),
+  width: 24,
+  height: 6,
+  fit: 'contain',
+});
+```
+
+## Performance and reliability checklist
+
+- Prefer `createTerminalImage()` for frequent updates; keep `fit` stable when possible.
+- Use `protocol` only when the terminal capabilities are known or probed.
+- In multiplexers (`tmux`, `screen`, `zellij`), passthrough constraints can affect protocol commands.
+- For unknown terminals, let runtime fallback to `halfblock` or `braille`.
+
+## Related
+
+- [Image Animation](/core/image-animation.md)
+- [Terminal Detection](/core/terminal-detection.md)
+- [Capabilities](/core/capabilities.md)
+- [Picture](/components/media/picture.md)
