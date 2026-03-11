@@ -206,6 +206,28 @@ export class CellBuffer {
     return col - x; // Return number of columns written
   }
 
+  /** Fill a single row with the same cell data */
+  fillRow(x: number, y: number, width: number, char: string, fg?: Color, bg?: Color, attrs: CellAttrs = {}): void {
+    if (y < 0 || y >= this.height || width <= 0) return;
+
+    if (stringWidth(char) !== 1) {
+      for (let col = 0; col < width; col++) {
+        this.writeChar(x + col, y, char, fg, bg, attrs);
+      }
+      return;
+    }
+
+    const x1 = Math.max(0, x);
+    const x2 = Math.min(this.width, x + width);
+    if (x2 <= x1) return;
+
+    for (let col = x1; col < x2; col++) {
+      this.cells[y][col] = { char, fg, bg, attrs };
+    }
+
+    this.addDamage(x1, y, x2 - x1, 1);
+  }
+
   /** Fill a rectangle with a cell */
   fill(x: number, y: number, width: number, height: number, cell: Cell): void {
     const x1 = Math.max(0, x);
@@ -214,13 +236,7 @@ export class CellBuffer {
     const y2 = Math.min(this.height, y + height);
 
     for (let row = y1; row < y2; row++) {
-      for (let col = x1; col < x2; col++) {
-        this.cells[row][col] = cloneCell(cell);
-      }
-    }
-
-    if (x2 > x1 && y2 > y1) {
-      this.addDamage(x1, y1, x2 - x1, y2 - y1);
+      this.fillRow(x1, row, x2 - x1, cell.char, cell.fg, cell.bg, cell.attrs);
     }
   }
 
@@ -338,6 +354,34 @@ export class CellBuffer {
   }
 
   /**
+   * Calculate patches only inside the provided rectangles.
+   * Rectangles should already be normalized to buffer space.
+   */
+  diffRects(target: CellBuffer, rects: DamageRect[]): CellPatch[] {
+    const patches: CellPatch[] = [];
+
+    for (const rect of rects) {
+      const x1 = Math.max(0, rect.x);
+      const y1 = Math.max(0, rect.y);
+      const x2 = Math.min(this.width, target.width, rect.x + rect.width);
+      const y2 = Math.min(this.height, target.height, rect.y + rect.height);
+
+      for (let y = y1; y < y2; y++) {
+        for (let x = x1; x < x2; x++) {
+          const current = this.cells[y][x];
+          const next = target.cells[y][x];
+
+          if (!cellEquals(current, next)) {
+            patches.push({ x, y, cell: cloneCell(next) });
+          }
+        }
+      }
+    }
+
+    return patches;
+  }
+
+  /**
    * Apply patches to this buffer
    */
   applyPatches(patches: CellPatch[]): void {
@@ -410,6 +454,19 @@ export class DoubleBuffer {
     this.back = temp;
 
     // Clear the new back buffer's damage
+    this.back.clearDamage();
+
+    return patches;
+  }
+
+  /** Swap only within dirty rectangles */
+  swapDirty(rects: DamageRect[]): CellPatch[] {
+    const patches = this.front.diffRects(this.back, rects);
+
+    const temp = this.front;
+    this.front = this.back;
+    this.back = temp;
+
     this.back.clearDamage();
 
     return patches;
@@ -629,14 +686,16 @@ export function bufferToAnsi(buffer: CellBuffer): string {
  *
  * Uses cursor positioning to only update changed cells
  */
-export function patchesToAnsi(patches: CellPatch[], width: number): string {
+export function patchesToAnsi(patches: CellPatch[], width: number, alreadySorted = false): string {
   if (patches.length === 0) return '';
 
-  // Sort patches by position for optimal cursor movement
-  patches.sort((a, b) => {
-    if (a.y !== b.y) return a.y - b.y;
-    return a.x - b.x;
-  });
+  if (!alreadySorted) {
+    // Sort patches by position for optimal cursor movement
+    patches.sort((a, b) => {
+      if (a.y !== b.y) return a.y - b.y;
+      return a.x - b.x;
+    });
+  }
 
   let output = '';
   let lastX = -1;

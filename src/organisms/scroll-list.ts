@@ -17,7 +17,10 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
+import { isRenderingHooks } from '../hooks/context.js';
+import { useConst } from '../hooks/use-const.js';
 import { useInput } from '../hooks/use-input.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { renderToString, measureHeight } from '../core/renderer.js';
@@ -118,6 +121,7 @@ export interface ScrollListState {
   setInverted: (inv: boolean) => void;
   /** Check if user is near bottom (within threshold lines) */
   isNearBottom: (threshold?: number) => boolean;
+  updateOptions: (options: ScrollListInternalOptions) => void;
 }
 
 interface ScrollListInternalOptions {
@@ -195,11 +199,9 @@ function estimateItemHeight<T>(
 // =============================================================================
 
 export function createScrollList(options: ScrollListInternalOptions = {}): ScrollListState {
-  const { inverted: initialInverted = false, initialHeight = 10 } = options;
-
   const [scrollTop, setScrollTop] = createSignal(0);
-  const [height, setHeight] = createSignal(initialHeight);
-  const [inverted, setInverted] = createSignal(initialInverted);
+  const [height, setHeight] = createSignal(options.initialHeight ?? 10);
+  const [inverted, setInverted] = createSignal(options.inverted ?? false);
   const [maxScroll, setMaxScroll] = createSignal(0);
   const [prevItemCount, setPrevItemCount] = createSignal(0);
   const [prevTotalHeight, setPrevTotalHeight] = createSignal(0);
@@ -265,6 +267,10 @@ export function createScrollList(options: ScrollListInternalOptions = {}): Scrol
     setHeight,
     setInverted,
     isNearBottom,
+    updateOptions: (nextOptions: ScrollListInternalOptions) => {
+      setHeight(nextOptions.initialHeight ?? 10);
+      setInverted(nextOptions.inverted ?? false);
+    },
     // Internal: allow updating maxScroll and item count from component
     _setMaxScroll: setMaxScroll,
     _prevItemCount: prevItemCount,
@@ -325,9 +331,13 @@ export interface UseScrollListReturn {
  * })
  */
 export function useScrollList(options: UseScrollListOptions = {}): UseScrollListReturn {
-  const state = createScrollList({
+  const nextOptions = {
     inverted: options.inverted,
-  });
+  };
+  const state = isRenderingHooks()
+    ? useConst(() => createScrollList(nextOptions))
+    : createScrollList(nextOptions);
+  state.updateOptions(nextOptions);
 
   return {
     scrollToBottom: () => state.scrollToBottom(),
@@ -396,7 +406,11 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
   } = props;
 
   // Use external state or create internal
-  const state = externalState || createScrollList({ inverted, initialHeight: height });
+  const state = useFactoryState(
+    externalState,
+    { inverted, initialHeight: height },
+    createScrollList
+  );
 
   // Cast to internal state type for accessing private methods
   const internalState = state as ScrollListState & {
@@ -406,10 +420,6 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     _prevTotalHeight: () => number;
     _setPrevTotalHeight: (h: number) => void;
   };
-
-  // Update state with current props
-  state.setHeight(height);
-  state.setInverted(inverted);
 
   // Get items array
   const getItems = (): T[] => {

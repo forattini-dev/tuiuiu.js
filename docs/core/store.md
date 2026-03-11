@@ -1,80 +1,91 @@
 # Centralized Store
 
-Tuiuiu includes a built-in Flux-compatible state management solution for complex applications.
+Tuiuiu includes a reducer-driven store for shared state and middleware-heavy flows.
+
+Use it when you need:
+- reducer-based updates
+- middleware
+- shared state that outgrows local hooks or module-level signals
+
+For most component-local state, prefer `useState()`. For shared reactive state without reducers, prefer `createSignal()` at module scope.
 
 ## Basic Usage
 
 ```typescript
 import { createStore } from 'tuiuiu.js';
 
-// Create a store with a reducer
-const store = createStore((state = { count: 0 }, action) => {
-  switch (action.type) {
-    case 'INCREMENT':
-      return { count: state.count + 1 };
-    case 'DECREMENT':
-      return { count: state.count - 1 };
-    default:
-      return state;
-  }
-});
+const store = createStore(
+  (state = { count: 0 }, action) => {
+    switch (action.type) {
+      case 'INCREMENT':
+        return { count: state.count + 1 };
+      case 'DECREMENT':
+        return { count: state.count - 1 };
+      default:
+        return state;
+    }
+  },
+  { count: 0 }
+);
 
-// Get current state
-console.log(store.getState()); // { count: 0 }
+console.log(store.getState()); // Non-reactive read
 
-// Subscribe to changes
 const unsubscribe = store.subscribe(() => {
   console.log('State changed:', store.getState());
 });
 
-// Dispatch actions
-store.dispatch({ type: 'INCREMENT' }); // State changed: { count: 1 }
-store.dispatch({ type: 'INCREMENT' }); // State changed: { count: 2 }
+store.dispatch({ type: 'INCREMENT' });
+store.dispatch({ type: 'INCREMENT' });
 
-// Unsubscribe when done
 unsubscribe();
 ```
 
-## With Components
+## Reactive Usage in Components
+
+Inside components, use `store.state()` so reads participate in Tuiuiu's reactive graph.
 
 ```typescript
-import { render, Box, Text, useInput } from 'tuiuiu.js';
-import { createStore } from 'tuiuiu.js/primitives';
+import { render, Box, Text, useInput, useApp, createStore } from 'tuiuiu.js';
 
-const store = createStore((state = { count: 0 }, action) => {
-  switch (action.type) {
-    case 'INCREMENT': return { count: state.count + 1 };
-    case 'DECREMENT': return { count: state.count - 1 };
-    default: return state;
-  }
-});
+const store = createStore(
+  (state = { count: 0 }, action) => {
+    switch (action.type) {
+      case 'INCREMENT':
+        return { count: state.count + 1 };
+      case 'DECREMENT':
+        return { count: state.count - 1 };
+      default:
+        return state;
+    }
+  },
+  { count: 0 }
+);
 
 function Counter() {
-  const [state, setState] = useState(store.getState());
+  const { exit } = useApp();
+  const state = store.state();
 
-  useEffect(() => {
-    return store.subscribe(() => setState(store.getState()));
-  });
-
-  useInput((char, key) => {
+  useInput((input, key) => {
     if (key.upArrow) store.dispatch({ type: 'INCREMENT' });
     if (key.downArrow) store.dispatch({ type: 'DECREMENT' });
+    if (input === 'q' || key.escape) exit();
   });
 
-  return Box({ padding: 1 },
-    Text({}, `Count: ${state.count}`)
+  return Box(
+    { padding: 1, borderStyle: 'round' },
+    Text({}, `Count: ${state.count}`),
+    Text({ dim: true }, 'Up/Down to change, Q to quit')
   );
 }
+
+render(Counter);
 ```
 
 ## Middleware
 
-Add middleware for logging, async actions, and more:
-
 ```typescript
 import { createStore, applyMiddleware } from 'tuiuiu.js';
 
-// Logger middleware
 const logger = (store) => (next) => (action) => {
   console.log('Dispatching:', action);
   const result = next(action);
@@ -82,7 +93,6 @@ const logger = (store) => (next) => (action) => {
   return result;
 };
 
-// Thunk middleware (async actions)
 const thunk = (store) => (next) => (action) => {
   if (typeof action === 'function') {
     return action(store.dispatch, store.getState);
@@ -92,118 +102,117 @@ const thunk = (store) => (next) => (action) => {
 
 const store = createStore(
   reducer,
+  initialState,
   applyMiddleware(logger, thunk)
 );
-
-// Async action with thunk
-const fetchData = () => async (dispatch, getState) => {
-  dispatch({ type: 'FETCH_START' });
-  try {
-    const data = await api.getData();
-    dispatch({ type: 'FETCH_SUCCESS', payload: data });
-  } catch (error) {
-    dispatch({ type: 'FETCH_ERROR', error });
-  }
-};
-
-store.dispatch(fetchData());
 ```
 
-## Combining Reducers
+## Persisted Store
 
-For larger apps, split reducers by domain:
+Use `createPersistedStore()` when you want explicit synchronous hydration at boot plus debounced saves after dispatches.
 
 ```typescript
-import { createStore, combineReducers } from 'tuiuiu.js';
+import {
+  createPersistedStore,
+  createNodeFsSyncStorage,
+} from 'tuiuiu.js';
 
-const usersReducer = (state = [], action) => {
-  switch (action.type) {
-    case 'ADD_USER':
-      return [...state, action.payload];
-    default:
-      return state;
-  }
-};
-
-const settingsReducer = (state = { theme: 'dark' }, action) => {
-  switch (action.type) {
-    case 'SET_THEME':
-      return { ...state, theme: action.payload };
-    default:
-      return state;
-  }
-};
-
-const rootReducer = combineReducers({
-  users: usersReducer,
-  settings: settingsReducer,
+const storage = createNodeFsSyncStorage({
+  dir: './.app-state',
 });
 
-const store = createStore(rootReducer);
-
-// State shape: { users: [], settings: { theme: 'dark' } }
+const store = createPersistedStore({
+  reducer,
+  initialState,
+  storage,
+  key: 'app-state',
+  debounce: 250,
+});
 ```
+
+Hydration happens before the store is returned. If persisted data exists, it is parsed and merged with `initialState`. By default, plain-object state is shallow-merged; use `merge` or `migrate` if you need different behavior.
+
+If you are in a browser-like environment, you can also pass a sync adapter backed by `localStorage`.
+
+## Persistence Middleware
+
+`createPersistMiddleware()` is still available as a save-only primitive. It writes state after dispatches, but it does not hydrate initial state from storage.
+
+```typescript
+import {
+  createStore,
+  applyMiddleware,
+  createPersistMiddleware,
+} from 'tuiuiu.js';
+
+const storage = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+};
+
+const persist = createPersistMiddleware({
+  key: 'app-state',
+  debounce: 250,
+  storage,
+});
+
+const store = createStore(reducer, initialState, applyMiddleware(persist));
+```
+
+Prefer `createPersistedStore()` for the built-in hydration path. Use `createPersistMiddleware()` directly when you already control boot-time loading yourself.
 
 ## API Reference
 
-### `createStore(reducer, enhancer?)`
+### `createStore(reducer, preloadedState?, enhancer?)`
 
-Creates a Redux store.
+Creates a reactive reducer store.
 
-| Param | Type | Description |
-|:------|:-----|:------------|
-| `reducer` | `(state, action) => state` | Root reducer function |
-| `enhancer` | `StoreEnhancer` | Optional enhancer (e.g., `applyMiddleware`) |
-
-**Returns:** `Store`
-
-### `Store` Methods
+### `Store`
 
 | Method | Description |
 |:-------|:------------|
-| `getState()` | Returns current state |
+| `getState()` | Returns the current state without reactive tracking |
+| `state()` | Reactive accessor for components and effects |
 | `dispatch(action)` | Dispatches an action |
-| `subscribe(listener)` | Adds a change listener, returns unsubscribe function |
+| `subscribe(listener)` | Adds a change listener and returns `unsubscribe` |
 | `replaceReducer(reducer)` | Replaces the current reducer |
 
 ### `applyMiddleware(...middlewares)`
 
-Applies middleware to the store's dispatch function.
+Composes middleware around `dispatch`.
 
-```typescript
-const store = createStore(reducer, applyMiddleware(logger, thunk));
-```
+### `createPersistedStore(options)`
 
-### `combineReducers(reducers)`
+Creates a store that hydrates synchronously from persisted JSON before the first read, then persists subsequent updates through the save-only middleware.
 
-Combines multiple reducers into one.
+Supported options:
+- `reducer`
+- `initialState`
+- `storage` (sync `getItem` / `setItem`)
+- `key`
+- `debounce`
+- `migrate`
+- `merge`
 
-```typescript
-const rootReducer = combineReducers({
-  todos: todosReducer,
-  user: userReducer,
-});
-```
+### `createPersistMiddleware(options)`
 
-## Comparison with Signals
+Persists state after dispatches using a provided storage adapter.
+
+Supported options:
+- `key`
+- `debounce`
+- `storage`
+
+Unsupported legacy options like `path` and `format` are deprecated and have no runtime effect.
+
+## Store vs Signals
 
 | Feature | Store | Signals |
 |:--------|:-----:|:-------:|
-| Global state | ✅ | ✅ |
-| Time-travel debugging | ✅ | ❌ |
-| Middleware support | ✅ | ❌ |
-| DevTools integration | ✅ | ❌ |
-| Fine-grained reactivity | ❌ | ✅ |
-| Learning curve | Higher | Lower |
+| Reducer workflow | ✅ | ❌ |
+| Middleware | ✅ | ❌ |
+| Reactive reads in components | ✅ via `state()` | ✅ |
+| Fine-grained field tracking | Limited | ✅ |
+| Boilerplate | Higher | Lower |
 
-**Use Store when:**
-- You need middleware (logging, async)
-- You want predictable state updates
-- Your app has complex state logic
-- You need time-travel debugging
-
-**Use Signals when:**
-- You want simple, direct state updates
-- You need fine-grained reactivity
-- Your state logic is straightforward
-- You prefer less boilerplate
+Use store when reducers and middleware matter. Use signals when you want the simplest reactive model.

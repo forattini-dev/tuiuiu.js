@@ -70,6 +70,17 @@ Tree({
 })
 ```
 
+For ordinary component usage, `Tree({ ... })` now preserves expansion and selection state across parent rerenders. If you need explicit controller reuse, use `useTreeState()` and pass the result back through `state`.
+
+```typescript
+const tree = useTreeState({
+  nodes,
+  initialExpanded: ['src'],
+});
+
+Tree({ state: tree, nodes, showGuides: true })
+```
+
 ### Tree Props
 
 | Prop | Type | Default | Description |

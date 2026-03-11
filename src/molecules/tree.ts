@@ -16,6 +16,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useConst } from '../hooks/use-const.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -97,6 +99,7 @@ export interface TreeState<T = unknown> {
   toggleSelect: (id: string) => void;
   toggleSelectCurrent: () => void;
   getCurrentNode: () => TreeNode<T> | undefined;
+  updateOptions: (options: TreeOptions<T>) => void;
 }
 
 // =============================================================================
@@ -171,24 +174,26 @@ function flattenTree<T>(
  */
 export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
   const {
-    nodes,
     initialExpanded = [],
     initialSelected = [],
     selectionMode = 'single',
-    maxDepth = Infinity,
-    onSelect,
-    onExpand,
-    onCollapse,
   } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const getNodes = () => runtimeOptions.nodes;
+  const getMaxDepth = () => runtimeOptions.maxDepth ?? Infinity;
+  const getSelectionMode = () => runtimeOptions.selectionMode ?? selectionMode;
 
   const [cursorIndex, setCursorIndex] = createSignal(0);
   const [expanded, setExpanded] = createSignal(new Set(initialExpanded));
   const [selected, setSelected] = createSignal(new Set(initialSelected));
 
   // Memoized flattened tree
-  const flatNodes = createMemo(() =>
-    flattenTree(nodes, expanded(), 0, [], maxDepth)
-  );
+  const flatNodes = createMemo(() => {
+    optionsVersion();
+    return flattenTree(getNodes(), expanded(), 0, [], getMaxDepth());
+  });
 
   // Navigation
   const moveUp = () => {
@@ -214,7 +219,7 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
     });
     const flat = flatNodes();
     const found = flat.find((f) => f.node.id === id);
-    if (found) onExpand?.(found.node);
+    if (found) runtimeOptions.onExpand?.(found.node);
   };
 
   const collapse = (id: string) => {
@@ -225,7 +230,7 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
     });
     const flat = flatNodes();
     const found = flat.find((f) => f.node.id === id);
-    if (found) onCollapse?.(found.node);
+    if (found) runtimeOptions.onCollapse?.(found.node);
   };
 
   const toggle = (id: string) => {
@@ -245,7 +250,7 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
   };
 
   const expandAll = () => {
-    const allIds = collectAllIds(nodes);
+    const allIds = collectAllIds(getNodes());
     setExpanded(new Set(allIds));
   };
 
@@ -255,10 +260,10 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
 
   // Selection
   const select = (id: string) => {
-    if (selectionMode === 'none') return;
+    if (getSelectionMode() === 'none') return;
 
     setSelected((prev) => {
-      if (selectionMode === 'single') {
+      if (getSelectionMode() === 'single') {
         return new Set([id]);
       }
       const next = new Set(prev);
@@ -268,7 +273,7 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
 
     const flat = flatNodes();
     const found = flat.find((f) => f.node.id === id);
-    if (found) onSelect?.(found.node);
+    if (found) runtimeOptions.onSelect?.(found.node);
   };
 
   const deselect = (id: string) => {
@@ -319,7 +324,20 @@ export function createTree<T = unknown>(options: TreeOptions<T>): TreeState<T> {
     toggleSelect,
     toggleSelectCurrent,
     getCurrentNode,
+    updateOptions: (nextOptions: TreeOptions<T>) => {
+      runtimeOptions = nextOptions;
+      setOptionsVersion((version) => version + 1);
+      setCursorIndex((index) =>
+        Math.min(index, Math.max(0, flatNodes().length - 1))
+      );
+    },
   };
+}
+
+export function useTreeState<T = unknown>(options: TreeOptions<T>) {
+  const state = useConst(() => createTree(options));
+  state.updateOptions(options);
+  return state;
 }
 
 // =============================================================================
@@ -383,7 +401,7 @@ export function Tree<T = unknown>(props: TreeProps<T>): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createTree(props);
+  const state = useFactoryState(externalState, props, createTree);
   const isAscii = getRenderMode() === 'ascii';
   const chars = getChars();
 

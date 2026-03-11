@@ -9,6 +9,7 @@ import {
   createStore,
   applyMiddleware,
   createPersistMiddleware,
+  createPersistedStore,
   createLoggerMiddleware,
   type Action,
   type Reducer,
@@ -344,12 +345,48 @@ describe('applyMiddleware', () => {
 });
 
 describe('createPersistMiddleware', () => {
+  it('should remain save-only and not hydrate initial state', () => {
+    const storage = new Map<string, string>([['test-state', JSON.stringify({ count: 99 })]]);
+    const mockStorage = {
+      getItem: vi.fn((key: string) => storage.get(key) || null),
+      setItem: vi.fn(),
+    };
+
+    const middleware = createPersistMiddleware({
+      key: 'test-state',
+      storage: mockStorage,
+    });
+
+    const store = createStore(counterReducer, { count: 0 }, applyMiddleware(middleware));
+
+    expect(store.getState()).toEqual({ count: 0 });
+    expect(mockStorage.getItem).not.toHaveBeenCalled();
+  });
+
   it('should warn when no storage adapter provided', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const middleware = createPersistMiddleware({});
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('without storage adapter')
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('should warn when deprecated persistence options are used', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    createPersistMiddleware({
+      path: './state.json',
+      format: 'json',
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Persist middleware ignores `path`. Use `storage` and `key` instead.'
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Persist middleware always serializes as JSON. `format` is deprecated.'
     );
 
     warnSpy.mockRestore();
@@ -416,6 +453,149 @@ describe('createPersistMiddleware', () => {
     );
 
     errorSpy.mockRestore();
+  });
+});
+
+describe('createPersistedStore', () => {
+  it('should hydrate from sync storage before the first read', () => {
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 0 },
+      key: 'counter',
+      storage: {
+        getItem: (key: string) =>
+          key === 'counter' ? JSON.stringify({ count: 12 }) : null,
+        setItem: vi.fn(),
+      },
+    });
+
+    expect(store.getState()).toEqual({ count: 12 });
+  });
+
+  it('should shallow-merge plain object state with initial state by default', () => {
+    interface SettingsState {
+      count: number;
+      theme: 'light' | 'dark';
+    }
+
+    type SettingsAction = { type: '@@INIT' };
+
+    const reducer: Reducer<SettingsState, SettingsAction> = (
+      state = { count: 0, theme: 'light' },
+      _action
+    ) => state;
+
+    const store = createPersistedStore({
+      reducer,
+      initialState: { count: 0, theme: 'light' },
+      key: 'settings',
+      storage: {
+        getItem: () => JSON.stringify({ count: 7 }),
+        setItem: vi.fn(),
+      },
+    });
+
+    expect(store.getState()).toEqual({ count: 7, theme: 'light' });
+  });
+
+  it('should use initial state when storage is empty', () => {
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 3 },
+      storage: {
+        getItem: () => null,
+        setItem: vi.fn(),
+      },
+    });
+
+    expect(store.getState()).toEqual({ count: 3 });
+  });
+
+  it('should fall back to initial state when persisted JSON is invalid', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 5 },
+      storage: {
+        getItem: () => '{invalid json',
+        setItem: vi.fn(),
+      },
+    });
+
+    expect(store.getState()).toEqual({ count: 5 });
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to hydrate persisted state. Falling back to initial state.',
+      expect.any(Error)
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('should support migrate before merge', () => {
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 0 },
+      storage: {
+        getItem: () => JSON.stringify({ value: 21 }),
+        setItem: vi.fn(),
+      },
+      migrate: (persisted) => ({
+        count:
+          typeof persisted === 'object' &&
+          persisted !== null &&
+          'value' in persisted &&
+          typeof persisted.value === 'number'
+            ? persisted.value
+            : 0,
+      }),
+    });
+
+    expect(store.getState()).toEqual({ count: 21 });
+  });
+
+  it('should support custom merge behavior', () => {
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 4 },
+      storage: {
+        getItem: () => JSON.stringify({ count: 10 }),
+        setItem: vi.fn(),
+      },
+      merge: (initialState, persistedState) => ({
+        count: initialState.count + persistedState.count,
+      }),
+    });
+
+    expect(store.getState()).toEqual({ count: 14 });
+  });
+
+  it('should persist updates after hydration', async () => {
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: () => JSON.stringify({ count: 2 }),
+      setItem: vi.fn((key: string, value: string) => {
+        saved.set(key, value);
+      }),
+    };
+
+    const store = createPersistedStore({
+      reducer: counterReducer,
+      initialState: { count: 0 },
+      key: 'counter',
+      debounce: 10,
+      storage,
+    });
+
+    store.dispatch({ type: 'INCREMENT' });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(storage.setItem).toHaveBeenCalledWith(
+      'counter',
+      JSON.stringify({ count: 3 })
+    );
+    expect(saved.get('counter')).toBe(JSON.stringify({ count: 3 }));
   });
 });
 

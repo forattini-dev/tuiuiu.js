@@ -16,6 +16,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useConst } from '../hooks/use-const.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 
@@ -82,6 +84,7 @@ export interface CalendarState {
   clearSelection: () => void;
   // View
   getMonthDays: () => CalendarDay[];
+  updateOptions: (options: CalendarOptions) => void;
 }
 
 export interface CalendarDay {
@@ -199,15 +202,8 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
   const {
     initialDate = new Date(),
     selectedDates: initialSelected = [],
-    events = [],
-    selectionMode = 'single',
-    firstDayOfWeek = 0,
-    minDate,
-    maxDate,
-    disabledDates = [],
-    onDateSelect,
-    onMonthChange,
   } = options;
+  let runtimeOptions = options;
 
   const [cursorDate, setCursorDate] = createSignal(initialDate);
   const [viewDate, setViewDate] = createSignal(
@@ -220,6 +216,9 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
 
   // Check if date is disabled
   const isDateDisabled = (date: Date): boolean => {
+    const minDate = runtimeOptions.minDate;
+    const maxDate = runtimeOptions.maxDate;
+    const disabledDates = runtimeOptions.disabledDates ?? [];
     if (minDate && date < minDate) return true;
     if (maxDate && date > maxDate) return true;
     return disabledDates.some((d) => isSameDay(d, date));
@@ -237,7 +236,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
         newDate.getFullYear() !== viewDate().getFullYear()
       ) {
         setViewDate(new Date(newDate.getFullYear(), newDate.getMonth(), 1));
-        onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
+        runtimeOptions.onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
       }
 
       return newDate;
@@ -251,7 +250,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
   const moveMonth = (delta: number) => {
     setViewDate((d) => {
       const newDate = new Date(d.getFullYear(), d.getMonth() + delta, 1);
-      onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
+      runtimeOptions.onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
       return newDate;
     });
     setCursorDate((d) => {
@@ -264,7 +263,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
   const moveYear = (delta: number) => {
     setViewDate((d) => {
       const newDate = new Date(d.getFullYear() + delta, d.getMonth(), 1);
-      onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
+      runtimeOptions.onMonthChange?.(newDate.getFullYear(), newDate.getMonth());
       return newDate;
     });
     setCursorDate((d) => {
@@ -278,7 +277,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
     const now = new Date();
     setCursorDate(now);
     setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    onMonthChange?.(now.getFullYear(), now.getMonth());
+    runtimeOptions.onMonthChange?.(now.getFullYear(), now.getMonth());
   };
 
   // Selection
@@ -286,11 +285,12 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
     const cursor = cursorDate();
     if (isDateDisabled(cursor)) return;
 
+    const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode === 'none') return;
 
     if (selectionMode === 'single') {
       setSelectedDates([cursor]);
-      onDateSelect?.(cursor);
+      runtimeOptions.onDateSelect?.(cursor);
     } else if (selectionMode === 'multiple') {
       setSelectedDates((prev) => {
         const exists = prev.some((d) => isSameDay(d, cursor));
@@ -298,7 +298,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
           return prev.filter((d) => !isSameDay(d, cursor));
         }
         const newDates = [...prev, cursor];
-        onDateSelect?.(cursor);
+        runtimeOptions.onDateSelect?.(cursor);
         return newDates;
       });
     } else if (selectionMode === 'range') {
@@ -316,7 +316,7 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
         }
         setSelectedDates(dates);
         setRangeStart(null);
-        onDateSelect?.(cursor);
+        runtimeOptions.onDateSelect?.(cursor);
       }
     }
   };
@@ -331,6 +331,8 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
     const view = viewDate();
     const year = view.getFullYear();
     const month = view.getMonth();
+    const events = runtimeOptions.events ?? [];
+    const firstDayOfWeek = runtimeOptions.firstDayOfWeek ?? 0;
 
     const firstDay = getFirstDayOfMonth(year, month);
     const lastDay = getLastDayOfMonth(year, month);
@@ -422,7 +424,16 @@ export function createCalendar(options: CalendarOptions = {}): CalendarState {
     selectCursor,
     clearSelection,
     getMonthDays,
+    updateOptions: (nextOptions: CalendarOptions) => {
+      runtimeOptions = nextOptions;
+    },
   };
+}
+
+export function useCalendarState(options: CalendarOptions = {}) {
+  const state = useConst(() => createCalendar(options));
+  state.updateOptions(options);
+  return state;
 }
 
 // =============================================================================
@@ -467,7 +478,7 @@ export function Calendar(props: CalendarProps): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createCalendar(props);
+  const state = useFactoryState(externalState, props, createCalendar);
   const isAscii = getRenderMode() === 'ascii';
   const theme = getTheme();
 
@@ -673,6 +684,7 @@ export interface DatePickerState extends CalendarState {
   close: () => void;
   toggle: () => void;
   formattedValue: () => string;
+  updateOptions: (options: DatePickerOptions) => void;
 }
 
 /**
@@ -681,13 +693,16 @@ export interface DatePickerState extends CalendarState {
 export function createDatePicker(options: DatePickerOptions = {}): DatePickerState {
   const calendarState = createCalendar(options);
   const [isOpen, setIsOpen] = createSignal(false);
-
-  const format = options.format ?? 'YYYY-MM-DD';
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
 
   const formattedValue = createMemo(() => {
+    optionsVersion();
     const dates = calendarState.selectedDates();
     if (dates.length === 0) return '';
 
+    const format = runtimeOptions.format ?? 'YYYY-MM-DD';
+    void format;
     if (dates.length === 1) {
       return formatDate(dates[0]!);
     }
@@ -704,21 +719,38 @@ export function createDatePicker(options: DatePickerOptions = {}): DatePickerSta
     close: () => setIsOpen(false),
     toggle: () => setIsOpen((v) => !v),
     formattedValue,
+    updateOptions: (nextOptions: DatePickerOptions) => {
+      runtimeOptions = nextOptions;
+      calendarState.updateOptions(nextOptions);
+      setOptionsVersion((version) => version + 1);
+    },
   };
+}
+
+export interface DatePickerProps extends DatePickerOptions {
+  /** Pre-created state */
+  state?: DatePickerState;
+}
+
+export function useDatePickerState(options: DatePickerOptions = {}) {
+  const state = useConst(() => createDatePicker(options));
+  state.updateOptions(options);
+  return state;
 }
 
 /**
  * DatePicker - Calendar with input field
  */
-export function DatePicker(props: DatePickerOptions): VNode {
+export function DatePicker(props: DatePickerProps): VNode {
   const {
     placeholder = 'Select date...',
     inputWidth = 20,
     isActive = true,
+    state: externalState,
     ...rest
   } = props;
 
-  const state = createDatePicker(props);
+  const state = useFactoryState(externalState, props, createDatePicker);
 
   // Setup keyboard handling
   useInput(

@@ -199,6 +199,10 @@ export interface MouseEventProps {
 
 /** Box component props */
 export interface BoxProps extends BoxStyle, MouseEventProps {
+  /** Explicit runtime query ID */
+  id?: string;
+  /** Internal runtime metadata for scroll-container queries */
+  __scrollQuery?: unknown;
   /** Unique key for reconciliation */
   key?: string | number;
   /** Child elements */
@@ -207,6 +211,8 @@ export interface BoxProps extends BoxStyle, MouseEventProps {
 
 /** Text component props */
 export interface TextProps extends TextStyle, MouseEventProps {
+  /** Explicit runtime query ID */
+  id?: string;
   /** Unique key for reconciliation */
   key?: string | number;
   /** Text content */

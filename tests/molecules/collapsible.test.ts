@@ -181,6 +181,33 @@ describe('Collapsible Component', () => {
     expect(vnode).toBeDefined();
   });
 
+  it('should render summary when collapsed', () => {
+    const vnode = Collapsible({
+      title: 'Deployment',
+      summary: '3 pending changes',
+      children: Text({}, 'Hidden details'),
+    });
+
+    const output = JSON.stringify(vnode);
+    expect(output).toContain('Deployment');
+    expect(output).toContain('3 pending changes');
+    expect(output).not.toContain('Hidden details');
+  });
+
+  it('should hide summary when expanded', () => {
+    const vnode = Collapsible({
+      title: 'Deployment',
+      summary: '3 pending changes',
+      initialExpanded: true,
+      children: Text({}, 'Hidden details'),
+    });
+
+    const output = JSON.stringify(vnode);
+    expect(output).toContain('Deployment');
+    expect(output).toContain('Hidden details');
+    expect(output).not.toContain('3 pending changes');
+  });
+
   it('should handle disabled state', () => {
     const vnode = Collapsible({
       title: 'Disabled',

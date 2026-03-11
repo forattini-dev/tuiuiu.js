@@ -26,6 +26,11 @@ import {
   StatusBar,
   Header,
   Container,
+  Screen,
+  Main,
+  Footer,
+  Sidebar,
+  Panel,
 } from '../../../templates/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
@@ -335,6 +340,142 @@ export const appLayoutStories: Story[] = [
         children: Box(
           { borderStyle: 'single', borderColor: 'border', padding: 1 },
           Text({ color: 'foreground' }, 'Constrained content area')
+        ),
+      })
+    ),
+];
+
+export const layoutPrimitiveStories: Story[] = [
+  story('Screen - Basic')
+    .category('Templates')
+    .description('Terminal-sized layout root')
+    .controls({
+      width: defaultControls.range('Width', 70, 40, 100),
+      height: defaultControls.range('Height', 16, 10, 24),
+      padding: defaultControls.range('Padding', 1, 0, 2),
+      borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'round'),
+    })
+    .render((props) =>
+      Screen({
+        width: props.width,
+        height: props.height,
+        padding: props.padding,
+        borderStyle: props.borderStyle,
+        borderColor: 'primary',
+        children: [
+          Header({
+            title: 'Runtime Overview',
+            subtitle: 'Screen layout primitive',
+            border: false,
+          }),
+          Main({
+            padding: 1,
+            children: Panel({
+              title: 'Main Content',
+              children: Text({ color: 'mutedForeground' }, 'Compose Header, Main and Footer inside Screen.'),
+            }),
+          }),
+          Footer({
+            paddingX: 1,
+            children: Text({ color: 'mutedForeground', dim: true }, 'Status: Ready'),
+          }),
+        ],
+      })
+    ),
+
+  story('Main - Basic')
+    .category('Templates')
+    .description('Fill-height content region for app bodies')
+    .controls({
+      padding: defaultControls.range('Padding', 1, 0, 2),
+      borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'single'),
+    })
+    .render((props) =>
+      Box(
+        { width: 60, height: 12, borderStyle: 'round', borderColor: 'border' },
+        Main({
+          padding: props.padding,
+          borderStyle: props.borderStyle,
+          borderColor: 'primary',
+          children: Box(
+            { flexDirection: 'column', gap: 1 },
+            Text({ color: 'foreground', bold: true }, 'Scrollable area or dashboard body'),
+            Text({ color: 'mutedForeground' }, 'Main defaults to fill height inside column layouts.'),
+          ),
+        })
+      )
+    ),
+
+  story('Footer - Basic')
+    .category('Templates')
+    .description('Bottom action/status row')
+    .controls({
+      paddingX: defaultControls.range('Padding X', 1, 0, 3),
+      borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'single'),
+      justifyContent: defaultControls.select('Justify', ['flex-start', 'center', 'space-between'], 'space-between'),
+    })
+    .render((props) =>
+      Box(
+        { width: 60, borderStyle: 'round', borderColor: 'border' },
+        Footer({
+          paddingX: props.paddingX,
+          borderStyle: props.borderStyle,
+          borderColor: 'muted',
+          justifyContent: props.justifyContent,
+          children: [
+            Text({ color: 'mutedForeground' }, 'Esc Close'),
+            Text({ color: 'primary' }, 'Deploy'),
+          ],
+        })
+      )
+    ),
+
+  story('Sidebar - Basic')
+    .category('Templates')
+    .description('Vertical navigation rail using the Sidebar layout primitive')
+    .controls({
+      width: defaultControls.range('Width', 22, 12, 32),
+      padding: defaultControls.range('Padding', 1, 0, 2),
+      borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'single'),
+    })
+    .render((props) =>
+      Sidebar({
+        width: props.width,
+        height: 14,
+        padding: props.padding,
+        borderStyle: props.borderStyle,
+        borderColor: 'primary',
+        children: [
+          Text({ color: 'primary', bold: true }, 'Navigation'),
+          Text({ color: 'foreground' }, 'Dashboard'),
+          Text({ color: 'mutedForeground' }, 'Logs'),
+          Text({ color: 'mutedForeground' }, 'Settings'),
+          TemplateSpacer(),
+          Text({ color: 'mutedForeground', dim: true }, 'v1.0.56'),
+        ],
+      })
+    ),
+
+  story('Panel - Basic')
+    .category('Templates')
+    .description('Boxed content section with optional title')
+    .controls({
+      title: defaultControls.text('Title', 'System Health'),
+      padding: defaultControls.range('Padding', 1, 0, 2),
+      borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'round'),
+      borderColor: defaultControls.color('Border Color', 'muted'),
+    })
+    .render((props) =>
+      Panel({
+        title: props.title,
+        padding: props.padding,
+        borderStyle: props.borderStyle,
+        borderColor: props.borderColor,
+        width: 40,
+        children: Box(
+          { flexDirection: 'column', gap: 1 },
+          Text({ color: 'success' }, 'API healthy'),
+          Text({ color: 'warning' }, '1 worker restarting'),
         ),
       })
     ),
@@ -1688,6 +1829,7 @@ export const appShellStories: Story[] = [
 export const allTemplateStories: Story[] = [
   ...stackStories,
   ...appLayoutStories,
+  ...layoutPrimitiveStories,
   ...navbarStories,
   ...headerWithLogoStories,
   ...sidebarStories,

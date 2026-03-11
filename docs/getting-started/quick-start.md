@@ -199,10 +199,13 @@ cd tuiuiu.js
 pnpm install
 
 # Run examples
-pnpm example:01  # Basic counter
-pnpm example:04  # Forms
-pnpm example:06  # Dashboard
-pnpm example:chat  # Chat app
+pnpm example:list
+pnpm example app-counter
+pnpm example app-forms
+pnpm example app-dashboard
+pnpm example app-chat
+pnpm example tuiuiu-meteor
+pnpm example tuiuiu-sideblaster
 ```
 
 ## Next Steps

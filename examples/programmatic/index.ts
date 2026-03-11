@@ -24,6 +24,12 @@
  *    - Event-driven state changes
  *    Run: npx tsx examples/programmatic/external-triggers.ts
  *
+ * 4. runtime-contracts.ts
+ *    - Committed-frame element queries by explicit ID
+ *    - Programmatic scroll by ID
+ *    - Inspector metrics and warnings
+ *    Run: npx tsx examples/programmatic/runtime-contracts.ts
+ *
  * Key Patterns:
  *
  * ## 1. External State Controller

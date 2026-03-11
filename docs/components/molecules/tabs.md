@@ -111,7 +111,7 @@ Tabs({
 ## Programmatic Control
 
 ```typescript
-const state = createTabs({
+const state = useTabsState({
   tabs: [...],
   onChange: (key) => console.log('Tab:', key),
 })
@@ -135,8 +135,11 @@ state.focusIndex()         // Current focus index
 state.tabs()              // All tabs
 
 // Use with component
-Tabs({ state, tabs: state.tabs() })
+Tabs({ state, tabs: [...] })
 ```
+
+Use `useTabsState()` inside components when you need a stable reusable controller.
+Keep `createTabs()` for advanced layouts built outside the normal render path.
 
 ## VerticalTabs
 
@@ -153,6 +156,8 @@ VerticalTabs({
   contentWidth: 50,
 })
 ```
+
+`VerticalTabs({ ... })` follows the same rerender-safe contract as `Tabs({ ... })`.
 
 Output:
 ```
@@ -302,7 +307,7 @@ function SettingsPanel() {
 ### Dynamic Tabs
 
 ```typescript
-const state = createTabs({ tabs: initialTabs })
+const state = useTabsState({ tabs: initialTabs })
 
 // Add new tab dynamically
 function openNewTab(content) {
@@ -321,4 +326,3 @@ Tabs({ state, tabs: state.tabs() })
 - [Select](/components/molecules/select.md) - Dropdown selection
 - [Collapsible](/components/molecules/collapsible.md) - Expandable sections
 - [Modal](/components/organisms/modal.md) - Modal dialogs
-

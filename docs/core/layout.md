@@ -89,11 +89,45 @@ screen(
 | `Sidebar` | `height: 'fill'`, `width: 'auto'`, column layout |
 | `Panel` | Bordered container with padding |
 
+### Layout References
+
+Use `createLayoutRef()` or `useLayoutRef()` when a component needs its measured bounds after layout:
+
+```typescript
+const ref = useLayoutRef()
+
+return Box(
+  { layoutRef: ref, borderStyle: 'round' },
+  Text({}, `width=${ref.width()} height=${ref.height()}`)
+)
+```
+
 See [Layout Components](/components/layout.md) for full documentation.
 
 ## Flexbox System
 
 The `Box` component acts as a Flex Container. Its children are Flex Items.
+
+## Layout Reuse Cache
+
+The layout engine now keeps a conservative subtree cache on top of text measurement caching.
+
+It reuses a previously computed `LayoutNode` when all of the following still match:
+
+- the same `VNode` object is being laid out again
+- the same parent constraints are being applied (`x`, `y`, `width`, `height`)
+- the node props relevant to layout have not changed
+- the direct child references of that node are still the same
+
+This matters most for:
+
+- static panels or widgets hoisted outside reactive updates
+- shared subtrees reused across parent rerenders
+- repeated frame assembly on the same committed tree
+
+The cache is intentionally conservative. If layout-affecting props or constraints change, the node is laid out again instead of risking stale geometry.
+
+Practical implication: if you want the fastest steady-state rendering, keep static branches stable and only recreate the nodes that actually changed.
 
 ### Flex Container Properties
 

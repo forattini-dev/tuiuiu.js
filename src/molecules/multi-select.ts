@@ -17,6 +17,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
+import { useConst } from '../hooks/use-const.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -87,6 +89,7 @@ export interface MultiSelectState<T = string> {
   submit: () => void;
   cancel: () => void;
   isSelected: (value: T) => boolean;
+  updateOptions: (options: MultiSelectOptions<T>) => void;
 }
 
 // =============================================================================
@@ -137,16 +140,16 @@ export function createMultiSelect<T = string>(
   options: MultiSelectOptions<T>
 ): MultiSelectState<T> {
   const {
-    items,
     initialValue = [],
-    maxVisible = 10,
-    searchable = true,
-    minSelections = 0,
-    maxSelections = Infinity,
-    onChange,
-    onSubmit,
-    onCancel,
   } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const getItems = () => runtimeOptions.items;
+  const getMaxVisible = () => runtimeOptions.maxVisible ?? 10;
+  const isSearchable = () => runtimeOptions.searchable ?? true;
+  const getMinSelections = () => runtimeOptions.minSelections ?? 0;
+  const getMaxSelections = () => runtimeOptions.maxSelections ?? Infinity;
 
   const [cursorIndex, setCursorIndex] = createSignal(0);
   const [selected, setSelected] = createSignal<T[]>(initialValue);
@@ -156,10 +159,11 @@ export function createMultiSelect<T = string>(
 
   // Filtered items based on search
   const filteredItems = createMemo(() => {
+    optionsVersion();
     const query = searchQuery();
-    if (!query || !searchable) return items;
+    if (!query || !isSearchable()) return getItems();
 
-    return items
+    return getItems()
       .map((item) => ({
         item,
         score: Math.max(
@@ -176,7 +180,7 @@ export function createMultiSelect<T = string>(
   const visibleItems = createMemo(() => {
     const filtered = filteredItems();
     const offset = scrollOffset();
-    const visible = filtered.slice(offset, offset + maxVisible);
+    const visible = filtered.slice(offset, offset + getMaxVisible());
     return { items: visible, startIndex: offset };
   });
 
@@ -206,8 +210,8 @@ export function createMultiSelect<T = string>(
       }
       if (newIndex >= filtered.length) return i;
 
-      if (newIndex >= scrollOffset() + maxVisible) {
-        setScrollOffset(newIndex - maxVisible + 1);
+      if (newIndex >= scrollOffset() + getMaxVisible()) {
+        setScrollOffset(newIndex - getMaxVisible() + 1);
       }
       return newIndex;
     });
@@ -235,15 +239,15 @@ export function createMultiSelect<T = string>(
     setSelected((prev) => {
       if (prev.includes(item.value)) {
         // Deselect
-        if (prev.length <= minSelections) return prev;
+        if (prev.length <= getMinSelections()) return prev;
         const newSelected = prev.filter((v) => v !== item.value);
-        onChange?.(newSelected);
+        runtimeOptions.onChange?.(newSelected);
         return newSelected;
       } else {
         // Select
-        if (prev.length >= maxSelections) return prev;
+        if (prev.length >= getMaxSelections()) return prev;
         const newSelected = [...prev, item.value];
-        onChange?.(newSelected);
+        runtimeOptions.onChange?.(newSelected);
         return newSelected;
       }
     });
@@ -254,19 +258,19 @@ export function createMultiSelect<T = string>(
     const selectable = filtered
       .filter((item) => !item.disabled)
       .map((item) => item.value)
-      .slice(0, maxSelections);
+      .slice(0, getMaxSelections());
     setSelected(selectable);
-    onChange?.(selectable);
+    runtimeOptions.onChange?.(selectable);
   };
 
   const deselectAll = () => {
-    if (minSelections > 0) {
-      const keep = selected().slice(0, minSelections);
+    if (getMinSelections() > 0) {
+      const keep = selected().slice(0, getMinSelections());
       setSelected(keep);
-      onChange?.(keep);
+      runtimeOptions.onChange?.(keep);
     } else {
       setSelected([]);
-      onChange?.([]);
+      runtimeOptions.onChange?.([]);
     }
   };
 
@@ -277,11 +281,11 @@ export function createMultiSelect<T = string>(
   };
 
   const submit = () => {
-    onSubmit?.(selected());
+    runtimeOptions.onSubmit?.(selected());
   };
 
   const cancel = () => {
-    onCancel?.();
+    runtimeOptions.onCancel?.();
   };
 
   return {
@@ -302,7 +306,23 @@ export function createMultiSelect<T = string>(
     submit,
     cancel,
     isSelected,
+    updateOptions: (nextOptions: MultiSelectOptions<T>) => {
+      runtimeOptions = nextOptions;
+      setOptionsVersion((version) => version + 1);
+      const filtered = filteredItems();
+      const maxIndex = Math.max(0, filtered.length - 1);
+      setCursorIndex((index) => Math.min(index, maxIndex));
+      setScrollOffset((offset) =>
+        Math.min(offset, Math.max(0, filtered.length - getMaxVisible()))
+      );
+    },
   };
+}
+
+export function useMultiSelectState<T = string>(options: MultiSelectOptions<T>) {
+  const state = useConst(() => createMultiSelect(options));
+  state.updateOptions(options);
+  return state;
 }
 
 // =============================================================================
@@ -343,7 +363,7 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createMultiSelect(props);
+  const state = useFactoryState(externalState, props, createMultiSelect);
   const chars = getChars();
 
   // Setup keyboard handling with stopPropagation to prevent input leakage

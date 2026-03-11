@@ -30,6 +30,8 @@ export {
   // Layout inspector
   inspectLayout,
   formatLayoutTree,
+  createInspectorSnapshot,
+  getInspectorSnapshot,
   // Event log
   logEvent,
   getEventLog,
@@ -60,6 +62,8 @@ export {
   // Types
   type DevToolsConfig,
   type LayoutInfo,
+  type InspectorTreeNode,
+  type InspectorSnapshot,
   type EventLogEntry,
   type PerformanceMetrics,
   type FrameStats,

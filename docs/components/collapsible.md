@@ -17,6 +17,8 @@
 
 Simple expandable section with keyboard support.
 
+Direct component usage now preserves expanded state across parent rerenders. Use `state` only when you want explicit programmatic control.
+
 ```typescript
 import { Collapsible } from 'tuiuiu.js'
 
@@ -91,6 +93,8 @@ function SettingsPanel() {
 ## Accordion
 
 Multiple collapsible sections with focus navigation.
+
+`Accordion({ ... })` also keeps focus and expanded sections stable across parent rerenders. Reach for `createAccordion()` when you need to drive it from external hotkeys or other controllers.
 
 ```typescript
 import { Accordion } from 'tuiuiu.js'

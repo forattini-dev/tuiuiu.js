@@ -14,6 +14,7 @@ import {
   clearInputHandlers,
 } from '../../src/hooks/context.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
+import { clearCommittedFrameSnapshot, getCommittedFrameSnapshot } from '../../src/core/frame.js';
 
 // Create mock stdin
 function createMockStdin(): NodeJS.ReadStream {
@@ -76,6 +77,7 @@ describe('render-loop', () => {
     cleanupApp();
     resetHookState();
     clearInputHandlers();
+    clearCommittedFrameSnapshot();
   });
 
   describe('render', () => {
@@ -253,6 +255,156 @@ describe('render-loop', () => {
       expect(stdout.output).toContain('Updated');
 
       instance.unmount();
+    });
+
+    it('coalesces synchronous updates into one evaluation and paint when maxFps is uncapped', () => {
+      const [count, setCount] = createSignal(0);
+      let renderCount = 0;
+
+      const instance = render(
+        () => {
+          renderCount++;
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      expect(renderCount).toBe(1);
+      expect(stdout.write).toHaveBeenCalledTimes(1);
+
+      setCount(1);
+      setCount(2);
+      setCount(3);
+
+      // Evaluation and paint are deferred so a burst of sync updates can collapse to the latest state.
+      expect(renderCount).toBe(1);
+      expect(stdout.write).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(0);
+
+      expect(renderCount).toBe(2);
+      expect(stdout.write).toHaveBeenCalledTimes(2);
+      expect(stdout.output).toContain('Count: 3');
+
+      instance.unmount();
+    });
+
+    it('waits for drain and keeps only the latest pending frame under output backpressure', () => {
+      const [count, setCount] = createSignal(0);
+      let renderCount = 0;
+      let writeCount = 0;
+
+      vi.mocked(stdout.write).mockImplementation((chunk: string | Buffer) => {
+        writeCount++;
+        stdout.output += chunk.toString();
+        return writeCount !== 2;
+      });
+
+      const instance = render(
+        () => {
+          renderCount++;
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      expect(renderCount).toBe(1);
+      expect(writeCount).toBe(1);
+
+      setCount(1);
+      vi.advanceTimersByTime(0);
+
+      expect(renderCount).toBe(2);
+      expect(writeCount).toBe(2);
+
+      setCount(2);
+      setCount(3);
+
+      expect(renderCount).toBe(2);
+      expect(writeCount).toBe(2);
+
+      stdout.emit('drain');
+      vi.advanceTimersByTime(0);
+
+      expect(renderCount).toBe(3);
+      expect(writeCount).toBe(3);
+      expect(stdout.output).toContain('Count: 3');
+
+      instance.unmount();
+    });
+
+    it('supports fixed-step updates with presentation capped independently', () => {
+      const [count, setCount] = createSignal(0);
+      let renderCount = 0;
+      let updateCount = 0;
+      const deltas: number[] = [];
+
+      const instance = render(
+        () => {
+          renderCount++;
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 4,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+          fixedStep: {
+            updateFps: 20,
+            onUpdate: ({ deltaTimeMs }) => {
+              updateCount++;
+              deltas.push(deltaTimeMs);
+              setCount((value) => value + 1);
+            },
+          },
+        }
+      );
+
+      expect(renderCount).toBe(1);
+      expect(updateCount).toBe(0);
+
+      vi.advanceTimersByTime(250);
+
+      expect(updateCount).toBe(5);
+      expect(deltas).toEqual([50, 50, 50, 50, 50]);
+      expect(count()).toBe(5);
+      expect(renderCount).toBe(2);
+
+      instance.unmount();
+    });
+
+    it('commits the last rendered frame for runtime queries and clears it on unmount', () => {
+      const instance = render(
+        Box({ id: 'root', width: 20, height: 3 } as any, Text({}, 'Committed')),
+        { stdin, stdout, clearOnStart: false },
+      );
+
+      const frame = getCommittedFrameSnapshot();
+      expect(frame).not.toBeNull();
+      expect(frame?.queries.getElement('root')).toMatchObject({
+        status: 'found',
+        found: true,
+      });
+
+      instance.unmount();
+
+      expect(getCommittedFrameSnapshot()).toBeNull();
     });
 
     it('unmount only happens once', () => {

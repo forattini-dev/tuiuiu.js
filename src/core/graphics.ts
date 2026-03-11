@@ -15,7 +15,14 @@
 // Types
 // =============================================================================
 
-export type GraphicsProtocol = 'kitty' | 'iterm2' | 'sixel' | 'braille' | 'none';
+export type GraphicsProtocol = 'kitty' | 'iterm2' | 'sixel' | 'halfblock' | 'braille' | 'none';
+
+export interface CellSize {
+  /** Cell width in pixels */
+  width: number;
+  /** Cell height in pixels */
+  height: number;
+}
 
 export interface ImageOptions {
   /** Width in cells (auto if not specified) */
@@ -23,7 +30,7 @@ export interface ImageOptions {
   /** Height in cells (auto if not specified) */
   height?: number;
   /** How to fit image in dimensions */
-  fit?: 'contain' | 'cover' | 'fill' | 'none';
+  fit?: 'contain' | 'cover' | 'fill' | 'crop' | 'none';
   /** Preserve aspect ratio */
   preserveAspectRatio?: boolean;
   /** Threshold for braille conversion (0-255) */
@@ -49,12 +56,506 @@ export interface ProtocolCapabilities {
   maxHeight?: number;
 }
 
+export interface TerminalImageCapabilities extends ProtocolCapabilities {
+  cellSize: CellSize;
+  detectedBy: 'manual' | 'query' | 'env' | 'fallback';
+  supportsQueries: boolean;
+  supportsPlacement: boolean;
+  supportsClear: boolean;
+}
+
+export interface TerminalGraphicsQueryTransport {
+  isAvailable?(): boolean;
+  request(query: string, options?: { timeoutMs?: number }): Promise<string>;
+}
+
+export interface QueryGraphicsOptions {
+  transport?: TerminalGraphicsQueryTransport;
+  timeoutMs?: number;
+  force?: boolean;
+  skipActiveQuery?: boolean;
+  stdin?: NodeJS.ReadStream;
+  stdout?: NodeJS.WriteStream;
+  terminalSize?: {
+    columns: number;
+    rows: number;
+  };
+}
+
+export interface TerminalImageSource {
+  /** Raw pixel data (RGBA) */
+  pixels: Uint8Array;
+  /** Image width in pixels */
+  width: number;
+  /** Image height in pixels */
+  height: number;
+  /** Cell size used to map pixels to terminal cells */
+  cellSize: CellSize;
+  /** Natural size of the image in terminal columns */
+  desiredColumns: number;
+  /** Natural size of the image in terminal rows */
+  desiredRows: number;
+  /** Simple content hash for protocol cache keys */
+  hash: string;
+}
+
+export interface ImagePixelRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface TerminalImageRenderPlan {
+  fit: NonNullable<ImageOptions['fit']>;
+  cellSize: CellSize;
+  targetColumns: number;
+  targetRows: number;
+  renderColumns: number;
+  renderRows: number;
+  resizedPixelWidth: number;
+  resizedPixelHeight: number;
+  visiblePixels: ImagePixelRect;
+}
+
+export interface TerminalImageProtocolRenderOptions extends ImageOptions {
+  protocol: GraphicsProtocol;
+}
+
+export interface TerminalImageProtocolRenderResult {
+  cacheKey: string;
+  payload: string;
+  plan: TerminalImageRenderPlan;
+  source: TerminalImageSource;
+  protocol: GraphicsProtocol;
+  cellRender: boolean;
+  reused: boolean;
+}
+
+export interface TerminalImageProtocolState {
+  render(
+    sourceOrImageData: TerminalImageSource | ImageData,
+    options: TerminalImageProtocolRenderOptions,
+  ): TerminalImageProtocolRenderResult;
+  getCacheKey(
+    sourceOrImageData: TerminalImageSource | ImageData,
+    options: TerminalImageProtocolRenderOptions,
+  ): string;
+  invalidate(sourceOrImageData?: TerminalImageSource | ImageData): void;
+  clear(): void;
+  stats(): {
+    hits: number;
+    misses: number;
+    size: number;
+  };
+}
+
 // =============================================================================
 // Protocol Detection
 // =============================================================================
 
 let detectedProtocol: GraphicsProtocol | null = null;
 let manualOverride: GraphicsProtocol | null = null;
+let negotiatedCapabilities: TerminalImageCapabilities | null = null;
+let activeDetectionPromise: Promise<TerminalImageCapabilities> | null = null;
+
+const DEFAULT_CELL_SIZE: CellSize = {
+  width: 10,
+  height: 20,
+};
+
+const KITTY_GRAPHICS_QUERY = '\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\';
+const PRIMARY_DEVICE_ATTRIBUTES_QUERY = '\x1b[c';
+const CELL_SIZE_QUERY = '\x1b[16t';
+const WINDOW_PIXEL_SIZE_QUERY = '\x1b[14t';
+const TERMINAL_STATUS_QUERY = '\x1b[5n';
+
+function normalizeCellSize(cellSize?: Partial<CellSize> | null): CellSize {
+  return {
+    width: Math.max(1, Math.round(cellSize?.width ?? DEFAULT_CELL_SIZE.width)),
+    height: Math.max(1, Math.round(cellSize?.height ?? DEFAULT_CELL_SIZE.height)),
+  };
+}
+
+function getTerminalSize(options?: QueryGraphicsOptions): { columns: number; rows: number } {
+  return {
+    columns: Math.max(1, options?.terminalSize?.columns ?? options?.stdout?.columns ?? process.stdout.columns ?? 80),
+    rows: Math.max(1, options?.terminalSize?.rows ?? options?.stdout?.rows ?? process.stdout.rows ?? 24),
+  };
+}
+
+function supportsRichColorFallback(): boolean {
+  const env = process.env;
+  const term = env.TERM?.toLowerCase() || '';
+  const colorTerm = env.COLORTERM?.toLowerCase() || '';
+  const termProgram = env.TERM_PROGRAM?.toLowerCase() || '';
+
+  if (env.FORCE_COLOR === '0') {
+    return false;
+  }
+
+  if (env.FORCE_COLOR === '2' || env.FORCE_COLOR === '3') {
+    return true;
+  }
+
+  return (
+    colorTerm === 'truecolor' ||
+    colorTerm === '24bit' ||
+    term.includes('256color') ||
+    term.includes('direct') ||
+    termProgram === 'iterm.app' ||
+    termProgram === 'wezterm' ||
+    termProgram === 'hyper' ||
+    !!env.WT_SESSION
+  );
+}
+
+function getFallbackProtocol(): GraphicsProtocol {
+  return supportsRichColorFallback() ? 'halfblock' : 'braille';
+}
+
+export function resolveRenderableGraphicsProtocol(protocol: GraphicsProtocol): GraphicsProtocol {
+  if (protocol === 'none') {
+    return getFallbackProtocol();
+  }
+  return protocol;
+}
+
+export function isCellGraphicsProtocol(protocol: GraphicsProtocol): boolean {
+  const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
+  return resolvedProtocol === 'halfblock' || resolvedProtocol === 'braille';
+}
+
+function buildProtocolCapabilities(
+  protocol: GraphicsProtocol,
+  detectedBy: TerminalImageCapabilities['detectedBy'],
+  cellSize: CellSize,
+): TerminalImageCapabilities {
+  switch (protocol) {
+    case 'kitty':
+      return {
+        protocol: 'kitty',
+        supportsTransparency: true,
+        supportsAnimation: true,
+        detectedBy,
+        cellSize,
+        supportsQueries: true,
+        supportsPlacement: true,
+        supportsClear: true,
+      };
+    case 'iterm2':
+      return {
+        protocol: 'iterm2',
+        supportsTransparency: true,
+        supportsAnimation: false,
+        detectedBy,
+        cellSize,
+        supportsQueries: false,
+        supportsPlacement: false,
+        supportsClear: false,
+      };
+    case 'sixel':
+      return {
+        protocol: 'sixel',
+        supportsTransparency: false,
+        supportsAnimation: false,
+        detectedBy,
+        cellSize,
+        supportsQueries: true,
+        supportsPlacement: false,
+        supportsClear: false,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      };
+    case 'halfblock':
+      return {
+        protocol: 'halfblock',
+        supportsTransparency: false,
+        supportsAnimation: false,
+        detectedBy,
+        cellSize,
+        supportsQueries: false,
+        supportsPlacement: false,
+        supportsClear: false,
+      };
+    case 'braille':
+      return {
+        protocol: 'braille',
+        supportsTransparency: false,
+        supportsAnimation: false,
+        detectedBy,
+        cellSize,
+        supportsQueries: false,
+        supportsPlacement: false,
+        supportsClear: false,
+      };
+    default:
+      return {
+        protocol: 'none',
+        supportsTransparency: false,
+        supportsAnimation: false,
+        detectedBy,
+        cellSize,
+        supportsQueries: false,
+        supportsPlacement: false,
+        supportsClear: false,
+      };
+  }
+}
+
+function detectProtocolFromEnvironment(): GraphicsProtocol | null {
+  const envProtocol = process.env.TUIUIU_GRAPHICS?.toLowerCase();
+  if (envProtocol && isValidProtocol(envProtocol)) {
+    return envProtocol as GraphicsProtocol;
+  }
+
+  const termProgram = process.env.TERM_PROGRAM?.toLowerCase() || '';
+  const term = process.env.TERM?.toLowerCase() || '';
+  const kittyWindowId = process.env.KITTY_WINDOW_ID;
+  const wtSession = process.env.WT_SESSION;
+  const iterm2Session = process.env.ITERM_SESSION_ID;
+
+  if (kittyWindowId || termProgram === 'kitty') {
+    return 'kitty';
+  }
+
+  if (iterm2Session || termProgram === 'iterm.app') {
+    return 'iterm2';
+  }
+
+  if (termProgram === 'wezterm') {
+    return 'kitty';
+  }
+
+  if (wtSession) {
+    return 'iterm2';
+  }
+
+  if (term.includes('sixel')) {
+    return 'sixel';
+  }
+
+  return null;
+}
+
+function getDetectedBy(protocol: GraphicsProtocol): TerminalImageCapabilities['detectedBy'] {
+  return detectProtocolFromEnvironment() === protocol ? 'env' : 'fallback';
+}
+
+function buildGraphicsCapabilityQuery(): string {
+  return [
+    KITTY_GRAPHICS_QUERY,
+    PRIMARY_DEVICE_ATTRIBUTES_QUERY,
+    CELL_SIZE_QUERY,
+    WINDOW_PIXEL_SIZE_QUERY,
+    TERMINAL_STATUS_QUERY,
+  ].join('');
+}
+
+function createProcessGraphicsQueryTransport(
+  stdin: NodeJS.ReadStream = process.stdin,
+  stdout: NodeJS.WriteStream = process.stdout,
+): TerminalGraphicsQueryTransport {
+  return {
+    isAvailable: () => !!(stdin.isTTY && stdout.isTTY && typeof stdout.write === 'function'),
+    request(query: string, options: { timeoutMs?: number } = {}): Promise<string> {
+      if (!(stdin.isTTY && stdout.isTTY)) {
+        return Promise.resolve('');
+      }
+
+      const timeoutMs = Math.max(10, options.timeoutMs ?? 180);
+
+      return new Promise((resolve, reject) => {
+        const readStream = stdin as NodeJS.ReadStream & {
+          isRaw?: boolean;
+          isPaused?: () => boolean;
+          pause?: () => void;
+          resume?: () => void;
+          setRawMode?: (value: boolean) => void;
+        };
+        const wasRaw = !!readStream.isRaw;
+        const wasPaused = typeof readStream.isPaused === 'function' ? readStream.isPaused() : false;
+        let settled = false;
+        let buffer = '';
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        const cleanup = () => {
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+
+          readStream.off('data', onData);
+          if (readStream.setRawMode) {
+            readStream.setRawMode(wasRaw);
+          }
+          if (wasPaused && readStream.pause) {
+            readStream.pause();
+          }
+        };
+
+        const finish = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cleanup();
+          resolve(buffer);
+        };
+
+        const resetTimer = () => {
+          if (timer) {
+            clearTimeout(timer);
+          }
+          timer = setTimeout(finish, timeoutMs);
+        };
+
+        const onData = (chunk: string | Buffer) => {
+          buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          if (buffer.includes('\x1b[0n')) {
+            finish();
+            return;
+          }
+          resetTimer();
+        };
+
+        try {
+          readStream.on('data', onData);
+          if (readStream.setRawMode) {
+            readStream.setRawMode(true);
+          }
+          readStream.resume?.();
+          stdout.write(query);
+          resetTimer();
+        } catch (error) {
+          cleanup();
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      });
+    },
+  };
+}
+
+export function parseGraphicsCapabilityResponse(
+  response: string,
+  terminalSize: { columns: number; rows: number } = getTerminalSize(),
+): {
+  protocol?: GraphicsProtocol;
+  cellSize?: CellSize;
+} {
+  const kittySupported = /\x1b_Gi=\d+;[^\x1b]*\x1b\\/.test(response);
+  const deviceAttributes = [...response.matchAll(/\x1b\[\??([0-9;]+)c/g)];
+  const sixelSupported = deviceAttributes.some((match) =>
+    match[1]
+      .split(';')
+      .map(value => parseInt(value, 10))
+      .some(value => value === 4)
+  );
+
+  let cellSize: CellSize | undefined;
+  const directCellSizeMatches = [...response.matchAll(/\x1b\[6;(\d+);(\d+)t/g)];
+  const windowPixelMatches = [...response.matchAll(/\x1b\[4;(\d+);(\d+)t/g)];
+  const directCellSize =
+    directCellSizeMatches.length > 0 ? directCellSizeMatches[directCellSizeMatches.length - 1] : undefined;
+  const windowPixels =
+    windowPixelMatches.length > 0 ? windowPixelMatches[windowPixelMatches.length - 1] : undefined;
+
+  if (directCellSize) {
+    cellSize = normalizeCellSize({
+      height: parseInt(directCellSize[1], 10),
+      width: parseInt(directCellSize[2], 10),
+    });
+  } else if (windowPixels) {
+    const pixelHeight = parseInt(windowPixels[1], 10);
+    const pixelWidth = parseInt(windowPixels[2], 10);
+    cellSize = normalizeCellSize({
+      width: pixelWidth / Math.max(1, terminalSize.columns),
+      height: pixelHeight / Math.max(1, terminalSize.rows),
+    });
+  }
+
+  return {
+    protocol: kittySupported ? 'kitty' : sixelSupported ? 'sixel' : undefined,
+    cellSize,
+  };
+}
+
+export async function queryGraphicsCapabilities(
+  options: QueryGraphicsOptions = {},
+): Promise<TerminalImageCapabilities> {
+  if (manualOverride) {
+    return buildProtocolCapabilities(
+      manualOverride,
+      'manual',
+      normalizeCellSize(negotiatedCapabilities?.cellSize),
+    );
+  }
+
+  if (!options.force && negotiatedCapabilities) {
+    return negotiatedCapabilities;
+  }
+
+  if (!options.force && activeDetectionPromise) {
+    return activeDetectionPromise;
+  }
+
+  const runDetection = async (): Promise<TerminalImageCapabilities> => {
+    const envProtocol = detectProtocolFromEnvironment();
+    const transport = options.transport ?? createProcessGraphicsQueryTransport(options.stdin, options.stdout);
+    let response = '';
+
+    if (!options.skipActiveQuery && (transport.isAvailable?.() ?? true)) {
+      try {
+        response = await transport.request(buildGraphicsCapabilityQuery(), {
+          timeoutMs: options.timeoutMs,
+        });
+      } catch {
+        response = '';
+      }
+    }
+
+    const parsed = parseGraphicsCapabilityResponse(response, getTerminalSize(options));
+    const protocol = parsed.protocol ?? envProtocol ?? getFallbackProtocol();
+    const detectedBy: TerminalImageCapabilities['detectedBy'] = parsed.protocol
+      ? 'query'
+      : envProtocol
+      ? 'env'
+      : 'fallback';
+
+    return buildProtocolCapabilities(
+      protocol,
+      detectedBy,
+      normalizeCellSize(parsed.cellSize),
+    );
+  };
+
+  activeDetectionPromise = runDetection();
+
+  try {
+    negotiatedCapabilities = await activeDetectionPromise;
+    detectedProtocol = negotiatedCapabilities.protocol;
+    return negotiatedCapabilities;
+  } finally {
+    activeDetectionPromise = null;
+  }
+}
+
+export function getGraphicsCapabilities(): TerminalImageCapabilities {
+  if (manualOverride) {
+    return buildProtocolCapabilities(
+      manualOverride,
+      'manual',
+      normalizeCellSize(negotiatedCapabilities?.cellSize),
+    );
+  }
+
+  if (negotiatedCapabilities) {
+    return negotiatedCapabilities;
+  }
+
+  const protocol = detectGraphicsProtocol();
+  return buildProtocolCapabilities(protocol, getDetectedBy(protocol), normalizeCellSize());
+}
 
 /**
  * Detect the best available graphics protocol
@@ -65,64 +566,16 @@ export function detectGraphicsProtocol(): GraphicsProtocol {
     return manualOverride;
   }
 
+  if (negotiatedCapabilities) {
+    return negotiatedCapabilities.protocol;
+  }
+
   // Use cached detection
   if (detectedProtocol) {
     return detectedProtocol;
   }
 
-  // Check environment variable override
-  const envProtocol = process.env.TUIUIU_GRAPHICS?.toLowerCase();
-  if (envProtocol && isValidProtocol(envProtocol)) {
-    detectedProtocol = envProtocol as GraphicsProtocol;
-    return detectedProtocol;
-  }
-
-  // Check terminal program
-  const termProgram = process.env.TERM_PROGRAM?.toLowerCase() || '';
-  const term = process.env.TERM?.toLowerCase() || '';
-  const kittyWindowId = process.env.KITTY_WINDOW_ID;
-  const wtSession = process.env.WT_SESSION; // Windows Terminal
-  const iterm2Session = process.env.ITERM_SESSION_ID;
-
-  // Kitty detection
-  if (kittyWindowId || termProgram === 'kitty') {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
-  }
-
-  // iTerm2 detection
-  if (iterm2Session || termProgram === 'iterm.app') {
-    detectedProtocol = 'iterm2';
-    return detectedProtocol;
-  }
-
-  // WezTerm supports Kitty protocol
-  if (termProgram === 'wezterm') {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
-  }
-
-  // Windows Terminal supports iTerm2 protocol
-  if (wtSession) {
-    detectedProtocol = 'iterm2';
-    return detectedProtocol;
-  }
-
-  // Check for Sixel support in TERM
-  if (
-    term.includes('xterm') ||
-    term.includes('mlterm') ||
-    term.includes('mintty') ||
-    term.includes('foot')
-  ) {
-    // These terminals often support Sixel, but we'd need to query
-    // For now, use braille as safe fallback
-    detectedProtocol = 'braille';
-    return detectedProtocol;
-  }
-
-  // Default to braille (universal fallback)
-  detectedProtocol = 'braille';
+  detectedProtocol = detectProtocolFromEnvironment() ?? getFallbackProtocol();
   return detectedProtocol;
 }
 
@@ -144,46 +597,18 @@ export function getGraphicsProtocol(): GraphicsProtocol {
  * Get protocol capabilities
  */
 export function getProtocolCapabilities(): ProtocolCapabilities {
-  const protocol = getGraphicsProtocol();
-
-  switch (protocol) {
-    case 'kitty':
-      return {
-        protocol: 'kitty',
-        supportsTransparency: true,
-        supportsAnimation: true,
-      };
-    case 'iterm2':
-      return {
-        protocol: 'iterm2',
-        supportsTransparency: true,
-        supportsAnimation: false,
-      };
-    case 'sixel':
-      return {
-        protocol: 'sixel',
-        supportsTransparency: false, // Limited transparency support
-        supportsAnimation: false,
-        maxWidth: 1024, // Typical limit
-        maxHeight: 1024,
-      };
-    case 'braille':
-      return {
-        protocol: 'braille',
-        supportsTransparency: false,
-        supportsAnimation: false,
-      };
-    default:
-      return {
-        protocol: 'none',
-        supportsTransparency: false,
-        supportsAnimation: false,
-      };
-  }
+  const capabilities = getGraphicsCapabilities();
+  return {
+    protocol: capabilities.protocol,
+    supportsTransparency: capabilities.supportsTransparency,
+    supportsAnimation: capabilities.supportsAnimation,
+    maxWidth: capabilities.maxWidth,
+    maxHeight: capabilities.maxHeight,
+  };
 }
 
 function isValidProtocol(protocol: string): protocol is GraphicsProtocol {
-  return ['kitty', 'iterm2', 'sixel', 'braille', 'none'].includes(protocol);
+  return ['kitty', 'iterm2', 'sixel', 'halfblock', 'braille', 'none'].includes(protocol);
 }
 
 /**
@@ -192,6 +617,293 @@ function isValidProtocol(protocol: string): protocol is GraphicsProtocol {
 export function resetGraphicsDetection(): void {
   detectedProtocol = null;
   manualOverride = null;
+  negotiatedCapabilities = null;
+  activeDetectionPromise = null;
+}
+
+// =============================================================================
+// Terminal Image Source And Resize Planning
+// =============================================================================
+
+function hashImageData(imageData: ImageData): string {
+  let hash = 0x811c9dc5;
+  hash ^= imageData.width;
+  hash = Math.imul(hash, 0x01000193);
+  hash ^= imageData.height;
+  hash = Math.imul(hash, 0x01000193);
+
+  for (let index = 0; index < imageData.pixels.length; index++) {
+    hash ^= imageData.pixels[index]!;
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function isTerminalImageSource(value: TerminalImageSource | ImageData): value is TerminalImageSource {
+  return 'desiredColumns' in value && 'desiredRows' in value && 'hash' in value;
+}
+
+function toTerminalImageSource(sourceOrImageData: TerminalImageSource | ImageData): TerminalImageSource {
+  return isTerminalImageSource(sourceOrImageData)
+    ? sourceOrImageData
+    : createTerminalImageSource(sourceOrImageData);
+}
+
+function scaleDimension(source: number, from: number, to: number): number {
+  if (source <= 0 || from <= 0 || to <= 0) {
+    return 1;
+  }
+  return Math.max(1, Math.round(source * (to / from)));
+}
+
+export function createTerminalImageSource(
+  imageData: ImageData,
+  options: {
+    cellSize?: CellSize;
+  } = {},
+): TerminalImageSource {
+  const cellSize = normalizeCellSize(options.cellSize ?? getGraphicsCapabilities().cellSize);
+
+  return {
+    pixels: imageData.pixels,
+    width: imageData.width,
+    height: imageData.height,
+    cellSize,
+    desiredColumns: Math.max(1, Math.ceil(imageData.width / cellSize.width)),
+    desiredRows: Math.max(1, Math.ceil(imageData.height / cellSize.height)),
+    hash: hashImageData(imageData),
+  };
+}
+
+export function planImageRender(
+  sourceOrImageData: TerminalImageSource | ImageData,
+  options: ImageOptions & {
+    cellSize?: CellSize;
+  } = {},
+): TerminalImageRenderPlan {
+  const source = isTerminalImageSource(sourceOrImageData)
+    ? sourceOrImageData
+    : createTerminalImageSource(sourceOrImageData, { cellSize: options.cellSize });
+  const fit = options.fit ?? 'contain';
+  const requestedWidth = options.width ? Math.max(1, Math.round(options.width)) : undefined;
+  const requestedHeight = options.height ? Math.max(1, Math.round(options.height)) : undefined;
+
+  let targetColumns = requestedWidth ?? source.desiredColumns;
+  let targetRows = requestedHeight ?? source.desiredRows;
+  let renderColumns = source.desiredColumns;
+  let renderRows = source.desiredRows;
+  let resizedPixelWidth = source.width;
+  let resizedPixelHeight = source.height;
+  let visiblePixels: ImagePixelRect = {
+    x: 0,
+    y: 0,
+    width: source.width,
+    height: source.height,
+  };
+
+  if (requestedWidth !== undefined && requestedHeight === undefined) {
+    renderColumns = requestedWidth;
+    renderRows = scaleDimension(source.desiredRows, source.desiredColumns, renderColumns);
+    targetColumns = renderColumns;
+    targetRows = renderRows;
+    resizedPixelWidth = renderColumns * source.cellSize.width;
+    resizedPixelHeight = renderRows * source.cellSize.height;
+    visiblePixels = { x: 0, y: 0, width: resizedPixelWidth, height: resizedPixelHeight };
+  } else if (requestedHeight !== undefined && requestedWidth === undefined) {
+    renderRows = requestedHeight;
+    renderColumns = scaleDimension(source.desiredColumns, source.desiredRows, renderRows);
+    targetColumns = renderColumns;
+    targetRows = renderRows;
+    resizedPixelWidth = renderColumns * source.cellSize.width;
+    resizedPixelHeight = renderRows * source.cellSize.height;
+    visiblePixels = { x: 0, y: 0, width: resizedPixelWidth, height: resizedPixelHeight };
+  } else if (requestedWidth !== undefined && requestedHeight !== undefined) {
+    targetColumns = requestedWidth;
+    targetRows = requestedHeight;
+
+    switch (fit) {
+      case 'fill':
+        renderColumns = targetColumns;
+        renderRows = targetRows;
+        resizedPixelWidth = renderColumns * source.cellSize.width;
+        resizedPixelHeight = renderRows * source.cellSize.height;
+        visiblePixels = { x: 0, y: 0, width: resizedPixelWidth, height: resizedPixelHeight };
+        break;
+      case 'cover': {
+        const scale = Math.max(
+          targetColumns / Math.max(1, source.desiredColumns),
+          targetRows / Math.max(1, source.desiredRows),
+        );
+        const scaledColumns = Math.max(1, Math.round(source.desiredColumns * scale));
+        const scaledRows = Math.max(1, Math.round(source.desiredRows * scale));
+        renderColumns = targetColumns;
+        renderRows = targetRows;
+        resizedPixelWidth = scaledColumns * source.cellSize.width;
+        resizedPixelHeight = scaledRows * source.cellSize.height;
+        visiblePixels = {
+          x: Math.max(0, Math.floor((resizedPixelWidth - (targetColumns * source.cellSize.width)) / 2)),
+          y: Math.max(0, Math.floor((resizedPixelHeight - (targetRows * source.cellSize.height)) / 2)),
+          width: targetColumns * source.cellSize.width,
+          height: targetRows * source.cellSize.height,
+        };
+        break;
+      }
+      case 'crop':
+        renderColumns = Math.min(source.desiredColumns, targetColumns);
+        renderRows = Math.min(source.desiredRows, targetRows);
+        resizedPixelWidth = source.width;
+        resizedPixelHeight = source.height;
+        visiblePixels = {
+          x: 0,
+          y: 0,
+          width: Math.min(source.width, renderColumns * source.cellSize.width),
+          height: Math.min(source.height, renderRows * source.cellSize.height),
+        };
+        break;
+      case 'none':
+        renderColumns = Math.min(source.desiredColumns, targetColumns);
+        renderRows = Math.min(source.desiredRows, targetRows);
+        resizedPixelWidth = source.width;
+        resizedPixelHeight = source.height;
+        visiblePixels = {
+          x: 0,
+          y: 0,
+          width: Math.min(source.width, renderColumns * source.cellSize.width),
+          height: Math.min(source.height, renderRows * source.cellSize.height),
+        };
+        break;
+      case 'contain':
+      default: {
+        const scale = Math.min(
+          targetColumns / Math.max(1, source.desiredColumns),
+          targetRows / Math.max(1, source.desiredRows),
+        );
+        renderColumns = Math.max(1, Math.round(source.desiredColumns * scale));
+        renderRows = Math.max(1, Math.round(source.desiredRows * scale));
+        resizedPixelWidth = renderColumns * source.cellSize.width;
+        resizedPixelHeight = renderRows * source.cellSize.height;
+        visiblePixels = { x: 0, y: 0, width: resizedPixelWidth, height: resizedPixelHeight };
+        break;
+      }
+    }
+  } else {
+    resizedPixelWidth = source.desiredColumns * source.cellSize.width;
+    resizedPixelHeight = source.desiredRows * source.cellSize.height;
+    visiblePixels = { x: 0, y: 0, width: resizedPixelWidth, height: resizedPixelHeight };
+  }
+
+  return {
+    fit,
+    cellSize: source.cellSize,
+    targetColumns,
+    targetRows,
+    renderColumns,
+    renderRows,
+    resizedPixelWidth,
+    resizedPixelHeight,
+    visiblePixels,
+  };
+}
+
+function buildTerminalImageProtocolCacheKey(
+  protocol: GraphicsProtocol,
+  source: TerminalImageSource,
+  plan: TerminalImageRenderPlan,
+  options: ImageOptions = {},
+): string {
+  return [
+    protocol,
+    source.hash,
+    `${source.cellSize.width}x${source.cellSize.height}`,
+    plan.fit,
+    `${plan.renderColumns}x${plan.renderRows}`,
+    `${plan.visiblePixels.x},${plan.visiblePixels.y},${plan.visiblePixels.width},${plan.visiblePixels.height}`,
+    options.threshold ?? '',
+    options.dither ? 1 : 0,
+    options.preserveAspectRatio ? 1 : 0,
+  ].join(':');
+}
+
+export function createTerminalImageProtocolState(): TerminalImageProtocolState {
+  const cache = new Map<string, Omit<TerminalImageProtocolRenderResult, 'reused'>>();
+  let hits = 0;
+  let misses = 0;
+
+  const getKey = (
+    sourceOrImageData: TerminalImageSource | ImageData,
+    options: TerminalImageProtocolRenderOptions,
+  ): string => {
+    const { protocol, ...renderOptions } = options;
+    const source = toTerminalImageSource(sourceOrImageData);
+    const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
+    const plan = planImageRender(source, renderOptions);
+    return buildTerminalImageProtocolCacheKey(resolvedProtocol, source, plan, renderOptions);
+  };
+
+  return {
+    render(sourceOrImageData, options) {
+      const { protocol, ...renderOptions } = options;
+      const source = toTerminalImageSource(sourceOrImageData);
+      const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
+      const plan = planImageRender(source, renderOptions);
+      const cacheKey = buildTerminalImageProtocolCacheKey(
+        resolvedProtocol,
+        source,
+        plan,
+        renderOptions,
+      );
+      const cached = cache.get(cacheKey);
+
+      if (cached) {
+        hits++;
+        return {
+          ...cached,
+          reused: true,
+        };
+      }
+
+      misses++;
+      const payload = renderImageWithProtocol(resolvedProtocol, source, renderOptions);
+      const result: Omit<TerminalImageProtocolRenderResult, 'reused'> = {
+        cacheKey,
+        payload,
+        plan,
+        source,
+        protocol: resolvedProtocol,
+        cellRender: isCellGraphicsProtocol(resolvedProtocol),
+      };
+      cache.set(cacheKey, result);
+      return {
+        ...result,
+        reused: false,
+      };
+    },
+    getCacheKey: getKey,
+    invalidate(sourceOrImageData) {
+      if (!sourceOrImageData) {
+        cache.clear();
+        return;
+      }
+
+      const source = toTerminalImageSource(sourceOrImageData);
+      for (const [key, entry] of cache) {
+        if (entry.source.hash === source.hash) {
+          cache.delete(key);
+        }
+      }
+    },
+    clear() {
+      cache.clear();
+    },
+    stats() {
+      return {
+        hits,
+        misses,
+        size: cache.size,
+      };
+    },
+  };
 }
 
 // =============================================================================
@@ -206,12 +918,12 @@ export const kittyGraphics = {
   /**
    * Transmit image data to terminal
    */
-  transmit(imageData: ImageData, options: ImageOptions = {}): string {
-    const { width, height, pixels } = imageData;
-
-    // Calculate dimensions
-    const cols = options.width || Math.ceil(width / 10); // ~10 pixels per cell
-    const rows = options.height || Math.ceil(height / 20); // ~20 pixels per cell
+  transmit(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
+    const source = toTerminalImageSource(imageData);
+    const { width, height, pixels } = source;
+    const plan = planImageRender(source, options);
+    const cols = options.width ?? plan.renderColumns;
+    const rows = options.height ?? plan.renderRows;
 
     // Base64 encode PNG data (simplified - real implementation would encode PNG)
     const base64Data = base64Encode(pixels);
@@ -277,8 +989,8 @@ export const iterm2Graphics = {
   /**
    * Display an image
    */
-  display(imageData: ImageData, options: ImageOptions = {}): string {
-    const { width: imgWidth, height: imgHeight, pixels } = imageData;
+  display(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
+    const { width: imgWidth, height: imgHeight, pixels } = toTerminalImageSource(imageData);
 
     // Calculate dimensions
     const width = options.width ? `width=${options.width}` : 'width=auto';
@@ -317,8 +1029,8 @@ export const sixelGraphics = {
   /**
    * Encode image as Sixel
    */
-  encode(imageData: ImageData, options: ImageOptions = {}): string {
-    const { width, height, pixels } = imageData;
+  encode(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
+    const { width, height, pixels } = toTerminalImageSource(imageData);
 
     // Build palette (up to 256 colors)
     const palette = buildPalette(pixels, 256);
@@ -379,6 +1091,103 @@ export const sixelGraphics = {
 };
 
 // =============================================================================
+// Half-Block Graphics (Universal Color Fallback)
+// =============================================================================
+
+interface RgbaColor {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+function readPixel(imageData: ImageData, x: number, y: number): RgbaColor {
+  if (x < 0 || x >= imageData.width || y < 0 || y >= imageData.height) {
+    return { r: 0, g: 0, b: 0, a: 0 };
+  }
+
+  const index = (y * imageData.width + x) * 4;
+  return {
+    r: imageData.pixels[index] ?? 0,
+    g: imageData.pixels[index + 1] ?? 0,
+    b: imageData.pixels[index + 2] ?? 0,
+    a: imageData.pixels[index + 3] ?? 0,
+  };
+}
+
+function styleRgb(fg?: RgbaColor, bg?: RgbaColor): string | undefined {
+  const codes: string[] = [];
+
+  if (fg && fg.a > 0) {
+    codes.push(`38;2;${fg.r};${fg.g};${fg.b}`);
+  }
+
+  if (bg && bg.a > 0) {
+    codes.push(`48;2;${bg.r};${bg.g};${bg.b}`);
+  }
+
+  return codes.length > 0 ? `\x1b[${codes.join(';')}m` : undefined;
+}
+
+/**
+ * Half-block graphics implementation.
+ * Each cell encodes two vertical samples using foreground/background colors.
+ */
+export const halfblockGraphics = {
+  render(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
+    const source = toTerminalImageSource(imageData);
+    const plan = planImageRender(source, options);
+    const sampleWidth = Math.max(1, plan.renderColumns);
+    const sampleHeight = Math.max(1, plan.renderRows * 2);
+    const scaled = scaleImage(imageData, sampleWidth, sampleHeight);
+    const lines: string[] = [];
+
+    for (let y = 0; y < sampleHeight; y += 2) {
+      let line = '';
+      let currentStyle: string | undefined;
+
+      for (let x = 0; x < sampleWidth; x++) {
+        const top = readPixel(scaled, x, y);
+        const bottom = readPixel(scaled, x, y + 1);
+        let char = ' ';
+        let style: string | undefined;
+
+        if (top.a > 0 && bottom.a > 0) {
+          char = '▀';
+          style = styleRgb(top, bottom);
+        } else if (top.a > 0) {
+          char = '▀';
+          style = styleRgb(top);
+        } else if (bottom.a > 0) {
+          char = '▄';
+          style = styleRgb(bottom);
+        }
+
+        if (style !== currentStyle) {
+          if (currentStyle) {
+            line += '\x1b[0m';
+          }
+          if (style) {
+            line += style;
+          }
+          currentStyle = style;
+        }
+
+        line += char;
+      }
+
+      if (currentStyle) {
+        line += '\x1b[0m';
+      }
+
+      lines.push(line);
+    }
+
+    return lines.join('\n');
+  },
+};
+
+// =============================================================================
 // Braille Graphics (Universal Fallback)
 // =============================================================================
 
@@ -402,8 +1211,8 @@ export const brailleGraphics = {
   /**
    * Convert image to braille characters
    */
-  render(imageData: ImageData, options: ImageOptions = {}): string {
-    const { width, height, pixels } = imageData;
+  render(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
+    const { width, height, pixels } = toTerminalImageSource(imageData);
     const threshold = options.threshold ?? 128;
     const dither = options.dither ?? false;
 
@@ -498,20 +1307,50 @@ export const brailleGraphics = {
 /**
  * Render an image using the best available protocol
  */
-export function renderImage(imageData: ImageData, options: ImageOptions = {}): string {
-  const protocol = getGraphicsProtocol();
-
-  switch (protocol) {
+export function renderImageWithProtocol(
+  protocol: GraphicsProtocol,
+  imageData: ImageData | TerminalImageSource,
+  options: ImageOptions = {},
+): string {
+  switch (resolveRenderableGraphicsProtocol(protocol)) {
     case 'kitty':
       return kittyGraphics.transmit(imageData, options);
     case 'iterm2':
       return iterm2Graphics.display(imageData, options);
     case 'sixel':
       return sixelGraphics.encode(imageData, options);
+    case 'halfblock':
+      return halfblockGraphics.render(imageData, options);
     case 'braille':
       return brailleGraphics.render(imageData, options);
     default:
-      return brailleGraphics.render(imageData, options);
+      return halfblockGraphics.render(imageData, options);
+  }
+}
+
+/**
+ * Render an image using the best available protocol
+ */
+export function renderImage(imageData: ImageData, options: ImageOptions = {}): string {
+  return renderImageWithProtocol(getGraphicsProtocol(), imageData, options);
+}
+
+/**
+ * Clear images for a specific protocol
+ */
+export function clearImagesForProtocol(protocol: GraphicsProtocol): string {
+  switch (resolveRenderableGraphicsProtocol(protocol)) {
+    case 'kitty':
+      return kittyGraphics.clear();
+    case 'iterm2':
+      return ''; // iTerm2 doesn't have a clear command
+    case 'sixel':
+      return ''; // Sixel images are just text
+    case 'halfblock':
+    case 'braille':
+      return ''; // Braille is just text
+    default:
+      return '';
   }
 }
 
@@ -519,20 +1358,7 @@ export function renderImage(imageData: ImageData, options: ImageOptions = {}): s
  * Clear all displayed images
  */
 export function clearImages(): string {
-  const protocol = getGraphicsProtocol();
-
-  switch (protocol) {
-    case 'kitty':
-      return kittyGraphics.clear();
-    case 'iterm2':
-      return ''; // iTerm2 doesn't have a clear command
-    case 'sixel':
-      return ''; // Sixel images are just text
-    case 'braille':
-      return ''; // Braille is just text
-    default:
-      return '';
-  }
+  return clearImagesForProtocol(getGraphicsProtocol());
 }
 
 // =============================================================================

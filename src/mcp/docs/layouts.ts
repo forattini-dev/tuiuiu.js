@@ -118,7 +118,7 @@ export const layouts: ComponentDoc[] = [
     examples: [
       `// Simple content scroll\nScroll({ height: 10 },\n  Text({}, longText),\n)`,
       `// Complex layouts\nScroll({ height: 20, width: 60 },\n  Box({ flexDirection: 'column' },\n    Header(),\n    Content(),\n    Footer(),\n  ),\n)`,
-      `// With control hook\nconst scroll = useScroll();\nscroll.scrollToBottom();\n\nScroll({ ...scroll.bind, height: 20 },\n  ...content\n)`,
+      `// With shared stable control\nconst scroll = useScroll();\nscroll.scrollToBottom();\n\nScroll({ ...scroll.bind, height: 20 },\n  ...content\n)`,
     ],
   },
   {

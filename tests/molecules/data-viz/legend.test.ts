@@ -2,9 +2,16 @@
  * Tests for Legend component
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { createLegend, Legend } from '../../../src/molecules/data-viz/legend.js';
 import { renderOnce } from '../../../src/app/render-loop.js';
+import { calculateLayout } from '../../../src/core/layout.js';
+import {
+  getHitTestRegistry,
+  registerHitTestFromLayout,
+  resetHitTestRegistry,
+} from '../../../src/core/hit-test.js';
+import { MouseSimulator } from '../../../src/dev-tools/mouse-simulator.js';
 
 describe('Legend', () => {
   const sampleItems = [
@@ -12,6 +19,14 @@ describe('Legend', () => {
     { label: 'Series 2', color: 'green' as const },
     { label: 'Series 3', color: 'yellow' as const },
   ];
+
+  beforeEach(() => {
+    resetHitTestRegistry();
+  });
+
+  afterEach(() => {
+    resetHitTestRegistry();
+  });
 
   describe('createLegend', () => {
     it('should create legend state with all items visible by default', () => {
@@ -225,6 +240,35 @@ describe('Legend', () => {
       );
 
       expect(output).toContain('Series 1');
+    });
+
+    it('should toggle items through click hit-testing', () => {
+      const onItemClick = vi.fn();
+      const state = createLegend({ items: sampleItems, onItemClick });
+
+      const vnode = Legend({
+        items: sampleItems,
+        interactive: true,
+        state,
+        onItemClick,
+      });
+
+      const layout = calculateLayout(vnode, 80, 10);
+      registerHitTestFromLayout(layout);
+
+      const clickableItems = getHitTestRegistry()
+        .getElements()
+        .filter((element) => element.node.props.onClick);
+
+      expect(clickableItems.length).toBe(3);
+      expect(state.visibleItems()).toEqual([true, true, true]);
+
+      const second = clickableItems[1]!;
+      const sim = new MouseSimulator();
+      sim.click(second.x + 1, second.y);
+
+      expect(state.visibleItems()).toEqual([true, false, true]);
+      expect(onItemClick).toHaveBeenCalledWith(1, 'Series 2');
     });
 
     it('should handle empty items array', () => {

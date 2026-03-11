@@ -101,17 +101,35 @@ export const signals: HookDoc[] = [
   },
   {
     name: 'createStore',
-    description: 'Create a Redux-like store for complex state management. Perfect for list components - passing a store-derived accessor to ScrollList/Each automatically updates when items change!',
+    description: 'Create a Redux-like store for complex shared state. Use `store.state()` for reactive reads inside components and effects.',
     signature: 'createStore<S, A>(reducer: Reducer<S, A>, initialState: S): Store<S, A>',
     params: [
       { name: 'reducer', type: '(state: S, action: A) => S', required: true, description: 'Reducer function (state, action) => newState' },
       { name: 'initialState', type: 'S', required: true, description: 'Initial state value' },
     ],
-    returns: 'Store with getState(), dispatch(action), subscribe(listener)',
+    returns: 'Store with getState(), state(), dispatch(action), subscribe(listener)',
     examples: [
       `// Define reducer\nconst todoReducer = (state = { items: [] }, action) => {\n  switch (action.type) {\n    case 'ADD': return { items: [...state.items, action.payload] };\n    case 'REMOVE': return { items: state.items.filter(i => i.id !== action.payload) };\n    default: return state;\n  }\n};\n\n// Create store\nconst store = createStore(todoReducer, { items: [] });`,
-      `// Use with list components - auto-updates!\nScrollList({\n  items: () => store.getState().items,  // Reactive!\n  children: (item) => TodoItem({ item }),\n  height: 20,\n})\n\n// Dispatch updates the list automatically\nstore.dispatch({ type: 'ADD', payload: { id: 1, text: 'New item' } });`,
+      `// Use with list components - auto-updates!\nScrollList({\n  items: () => store.state().items,\n  children: (item) => TodoItem({ item }),\n  height: 20,\n})\n\n// Dispatch updates the list automatically\nstore.dispatch({ type: 'ADD', payload: { id: 1, text: 'New item' } });`,
       `// Subscribe to changes\nconst unsubscribe = store.subscribe(() => {\n  console.log('State changed:', store.getState());\n});`,
+    ],
+  },
+  {
+    name: 'createPersistedStore',
+    description: 'Create a store that hydrates synchronously from persisted JSON before the first read, then saves future updates after dispatch.',
+    signature: 'createPersistedStore<S, A>({ reducer, initialState, storage, key?, debounce?, migrate?, merge? }): Store<S, A>',
+    params: [
+      { name: 'reducer', type: 'Reducer<S, A>', required: true, description: 'Reducer function used by the store' },
+      { name: 'initialState', type: 'S', required: true, description: 'Fallback state and merge base' },
+      { name: 'storage', type: 'SyncStorageAdapter', required: true, description: 'Synchronous getItem/setItem adapter' },
+      { name: 'key', type: 'string', required: false, description: 'Persistence key (defaults to "root")' },
+      { name: 'debounce', type: 'number', required: false, description: 'Save debounce in milliseconds' },
+      { name: 'migrate', type: '(persisted: unknown) => S', required: false, description: 'Transforms persisted JSON before merge' },
+      { name: 'merge', type: '(initialState: S, persistedState: S) => S', required: false, description: 'Overrides default shallow merge for plain objects' },
+    ],
+    returns: 'Hydrated Store with persistence save-through enabled',
+    examples: [
+      `const storage = {\n  getItem: (key) => localStorage.getItem(key),\n  setItem: (key, value) => localStorage.setItem(key, value),\n};\n\nconst store = createPersistedStore({\n  reducer,\n  initialState,\n  storage,\n  key: 'app-state',\n  debounce: 250,\n});`,
     ],
   },
   {

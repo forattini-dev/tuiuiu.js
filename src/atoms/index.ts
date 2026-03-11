@@ -30,6 +30,7 @@ export {
   getSpinnerConfig,
   getSpinnerCount,
   type SpinnerOptions,
+  type SpinnerState,
   type SpinnerStyle,
 } from './spinner.js';
 
@@ -90,11 +91,12 @@ export {
   createSlider,
   RangeSlider,
   createRangeSlider,
+  type RangeSliderProps,
   type SliderProps,
   type SliderState,
   type SliderOptions,
-  type RangeSliderOptions,
   type RangeSliderState,
+  type RangeSliderOptions,
 } from './slider.js';
 
 // =============================================================================
@@ -104,6 +106,7 @@ export {
   TextInput,
   createTextInput,
   renderTextInput,
+  useTextInputState,
   type TextInputProps,
   type TextInputOptions,
   type TextInputState,
@@ -189,6 +192,39 @@ export {
   type MetricLayout,
   type MetricSize,
 } from './metric-display.js';
+
+// =============================================================================
+// DataRow - Key/value display
+// =============================================================================
+export {
+  DataRow,
+  type DataRowProps,
+} from './data-row.js';
+
+// =============================================================================
+// ListItem - Standardized list row
+// =============================================================================
+export {
+  ListItem,
+  type ListItemProps,
+} from './list-item.js';
+
+// =============================================================================
+// HttpStatus - HTTP status display
+// =============================================================================
+export {
+  HttpStatus,
+  httpOk,
+  httpCreated,
+  httpNoContent,
+  httpBadRequest,
+  httpUnauthorized,
+  httpForbidden,
+  httpNotFound,
+  httpError,
+  type HttpStatusProps,
+  type HttpStatusVariant,
+} from './http-status.js';
 
 // =============================================================================
 // Scrollbar - Scroll position indicator
@@ -278,3 +314,14 @@ export {
   type Sprite,
   type GradientStop,
 } from './picture.js';
+
+// =============================================================================
+// TerminalImage - Protocol-backed terminal image rendering
+// =============================================================================
+export {
+  TerminalImage,
+  createTerminalImage,
+  type TerminalImageProps,
+  type TerminalImageOptions,
+  type TerminalImageState,
+} from './terminal-image.js';

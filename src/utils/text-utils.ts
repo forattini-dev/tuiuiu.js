@@ -58,6 +58,41 @@ export function stringWidth(text: string): number {
   return width;
 }
 
+export interface RenderableSymbol {
+  symbol: string;
+  nextIndex: number;
+}
+
+/**
+ * Read a terminal-renderable symbol from a UTF-16 string index.
+ * Zero-width modifiers stay attached to the preceding visible symbol.
+ */
+export function readRenderableSymbol(text: string, startIndex: number): RenderableSymbol | null {
+  if (startIndex < 0 || startIndex >= text.length) {
+    return null;
+  }
+
+  const firstCode = text.codePointAt(startIndex);
+  if (firstCode === undefined) {
+    return null;
+  }
+
+  let symbol = String.fromCodePoint(firstCode);
+  let nextIndex = startIndex + (firstCode > 0xffff ? 2 : 1);
+
+  while (nextIndex < text.length) {
+    const code = text.codePointAt(nextIndex);
+    if (code === undefined || !isZeroWidthCharacter(code)) {
+      break;
+    }
+
+    symbol += String.fromCodePoint(code);
+    nextIndex += code > 0xffff ? 2 : 1;
+  }
+
+  return { symbol, nextIndex };
+}
+
 /**
  * Check if a character is zero-width (variation selectors, joiners, etc.)
  */

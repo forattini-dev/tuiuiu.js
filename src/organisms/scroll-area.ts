@@ -13,6 +13,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput, useLayoutRef } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -72,6 +73,7 @@ export interface ScrollAreaState {
   pageDown: () => void;
   setContent: (content: string[] | VNode[]) => void;
   contentLength: () => number;
+  updateOptions: (options: ScrollAreaStateOptions) => void;
 }
 
 // =============================================================================
@@ -82,18 +84,11 @@ export interface ScrollAreaState {
  * Create a ScrollArea state manager
  */
 export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaState {
-  const {
-    height,
-    content: initialContent,
-    initialScrollTop = 0,
-    scrollStep = 1,
-    pageSize,
-    onScroll,
-  } = options;
+  let runtimeOptions = options;
 
-  const [viewportHeight, setViewportHeight] = createSignal(height);
-  const [scrollTop, setScrollTop] = createSignal(initialScrollTop);
-  const [content, setContentSignal] = createSignal(initialContent);
+  const [viewportHeight, setViewportHeight] = createSignal(options.height);
+  const [scrollTop, setScrollTop] = createSignal(options.initialScrollTop ?? 0);
+  const [content, setContentSignal] = createSignal(options.content);
 
   const maxScroll = createMemo(() => Math.max(0, content().length - viewportHeight()));
 
@@ -103,7 +98,7 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
     const clamped = clampScroll(position);
     if (clamped !== scrollTop()) {
       setScrollTop(clamped);
-      onScroll?.(clamped);
+      runtimeOptions.onScroll?.(clamped);
     }
   };
 
@@ -114,7 +109,7 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
   const scrollToTop = () => scrollTo(0);
   const scrollToBottom = () => scrollTo(maxScroll());
 
-  const effectivePageSize = () => pageSize ?? Math.max(1, viewportHeight() - 1);
+  const effectivePageSize = () => runtimeOptions.pageSize ?? Math.max(1, viewportHeight() - 1);
   const pageUp = () => scrollBy(-effectivePageSize());
   const pageDown = () => scrollBy(effectivePageSize());
 
@@ -153,6 +148,16 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
     pageDown,
     setContent,
     contentLength,
+    updateOptions: (nextOptions: ScrollAreaStateOptions) => {
+      runtimeOptions = nextOptions;
+      setContentSignal(nextOptions.content);
+      const safeHeight = Math.max(1, nextOptions.height);
+      if (safeHeight !== viewportHeight()) {
+        setViewportHeight(safeHeight);
+      }
+      const max = Math.max(0, nextOptions.content.length - safeHeight);
+      setScrollTop((current) => Math.min(current, max));
+    },
   };
 }
 
@@ -161,6 +166,8 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
 // =============================================================================
 
 export interface ScrollAreaProps extends ScrollAreaOptions {
+  /** Explicit runtime query ID */
+  id?: string;
   /** Pre-created state */
   state?: ScrollAreaState;
   /** Width of content area */
@@ -215,6 +222,7 @@ function resolveScrollHeight(
  */
 export function ScrollArea(props: ScrollAreaProps): VNode {
   const {
+    id,
     height: heightProp,
     minHeight,
     maxHeight,
@@ -237,21 +245,14 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   const measuredHeight = autoHeight && layoutRef ? layoutRef.height() : 0;
   const resolvedHeight = resolveScrollHeight(heightProp, measuredHeight, content.length, minHeight, maxHeight);
 
-  const state = externalState || createScrollArea({
+  const state = useFactoryState(externalState, {
     height: resolvedHeight,
     content,
     initialScrollTop,
     scrollStep,
     pageSize,
     onScroll,
-  });
-  if (state.height() !== resolvedHeight) {
-    state.setHeight(resolvedHeight);
-  }
-  // Update content when it changes
-  if (state.contentLength() !== content.length) {
-    state.setContent(content);
-  }
+  }, createScrollArea);
   const viewportHeight = state.height();
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
@@ -274,6 +275,23 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   const scrollTop = state.scrollTop();
   const maxScroll = state.maxScroll();
   const visibleItems = state.visibleItems();
+  const viewportWidth = typeof width === 'number'
+    ? Math.max(0, width - (showScrollbar && maxScroll > 0 ? 2 : 0))
+    : undefined;
+  const scrollQuery = {
+    getViewport: () => ({ width: viewportWidth, height: state.height() }),
+    getContent: () => ({ width: viewportWidth, height: state.contentLength() }),
+    getOffset: () => ({ x: 0, y: state.scrollTop() }),
+    getMaxOffset: () => ({ x: 0, y: state.maxScroll() }),
+    scrollTo: ({ y }: { x?: number; y?: number }) => {
+      state.scrollTo(y ?? state.scrollTop());
+    },
+    scrollBy: ({ y }: { x?: number; y?: number }) => {
+      state.scrollBy(y ?? 0);
+    },
+    scrollToStart: () => state.scrollToTop(),
+    scrollToEnd: () => state.scrollToBottom(),
+  };
 
   // Render content
   const contentNodes: VNode[] = visibleItems.map((item, i) => {
@@ -323,6 +341,7 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   // Compose layout with scroll event handler
   return Box(
     {
+      id,
       flexDirection: 'row',
       width,
       height: typeof heightProp === 'number' ? heightProp : undefined,
@@ -331,6 +350,7 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
       flexGrow: autoHeight ? (flexGrow ?? 1) : flexGrow,
       layoutRef,
       onScroll: handleScroll,
+      __scrollQuery: scrollQuery,
     },
     Box(
       { flexDirection: 'column', flexGrow: 1 },
@@ -381,6 +401,7 @@ export interface VirtualListState<T = unknown> {
   pageUp: () => void;
   pageDown: () => void;
   activate: () => void;
+  updateOptions: (options: VirtualListOptions<T>) => void;
 }
 
 /**
@@ -389,13 +410,15 @@ export interface VirtualListState<T = unknown> {
 export function createVirtualList<T = unknown>(
   options: VirtualListOptions<T>
 ): VirtualListState<T> {
-  const { items, height, initialSelected = 0, onSelect, onActivate } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
 
-  const [selectedIndex, setSelectedIndex] = createSignal(initialSelected);
+  const [selectedIndex, setSelectedIndex] = createSignal(options.initialSelected ?? 0);
   const [scrollTop, setScrollTop] = createSignal(0);
 
   const ensureVisible = (index: number) => {
     const top = scrollTop();
+    const height = runtimeOptions.height;
     if (index < top) {
       setScrollTop(index);
     } else if (index >= top + height) {
@@ -404,32 +427,37 @@ export function createVirtualList<T = unknown>(
   };
 
   const selectIndex = (index: number) => {
+    const items = runtimeOptions.items;
     const clamped = Math.max(0, Math.min(index, items.length - 1));
     setSelectedIndex(clamped);
     ensureVisible(clamped);
-    onSelect?.(items[clamped]!, clamped);
+    const selectedItem = items[clamped];
+    if (selectedItem) {
+      runtimeOptions.onSelect?.(selectedItem, clamped);
+    }
   };
 
   const selectPrev = () => selectIndex(selectedIndex() - 1);
   const selectNext = () => selectIndex(selectedIndex() + 1);
   const selectFirst = () => selectIndex(0);
-  const selectLast = () => selectIndex(items.length - 1);
+  const selectLast = () => selectIndex(runtimeOptions.items.length - 1);
 
-  const pageUp = () => selectIndex(selectedIndex() - height + 1);
-  const pageDown = () => selectIndex(selectedIndex() + height - 1);
+  const pageUp = () => selectIndex(selectedIndex() - runtimeOptions.height + 1);
+  const pageDown = () => selectIndex(selectedIndex() + runtimeOptions.height - 1);
 
   const activate = () => {
     const index = selectedIndex();
-    const item = items[index];
+    const item = runtimeOptions.items[index];
     if (item) {
-      onActivate?.(item, index);
+      runtimeOptions.onActivate?.(item, index);
     }
   };
 
   const visibleItems = createMemo(() => {
+    optionsVersion();
     const top = scrollTop();
-    return items
-      .slice(top, top + height)
+    return runtimeOptions.items
+      .slice(top, top + runtimeOptions.height)
       .map((item, i) => ({ item, index: top + i }));
   });
 
@@ -445,6 +473,17 @@ export function createVirtualList<T = unknown>(
     pageUp,
     pageDown,
     activate,
+    updateOptions: (nextOptions: VirtualListOptions<T>) => {
+      runtimeOptions = {
+        ...runtimeOptions,
+        ...nextOptions,
+      };
+      setOptionsVersion((version) => version + 1);
+      const maxIndex = Math.max(0, runtimeOptions.items.length - 1);
+      setSelectedIndex((current) => Math.min(current, maxIndex));
+      const maxScroll = Math.max(0, runtimeOptions.items.length - runtimeOptions.height);
+      setScrollTop((current) => Math.min(current, maxScroll));
+    },
   };
 }
 
@@ -477,7 +516,7 @@ export function VirtualList<T = unknown>(props: VirtualListProps<T>): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createVirtualList(props);
+  const state = useFactoryState(externalState, props, createVirtualList);
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 

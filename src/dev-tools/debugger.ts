@@ -11,6 +11,13 @@
  */
 
 import type { VNode } from '../utils/types.js';
+import type {
+  Bounds,
+  FrameMetrics,
+  FrameSnapshot,
+  RuntimeWarning,
+} from '../core/frame.js';
+import { getCommittedFrameSnapshot } from '../core/frame.js';
 
 // =============================================================================
 // Types
@@ -38,6 +45,20 @@ export interface LayoutInfo {
   padding: { top: number; right: number; bottom: number; left: number };
   margin: { top: number; right: number; bottom: number; left: number };
   children: LayoutInfo[];
+}
+
+export interface InspectorTreeNode {
+  id?: string;
+  nodeType: string;
+  bounds: Bounds;
+  children: InspectorTreeNode[];
+}
+
+export interface InspectorSnapshot {
+  frame: FrameSnapshot;
+  tree: InspectorTreeNode[];
+  warnings: RuntimeWarning[];
+  metrics: FrameMetrics;
 }
 
 export interface EventLogEntry {
@@ -169,6 +190,108 @@ export function getDevToolsConfig(): Readonly<DevToolsConfig> {
   return { ...config };
 }
 
+function isFrameSnapshot(value: unknown): value is FrameSnapshot {
+  return !!(
+    value &&
+    typeof value === 'object' &&
+    'layout' in value &&
+    'drawCommands' in value &&
+    'metrics' in value &&
+    'queries' in value
+  );
+}
+
+function projectLayoutInfoFromCommittedLayout(
+  layout: FrameSnapshot['layout'],
+  offsetX = 0,
+  offsetY = 0,
+): LayoutInfo {
+  const { node, x, y, width, height, children } = layout;
+  const absX = offsetX + x;
+  const absY = offsetY + y;
+  const props = node.props || {};
+  const padding = {
+    top: (props.paddingTop as number) ?? (props.paddingY as number) ?? (props.padding as number) ?? 0,
+    right: (props.paddingRight as number) ?? (props.paddingX as number) ?? (props.padding as number) ?? 0,
+    bottom: (props.paddingBottom as number) ?? (props.paddingY as number) ?? (props.padding as number) ?? 0,
+    left: (props.paddingLeft as number) ?? (props.paddingX as number) ?? (props.padding as number) ?? 0,
+  };
+  const margin = {
+    top: (props.marginTop as number) ?? (props.marginY as number) ?? (props.margin as number) ?? 0,
+    right: (props.marginRight as number) ?? (props.marginX as number) ?? (props.margin as number) ?? 0,
+    bottom: (props.marginBottom as number) ?? (props.marginY as number) ?? (props.margin as number) ?? 0,
+    left: (props.marginLeft as number) ?? (props.marginX as number) ?? (props.margin as number) ?? 0,
+  };
+  const borderSize = props.borderStyle && props.borderStyle !== 'none' ? 1 : 0;
+  const contentOffsetX = absX + padding.left + borderSize;
+  const contentOffsetY = absY + padding.top + borderSize;
+
+  return {
+    type: typeof node.type === 'string' ? node.type : (node.type as { name?: string } | undefined)?.name || 'Component',
+    id: props.id as string | undefined,
+    className: props.className as string | undefined,
+    x: absX,
+    y: absY,
+    width,
+    height,
+    padding,
+    margin,
+    children: children.map((child) =>
+      projectLayoutInfoFromCommittedLayout(child, contentOffsetX, contentOffsetY),
+    ),
+  };
+}
+
+function projectInspectorTreeNode(
+  layout: FrameSnapshot['layout'],
+  offsetX = 0,
+  offsetY = 0,
+): InspectorTreeNode {
+  const { node, x, y, width, height, children } = layout;
+  const absX = offsetX + x;
+  const absY = offsetY + y;
+  const props = node.props || {};
+  const paddingTop = (props.paddingTop as number) ?? (props.paddingY as number) ?? (props.padding as number) ?? 0;
+  const paddingLeft = (props.paddingLeft as number) ?? (props.paddingX as number) ?? (props.padding as number) ?? 0;
+  const borderSize = props.borderStyle && props.borderStyle !== 'none' ? 1 : 0;
+  const contentOffsetX = absX + paddingLeft + borderSize;
+  const contentOffsetY = absY + paddingTop + borderSize;
+
+  return {
+    id: typeof props.id === 'string' ? props.id : undefined,
+    nodeType: typeof node.type === 'string'
+      ? node.type
+      : (node.type as { name?: string } | undefined)?.name || 'Component',
+    bounds: {
+      x: absX,
+      y: absY,
+      width,
+      height,
+    },
+    children: children.map((child) => projectInspectorTreeNode(child, contentOffsetX, contentOffsetY)),
+  };
+}
+
+export function createInspectorSnapshot(frame: FrameSnapshot): InspectorSnapshot {
+  return {
+    frame,
+    tree: [projectInspectorTreeNode(frame.layout)],
+    warnings: [...frame.warnings],
+    metrics: {
+      frameStartAt: frame.metrics.frameStartAt,
+      frameEndAt: frame.metrics.frameEndAt,
+      totalFrameMs: frame.metrics.totalFrameMs,
+      phases: { ...frame.metrics.phases },
+      structural: { ...frame.metrics.structural },
+    },
+  };
+}
+
+export function getInspectorSnapshot(frame?: FrameSnapshot): InspectorSnapshot | undefined {
+  const resolved = frame ?? getCommittedFrameSnapshot();
+  return resolved ? createInspectorSnapshot(resolved) : undefined;
+}
+
 // =============================================================================
 // Layout Inspector
 // =============================================================================
@@ -177,12 +300,16 @@ export function getDevToolsConfig(): Readonly<DevToolsConfig> {
  * Extract layout information from a VNode tree
  */
 export function inspectLayout(
-  node: VNode,
+  node: VNode | FrameSnapshot,
   x = 0,
   y = 0,
   width = 80,
   height = 24
 ): LayoutInfo {
+  if (isFrameSnapshot(node)) {
+    return projectLayoutInfoFromCommittedLayout(node.layout);
+  }
+
   const props = node.props || {};
 
   const padding = normalizePadding(props.padding, props.paddingX, props.paddingY);
@@ -689,6 +816,7 @@ export function clearSignalRegistry(): void {
 export interface DebugPanelData {
   layout?: LayoutInfo;
   componentTree?: ComponentTreeNode;
+  inspector?: InspectorSnapshot;
   eventLog: readonly EventLogEntry[];
   performance: Readonly<PerformanceMetrics>;
   signalGraph: SignalGraph;
@@ -698,10 +826,18 @@ export interface DebugPanelData {
 /**
  * Get all debug panel data
  */
-export function getDebugPanelData(rootNode?: VNode): DebugPanelData {
+export function getDebugPanelData(rootNode?: VNode | FrameSnapshot): DebugPanelData {
+  const committedFrame = isFrameSnapshot(rootNode)
+    ? rootNode
+    : getCommittedFrameSnapshot();
+  const vnodeRoot = isFrameSnapshot(rootNode)
+    ? rootNode.root
+    : rootNode ?? committedFrame?.root;
+
   return {
-    layout: rootNode ? inspectLayout(rootNode) : undefined,
-    componentTree: rootNode ? buildComponentTree(rootNode) : undefined,
+    layout: rootNode ? inspectLayout(rootNode) : committedFrame ? inspectLayout(committedFrame) : undefined,
+    componentTree: vnodeRoot ? buildComponentTree(vnodeRoot) : undefined,
+    inspector: committedFrame ? createInspectorSnapshot(committedFrame) : undefined,
     eventLog: getEventLog(),
     performance: getPerformanceMetrics(),
     signalGraph: getSignalGraph(),

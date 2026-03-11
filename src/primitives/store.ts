@@ -75,6 +75,11 @@ export type Middleware<S = any, A extends Action = AnyAction, D extends Dispatch
   api: MiddlewareAPI<S, A, D>
 ) => (next: D) => (action: A) => A;
 
+export interface SyncStorageAdapter {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+}
+
 // =============================================================================
 // Implementation
 // =============================================================================
@@ -207,16 +212,52 @@ function compose(...funcs: Function[]) {
   );
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function defaultPersistedMerge<S>(initialState: S, persistedState: S): S {
+  if (isPlainObject(initialState) && isPlainObject(persistedState)) {
+    return {
+      ...initialState,
+      ...persistedState,
+    } as S;
+  }
+
+  return persistedState;
+}
+
 // =============================================================================
 // Persistence Middleware
 // =============================================================================
 
+export interface PersistedStoreOptions<S, A extends Action = AnyAction> {
+  reducer: Reducer<S, A>;
+  initialState: S;
+  storage: SyncStorageAdapter;
+  key?: string;
+  debounce?: number;
+  migrate?: (persistedState: unknown) => S;
+  merge?: (initialState: S, persistedState: S) => S;
+}
+
 export interface PersistOptions {
-  /** File path to save state */
-  path?: string; // In browser/mock env, this might be localStorage key
+  /**
+   * @deprecated `path` is not used by this middleware.
+   * Pass a storage adapter and key instead.
+   */
+  path?: string;
   /** Key to use if using localStorage */
   key?: string;
-  /** Save format */
+  /**
+   * @deprecated Only JSON save-through is supported.
+   * This option has no runtime effect and will be removed.
+   */
   format?: 'json';
   /** Debounce save time in ms */
   debounce?: number;
@@ -228,17 +269,72 @@ export interface PersistOptions {
 }
 
 /**
+ * Creates a store that hydrates synchronously from persisted state before the
+ * first dispatch, then saves subsequent updates through the persistence
+ * middleware.
+ *
+ * Async storage adapters are intentionally out of scope for this helper.
+ */
+export function createPersistedStore<S, A extends Action = AnyAction>(
+  options: PersistedStoreOptions<S, A>
+): Store<S, A> {
+  const {
+    reducer,
+    initialState,
+    storage,
+    key = 'root',
+    debounce = 1000,
+    migrate,
+    merge = defaultPersistedMerge,
+  } = options;
+
+  let preloadedState = initialState;
+
+  try {
+    const serialized = storage.getItem(key);
+
+    if (serialized !== null) {
+      const parsed = JSON.parse(serialized);
+      const hydratedState = migrate ? migrate(parsed) : (parsed as S);
+      preloadedState = merge(initialState, hydratedState);
+    }
+  } catch (error) {
+    console.warn('Failed to hydrate persisted state. Falling back to initial state.', error);
+  }
+
+  const persist = createPersistMiddleware({
+    key,
+    debounce,
+    storage,
+  });
+
+  return createStore(reducer, preloadedState, applyMiddleware(persist));
+}
+
+/**
  * Creates a persistence middleware.
- * Note: Actual file I/O should be injected via `storage` to keep this primitive environment-agnostic.
- * For Node.js, pass an fs-based storage adapter.
+ * This middleware is save-only: it persists state after dispatches but does not
+ * hydrate initial state from storage.
+ *
+ * Actual file I/O should be injected via `storage` to keep this primitive
+ * environment-agnostic. For Node.js, pass an fs-based storage adapter.
  */
 export function createPersistMiddleware(options: PersistOptions): Middleware<any, any> { // Added any, any for S, A
   const {
+    path,
     key = 'root',
-    format = 'json',
+    format,
     debounce = 1000,
     storage
   } = options;
+
+  if (typeof path !== 'undefined') {
+    console.warn('Persist middleware ignores `path`. Use `storage` and `key` instead.');
+  }
+
+  if (typeof format !== 'undefined') {
+    console.warn('Persist middleware always serializes as JSON. `format` is deprecated.');
+  }
 
   if (!storage) {
     console.warn('Persist middleware created without storage adapter. State will not be saved.');

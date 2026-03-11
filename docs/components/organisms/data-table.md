@@ -11,7 +11,13 @@ Interactive data table with sorting, filtering, pagination, and selection.
 ## Import
 
 ```typescript
-import { DataTable, createDataTable, VirtualDataTable, EditableDataTable } from 'tuiuiu.js'
+import {
+  DataTable,
+  useDataTableState,
+  createDataTable,
+  VirtualDataTable,
+  EditableDataTable,
+} from 'tuiuiu.js'
 ```
 
 ## Basic Usage
@@ -94,7 +100,7 @@ Extends `TableColumn` with interactive features:
 ## Programmatic Control
 
 ```typescript
-const state = createDataTable({
+const state = useDataTableState({
   columns: [...],
   data: [...],
   onSelect: (rows) => console.log('Selected:', rows),
@@ -137,8 +143,11 @@ state.cursorIndex()          // Current cursor index
 state.getRowKey(row, idx)    // Get row key
 
 // Use with component
-DataTable({ state, columns: [...], data: state.pageData() })
+DataTable({ state, columns: [...], data: [...] })
 ```
+
+Use `useDataTableState()` inside components when you need a stable controller across parent rerenders.
+Keep `createDataTable()` for advanced factories or controllers created outside the render path.
 
 ## Sort Direction
 
@@ -330,4 +339,3 @@ DataTable({
 - [Table](/components/molecules/table.md) - Basic table display
 - [Select](/components/molecules/select.md) - Selection component
 - [Modal](/components/organisms/modal.md) - Modal dialogs
-

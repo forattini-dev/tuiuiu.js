@@ -7,10 +7,7 @@
  * - Wizard-style form navigation
  * - Form state management
  *
- * IMPORTANT: All interactive components (TextInput, Select) must be
- * created at MODULE LEVEL to avoid hook ordering issues.
- *
- * Run: pnpm tsx examples/04-forms.ts
+ * Run: pnpm example app-forms
  */
 
 import {
@@ -19,11 +16,11 @@ import {
   Text,
   useInput,
   useApp,
-  createTextInput,
-  renderTextInput,
-  createSelect,
-  renderSelect,
-  createSignal,
+  useState,
+  TextInput,
+  useTextInputState,
+  Select,
+  useSelectState,
   type VNode,
   type SelectItem,
 } from '../src/index.js';
@@ -55,71 +52,63 @@ const skillOptions: SelectItem<string>[] = [
 ];
 
 // =============================================================================
-// Form state - ALL created at MODULE LEVEL (before render)
-// =============================================================================
-
-// State signals
-const [activeField, setActiveField] = createSignal(0);
-const [submitted, setSubmitted] = createSignal(false);
-const [formData, setFormData] = createSignal({
-  name: '',
-  email: '',
-  role: '',
-  experience: '',
-  skills: [] as string[],
-});
-
-// Text inputs - created once, isActive is reactive
-const nameInput = createTextInput({
-  placeholder: 'Enter your name',
-  isActive: () => activeField() === 0,
-  onChange: (value) => setFormData((d) => ({ ...d, name: value })),
-  onSubmit: () => setActiveField(1),
-});
-
-const emailInput = createTextInput({
-  placeholder: 'Enter your email',
-  isActive: () => activeField() === 1,
-  onChange: (value) => setFormData((d) => ({ ...d, email: value })),
-  onSubmit: () => setActiveField(2),
-});
-
-// Selects - created once, isActive is reactive
-const roleSelect = createSelect({
-  items: roleOptions,
-  isActive: () => activeField() === 2,
-  onChange: (value) => setFormData((d) => ({ ...d, role: value as string })),
-  onSubmit: () => setActiveField(3),
-  onCancel: () => setActiveField(1),
-});
-
-const experienceSelect = createSelect({
-  items: experienceOptions,
-  isActive: () => activeField() === 3,
-  onChange: (value) => setFormData((d) => ({ ...d, experience: value as string })),
-  onSubmit: () => setActiveField(4),
-  onCancel: () => setActiveField(2),
-});
-
-const skillsSelect = createSelect({
-  items: skillOptions,
-  multiple: true,
-  isActive: () => activeField() === 4,
-  onChange: (values) => {
-    if (Array.isArray(values)) {
-      setFormData((d) => ({ ...d, skills: values }));
-    }
-  },
-  onSubmit: () => setSubmitted(true),
-  onCancel: () => setActiveField(3),
-});
-
-// =============================================================================
 // Form Component
 // =============================================================================
 
 function FormsDemo(): VNode {
   const { exit } = useApp();
+  const [activeField, setActiveField] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: '',
+    experience: '',
+    skills: [] as string[],
+  });
+
+  const nameInput = useTextInputState({
+    placeholder: 'Enter your name',
+    isActive: () => activeField() === 0,
+    onChange: (value) => setFormData((d) => ({ ...d, name: value })),
+    onSubmit: () => setActiveField(1),
+  });
+
+  const emailInput = useTextInputState({
+    placeholder: 'Enter your email',
+    isActive: () => activeField() === 1,
+    onChange: (value) => setFormData((d) => ({ ...d, email: value })),
+    onSubmit: () => setActiveField(2),
+  });
+
+  const roleSelect = useSelectState({
+    items: roleOptions,
+    isActive: () => activeField() === 2,
+    onChange: (value) => setFormData((d) => ({ ...d, role: value as string })),
+    onSubmit: () => setActiveField(3),
+    onCancel: () => setActiveField(1),
+  });
+
+  const experienceSelect = useSelectState({
+    items: experienceOptions,
+    isActive: () => activeField() === 3,
+    onChange: (value) => setFormData((d) => ({ ...d, experience: value as string })),
+    onSubmit: () => setActiveField(4),
+    onCancel: () => setActiveField(2),
+  });
+
+  const skillsSelect = useSelectState({
+    items: skillOptions,
+    multiple: true,
+    isActive: () => activeField() === 4,
+    onChange: (values) => {
+      if (Array.isArray(values)) {
+        setFormData((d) => ({ ...d, skills: values }));
+      }
+    },
+    onSubmit: () => setSubmitted(true),
+    onCancel: () => setActiveField(3),
+  });
 
   const resetForm = () => {
     setSubmitted(false);
@@ -133,6 +122,9 @@ function FormsDemo(): VNode {
     });
     nameInput.clear();
     emailInput.clear();
+    roleSelect.selectNone();
+    experienceSelect.selectNone();
+    skillsSelect.selectNone();
   };
 
   // Global navigation
@@ -193,7 +185,7 @@ function FormsDemo(): VNode {
         { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '1. Name:'),
         Box({ marginTop: 1 }),
-        renderTextInput(nameInput, { isActive: true, fullWidth: true, borderStyle: 'round' }),
+        TextInput({ state: nameInput, isActive: true, fullWidth: true, borderStyle: 'round' }),
         Box({ marginTop: 1 }),
         Text({ color: 'gray', dim: true }, 'Enter: next • Tab: skip • ESC: quit')
       );
@@ -204,7 +196,7 @@ function FormsDemo(): VNode {
         { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '2. Email:'),
         Box({ marginTop: 1 }),
-        renderTextInput(emailInput, { isActive: true, fullWidth: true, borderStyle: 'round' }),
+        TextInput({ state: emailInput, isActive: true, fullWidth: true, borderStyle: 'round' }),
         Box({ marginTop: 1 }),
         Text({ color: 'gray', dim: true }, 'Enter: next • Shift+Tab: back • ESC: quit')
       );
@@ -215,7 +207,7 @@ function FormsDemo(): VNode {
         { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '3. Role:'),
         Box({ marginTop: 1 }),
-        renderSelect(roleSelect, { items: roleOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
+        Select({ state: roleSelect, items: roleOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
         Box({ marginTop: 1 }),
         Text({ color: 'gray', dim: true }, '↑↓: navigate • Enter: select • ESC: back')
       );
@@ -226,7 +218,7 @@ function FormsDemo(): VNode {
         { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '4. Experience:'),
         Box({ marginTop: 1 }),
-        renderSelect(experienceSelect, { items: experienceOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
+        Select({ state: experienceSelect, items: experienceOptions, isActive: true, showCount: false, fullWidth: true, borderStyle: 'round' }),
         Box({ marginTop: 1 }),
         Text({ color: 'gray', dim: true }, '↑↓: navigate • Enter: select • ESC: back')
       );
@@ -237,7 +229,7 @@ function FormsDemo(): VNode {
         { flexDirection: 'column', width: '100%' },
         Text({ color: 'cyan', bold: true }, '5. Skills (multi-select):'),
         Box({ marginTop: 1 }),
-        renderSelect(skillsSelect, { items: skillOptions, multiple: true, isActive: true, fullWidth: true, borderStyle: 'round' }),
+        Select({ state: skillsSelect, items: skillOptions, multiple: true, isActive: true, fullWidth: true, borderStyle: 'round' }),
         Box({ marginTop: 1 }),
         Text({ color: 'gray', dim: true }, '↑↓: navigate • Space: toggle • Enter: submit • ESC: back')
       );

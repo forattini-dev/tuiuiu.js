@@ -1,135 +1,125 @@
 # Examples
 
-Here are some common patterns and examples to help you build with Tuiuiu.
-
-## Featured Examples
-
-<div align="center">
-
-| Dashboard | Chat | Forms | Player |
-|:---------:|:----:|:-----:|:------:|
-| ![Dashboard](../recordings/examples/demo-dashboard.gif) | ![Chat](../recordings/examples/demo-chat.gif) | ![Forms](../recordings/examples/demo-forms.gif) | ![Player](../recordings/examples/demo-player.gif) |
-| Real-time metrics | Chat interface | Form wizard | Winamp-style audio |
-
-| Tuiuiu Defence |
-|:--------------:|
-| ![Tuiuiu Defence](../recordings/examples/demo-tuiuiu-defence.gif) |
-| Tower defense game with monsters, towers, upgrades, and waves |
-
-</div>
+Examples are now organized by intent and difficulty so the first contact with the library does not start on the most advanced patterns.
 
 ## Running Examples
 
-All examples can be run directly with `tsx`:
+Use the curated runner:
 
 ```bash
-# Run any example
-npx tsx examples/01-basic-counter.ts
-npx tsx examples/06-dashboard.ts
-npx tsx examples/12-animation-system.ts
-npx tsx examples/tuiuiu-player.ts
+pnpm example:list
+pnpm example app-counter
+pnpm example app-layout
+pnpm example app-forms
+pnpm example app-dashboard
 ```
 
-## Example Index
+## Recommended Path
 
-| File | Description |
-|------|-------------|
-| `01-basic-counter.ts` | Simple counter with state and input |
-| `02-async-loading.ts` | Async data fetching patterns |
-| `03-global-state.ts` | Shared state between components |
-| `04-forms.ts` | Form inputs and validation |
-| `05-multi-component.ts` | Component composition patterns |
-| `06-dashboard.ts` | Data viz: Sparkline, BarChart, LineChart, Gauge, Heatmap |
-| `07-advanced-forms.ts` | MultiSelect, Autocomplete, RadioGroup, Switch, Slider |
-| `08-layout-components.ts` | Tabs, Accordion, Collapsible, ScrollArea, Grid, Tree |
-| `09-visual-components.ts` | BigText, Digits, Clock, Countdown, Stopwatch, Badge |
-| `10-theme-context.ts` | Light/dark theme switching with Context API |
-| `11-static-logs.ts` | Static output for build logs |
-| `12-animation-system.ts` | Spring physics, easing functions, transitions |
-| `13-virtual-scroll.ts` | Virtual scrolling for large datasets |
-| `14-focus-management.ts` | Focus zones, focus traps, keyboard navigation |
-| `15-constraint-layout.ts` | Constraint-based layouts (alternative to flexbox) |
-| `16-graphics-braille.ts` | Braille graphics, patterns, animations |
-| `17-event-system.ts` | Event bubbling, delegation, custom events |
-| `tuiuiu-player.ts` | Winamp-style music player with waveform visualization |
-| `tuiuiu-defence.ts` | Tower defense game with path-following monsters, tower upgrades, waves |
+| Example | Difficulty | Why start here |
+|---------|------------|----------------|
+| `app-counter` | Easy | Smallest loop with `useState()` and keyboard input |
+| `app-layout` | Easy | Layout primitives like `Screen`, `Header`, `Main`, `Footer` |
+| `cli-wizard` | Easy | Prompt-oriented flow with low UI complexity |
+| `app-chat` | Medium | Real app composition and scrolling |
+| `app-forms` | Advanced | Canonical interactive inputs with `useTextInputState()` / `useSelectState()` |
+| `app-dashboard` | Advanced | Heavy composition, metrics, and animation-like updates |
 
-## 1. Counter App
+## Showcase Examples
 
-A simple interactive counter.
+These are good for inspiration, not as a first implementation reference.
 
-```typescript
-import { render, createSignal, Box, Text } from 'tuiuiu.js';
+| Example | Difficulty | Focus |
+|---------|------------|-------|
+| `app-htop` | Advanced | System monitor layout |
+| `app-ping` | Advanced | Network visualization |
+| `app-mtr` | Advanced | Traceroute-style diagnostics |
+| `whatsapp-clone` | Advanced | Large messaging UI |
+| `tuiuiu-brush` | Advanced | Interactive drawing |
+| `tuiuiu-player` | Advanced | Media-player style interface |
+| `tuiuiu-invaders` | Advanced | Literal Space Invaders clone |
+| [`tuiuiu-meteor`](/resources/examples/tuiuiu-meteor.md) | Advanced | Asteroids-style meteor splitter |
+| [`tuiuiu-sideblaster`](/resources/examples/tuiuiu-sideblaster.md) | Advanced | Horizontal shoot'em up showcase |
 
-function Counter() {
-  const [count, setCount] = createSignal(0);
+## Arcade Showcase Notes
 
-  return Box({ borderStyle: 'round', padding: 1 },
-    Text({}, `Count: ${count()}`),
-    Text({ color: 'gray' }, '(Press Ctrl+C to exit)')
-  );
-}
+These examples are intentionally heavier than the onboarding apps. They exist to show how far the library can be pushed with `Canvas`, animation loops, overlays, telemetry panels, and testable game-state helpers.
 
-render(Counter());
+### `tuiuiu-meteor`
+
+Run it with:
+
+```bash
+pnpm example tuiuiu-meteor
 ```
 
-## 2. Todo List
+- Genre: Asteroids-style arena shooter
+- Controls: `Left` / `Right` rotate, `Up` thrust, `Down` brake, `Space` fire, `P` pause, `F1` help
+- What it demonstrates: wrap-around movement, fragmenting meteors, responsive HUD, modal overlays, FPS in the header, and exported pure simulation helpers for tests
+- Full docs: [/resources/examples/tuiuiu-meteor.md](/resources/examples/tuiuiu-meteor.md)
 
-A list with input handling.
+### `tuiuiu-sideblaster`
+
+Run it with:
+
+```bash
+pnpm example tuiuiu-sideblaster
+```
+
+- Genre: Horizontal shoot'em up
+- Controls: `Arrows` / `WASD` move, `Space` fire, `P` pause, `F1` help
+- What it demonstrates: side-scrolling combat lanes, larger ship sprites, long forward lasers, enemy wave spawning, pressure tracking, FPS in the header, and exported gameplay helpers for tests
+- Full docs: [/resources/examples/tuiuiu-sideblaster.md](/resources/examples/tuiuiu-sideblaster.md)
+
+## Programmatic Examples
+
+These show lower-level control flows and are better after you understand the canonical component path.
+
+| Example | Difficulty | Focus |
+|---------|------------|-------|
+| `programmatic-state-management` | Medium | External state changes |
+| `programmatic-scroll-control` | Medium | Scroll control APIs |
+| `programmatic-external-triggers` | Medium | Out-of-band updates |
+| `programmatic-runtime-contracts` | Medium | Committed-frame queries, scroll-by-ID, and inspector usage |
+
+## Canonical Input Pattern
+
+For interactive inputs, prefer the rerender-safe hook path:
 
 ```typescript
-import { render, createSignal, useInput, Box, Text, TextInput } from 'tuiuiu.js';
+import {
+  Box,
+  Text,
+  TextInput,
+  Select,
+  useState,
+  useTextInputState,
+  useSelectState,
+} from 'tuiuiu.js';
 
-function TodoApp() {
-  const [todos, setTodos] = createSignal<string[]>([]);
-  const input = createTextInput({
-    onSubmit: (text) => {
-      setTodos(prev => [...prev, text]);
-      input.clear();
-    }
+function ExampleForm() {
+  const [step, setStep] = useState(0);
+  const roleOptions = [
+    { value: 'dev', label: 'Developer' },
+    { value: 'design', label: 'Designer' },
+  ];
+  const name = useTextInputState({
+    placeholder: 'Name',
+    isActive: () => step() === 0,
+    onSubmit: () => setStep(1),
+  });
+  const role = useSelectState({
+    items: roleOptions,
+    isActive: () => step() === 1,
   });
 
-  return Box({ flexDirection: 'column' },
-    Box({ borderStyle: 'single', title: 'New Task' },
-      renderTextInput(input)
-    ),
-    Box({ flexDirection: 'column', marginTop: 1 },
-      ...todos().map((todo, i) => 
-        Text({ key: i }, `• ${todo}`)
-      )
-    )
+  return Box(
+    { flexDirection: 'column', gap: 1 },
+    Text({}, 'Profile'),
+    TextInput({ state: name, borderStyle: 'round', fullWidth: true }),
+    Select({ state: role, items: roleOptions, borderStyle: 'round', showCount: false })
   );
 }
 ```
 
-## 3. Data Dashboard
-
-Using layouts and tables.
-
-```typescript
-import { render, Box, Table, SplitPanel } from 'tuiuiu.js';
-
-function Dashboard() {
-  return SplitPanel({
-    direction: 'horizontal',
-    ratio: 0.3,
-    left: Box({ borderStyle: 'single', title: 'Sidebar' },
-      Text({}, 'Dashboard'),
-      Text({}, 'Settings'),
-      Text({}, 'Logs')
-    ),
-    right: Box({ padding: 1 },
-      Table({
-        columns: [
-          { key: 'id', header: 'ID' },
-          { key: 'status', header: 'Status' }
-        ],
-        data: [
-          { id: 1, status: 'Active' },
-          { id: 2, status: 'Pending' }
-        ]
-      })
-    )
-  });
-}
-```
+Use `createTextInput()` / `renderTextInput()` and `createSelect()` / `renderSelect()` when you explicitly want programmatic control outside the normal component lifecycle.

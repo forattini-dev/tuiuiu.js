@@ -12,6 +12,7 @@
 import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
+import { useFactoryState } from '../../hooks/factory-state.js';
 
 // =============================================================================
 // Types
@@ -62,12 +63,14 @@ export interface LegendState {
   showItem: (index: number) => void;
   hideItem: (index: number) => void;
   getVisibleItems: () => LegendItem[];
+  updateOptions: (options: LegendOptions) => void;
 }
 
 /**
  * Create interactive legend state
  */
 export function createLegend(options: LegendOptions): LegendState {
+  let runtimeOptions = options;
   const [visibleItems, setVisibleItems] = createSignal(
     options.items.map((item) => item.visible ?? true)
   );
@@ -78,12 +81,12 @@ export function createLegend(options: LegendOptions): LegendState {
       newItems[index] = !newItems[index];
       return newItems;
     });
-    options.onItemClick?.(index, options.items[index]!.label);
+    runtimeOptions.onItemClick?.(index, runtimeOptions.items[index]!.label);
   };
 
   const toggleAll = () => {
     const allVisible = visibleItems().every((v) => v);
-    setVisibleItems(() => options.items.map(() => !allVisible));
+    setVisibleItems(() => runtimeOptions.items.map(() => !allVisible));
   };
 
   const showItem = (index: number) => {
@@ -103,7 +106,7 @@ export function createLegend(options: LegendOptions): LegendState {
   };
 
   const getVisibleItems = () => {
-    return options.items.filter((_, i) => visibleItems()[i]);
+    return runtimeOptions.items.filter((_, i) => visibleItems()[i]);
   };
 
   return {
@@ -113,6 +116,12 @@ export function createLegend(options: LegendOptions): LegendState {
     showItem,
     hideItem,
     getVisibleItems,
+    updateOptions: (nextOptions: LegendOptions) => {
+      runtimeOptions = nextOptions;
+      setVisibleItems((current) =>
+        nextOptions.items.map((item, index) => current[index] ?? item.visible ?? true)
+      );
+    },
   };
 }
 
@@ -183,7 +192,9 @@ export function Legend(props: LegendProps): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || (interactive ? createLegend(props) : undefined);
+  const state = interactive
+    ? useFactoryState(externalState, props, createLegend)
+    : externalState;
   const visibleItems = state?.visibleItems() ?? items.map(() => true);
 
   // Build legend items
@@ -224,6 +235,7 @@ export function Legend(props: LegendProps): VNode {
         gap: showSymbols ? 1 : 0,
         paddingRight: interactive ? 1 : 0,
         paddingLeft: interactive ? 1 : 0,
+        onClick: interactive && state ? () => state.toggleItem(idx) : undefined,
         // Visual feedback for interactive mode
         ...(interactive && isVisible === false
           ? {

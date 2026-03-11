@@ -19,6 +19,7 @@ export { INPUT_PRIORITY_VALUES } from './types.js';
 
 // State hook
 export { useState } from './use-state.js';
+export { useConst } from './use-const.js';
 
 // Effect hook
 export { useEffect } from './use-effect.js';

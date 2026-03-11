@@ -16,6 +16,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useConst } from '../hooks/use-const.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getContrastColor } from '../core/theme.js';
 
@@ -85,6 +87,7 @@ export interface AutocompleteState<T = string> {
   open: () => void;
   close: () => void;
   submit: () => void;
+  updateOptions: (options: AutocompleteOptions<T>) => void;
 }
 
 // =============================================================================
@@ -151,15 +154,15 @@ export function createAutocomplete<T = string>(
   options: AutocompleteOptions<T>
 ): AutocompleteState<T> {
   const {
-    items,
     initialValue = '',
-    maxSuggestions = 5,
-    minChars = 1,
-    filter = defaultFilter,
-    onChange,
-    onSelect,
-    onSubmit,
   } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const getItems = () => runtimeOptions.items;
+  const getMaxSuggestions = () => runtimeOptions.maxSuggestions ?? 5;
+  const getMinChars = () => runtimeOptions.minChars ?? 1;
+  const getFilter = () => runtimeOptions.filter ?? defaultFilter<T>;
 
   const [inputValue, setInputValue] = createSignal(initialValue);
   const [cursorPos, setCursorPos] = createSignal(initialValue.length);
@@ -168,19 +171,20 @@ export function createAutocomplete<T = string>(
 
   // Filtered suggestions
   const suggestions = createMemo(() => {
+    optionsVersion();
     const query = inputValue();
-    if (query.length < minChars) return [];
+    if (query.length < getMinChars()) return [];
 
-    const filtered = filter(query, items.filter((i) => !i.disabled));
-    return filtered.slice(0, maxSuggestions);
+    const filtered = getFilter()(query, getItems().filter((i) => !i.disabled));
+    return filtered.slice(0, getMaxSuggestions());
   });
 
   const setInput = (value: string) => {
     setInputValue(value);
     setCursorPos(value.length);
     setSelectedIndex(0);
-    setIsOpen(value.length >= minChars);
-    onChange?.(value);
+    setIsOpen(value.length >= getMinChars());
+    runtimeOptions.onChange?.(value);
   };
 
   const insertChar = (char: string) => {
@@ -190,8 +194,8 @@ export function createAutocomplete<T = string>(
     setInputValue(newValue);
     setCursorPos(pos + char.length);
     setSelectedIndex(0);
-    setIsOpen(newValue.length >= minChars);
-    onChange?.(newValue);
+    setIsOpen(newValue.length >= getMinChars());
+    runtimeOptions.onChange?.(newValue);
   };
 
   const deleteBack = () => {
@@ -203,7 +207,7 @@ export function createAutocomplete<T = string>(
     setInputValue(newValue);
     setCursorPos(pos - 1);
     setSelectedIndex(0);
-    onChange?.(newValue);
+    runtimeOptions.onChange?.(newValue);
   };
 
   const deleteForward = () => {
@@ -213,7 +217,7 @@ export function createAutocomplete<T = string>(
 
     const newValue = value.slice(0, pos) + value.slice(pos + 1);
     setInputValue(newValue);
-    onChange?.(newValue);
+    runtimeOptions.onChange?.(newValue);
   };
 
   const moveCursorLeft = () => {
@@ -255,12 +259,12 @@ export function createAutocomplete<T = string>(
       setInputValue(item.label);
       setCursorPos(item.label.length);
       setIsOpen(false);
-      onSelect?.(item);
+      runtimeOptions.onSelect?.(item);
     }
   };
 
   const open = () => {
-    if (inputValue().length >= minChars) {
+    if (inputValue().length >= getMinChars()) {
       setIsOpen(true);
     }
   };
@@ -273,7 +277,7 @@ export function createAutocomplete<T = string>(
     const suggs = suggestions();
     const idx = selectedIndex();
     const item = suggs[idx];
-    onSubmit?.(inputValue(), item);
+    runtimeOptions.onSubmit?.(inputValue(), item);
     setIsOpen(false);
   };
 
@@ -297,7 +301,20 @@ export function createAutocomplete<T = string>(
     open,
     close,
     submit,
+    updateOptions: (nextOptions: AutocompleteOptions<T>) => {
+      runtimeOptions = nextOptions;
+      setOptionsVersion((version) => version + 1);
+      setSelectedIndex((index) =>
+        Math.min(index, Math.max(0, suggestions().length - 1))
+      );
+    },
   };
+}
+
+export function useAutocompleteState<T = string>(options: AutocompleteOptions<T>) {
+  const state = useConst(() => createAutocomplete(options));
+  state.updateOptions(options);
+  return state;
 }
 
 // =============================================================================
@@ -601,7 +618,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
     dropdownPosition = 'bottom',
   } = props;
 
-  const state = externalState || createAutocomplete(props);
+  const state = useFactoryState(externalState, props, createAutocomplete);
 
   const inputNode = AutocompleteInput({
     state,
@@ -707,6 +724,7 @@ export interface TagInputState<T = string> {
   removeTag: (value: T) => void;
   removeLastTag: () => void;
   setInput: (value: string) => void;
+  updateOptions: (options: TagInputOptions<T>) => void;
 }
 
 /**
@@ -716,11 +734,13 @@ export function createTagInput<T = string>(
   options: TagInputOptions<T>
 ): TagInputState<T> {
   const {
-    items,
     initialValues = [],
-    maxTags = Infinity,
-    onChange,
   } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const getItems = () => runtimeOptions.items;
+  const getMaxTags = () => runtimeOptions.maxTags ?? Infinity;
 
   const [tags, setTags] = createSignal<T[]>(initialValues);
   const [inputValue, setInputValue] = createSignal('');
@@ -729,12 +749,13 @@ export function createTagInput<T = string>(
 
   // Filter out already selected items
   const suggestions = createMemo(() => {
+    optionsVersion();
     const query = inputValue();
     const selected = tags();
 
     if (!query) return [];
 
-    const available = items.filter(
+    const available = getItems().filter(
       (i) => !i.disabled && !selected.includes(i.value)
     );
 
@@ -743,20 +764,20 @@ export function createTagInput<T = string>(
 
   const addTag = (value: T) => {
     const current = tags();
-    if (current.length >= maxTags) return;
+    if (current.length >= getMaxTags()) return;
     if (current.includes(value)) return;
 
     const newTags = [...current, value];
     setTags(newTags);
     setInputValue('');
     setIsOpen(false);
-    onChange?.(newTags);
+    runtimeOptions.onChange?.(newTags);
   };
 
   const removeTag = (value: T) => {
     const newTags = tags().filter((t) => t !== value);
     setTags(newTags);
-    onChange?.(newTags);
+    runtimeOptions.onChange?.(newTags);
   };
 
   const removeLastTag = () => {
@@ -765,7 +786,7 @@ export function createTagInput<T = string>(
 
     const newTags = current.slice(0, -1);
     setTags(newTags);
-    onChange?.(newTags);
+    runtimeOptions.onChange?.(newTags);
   };
 
   const setInput = (value: string) => {
@@ -784,7 +805,25 @@ export function createTagInput<T = string>(
     removeTag,
     removeLastTag,
     setInput,
+    updateOptions: (nextOptions: TagInputOptions<T>) => {
+      runtimeOptions = nextOptions;
+      setOptionsVersion((version) => version + 1);
+      setSelectedIndex((index) =>
+        Math.min(index, Math.max(0, suggestions().length - 1))
+      );
+    },
   };
+}
+
+export interface TagInputProps<T = string> extends TagInputOptions<T> {
+  /** Pre-created state */
+  state?: TagInputState<T>;
+}
+
+export function useTagInputState<T = string>(options: TagInputOptions<T>) {
+  const state = useConst(() => createTagInput(options));
+  state.updateOptions(options);
+  return state;
 }
 
 /**
@@ -798,7 +837,7 @@ export function createTagInput<T = string>(
  *   onChange: (values) => console.log(values),
  * })
  */
-export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
+export function TagInput<T = string>(props: TagInputProps<T>): VNode {
   const {
     items,
     placeholder = 'Add tag...',
@@ -807,9 +846,10 @@ export function TagInput<T = string>(props: TagInputOptions<T>): VNode {
     colorTag = 'primary',
     colorActive = 'warning',
     isActive = true,
+    state: externalState,
   } = props;
 
-  const state = createTagInput(props);
+  const state = useFactoryState(externalState, props, createTagInput);
   const chars = getChars();
 
   // Setup keyboard handling

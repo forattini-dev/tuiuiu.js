@@ -34,6 +34,6 @@ You can import components directly from the main package or from specific catego
 // Recommended
 import { Box, Text, Button } from 'tuiuiu.js';
 
-// Alternative (if deep imports are needed)
-import { Box } from 'tuiuiu/design-system/primitives';
+// Curated design-system barrel
+import { Box, Button, Select, Modal } from 'tuiuiu.js/design-system';
 ```

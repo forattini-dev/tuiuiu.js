@@ -2,6 +2,26 @@
 
 > **Smooth, line-by-line scrolling for any content.** Tuiuiu provides a unified scroll system with automatic height estimation, ANSI-preserving line slicing, and reactive updates.
 
+## Migration Note
+
+`ScrollArea` no longer requires manual height math in common layouts.
+
+```typescript
+// Old pattern
+ScrollArea({
+  height: terminalHeight - 6,
+  content: logs,
+})
+
+// New pattern
+Box({ flexDirection: 'column', height: 'fill' },
+  Header(),
+  ScrollArea({ content: logs }),   // fills remaining height
+)
+```
+
+When used inside a fill-sized parent, `ScrollArea` can omit `height` and will measure its viewport automatically. Use `minHeight` or `maxHeight` when you need clamps.
+
 ## Quick Decision Guide
 
 ```
@@ -95,6 +115,9 @@ list.scrollTo(50)
 list.scrollBy(-5)
 list.isNearBottom(3)  // Within 3 lines of bottom?
 ```
+
+`ScrollList({ ... })` now preserves scroll position across parent rerenders even without manually passing `state`.
+Use `useScrollList()` when wrappers or sibling controls need to coordinate the same scroll controller.
 
 ### Props
 
@@ -210,6 +233,9 @@ Scroll(
 
 scroll.scrollToBottom()
 ```
+
+`Scroll({ ... })` preserves scroll position across parent rerenders.
+Use `useScroll()` when you need to share that controller with sibling controls or wrapper components.
 
 ### Props
 

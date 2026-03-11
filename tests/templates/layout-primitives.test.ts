@@ -4,6 +4,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
+import { createFrameSnapshot } from '../../src/core/frame.js';
+import { renderFrameToString } from '../../src/core/renderer.js';
+import { createGradientImage } from '../../src/core/graphics.js';
+import { TerminalImage } from '../../src/atoms/terminal-image.js';
 import { Text } from '../../src/primitives/nodes.js';
 import { Screen, Main, Footer, Sidebar, Panel, Header, screen, main, footer, sidebar, header } from '../../src/templates/index.js';
 
@@ -88,5 +92,25 @@ describe('layout primitives', () => {
 
     expect(node.children.length).toBe(1);
     expect(node.children[0]).toBe(variadicChild);
+  });
+
+  it('renders TerminalImage inside Panel as a normal container child', () => {
+    const node = Panel(
+      { title: 'Image', width: 40, height: 14 },
+      TerminalImage({
+        source: createGradientImage(32, 16),
+        protocol: 'kitty',
+        flexGrow: 1,
+        width: 'fill',
+        height: 'fill',
+      }),
+    );
+
+    const frame = createFrameSnapshot(node, { width: 40, height: 20 });
+    const output = renderFrameToString(frame);
+
+    expect(frame.drawCommands.some((command) => command.type === 'terminal-image')).toBe(true);
+    expect(frame.reservedRegions).toHaveLength(1);
+    expect(output).toContain('\x1b_Ga=T');
   });
 });

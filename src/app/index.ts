@@ -8,6 +8,8 @@
 export {
   render,
   renderOnce,
+  type FixedStepOptions,
+  type FixedStepUpdate,
   type RenderOptions,
   type TuiInstance,
 } from './render-loop.js';

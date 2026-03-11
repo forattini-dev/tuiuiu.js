@@ -145,6 +145,34 @@ describe('Effect', () => {
     setB(20)
     expect(fn).toHaveBeenCalledTimes(3)
   })
+
+  it('should support scheduled re-runs', () => {
+    vi.useFakeTimers()
+
+    const [count, setCount] = createSignal(0)
+    const fn = vi.fn(() => count())
+
+    createEffect(fn, {
+      scheduler: (flush) => {
+        setTimeout(flush, 10)
+      },
+    })
+
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    setCount(1)
+    setCount(2)
+    setCount(3)
+
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(10)
+
+    expect(fn).toHaveBeenCalledTimes(2)
+    expect(count()).toBe(3)
+
+    vi.useRealTimers()
+  })
 })
 
 describe('Batch', () => {

@@ -13,7 +13,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { useInput } from '../hooks/index.js';
+import { useConst, useInput } from '../hooks/index.js';
+import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { createTextInput, renderTextInput, type TextInputOptions } from '../atoms/text-input.js';
@@ -62,6 +63,8 @@ export interface SearchInputState {
   focus: () => void;
   /** Internal state for renderTextInput */
   _internal: ReturnType<typeof createTextInput>;
+  /** Update callbacks and internal input options */
+  updateOptions: (options: SearchInputOptions) => void;
 }
 
 /**
@@ -84,6 +87,7 @@ export interface SearchInputState {
  * ```
  */
 export function createSearchInput(options: SearchInputOptions = {}): SearchInputState {
+  let runtimeOptions = options;
   const textInput = createTextInput({
     ...options,
     placeholder: options.placeholder || 'Search...',
@@ -98,12 +102,20 @@ export function createSearchInput(options: SearchInputOptions = {}): SearchInput
     focus: textInput.focus,
     clear: () => {
       textInput.clear();
-      options.onClear?.();
+      runtimeOptions.onClear?.();
     },
     submit: () => {
-      options.onSubmit?.(textInput.value());
+      runtimeOptions.onSubmit?.(textInput.value());
     },
     _internal: textInput,
+    updateOptions: (nextOptions: SearchInputOptions) => {
+      runtimeOptions = nextOptions;
+      textInput.updateOptions({
+        ...nextOptions,
+        placeholder: nextOptions.placeholder || 'Search...',
+        onSubmit: nextOptions.onSubmit,
+      });
+    },
   };
 }
 
@@ -168,16 +180,22 @@ export function SearchInput(props: SearchInputProps): VNode {
     borderStyle = 'round',
     inputOptions = {},
   } = props;
-
-  // Use state or create inline
-  const internalState = state || createSearchInput({
+  const stateOptions: SearchInputOptions = {
     initialValue: value,
     placeholder,
     onChange,
     onSubmit,
     onClear,
     ...inputOptions,
-  });
+  };
+
+  const internalState = state
+    ? (state.updateOptions(stateOptions), state)
+    : isRenderingHooks()
+    ? useConst(() => createSearchInput(stateOptions))
+    : createSearchInput(stateOptions);
+
+  internalState.updateOptions(stateOptions);
 
   const currentValue = internalState.value();
   const hasValue = currentValue.length > 0;
@@ -252,6 +270,8 @@ export interface PasswordInputState {
   setVisible: (visible: boolean) => void;
   /** Internal state for renderTextInput */
   _internal: ReturnType<typeof createTextInput>;
+  /** Update internal input options */
+  updateOptions: (options: PasswordInputOptions) => void;
 }
 
 /**
@@ -290,6 +310,13 @@ export function createPasswordInput(options: PasswordInputOptions = {}): Passwor
     toggleVisibility: () => setIsVisible(!isVisible()),
     setVisible: setIsVisible,
     _internal: textInput,
+    updateOptions: (nextOptions: PasswordInputOptions) => {
+      textInput.updateOptions({
+        ...nextOptions,
+        password: true,
+        placeholder: nextOptions.placeholder || 'Password',
+      });
+    },
   };
 }
 
@@ -340,15 +367,21 @@ export function PasswordInput(props: PasswordInputProps): VNode {
     borderStyle = 'round',
     inputOptions = {},
   } = props;
-
-  // Use state or create inline
-  const internalState = state || createPasswordInput({
+  const stateOptions: PasswordInputOptions = {
     initialValue: value,
     placeholder,
     onChange,
     onSubmit,
     ...inputOptions,
-  });
+  };
+
+  const internalState = state
+    ? (state.updateOptions(stateOptions), state)
+    : isRenderingHooks()
+    ? useConst(() => createPasswordInput(stateOptions))
+    : createPasswordInput(stateOptions);
+
+  internalState.updateOptions(stateOptions);
 
   const isVisible = internalState.isVisible();
 
@@ -410,6 +443,8 @@ export interface NumberInputState {
   decrement: () => void;
   /** Clamp value to min/max */
   clamp: (value: number) => number;
+  /** Update range and callback options */
+  updateOptions: (options: NumberInputOptions) => void;
 }
 
 /**
@@ -433,28 +468,31 @@ export interface NumberInputState {
  * ```
  */
 export function createNumberInput(options: NumberInputOptions = {}): NumberInputState {
-  const { min, max, step = 1, onChange } = options;
+  let runtimeOptions = options;
   const [value, setValueInternal] = createSignal(options.initialValue ?? 0);
 
   const clamp = (val: number): number => {
     let clamped = val;
-    if (min !== undefined) clamped = Math.max(min, clamped);
-    if (max !== undefined) clamped = Math.min(max, clamped);
+    if (runtimeOptions.min !== undefined) clamped = Math.max(runtimeOptions.min, clamped);
+    if (runtimeOptions.max !== undefined) clamped = Math.min(runtimeOptions.max, clamped);
     return clamped;
   };
 
   const setValue = (val: number) => {
     const clamped = clamp(val);
     setValueInternal(clamped);
-    onChange?.(clamped);
+    runtimeOptions.onChange?.(clamped);
   };
 
   return {
     value,
     setValue,
-    increment: () => setValue(value() + step),
-    decrement: () => setValue(value() - step),
+    increment: () => setValue(value() + (runtimeOptions.step ?? 1)),
+    decrement: () => setValue(value() - (runtimeOptions.step ?? 1)),
     clamp,
+    updateOptions: (nextOptions: NumberInputOptions) => {
+      runtimeOptions = nextOptions;
+    },
   };
 }
 
@@ -508,15 +546,21 @@ export function NumberInput(props: NumberInputProps): VNode {
     width = 10,
     borderStyle = 'round',
   } = props;
-
-  // Use state or create inline
-  const internalState = state || createNumberInput({
+  const stateOptions: NumberInputOptions = {
     initialValue: value ?? 0,
     min,
     max,
     step,
     onChange,
-  });
+  };
+
+  const internalState = state
+    ? (state.updateOptions(stateOptions), state)
+    : isRenderingHooks()
+    ? useConst(() => createNumberInput(stateOptions))
+    : createNumberInput(stateOptions);
+
+  internalState.updateOptions(stateOptions);
 
   const currentValue = internalState.value();
   const isActiveResolved = typeof isActive === 'function' ? isActive() : isActive;

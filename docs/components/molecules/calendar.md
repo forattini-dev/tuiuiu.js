@@ -16,6 +16,8 @@ Calendar({
 })
 ```
 
+For ordinary component usage, `Calendar({ ... })` and `DatePicker({ ... })` now preserve interaction state across parent rerenders. Use `useCalendarState()` or `useDatePickerState()` when you want an explicit stable controller inside a component.
+
 Output:
 ```
        March 2024
@@ -109,6 +111,19 @@ state.getMonthDays()      // Get all days for current view
 
 // Use with component
 Calendar({ state })
+```
+
+### Canonical Hook Path
+
+```typescript
+function BookingStep() {
+  const calendar = useCalendarState({
+    selectionMode: 'range',
+    onDateSelect: (date) => console.log(date),
+  })
+
+  return Calendar({ state: calendar })
+}
 ```
 
 ## Selection Modes
@@ -225,6 +240,18 @@ state.formattedValue() // Formatted date string
 state.selectCursor()
 state.moveDay(1)
 // etc.
+```
+
+### Canonical DatePicker Hook Path
+
+```typescript
+function DueDateField() {
+  const picker = useDatePickerState({
+    placeholder: 'Due date',
+  })
+
+  return DatePicker({ state: picker })
+}
 ```
 
 ## Features
@@ -361,4 +388,3 @@ Box({ flexDirection: 'column', gap: 1 },
 - [Select](/components/molecules/select.md) - Dropdown selection
 - [TextInput](/components/atoms/text-input.md) - Text input
 - [Modal](/components/organisms/modal.md) - Modal dialogs
-

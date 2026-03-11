@@ -501,6 +501,18 @@ function getTowerStats(level: number): { range: number; damage: number; cooldown
   return { range, damage, cooldown, upgradeCost };
 }
 
+const RANGE_VERTICAL_ASPECT = 2.0;
+
+function getRadialDistanceSquared(fromX: number, fromY: number, toX: number, toY: number): number {
+  const dx = fromX - toX;
+  const dy = (fromY - toY) * RANGE_VERTICAL_ASPECT;
+  return dx * dx + dy * dy;
+}
+
+function isPointWithinTowerRange(centerX: number, centerY: number, targetX: number, targetY: number, range: number): boolean {
+  return getRadialDistanceSquared(centerX, centerY, targetX, targetY) <= range * range;
+}
+
 function getMonsterStats(wave: number): { maxHp: number; speed: number; reward: number } {
   const safeWave = Math.max(1, wave);
   const maxHp = 6 + safeWave * 2 + Math.floor(safeWave * safeWave * 0.08);
@@ -525,9 +537,8 @@ function findTargetIndex(tower: Tower, monsters: Monster[], path: Point[], range
   for (let i = 0; i < monsters.length; i++) {
     const monster = monsters[i];
     const pos = getMonsterPosition(monster, path);
-    const distance = Math.abs(towerCenterX - pos.x) + Math.abs(towerCenterY - pos.y);
 
-    if (distance <= range && monster.pathIndex > bestProgress) {
+    if (isPointWithinTowerRange(towerCenterX, towerCenterY, pos.x, pos.y, range) && monster.pathIndex > bestProgress) {
       bestIndex = i;
       bestProgress = monster.pathIndex;
     }
@@ -1072,16 +1083,16 @@ function TowerDefense(): VNode {
       const stats = getTowerStats(selectedTower.level);
       const centerX = selectedTower.x + 0.5;
       const centerY = selectedTower.y + 0.5;
-      // Manhattan distance range visualization
-      for (let dy = -stats.range; dy <= stats.range; dy++) {
-        for (let dx = -stats.range; dx <= stats.range; dx++) {
-          const dist = Math.abs(dx) + Math.abs(dy);
-          if (dist <= stats.range) {
-            const rx = Math.floor(centerX + dx);
-            const ry = Math.floor(centerY + dy);
-            if (rx >= 0 && rx < width && ry >= 0 && ry < height) {
-              rangeSet.add(`${rx},${ry}`);
-            }
+      const verticalRadius = Math.ceil(stats.range / RANGE_VERTICAL_ASPECT);
+      const minX = Math.max(0, Math.floor(centerX - stats.range));
+      const maxX = Math.min(width - 1, Math.ceil(centerX + stats.range));
+      const minY = Math.max(0, Math.floor(centerY - verticalRadius));
+      const maxY = Math.min(height - 1, Math.ceil(centerY + verticalRadius));
+
+      for (let ry = minY; ry <= maxY; ry++) {
+        for (let rx = minX; rx <= maxX; rx++) {
+          if (isPointWithinTowerRange(centerX, centerY, rx, ry, stats.range)) {
+            rangeSet.add(`${rx},${ry}`);
           }
         }
       }

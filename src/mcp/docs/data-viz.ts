@@ -344,6 +344,7 @@ Gauge({ value: 50, style: 'arc', label: 'Progress' })`,
       { name: 'interactive', type: 'boolean', required: false, default: 'false', description: 'Enable keyboard navigation' },
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is active for input' },
       { name: 'onSelect', type: '(row: number, col: number, value: number) => void', required: false, description: 'Selection callback' },
+      { name: 'state', type: 'HeatmapState', required: false, description: 'External interactive state from createHeatmap()' },
     ],
     examples: [
       `Heatmap({
@@ -353,6 +354,11 @@ Gauge({ value: 50, style: 'arc', label: 'Progress' })`,
     [7, 8, 9],
   ],
   colorScale: 'heat',
+})`,
+      `Heatmap({
+  data: latencyMatrix,
+  interactive: true,
+  onSelect: (row, col, value) => console.log(row, col, value),
 })`,
       `Heatmap({
   data: weeklyData,
@@ -670,14 +676,18 @@ buffer.toVNode()    // Create Waveform with current data`,
   ],
   position: 'bottom',
 })`,
-      `// Interactive legend with state
-const legendState = createLegend({ items: [...] })
+      `// Interactive legend
 Legend({
-  items: [...],
+  items: [
+    { label: 'Errors', color: 'red' },
+    { label: 'Latency', color: 'yellow' },
+  ],
   interactive: true,
-  state: legendState,
   onItemClick: (idx, label) => console.log('Toggled:', label),
 })`,
+      `// Advanced explicit-state path
+const legendState = createLegend({ items: [...] })
+Legend({ items: [...], interactive: true, state: legendState })`,
     ],
   },
 ];

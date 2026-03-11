@@ -7,20 +7,26 @@ import {
   detectGraphicsProtocol,
   setGraphicsProtocol,
   getGraphicsProtocol,
+  getGraphicsCapabilities,
   getProtocolCapabilities,
+  queryGraphicsCapabilities,
+  parseGraphicsCapabilityResponse,
   resetGraphicsDetection,
   kittyGraphics,
   iterm2Graphics,
   sixelGraphics,
+  halfblockGraphics,
   brailleGraphics,
+  renderImageWithProtocol,
   renderImage,
   clearImages,
+  createTerminalImageSource,
+  createTerminalImageProtocolState,
+  planImageRender,
   createImageData,
   createSolidImage,
   createGradientImage,
   scaleImage,
-  type GraphicsProtocol,
-  type ImageData,
 } from '../../src/core/graphics.js';
 
 describe('Graphics Protocol Detection', () => {
@@ -32,6 +38,8 @@ describe('Graphics Protocol Detection', () => {
     delete process.env.TUIUIU_GRAPHICS;
     delete process.env.TERM_PROGRAM;
     delete process.env.TERM;
+    delete process.env.COLORTERM;
+    delete process.env.FORCE_COLOR;
     delete process.env.KITTY_WINDOW_ID;
     delete process.env.WT_SESSION;
     delete process.env.ITERM_SESSION_ID;
@@ -74,9 +82,9 @@ describe('Graphics Protocol Detection', () => {
       expect(detectGraphicsProtocol()).toBe('iterm2');
     });
 
-    it('should fall back to braille for xterm', () => {
+    it('should fall back to halfblock for rich-color terminals without protocol graphics', () => {
       process.env.TERM = 'xterm-256color';
-      expect(detectGraphicsProtocol()).toBe('braille');
+      expect(detectGraphicsProtocol()).toBe('halfblock');
     });
 
     it('should use environment variable override', () => {
@@ -146,11 +154,186 @@ describe('Graphics Protocol Detection', () => {
       expect(caps.supportsAnimation).toBe(false);
     });
 
+    it('should return halfblock capabilities', () => {
+      setGraphicsProtocol('halfblock');
+      const caps = getGraphicsCapabilities();
+      expect(caps.protocol).toBe('halfblock');
+      expect(caps.supportsQueries).toBe(false);
+      expect(caps.supportsPlacement).toBe(false);
+    });
+
     it('should return none capabilities', () => {
       setGraphicsProtocol('none');
       const caps = getProtocolCapabilities();
       expect(caps.protocol).toBe('none');
       expect(caps.supportsTransparency).toBe(false);
+    });
+  });
+
+  describe('parseGraphicsCapabilityResponse', () => {
+    it('should parse kitty acknowledgement', () => {
+      const parsed = parseGraphicsCapabilityResponse('\x1b_Gi=31;OK\x1b\\\x1b[0n');
+      expect(parsed.protocol).toBe('kitty');
+    });
+
+    it('should parse sixel device attributes and cell size', () => {
+      const parsed = parseGraphicsCapabilityResponse('\x1b[?62;4;9c\x1b[6;18;9t\x1b[0n', {
+        columns: 80,
+        rows: 24,
+      });
+      expect(parsed.protocol).toBe('sixel');
+      expect(parsed.cellSize).toEqual({ width: 9, height: 18 });
+    });
+
+    it('should derive cell size from window pixel size response', () => {
+      const parsed = parseGraphicsCapabilityResponse('\x1b[4;720;1280t\x1b[0n', {
+        columns: 160,
+        rows: 40,
+      });
+      expect(parsed.cellSize).toEqual({ width: 8, height: 18 });
+    });
+  });
+
+  describe('queryGraphicsCapabilities', () => {
+    it('should prefer query results over environment hints', async () => {
+      process.env.ITERM_SESSION_ID = 'session123';
+      const caps = await queryGraphicsCapabilities({
+        force: true,
+        transport: {
+          request: async () => '\x1b_Gi=31;OK\x1b\\\x1b[0n',
+        },
+      });
+      expect(caps.protocol).toBe('kitty');
+      expect(caps.detectedBy).toBe('query');
+    });
+
+    it('should fall back safely when query returns nothing', async () => {
+      process.env.COLORTERM = 'truecolor';
+      const caps = await queryGraphicsCapabilities({
+        force: true,
+        transport: {
+          request: async () => '',
+        },
+      });
+      expect(caps.protocol).toBe('halfblock');
+      expect(caps.detectedBy).toBe('fallback');
+      expect(caps.cellSize).toEqual({ width: 10, height: 20 });
+    });
+
+    it('should cache negotiated capabilities', async () => {
+      let calls = 0;
+      const transport = {
+        request: async () => {
+          calls++;
+          return '\x1b_Gi=31;OK\x1b\\\x1b[0n';
+        },
+      };
+
+      const first = await queryGraphicsCapabilities({ force: true, transport });
+      const second = await queryGraphicsCapabilities({ transport });
+
+      expect(first.protocol).toBe('kitty');
+      expect(second.protocol).toBe('kitty');
+      expect(calls).toBe(1);
+    });
+  });
+
+  describe('createTerminalImageProtocolState', () => {
+    it('should reuse cached payloads for a stable source and render area', () => {
+      const state = createTerminalImageProtocolState();
+      const image = createSolidImage(20, 20, 255, 0, 0);
+
+      const first = state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+      const second = state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+
+      expect(first.reused).toBe(false);
+      expect(second.reused).toBe(true);
+      expect(second.payload).toBe(first.payload);
+      expect(state.stats()).toEqual({
+        hits: 1,
+        misses: 1,
+        size: 1,
+      });
+    });
+
+    it('should miss the cache when the render area change affects the fit result', () => {
+      const state = createTerminalImageProtocolState();
+      const image = createSolidImage(30, 20, 0, 255, 0);
+
+      state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+      const resized = state.render(image, {
+        protocol: 'halfblock',
+        width: 3,
+        height: 1,
+        fit: 'contain',
+      });
+
+      expect(resized.reused).toBe(false);
+      expect(state.stats()).toEqual({
+        hits: 0,
+        misses: 2,
+        size: 2,
+      });
+    });
+
+    it('should invalidate cached payloads for a specific source', () => {
+      const state = createTerminalImageProtocolState();
+      const image = createSolidImage(20, 20, 0, 0, 255);
+
+      state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+      state.invalidate(image);
+      const rerendered = state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+
+      expect(rerendered.reused).toBe(false);
+      expect(state.stats()).toEqual({
+        hits: 0,
+        misses: 2,
+        size: 1,
+      });
+    });
+
+    it('should match direct protocol rendering on a cache miss', () => {
+      const state = createTerminalImageProtocolState();
+      const image = createSolidImage(20, 20, 255, 255, 0);
+
+      const cached = state.render(image, {
+        protocol: 'halfblock',
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+      const direct = renderImageWithProtocol('halfblock', image, {
+        width: 2,
+        height: 1,
+        fit: 'contain',
+      });
+
+      expect(cached.payload).toBe(direct);
     });
   });
 });
@@ -255,6 +438,68 @@ describe('Image Utilities', () => {
       expect(scaled.pixels[1]).toBe(0);
       expect(scaled.pixels[2]).toBe(0);
     });
+  });
+});
+
+describe('Terminal Image Source And Planning', () => {
+  it('should compute desired cell size from RGBA source', () => {
+    const img = createSolidImage(95, 41, 255, 0, 0);
+    const source = createTerminalImageSource(img, {
+      cellSize: { width: 10, height: 20 },
+    });
+
+    expect(source.desiredColumns).toBe(10);
+    expect(source.desiredRows).toBe(3);
+    expect(source.hash).toHaveLength(8);
+  });
+
+  it('should preserve aspect ratio for contain fit', () => {
+    const img = createSolidImage(100, 40, 255, 0, 0);
+    const source = createTerminalImageSource(img, {
+      cellSize: { width: 10, height: 10 },
+    });
+    const plan = planImageRender(source, {
+      width: 4,
+      height: 4,
+      fit: 'contain',
+    });
+
+    expect(plan.renderColumns).toBe(4);
+    expect(plan.renderRows).toBe(2);
+  });
+
+  it('should keep crop fit inside visible target area', () => {
+    const img = createSolidImage(100, 40, 255, 0, 0);
+    const source = createTerminalImageSource(img, {
+      cellSize: { width: 10, height: 10 },
+    });
+    const plan = planImageRender(source, {
+      width: 5,
+      height: 2,
+      fit: 'crop',
+    });
+
+    expect(plan.renderColumns).toBe(5);
+    expect(plan.renderRows).toBe(2);
+    expect(plan.visiblePixels).toEqual({
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 20,
+    });
+  });
+
+  it('should derive the missing dimension for fixed columns', () => {
+    const img = createSolidImage(80, 40, 255, 0, 0);
+    const source = createTerminalImageSource(img, {
+      cellSize: { width: 10, height: 10 },
+    });
+    const plan = planImageRender(source, { width: 4 });
+
+    expect(plan.targetColumns).toBe(4);
+    expect(plan.targetRows).toBe(2);
+    expect(plan.renderColumns).toBe(4);
+    expect(plan.renderRows).toBe(2);
   });
 });
 
@@ -390,6 +635,33 @@ describe('Sixel Graphics Protocol', () => {
   });
 });
 
+describe('Half-Block Graphics', () => {
+  it('should render upper and lower rows into a single cell', () => {
+    const pixels = new Uint8Array([
+      255, 0, 0, 255, // top pixel
+      0, 0, 255, 255, // bottom pixel
+    ]);
+    const img = createImageData(pixels, 1, 2);
+    const output = halfblockGraphics.render(img, { width: 1, height: 1 });
+
+    expect(output.includes('▀')).toBe(true);
+    expect(output.includes('38;2;255;0;0')).toBe(true);
+    expect(output.includes('48;2;0;0;255')).toBe(true);
+  });
+
+  it('should render a lower-only sample as a lower half block', () => {
+    const pixels = new Uint8Array([
+      0, 0, 0, 0,
+      0, 255, 0, 255,
+    ]);
+    const img = createImageData(pixels, 1, 2);
+    const output = halfblockGraphics.render(img, { width: 1, height: 1 });
+
+    expect(output.includes('▄')).toBe(true);
+    expect(output.includes('38;2;0;255;0')).toBe(true);
+  });
+});
+
 describe('Braille Graphics', () => {
   describe('render', () => {
     it('should convert image to braille characters', () => {
@@ -518,11 +790,18 @@ describe('Unified Image Rendering', () => {
       expect(output.charCodeAt(0)).toBeGreaterThanOrEqual(0x2800);
     });
 
-    it('should use braille for none protocol', () => {
+    it('should use halfblock protocol when set', () => {
+      setGraphicsProtocol('halfblock');
+      const img = createSolidImage(1, 2, 255, 0, 0);
+      const output = renderImage(img);
+      expect(output.includes('▀')).toBe(true);
+    });
+
+    it('should use a text fallback for none protocol', () => {
       setGraphicsProtocol('none');
       const img = createSolidImage(2, 4, 0, 0, 0);
       const output = renderImage(img);
-      expect(output.charCodeAt(0)).toBeGreaterThanOrEqual(0x2800);
+      expect(output.length).toBeGreaterThan(0);
     });
   });
 
@@ -547,6 +826,12 @@ describe('Unified Image Rendering', () => {
 
     it('should return empty for braille', () => {
       setGraphicsProtocol('braille');
+      const output = clearImages();
+      expect(output).toBe('');
+    });
+
+    it('should return empty for halfblock', () => {
+      setGraphicsProtocol('halfblock');
       const output = clearImages();
       expect(output).toBe('');
     });

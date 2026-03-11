@@ -1,0 +1,181 @@
+export type ExampleDifficulty = 'easy' | 'medium' | 'advanced';
+
+export interface ExampleManifestEntry {
+  name: string;
+  file: string;
+  description: string;
+  category: string;
+  difficulty: ExampleDifficulty;
+  validate?: boolean;
+}
+
+export const examplesManifest: ExampleManifestEntry[] = [
+  {
+    name: 'app-counter',
+    file: 'app-counter.ts',
+    description: 'Counter with local state and keyboard input.',
+    category: 'app',
+    difficulty: 'easy',
+    validate: true,
+  },
+  {
+    name: 'app-layout',
+    file: 'app-layout.ts',
+    description: 'Screen/Header/Main/Footer layout primitives.',
+    category: 'app',
+    difficulty: 'easy',
+    validate: true,
+  },
+  {
+    name: 'cli-wizard',
+    file: 'cli-wizard.ts',
+    description: 'Prompt-driven wizard flow.',
+    category: 'app',
+    difficulty: 'easy',
+  },
+  {
+    name: 'app-chat',
+    file: 'app-chat.ts',
+    description: 'Chat-style interface with scrolling history.',
+    category: 'app',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
+    name: 'app-forms',
+    file: 'app-forms.ts',
+    description: 'Interactive form with TextInput and Select.',
+    category: 'app',
+    difficulty: 'advanced',
+    validate: true,
+  },
+  {
+    name: 'app-dashboard',
+    file: 'app-dashboard.ts',
+    description: 'Realtime dashboard with metrics and spinners.',
+    category: 'app',
+    difficulty: 'advanced',
+    validate: true,
+  },
+  {
+    name: 'dashboard-metrics',
+    file: 'dashboard-metrics.ts',
+    description: 'Operational dashboard using MetricDisplay, DataRow, ListItem, HttpStatus, and SplitView.',
+    category: 'app',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
+    name: 'mouse-events',
+    file: 'mouse-events.ts',
+    description: 'Mouse interaction patterns and hit testing.',
+    category: 'interaction',
+    difficulty: 'medium',
+  },
+  {
+    name: 'prompts-demo',
+    file: 'prompts-demo.ts',
+    description: 'Standalone prompts API walkthrough.',
+    category: 'prompts',
+    difficulty: 'easy',
+  },
+  {
+    name: 'app-htop',
+    file: 'app-htop.ts',
+    description: 'System monitor inspired by htop.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'app-ping',
+    file: 'app-ping.ts',
+    description: 'Ping-style network visualization.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'app-mtr',
+    file: 'app-mtr.ts',
+    description: 'Traceroute-inspired network diagnostics.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'whatsapp-clone',
+    file: 'whatsapp-clone.ts',
+    description: 'High-complexity messaging showcase.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'tuiuiu-brush',
+    file: 'tuiuiu-brush.ts',
+    description: 'Interactive drawing application.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'tuiuiu-player',
+    file: 'tuiuiu-player.ts',
+    description: 'Media player style interface.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'terminal-image-pipeline',
+    file: 'terminal-image-pipeline.ts',
+    description: 'Protocol-backed terminal images with active capability picking, fallback toggles, and live resize.',
+    category: 'showcase',
+    difficulty: 'medium',
+  },
+  {
+    name: 'tuiuiu-invaders',
+    file: 'tuiuiu-invaders.ts',
+    description: 'Literal ASCII Space Invaders with shields, saucer, and score chase.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'tuiuiu-meteor',
+    file: 'tuiuiu-meteor.ts',
+    description: 'Asteroids-style meteor splitter with thrust, wrap-around drift, and fragmenting rocks.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'tuiuiu-sideblaster',
+    file: 'tuiuiu-sideblaster.ts',
+    description: "Horizontal shoot'em up with scrolling lanes, enemy squadrons, and forward fire.",
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
+    name: 'programmatic-state-management',
+    file: 'programmatic/state-management.ts',
+    description: 'External triggers and programmatic state control.',
+    category: 'programmatic',
+    difficulty: 'medium',
+  },
+  {
+    name: 'programmatic-scroll-control',
+    file: 'programmatic/scroll-control.ts',
+    description: 'Programmatic scrolling patterns.',
+    category: 'programmatic',
+    difficulty: 'medium',
+  },
+  {
+    name: 'programmatic-external-triggers',
+    file: 'programmatic/external-triggers.ts',
+    description: 'Programmatic updates from outside the render tree.',
+    category: 'programmatic',
+    difficulty: 'medium',
+  },
+  {
+    name: 'programmatic-runtime-contracts',
+    file: 'programmatic/runtime-contracts.ts',
+    description: 'Committed-frame queries, scroll-by-ID, and inspector snapshots.',
+    category: 'programmatic',
+    difficulty: 'medium',
+    validate: true,
+  },
+];

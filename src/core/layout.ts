@@ -5,7 +5,7 @@
  */
 
 import type { VNode, BoxStyle, LayoutNode, RenderContext } from '../utils/types.js';
-import { stringWidth, stripAnsi } from '../utils/text-utils.js';
+import { stringWidth } from '../utils/text-utils.js';
 
 /**
  * Text measurement cache
@@ -13,8 +13,148 @@ import { stringWidth, stripAnsi } from '../utils/text-utils.js';
  */
 const textMeasureCache = new Map<string, { width: number; height: number }>();
 const TEXT_CACHE_MAX_SIZE = 1000;
+
+interface LayoutCacheEntry {
+  ctxKey: string;
+  propsKey: string;
+  childRefs: VNode[];
+  layout: LayoutNode;
+}
+
+let layoutReuseCache = new WeakMap<VNode, LayoutCacheEntry>();
+
 const resolveMarginValue = (value: number | 'auto' | undefined): number =>
   value === 'auto' ? 0 : (value ?? 0);
+
+const LAYOUT_REF_KEYS = new Set(['layoutRef', '__scrollQuery']);
+
+function clearLayoutReuseCache(): void {
+  layoutReuseCache = new WeakMap<VNode, LayoutCacheEntry>();
+}
+
+function createContextKey(ctx: RenderContext): string {
+  return `${ctx.x}:${ctx.y}:${ctx.width}:${ctx.height}`;
+}
+
+function stableSerializeLayoutProp(value: unknown): unknown {
+  if (value === undefined || typeof value === 'function') {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(entry => stableSerializeLayoutProp(entry));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((result, key) => {
+        const nextValue = stableSerializeLayoutProp((value as Record<string, unknown>)[key]);
+        if (nextValue !== undefined) {
+          result[key] = nextValue;
+        }
+        return result;
+      }, {});
+  }
+
+  return value;
+}
+
+function createLayoutPropsKey(node: VNode): string {
+  const props = node.props ?? {};
+  const entries = Object.keys(props)
+    .filter(key => !LAYOUT_REF_KEYS.has(key) && typeof props[key] !== 'function')
+    .sort()
+    .map(key => [key, stableSerializeLayoutProp(props[key])] as const);
+
+  return JSON.stringify(entries);
+}
+
+function hasSameChildRefs(node: VNode, childRefs: readonly VNode[]): boolean {
+  if (node.children.length !== childRefs.length) {
+    return false;
+  }
+
+  for (let index = 0; index < childRefs.length; index++) {
+    if (node.children[index] !== childRefs[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getCachedLayout(node: VNode, ctxKey: string): LayoutNode | undefined {
+  const cached = layoutReuseCache.get(node);
+  if (!cached) {
+    return undefined;
+  }
+
+  if (cached.ctxKey !== ctxKey) {
+    return undefined;
+  }
+
+  const propsKey = createLayoutPropsKey(node);
+  if (
+    cached.propsKey !== propsKey ||
+    !hasSameChildRefs(node, cached.childRefs)
+  ) {
+    return undefined;
+  }
+
+  return cached.layout;
+}
+
+function setCachedLayout(
+  node: VNode,
+  ctxKey: string,
+  propsKey: string,
+  layout: LayoutNode,
+): void {
+  layoutReuseCache.set(node, {
+    ctxKey,
+    propsKey,
+    childRefs: [...node.children],
+    layout,
+  });
+}
+
+function cloneLayoutWith(
+  layout: LayoutNode,
+  patch: Partial<Pick<LayoutNode, 'x' | 'y' | 'width' | 'height'>>,
+): LayoutNode {
+  const x = patch.x ?? layout.x;
+  const y = patch.y ?? layout.y;
+  const width = patch.width ?? layout.width;
+  const height = patch.height ?? layout.height;
+
+  if (x === layout.x && y === layout.y && width === layout.width && height === layout.height) {
+    return layout;
+  }
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    node: layout.node,
+    children: layout.children,
+  };
+}
+
+function updateLayoutRef(node: VNode, layout: LayoutNode): void {
+  const style = node.props as BoxStyle;
+  const layoutRef = style.layoutRef as
+    | { __update?: (rect: { x: number; y: number; width: number; height: number }) => void }
+    | undefined;
+
+  layoutRef?.__update?.({
+    x: layout.x,
+    y: layout.y,
+    width: layout.width,
+    height: layout.height,
+  });
+}
 
 /**
  * Clear the text measurement cache
@@ -22,6 +162,7 @@ const resolveMarginValue = (value: number | 'auto' | undefined): number =>
  */
 export function clearTextMeasureCache(): void {
   textMeasureCache.clear();
+  clearLayoutReuseCache();
 }
 
 /**
@@ -35,15 +176,78 @@ export function calculateLayout(
   return layoutNode(node, { x: 0, y: 0, width: availableWidth, height: availableHeight });
 }
 
+function layoutTextNode(node: VNode, ctx: RenderContext): LayoutNode {
+  const measurement = measureText(String(node.props.children ?? ''));
+
+  return {
+    x: ctx.x,
+    y: ctx.y,
+    width: Math.min(measurement.width, ctx.width),
+    height: Math.min(measurement.height, ctx.height),
+    node,
+    children: [],
+  };
+}
+
+function layoutSpacerNode(node: VNode, ctx: RenderContext): LayoutNode {
+  return {
+    x: ctx.x,
+    y: ctx.y,
+    width: ctx.width,
+    height: Math.min(1, ctx.height),
+    node,
+    children: [],
+  };
+}
+
+function layoutNewlineNode(node: VNode, ctx: RenderContext): LayoutNode {
+  return {
+    x: ctx.x,
+    y: ctx.y,
+    width: 0,
+    height: Math.min(node.props.count ?? 1, ctx.height),
+    node,
+    children: [],
+  };
+}
+
 /**
  * Layout a single node and its children
  */
 function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
+  const ctxKey = createContextKey(ctx);
+  const cached = getCachedLayout(node, ctxKey);
+
+  if (cached) {
+    updateLayoutRef(node, cached);
+    return cached;
+  }
+
+  let layout: LayoutNode;
+
+  if (node.type === 'text') {
+    layout = layoutTextNode(node, ctx);
+    setCachedLayout(node, ctxKey, createLayoutPropsKey(node), layout);
+    return layout;
+  }
+
+  if (node.type === 'spacer') {
+    layout = layoutSpacerNode(node, ctx);
+    setCachedLayout(node, ctxKey, createLayoutPropsKey(node), layout);
+    return layout;
+  }
+
+  if (node.type === 'newline') {
+    layout = layoutNewlineNode(node, ctx);
+    setCachedLayout(node, ctxKey, createLayoutPropsKey(node), layout);
+    return layout;
+  }
+
   const style = node.props as BoxStyle;
 
   // Handle display: 'none' - return zero-sized layout
   if (style.display === 'none') {
-    return {
+    layout = {
       x: ctx.x,
       y: ctx.y,
       width: 0,
@@ -51,6 +255,9 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
       node,
       children: [],
     };
+    updateLayoutRef(node, layout);
+    setCachedLayout(node, ctxKey, createLayoutPropsKey(node), layout);
+    return layout;
   }
 
   // Calculate padding
@@ -91,9 +298,7 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
   const absoluteChildren: VNode[] = [];
   const normalChildren: VNode[] = [];
 
-  if (node.type === 'text' || node.type === 'spacer' || node.type === 'newline') {
-    // Leaf nodes - no children to layout
-  } else if (node.children.length > 0) {
+  if (node.children.length > 0) {
     // Separate absolute positioned children from normal flow
     for (const child of node.children) {
       const childStyle = child.props as BoxStyle;
@@ -139,26 +344,6 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
       totalHeight = Math.max(totalHeight, child.y + child.height + childMarginBottom);
     }
     // Gap is already handled by layoutColumn which adds it to child.y positions
-  }
-
-  // Handle text node sizing
-  if (node.type === 'text') {
-    const text = String(node.props.children ?? '');
-    const lines = text.split('\n');
-    totalWidth = Math.max(...lines.map(l => stringWidth(l)));
-    totalHeight = lines.length;
-  }
-
-  // Handle spacer - takes all available space
-  if (node.type === 'spacer') {
-    totalWidth = ctx.width;
-    totalHeight = 1;
-  }
-
-  // Handle newline
-  if (node.type === 'newline') {
-    totalWidth = 0;
-    totalHeight = node.props.count ?? 1;
   }
 
   // Check if element should fill available space
@@ -209,13 +394,10 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     }
 
     // Update the layout position
-    absLayout.x = absX;
-    absLayout.y = absY;
-
-    childLayouts.push(absLayout);
+    childLayouts.push(cloneLayoutWith(absLayout, { x: absX, y: absY }));
   }
 
-  const layout = {
+  layout = {
     x: layoutX,
     y: layoutY,
     width: layoutWidth,
@@ -224,8 +406,8 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     children: childLayouts,
   };
 
-  const layoutRef = style.layoutRef as { __update?: (rect: { x: number; y: number; width: number; height: number }) => void } | undefined;
-  layoutRef?.__update?.({ x: layout.x, y: layout.y, width: layout.width, height: layout.height });
+  updateLayoutRef(node, layout);
+  setCachedLayout(node, ctxKey, createLayoutPropsKey(node), layout);
 
   return layout;
 }
@@ -332,24 +514,28 @@ function layoutRow(
   const alignHeight = hasExplicitHeight ? height : rowHeight;
 
   for (const entry of pendingLayouts) {
-    const { layout, style } = entry;
+    const { style } = entry;
+    let { layout } = entry;
     const alignSelf = style.alignSelf;
     const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
+    let nextY = layout.y;
+    let nextHeight = layout.height;
 
     if (alignItems === 'stretch') {
       if (style.height === undefined) {
-        layout.height = Math.max(layout.height, alignHeight);
+        nextHeight = Math.max(layout.height, alignHeight);
       }
-      layout.y = 0;
+      nextY = 0;
     } else if (alignItems === 'center') {
-      layout.y = Math.floor((alignHeight - layout.height) / 2);
+      nextY = Math.floor((alignHeight - layout.height) / 2);
     } else if (alignItems === 'flex-end') {
-      layout.y = alignHeight - layout.height;
+      nextY = alignHeight - layout.height;
     } else if (alignItems === 'baseline') {
       // For baseline, align to top (simplified - true baseline needs font metrics)
-      layout.y = 0;
+      nextY = 0;
     }
 
+    layout = cloneLayoutWith(layout, { y: nextY, height: nextHeight });
     results.push(layout);
   }
 
@@ -426,7 +612,7 @@ function layoutColumn(
           }
 
           layout = layoutNode(info.node, { x: 0, y, width, height: allocatedHeight });
-          layout.height = allocatedHeight;
+          layout = cloneLayoutWith(layout, { height: allocatedHeight });
         }
 
         if (!layout) {
@@ -434,16 +620,18 @@ function layoutColumn(
         }
 
         // Fix: Update y position for non-flex children (they were pre-calculated with y=0)
-        layout.y = y;
+        let nextX = layout.x;
+        let nextWidth = layout.width;
 
         if (alignItems === 'center') {
-          layout.x = Math.floor((width - layout.width) / 2);
+          nextX = Math.floor((width - layout.width) / 2);
         } else if (alignItems === 'flex-end') {
-          layout.x = width - layout.width;
+          nextX = width - layout.width;
         } else if (alignItems === 'stretch') {
-          layout.width = width;
+          nextWidth = width;
         }
 
+        layout = cloneLayoutWith(layout, { x: nextX, y, width: nextWidth });
         results.push(layout);
 
         y += info.marginTop + layout.height + info.marginBottom;
@@ -469,16 +657,18 @@ function layoutColumn(
     // Adjust x based on alignItems (or alignSelf if set on child)
     const alignSelf = childStyle.alignSelf;
     const alignItems = alignSelf !== 'auto' && alignSelf ? alignSelf : (parentStyle.alignItems ?? 'flex-start');
+    let nextX = layout.x;
+    let nextWidth = layout.width;
 
     if (alignItems === 'center') {
-      layout.x = Math.floor((width - layout.width) / 2);
+      nextX = Math.floor((width - layout.width) / 2);
     } else if (alignItems === 'flex-end') {
-      layout.x = width - layout.width;
+      nextX = width - layout.width;
     } else if (alignItems === 'stretch') {
-      layout.width = width;
+      nextWidth = width;
     }
 
-    results.push(layout);
+    results.push(cloneLayoutWith(layout, { x: nextX, width: nextWidth }));
 
     // Add child's height plus its marginBottom to position next sibling correctly
     y += marginTop + layout.height + marginBottom;
@@ -506,27 +696,33 @@ function layoutColumn(
     } else if (justifyContent === 'space-between' && results.length > 1) {
       const spaceBetween = remainingSpace / (results.length - 1);
       for (let i = 0; i < results.length; i++) {
-        results[i].y += Math.floor(spaceBetween * i);
+        results[i] = cloneLayoutWith(results[i], {
+          y: results[i].y + Math.floor(spaceBetween * i),
+        });
       }
       return results;
     } else if (justifyContent === 'space-around') {
       const spaceAround = remainingSpace / (results.length * 2);
       for (let i = 0; i < results.length; i++) {
-        results[i].y += Math.floor(spaceAround * (2 * i + 1));
+        results[i] = cloneLayoutWith(results[i], {
+          y: results[i].y + Math.floor(spaceAround * (2 * i + 1)),
+        });
       }
       return results;
     } else if (justifyContent === 'space-evenly') {
       const spaceEvenly = remainingSpace / (results.length + 1);
       for (let i = 0; i < results.length; i++) {
-        results[i].y += Math.floor(spaceEvenly * (i + 1));
+        results[i] = cloneLayoutWith(results[i], {
+          y: results[i].y + Math.floor(spaceEvenly * (i + 1)),
+        });
       }
       return results;
     }
 
     // Apply simple offset for flex-end and center
     if (offset > 0) {
-      for (const layout of results) {
-        layout.y += offset;
+      for (let i = 0; i < results.length; i++) {
+        results[i] = cloneLayoutWith(results[i], { y: results[i].y + offset });
       }
     }
   }

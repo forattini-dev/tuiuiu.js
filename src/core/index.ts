@@ -38,6 +38,39 @@ export {
 
 export type { RenderOptions as StaticRenderOptions } from './renderer.js';
 
+// Frame runtime contracts
+export {
+  createFrameSnapshot,
+  setCommittedFrameSnapshot,
+  getCommittedFrameSnapshot,
+  getCommittedFrameQueries,
+  clearCommittedFrameSnapshot,
+  resetFrameSequenceForTesting,
+} from './frame.js';
+
+export type {
+  FrameInput,
+  FrameSnapshotOptions,
+  FrameInfo,
+  FrameSnapshot,
+  FrameQueries,
+  QueryStatus,
+  Bounds,
+  ElementQueryResult,
+  ScrollQueryControls,
+  ScrollQueryResult,
+  RuntimeWarning,
+  RuntimeWarningCode,
+  RuntimeWarningSeverity,
+  FramePhaseMetrics,
+  FrameStructuralMetrics,
+  FrameMetrics,
+  DrawCommandBase,
+  DrawBoxCommand,
+  DrawTextCommand,
+  DrawCommand,
+} from './frame.js';
+
 // Hit Testing (mouse event dispatch)
 export {
   getHitTestRegistry,
@@ -60,6 +93,8 @@ export {
 } from '../app/render-loop.js';
 
 export type {
+  FixedStepOptions,
+  FixedStepUpdate,
   RenderOptions,
   TuiInstance,
 } from '../app/render-loop.js';
@@ -306,16 +341,24 @@ export {
   detectGraphicsProtocol,
   setGraphicsProtocol,
   getGraphicsProtocol,
+  getGraphicsCapabilities,
   getProtocolCapabilities,
+  queryGraphicsCapabilities,
+  parseGraphicsCapabilityResponse,
   resetGraphicsDetection,
   // Protocol implementations
   kittyGraphics,
   iterm2Graphics,
   sixelGraphics,
+  halfblockGraphics,
   brailleGraphics,
   // Unified rendering
   renderImage,
+  renderImageWithProtocol,
   clearImages,
+  createTerminalImageSource,
+  planImageRender,
+  createTerminalImageProtocolState,
   // Image utilities
   createImageData,
   createSolidImage,
@@ -325,9 +368,17 @@ export {
 
 export type {
   GraphicsProtocol,
+  CellSize,
   ImageOptions,
   ImageData,
   ProtocolCapabilities,
+  TerminalImageCapabilities,
+  TerminalImageProtocolRenderOptions,
+  TerminalImageProtocolRenderResult,
+  TerminalImageProtocolState,
+  TerminalGraphicsQueryTransport,
+  TerminalImageSource,
+  TerminalImageRenderPlan,
 } from './graphics.js';
 
 // Advanced Focus Management

@@ -4,15 +4,26 @@
  * This is the entry point for Tuiuiu applications
  */
 
-import type { VNode, BoxStyle, LayoutNode } from '../utils/types.js';
-import { renderToString } from '../core/renderer.js';
-import { calculateLayout } from '../core/layout.js';
-import { createEffect } from '../primitives/signal.js';
+import type { VNode, BoxStyle } from '../utils/types.js';
+import { renderToString, renderFrameToString } from '../core/renderer.js';
+import { batch, createEffect } from '../primitives/signal.js';
 import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking, setClearScreen } from '../hooks/index.js';
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
 import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.js';
 import { createDeltaRenderer, type DeltaRenderer } from '../core/delta-render.js';
+import {
+  clearCommittedFrameSnapshot,
+  createFrameSnapshot,
+  getCommittedFrameSnapshot,
+  setCommittedFrameSnapshot,
+} from '../core/frame.js';
+
+const PRODUCTION_FRAME_OPTIONS = {
+  eagerHitTargets: false,
+  eagerQueries: false,
+  eagerWarnings: false,
+} as const;
 
 /**
  * Check if a VNode is marked as static
@@ -98,6 +109,27 @@ export interface RenderOptions {
    *  When enabled, only changed cells are redrawn instead of the entire screen.
    *  Set to false if you need Static component support or encounter rendering issues. */
   useDeltaRenderer?: boolean;
+  /** Optional fixed-step update loop for game-like workloads.
+   *  Updates run at a fixed cadence while presentation remains capped by `maxFps`. */
+  fixedStep?: FixedStepOptions;
+}
+
+export interface FixedStepUpdate {
+  /** Fixed logical step size in milliseconds */
+  deltaTimeMs: number;
+  /** Monotonic update step count for the current render session */
+  step: number;
+  /** Total logical time advanced by the fixed-step loop */
+  elapsedMs: number;
+}
+
+export interface FixedStepOptions {
+  /** Fixed logical update rate in frames per second */
+  updateFps: number;
+  /** Max fixed steps to execute in one catch-up pass before dropping stale backlog (default: 5) */
+  maxCatchUpUpdates?: number;
+  /** Called for each fixed logical step */
+  onUpdate: (update: FixedStepUpdate) => void;
 }
 
 export interface TuiInstance {
@@ -130,6 +162,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     autoTabNavigation = true,
     fullHeight = false,
     useDeltaRenderer = true,
+    fixedStep,
   } = options;
 
   // Initialize app context FIRST (before calling component functions)
@@ -138,9 +171,47 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Store the component function for re-evaluation
   const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
 
+  let outputBackpressured = false;
+
+  const handleOutputDrain = () => {
+    outputBackpressured = false;
+    pendingRender = scheduledRenderCallback !== null;
+    schedulePendingRenderCallback();
+  };
+
+  const writeOutput = (chunk: string | Uint8Array): boolean => {
+    const canWrite = stdout.write(chunk as any);
+
+    if (!canWrite && !outputBackpressured) {
+      outputBackpressured = true;
+      stdout.once('drain', handleOutputDrain);
+    }
+
+    return canWrite;
+  };
+
+  const outputStream = {
+    get columns() {
+      return stdout.columns;
+    },
+    get rows() {
+      return stdout.rows;
+    },
+    get isTTY() {
+      return stdout.isTTY;
+    },
+    write(chunk: string | Uint8Array) {
+      return writeOutput(chunk);
+    },
+    on: stdout.on.bind(stdout),
+    off: stdout.off.bind(stdout),
+    once: stdout.once.bind(stdout),
+    emit: stdout.emit.bind(stdout),
+  } as unknown as NodeJS.WriteStream;
+
   // Create log updater for efficient incremental rendering
   // Uses fullScreen mode when fullHeight is enabled for reliable clearing
-  let logUpdate: LogUpdate = createLogUpdate(stdout, {
+  let logUpdate: LogUpdate = createLogUpdate(outputStream, {
     showCursor,
     incremental: false,
     fullScreen: fullHeight, // Use simple clear-and-redraw for fullHeight mode
@@ -160,13 +231,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     //    This ensures next render will be a full redraw since previousOutput.length === 0
     logUpdate.clear();
     // 2. Clear terminal completely (moves cursor to home position 0,0)
-    stdout.write(ansi.clearTerminal);
+    writeOutput(ansi.clearTerminal);
     // 3. Reset render loop state
     lastOutput = '';
     renderedStaticIds.clear();
     staticLineCount = 0;
     logUpdateTopOffset = 0;
-    logUpdate = createLogUpdate(stdout, {
+    logUpdate = createLogUpdate(outputStream, {
       showCursor,
       incremental: false,
       fullScreen: fullHeight,
@@ -191,6 +262,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   const minRenderInterval = maxFps > 0 ? Math.ceil(1000 / maxFps) : 0;
   let lastRenderTime = 0;
   let pendingRender = false;
+  let scheduledRender = false;
+  let renderTimer: ReturnType<typeof setTimeout> | null = null;
+  let scheduledRenderCallback: (() => void) | null = null;
+  let fixedStepTimer: ReturnType<typeof setTimeout> | null = null;
+  let fixedStepAccumulatorMs = 0;
+  let fixedStepLastAt = 0;
+  let fixedStepCount = 0;
+  let fixedStepElapsedMs = 0;
 
   // Mouse tracking state
   let mouseTrackingEnabled = false;
@@ -199,7 +278,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let deltaRenderer: DeltaRenderer | null = null;
   if (useDeltaRenderer) {
     deltaRenderer = createDeltaRenderer({
-      stdout,
+      stdout: outputStream,
       showCursor,
       useDelta: true,
     });
@@ -207,16 +286,111 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Initial setup
   if (clearOnStart && !debug) {
-    stdout.write(ansi.clearTerminal);
+    writeOutput(ansi.clearTerminal);
+  }
+
+  const evaluateTree = () => {
+    beginRender();
+    currentNode = componentFn();
+    endRender();
+  };
+
+  const evaluateAndRender = () => {
+    evaluateTree();
+    doRender();
+  };
+
+  /**
+   * Schedule a render callback (with throttling and latest-state wins semantics)
+   */
+  function scheduleRenderCallback(callback: () => void): void {
+    if (isUnmounted) return;
+
+    scheduledRenderCallback = callback;
+
+    if (outputBackpressured) {
+      pendingRender = true;
+      return;
+    }
+
+    schedulePendingRenderCallback();
+  }
+
+  function schedulePendingRenderCallback(): void {
+    if (scheduledRender || isUnmounted || outputBackpressured || !scheduledRenderCallback) {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastRenderTime;
+    const delay = lastRenderTime === 0 || elapsed >= minRenderInterval ? 0 : minRenderInterval - elapsed;
+
+    scheduledRender = true;
+    pendingRender = delay > 0;
+    renderTimer = setTimeout(() => {
+      const flush = scheduledRenderCallback;
+      scheduledRenderCallback = null;
+      scheduledRender = false;
+      pendingRender = false;
+      renderTimer = null;
+
+      if (!isUnmounted) {
+        flush?.();
+      }
+    }, delay);
+  }
+
+  function scheduleFixedStepLoop(): void {
+    if (!fixedStep || isUnmounted) {
+      return;
+    }
+
+    const stepMs = 1000 / Math.max(1, fixedStep.updateFps);
+    const delay = Math.max(0, Math.ceil(stepMs - fixedStepAccumulatorMs));
+
+    fixedStepTimer = setTimeout(runFixedStepLoop, delay);
+  }
+
+  function runFixedStepLoop(): void {
+    if (!fixedStep || isUnmounted) {
+      return;
+    }
+
+    const stepMs = 1000 / Math.max(1, fixedStep.updateFps);
+    const maxCatchUpUpdates = Math.max(1, fixedStep.maxCatchUpUpdates ?? 5);
+    const now = Date.now();
+    fixedStepAccumulatorMs += now - fixedStepLastAt;
+    fixedStepLastAt = now;
+
+    let executed = 0;
+    while (fixedStepAccumulatorMs >= stepMs && executed < maxCatchUpUpdates) {
+      fixedStepAccumulatorMs -= stepMs;
+      fixedStepCount++;
+      fixedStepElapsedMs += stepMs;
+
+      batch(() => {
+        fixedStep.onUpdate({
+          deltaTimeMs: stepMs,
+          step: fixedStepCount,
+          elapsedMs: fixedStepElapsedMs,
+        });
+      });
+
+      executed++;
+    }
+
+    if (fixedStepAccumulatorMs >= stepMs) {
+      // Drop stale backlog to avoid a catch-up spiral while preserving the latest remainder.
+      fixedStepAccumulatorMs %= stepMs;
+    }
+
+    scheduleFixedStepLoop();
   }
 
   // Handle resize - need to re-evaluate component for new dimensions
   const handleResize = () => {
     if (!isUnmounted) {
-      beginRender();
-      currentNode = componentFn();
-      endRender();
-      scheduleRender();
+      scheduleRenderCallback(evaluateAndRender);
     }
   };
 
@@ -226,28 +400,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   appContext.onExit(() => {
     cleanup();
   });
-
-  /**
-   * Schedule a render (with throttling)
-   */
-  function scheduleRender(): void {
-    if (pendingRender || isUnmounted) return;
-
-    const now = Date.now();
-    const elapsed = now - lastRenderTime;
-
-    if (elapsed >= minRenderInterval) {
-      doRender();
-    } else {
-      pendingRender = true;
-      setTimeout(() => {
-        pendingRender = false;
-        if (!isUnmounted) {
-          doRender();
-        }
-      }, minRenderInterval - elapsed);
-    }
-  }
 
   /**
    * Perform actual render
@@ -262,11 +414,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     // Delta renderer path: optimized cell-level updates
     if (deltaRenderer && !debug) {
-      // Calculate layout for hit testing
-      const layout = calculateLayout(currentNode, width, height);
+      const frame = createFrameSnapshot(currentNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+      setCommittedFrameSnapshot(frame);
 
       // Register elements in hit-test registry for mouse events
-      registerHitTestFromLayout(layout);
+      registerHitTestFromLayout(frame.layout);
 
       // Enable/disable mouse tracking based on clickable elements
       const hitTestRegistry = getHitTestRegistry();
@@ -279,7 +431,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       }
 
       // Use delta renderer for optimized updates
-      deltaRenderer.render(currentNode);
+      deltaRenderer.renderFrame(frame);
       return;
     }
 
@@ -301,12 +453,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
           logUpdate.clear();
 
           // Write static content (it becomes permanent)
-          stdout.write(staticOutput + '\n');
+          writeOutput(staticOutput + '\n');
           staticLineCount += staticOutput.split('\n').length;
 
           if (staticLineCount !== logUpdateTopOffset) {
             logUpdateTopOffset = staticLineCount;
-            logUpdate = createLogUpdate(stdout, {
+            logUpdate = createLogUpdate(outputStream, {
               showCursor,
               incremental: false,
               topOffset: logUpdateTopOffset,
@@ -319,11 +471,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       }
     }
 
-    // Calculate layout for hit testing (use full screen dimensions)
-    const layout = calculateLayout(interactiveNode, width, height);
+    const previousFrame = getCommittedFrameSnapshot();
+    const frame = createFrameSnapshot(interactiveNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+    setCommittedFrameSnapshot(frame);
 
     // Register elements in hit-test registry for mouse events
-    registerHitTestFromLayout(layout);
+    registerHitTestFromLayout(frame.layout);
 
     // Enable/disable mouse tracking based on clickable elements
     const hitTestRegistry = getHitTestRegistry();
@@ -336,10 +489,9 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
 
     // Render interactive content
-    const output = renderToString(interactiveNode, {
-      width,
-      height: fullHeight ? height : undefined,
+    const output = renderFrameToString(frame, {
       fullHeight,
+      previousFrame,
     });
 
     if (output === lastOutput && !debug) {
@@ -348,7 +500,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     if (debug) {
       // Debug mode: append output instead of replacing
-      stdout.write(output + '\n');
+      writeOutput(output + '\n');
     } else {
       // Use incremental log updater for efficient rendering
       logUpdate(output);
@@ -363,6 +515,19 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   function cleanup(): void {
     if (isUnmounted) return;
     isUnmounted = true;
+
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+    }
+    if (fixedStepTimer) {
+      clearTimeout(fixedStepTimer);
+      fixedStepTimer = null;
+    }
+    outputBackpressured = false;
+    scheduledRenderCallback = null;
+    scheduledRender = false;
+    pendingRender = false;
 
     // Disable mouse tracking if enabled
     if (mouseTrackingEnabled) {
@@ -381,23 +546,33 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     resetHookState(); // Clear all hook state
     cleanupApp();
+    clearCommittedFrameSnapshot();
   }
 
   // Create reactive render effect
   // This will re-run whenever any signal used in the component changes
-  const disposeRender = createEffect(() => {
-    // Call componentFn inside the effect to track signal dependencies
-    // When any signal read during component evaluation changes, this effect re-runs
-    beginRender();
-    currentNode = componentFn();
-    endRender();
-    scheduleRender();
-  });
+  const disposeRender = createEffect(
+    () => {
+      // Call componentFn inside the effect to track signal dependencies.
+      // Re-runs are scheduler-driven so bursty invalidations can collapse to one frame.
+      evaluateAndRender();
+    },
+    {
+      scheduler: scheduleRenderCallback,
+    }
+  );
+
+  if (fixedStep) {
+    fixedStepLastAt = Date.now();
+    scheduleFixedStepLoop();
+  }
 
   return {
     rerender: (newNode: VNode) => {
       currentNode = newNode;
-      scheduleRender();
+      scheduleRenderCallback(() => {
+        doRender();
+      });
     },
 
     unmount: () => {
@@ -406,7 +581,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
       // Final render
       if (!debug) {
-        stdout.write('\n');
+        writeOutput('\n');
       }
 
       resolveExit();
@@ -416,10 +591,23 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     clear: () => {
       if (!debug) {
+        if (renderTimer) {
+          clearTimeout(renderTimer);
+          renderTimer = null;
+        }
+        scheduledRenderCallback = null;
+        scheduledRender = false;
+        pendingRender = false;
         logUpdate.clear();
-        stdout.write(ansi.clearTerminal);
+        writeOutput(ansi.clearTerminal);
         lastOutput = '';
-        doRender();
+        if (outputBackpressured) {
+          scheduleRenderCallback(() => {
+            doRender();
+          });
+        } else {
+          doRender();
+        }
       }
     },
   };

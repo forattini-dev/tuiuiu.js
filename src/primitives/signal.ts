@@ -6,6 +6,11 @@
 
 type Listener = () => void;
 type CleanupFn = () => void;
+export type EffectScheduler = (flush: () => void) => void;
+
+export interface EffectOptions {
+  scheduler?: EffectScheduler;
+}
 
 // Global tracking for auto-dependency detection
 let currentEffect: Effect | null = null;
@@ -59,7 +64,7 @@ export class Signal<T> {
       if (isBatching) {
         batchQueue.add(effect);
       } else {
-        effect.run();
+        effect.notify();
       }
     }
   }
@@ -78,12 +83,39 @@ export class Effect {
   private cleanup: CleanupFn | void = undefined;
   private running = false;
   private disposed = false;
+  private scheduled = false;
 
-  constructor(private fn: () => CleanupFn | void) {
+  constructor(
+    private fn: () => CleanupFn | void,
+    private options: EffectOptions = {}
+  ) {
     this.run();
   }
 
+  notify(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    const scheduler = this.options.scheduler;
+    if (!scheduler) {
+      this.run();
+      return;
+    }
+
+    if (this.scheduled) {
+      return;
+    }
+
+    this.scheduled = true;
+    scheduler(() => {
+      this.run();
+    });
+  }
+
   run(): void {
+    this.scheduled = false;
+
     // Prevent re-entrant execution (avoids infinite loops)
     if (this.running || this.disposed) {
       return;
@@ -153,8 +185,8 @@ export function createSignal<T>(initialValue: T): [() => T, (value: T | ((prev: 
 /**
  * Create a reactive effect that auto-tracks dependencies
  */
-export function createEffect(fn: () => CleanupFn | void): () => void {
-  const effect = new Effect(fn);
+export function createEffect(fn: () => CleanupFn | void, options: EffectOptions = {}): () => void {
+  const effect = new Effect(fn, options);
   return () => effect.dispose();
 }
 
@@ -187,7 +219,7 @@ export function batch(fn: () => void): void {
       const effects = [...batchQueue];
       batchQueue.clear();
       for (const effect of effects) {
-        effect.run();
+        effect.notify();
       }
     }
   }

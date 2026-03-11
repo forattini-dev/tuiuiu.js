@@ -14,6 +14,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { Table, type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
@@ -110,6 +111,7 @@ export interface DataTableState<T = Record<string, any>> {
   moveCursor: (delta: number) => void;
   selectCurrent: () => void;
   getRowKey: (row: T, index: number) => string;
+  updateOptions: (options: DataTableOptions<T>) => void;
 }
 
 // =============================================================================
@@ -122,33 +124,26 @@ export interface DataTableState<T = Record<string, any>> {
 export function createDataTable<T = Record<string, any>>(
   options: DataTableOptions<T>
 ): DataTableState<T> {
-  const {
-    columns,
-    data,
-    getRowKey = (_, i) => String(i),
-    selectionMode = 'single',
-    initialSelected = [],
-    pageSize = 10,
-    initialSort,
-    onSelect,
-    onSort,
-    onPageChange,
-  } = options;
+  let runtimeOptions = options;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
 
   const [sortColumn, setSortColumn] = createSignal<string | null>(
-    initialSort?.column ?? null
+    options.initialSort?.column ?? null
   );
   const [sortDirection, setSortDirection] = createSignal<SortDirection>(
-    initialSort?.direction ?? null
+    options.initialSort?.direction ?? null
   );
   const [filterText, setFilterText] = createSignal('');
   const [currentPage, setCurrentPage] = createSignal(0);
-  const [selectedKeys, setSelectedKeys] = createSignal(new Set(initialSelected));
+  const [selectedKeys, setSelectedKeys] = createSignal(new Set(options.initialSelected ?? []));
   const [cursorIndex, setCursorIndex] = createSignal(0);
 
   // Filtered data
   const filteredData = createMemo(() => {
+    optionsVersion();
     const filter = filterText().toLowerCase();
+    const data = runtimeOptions.data;
+    const columns = runtimeOptions.columns;
     if (!filter) return data;
 
     return data.filter((row) => {
@@ -170,9 +165,11 @@ export function createDataTable<T = Record<string, any>>(
 
   // Sorted data
   const sortedData = createMemo(() => {
+    optionsVersion();
     const column = sortColumn();
     const direction = sortDirection();
     const filtered = filteredData();
+    const columns = runtimeOptions.columns;
 
     if (!column || !direction) return filtered;
 
@@ -201,7 +198,9 @@ export function createDataTable<T = Record<string, any>>(
 
   // Paginated data
   const pageData = createMemo(() => {
+    optionsVersion();
     const sorted = sortedData();
+    const pageSize = runtimeOptions.pageSize ?? 10;
     if (pageSize <= 0) return sorted;
 
     const start = currentPage() * pageSize;
@@ -210,13 +209,15 @@ export function createDataTable<T = Record<string, any>>(
 
   // Total pages
   const totalPages = createMemo(() => {
+    optionsVersion();
+    const pageSize = runtimeOptions.pageSize ?? 10;
     if (pageSize <= 0) return 1;
     return Math.max(1, Math.ceil(sortedData().length / pageSize));
   });
 
   // Actions
   const sort = (column: string) => {
-    const col = columns.find((c) => c.key === column);
+    const col = runtimeOptions.columns.find((c) => c.key === column);
     if (!col?.sortable) return;
 
     let newDirection: SortDirection;
@@ -231,7 +232,7 @@ export function createDataTable<T = Record<string, any>>(
     setSortColumn(newDirection ? column : null);
     setSortDirection(newDirection);
     setCurrentPage(0);
-    onSort?.(column, newDirection);
+    runtimeOptions.onSort?.(column, newDirection);
   };
 
   const setFilter = (text: string) => {
@@ -243,7 +244,7 @@ export function createDataTable<T = Record<string, any>>(
   const nextPage = () => {
     setCurrentPage((p) => {
       const newPage = Math.min(p + 1, totalPages() - 1);
-      if (newPage !== p) onPageChange?.(newPage);
+      if (newPage !== p) runtimeOptions.onPageChange?.(newPage);
       return newPage;
     });
     setCursorIndex(0);
@@ -252,7 +253,7 @@ export function createDataTable<T = Record<string, any>>(
   const prevPage = () => {
     setCurrentPage((p) => {
       const newPage = Math.max(p - 1, 0);
-      if (newPage !== p) onPageChange?.(newPage);
+      if (newPage !== p) runtimeOptions.onPageChange?.(newPage);
       return newPage;
     });
     setCursorIndex(0);
@@ -263,11 +264,12 @@ export function createDataTable<T = Record<string, any>>(
     if (clamped !== currentPage()) {
       setCurrentPage(clamped);
       setCursorIndex(0);
-      onPageChange?.(clamped);
+      runtimeOptions.onPageChange?.(clamped);
     }
   };
 
   const selectRow = (key: string) => {
+    const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode === 'none') return;
 
     setSelectedKeys((prev) => {
@@ -282,7 +284,7 @@ export function createDataTable<T = Record<string, any>>(
     const selected = pageData().filter((row, i) =>
       selectedKeys().has(getRowKey(row, i))
     );
-    onSelect?.(selected);
+    runtimeOptions.onSelect?.(selected);
   };
 
   const deselectRow = (key: string) => {
@@ -302,15 +304,16 @@ export function createDataTable<T = Record<string, any>>(
   };
 
   const selectAll = () => {
+    const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode !== 'multiple') return;
     const keys = pageData().map((row, i) => getRowKey(row, i));
     setSelectedKeys(new Set(keys));
-    onSelect?.(pageData());
+    runtimeOptions.onSelect?.(pageData());
   };
 
   const deselectAll = () => {
     setSelectedKeys(new Set());
-    onSelect?.([]);
+    runtimeOptions.onSelect?.([]);
   };
 
   const moveCursor = (delta: number) => {
@@ -326,6 +329,9 @@ export function createDataTable<T = Record<string, any>>(
       toggleRow(key);
     }
   };
+
+  const getRowKey = (row: T, index: number) =>
+    (runtimeOptions.getRowKey ?? ((_: T, i: number) => String(i)))(row, index);
 
   return {
     sortColumn,
@@ -351,7 +357,23 @@ export function createDataTable<T = Record<string, any>>(
     moveCursor,
     selectCurrent,
     getRowKey,
+    updateOptions: (nextOptions: DataTableOptions<T>) => {
+      runtimeOptions = nextOptions;
+      setOptionsVersion((version) => version + 1);
+      const maxPage = Math.max(0, totalPages() - 1);
+      if (currentPage() > maxPage) {
+        setCurrentPage(maxPage);
+      }
+      const maxCursor = Math.max(0, pageData().length - 1);
+      if (cursorIndex() > maxCursor) {
+        setCursorIndex(maxCursor);
+      }
+    },
   };
+}
+
+export function useDataTableState<T = Record<string, any>>(options: DataTableOptions<T>) {
+  return useFactoryState<DataTableOptions<T>, DataTableState<T>>(undefined, options, createDataTable);
 }
 
 // =============================================================================
@@ -410,7 +432,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     state: externalState,
   } = props;
 
-  const state = externalState || createDataTable(props);
+  const state = useFactoryState(externalState, props, createDataTable);
   const isAscii = getRenderMode() === 'ascii';
   const chars = getChars();
 

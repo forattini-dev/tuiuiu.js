@@ -19,6 +19,7 @@ import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 
 // =============================================================================
 // Types
@@ -298,6 +299,8 @@ export interface ButtonGroupState {
   triggerClick: () => void;
   /** Handle keyboard input - returns true if handled */
   handleInput: (input: string, key: Key) => boolean | void;
+  /** Update runtime options without recreating controller */
+  updateOptions: (options: ButtonGroupOptions) => void;
 }
 
 export interface ButtonGroupOptions {
@@ -338,30 +341,27 @@ export interface ButtonGroupOptions {
  */
 export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState {
   const {
-    buttons,
     initialFocusedIndex = 0,
-    direction = 'horizontal',
-    wrap = true,
-    isActive: isActiveProp = true,
-    onFocusChange,
   } = options;
+  let runtimeOptions = options;
 
   const checkIsActive = (): boolean => {
+    const isActiveProp = runtimeOptions.isActive ?? true;
     return typeof isActiveProp === 'function' ? isActiveProp() : isActiveProp;
   };
 
   // Find first non-disabled button for initial focus
   const findFirstEnabled = (): number => {
-    const idx = buttons.findIndex((b) => !b.disabled && !b.loading);
+    const idx = runtimeOptions.buttons.findIndex((b) => !b.disabled && !b.loading);
     return idx >= 0 ? idx : 0;
   };
 
   const [focusedIndex, setFocusedIndex] = createSignal(
-    buttons[initialFocusedIndex]?.disabled ? findFirstEnabled() : initialFocusedIndex
+    runtimeOptions.buttons[initialFocusedIndex]?.disabled ? findFirstEnabled() : initialFocusedIndex
   );
 
   const getEnabledCount = (): number => {
-    return buttons.filter((b) => !b.disabled && !b.loading).length;
+    return runtimeOptions.buttons.filter((b) => !b.disabled && !b.loading).length;
   };
 
   const focusPrev = () => {
@@ -371,15 +371,15 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
       let newIndex = current - 1;
 
       // Skip disabled buttons
-      while (newIndex >= 0 && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+      while (newIndex >= 0 && (runtimeOptions.buttons[newIndex]?.disabled || runtimeOptions.buttons[newIndex]?.loading)) {
         newIndex--;
       }
 
       // Handle wrap or clamp
       if (newIndex < 0) {
-        if (wrap) {
-          newIndex = buttons.length - 1;
-          while (newIndex > current && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+        if (runtimeOptions.wrap ?? true) {
+          newIndex = runtimeOptions.buttons.length - 1;
+          while (newIndex > current && (runtimeOptions.buttons[newIndex]?.disabled || runtimeOptions.buttons[newIndex]?.loading)) {
             newIndex--;
           }
         } else {
@@ -387,7 +387,7 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
         }
       }
 
-      if (newIndex !== current) onFocusChange?.(newIndex);
+      if (newIndex !== current) runtimeOptions.onFocusChange?.(newIndex);
       return newIndex;
     });
   };
@@ -399,15 +399,15 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
       let newIndex = current + 1;
 
       // Skip disabled buttons
-      while (newIndex < buttons.length && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+      while (newIndex < runtimeOptions.buttons.length && (runtimeOptions.buttons[newIndex]?.disabled || runtimeOptions.buttons[newIndex]?.loading)) {
         newIndex++;
       }
 
       // Handle wrap or clamp
-      if (newIndex >= buttons.length) {
-        if (wrap) {
+      if (newIndex >= runtimeOptions.buttons.length) {
+        if (runtimeOptions.wrap ?? true) {
           newIndex = 0;
-          while (newIndex < current && (buttons[newIndex]?.disabled || buttons[newIndex]?.loading)) {
+          while (newIndex < current && (runtimeOptions.buttons[newIndex]?.disabled || runtimeOptions.buttons[newIndex]?.loading)) {
             newIndex++;
           }
         } else {
@@ -415,14 +415,14 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
         }
       }
 
-      if (newIndex !== current) onFocusChange?.(newIndex);
+      if (newIndex !== current) runtimeOptions.onFocusChange?.(newIndex);
       return newIndex;
     });
   };
 
   const triggerClick = () => {
     const index = focusedIndex();
-    const button = buttons[index];
+    const button = runtimeOptions.buttons[index];
     if (button && !button.disabled && !button.loading && button.onClick) {
       button.onClick();
     }
@@ -438,7 +438,7 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
     }
 
     // Navigation based on direction
-    if (direction === 'horizontal') {
+    if ((runtimeOptions.direction ?? 'horizontal') === 'horizontal') {
       if (key.leftArrow || (key.shift && key.tab)) {
         focusPrev();
         return true;
@@ -460,7 +460,7 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
     }
 
     // Vim-style navigation
-    if (direction === 'horizontal') {
+    if ((runtimeOptions.direction ?? 'horizontal') === 'horizontal') {
       if (input === 'h') {
         focusPrev();
         return true;
@@ -483,9 +483,13 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
     // Number keys for quick access (1-9)
     if (/^[1-9]$/.test(input)) {
       const targetIndex = parseInt(input, 10) - 1;
-      if (targetIndex < buttons.length && !buttons[targetIndex]?.disabled && !buttons[targetIndex]?.loading) {
+      if (
+        targetIndex < runtimeOptions.buttons.length &&
+        !runtimeOptions.buttons[targetIndex]?.disabled &&
+        !runtimeOptions.buttons[targetIndex]?.loading
+      ) {
         setFocusedIndex(targetIndex);
-        onFocusChange?.(targetIndex);
+        runtimeOptions.onFocusChange?.(targetIndex);
         return true;
       }
     }
@@ -504,6 +508,11 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
     focusNext,
     triggerClick,
     handleInput,
+    updateOptions: (nextOptions: ButtonGroupOptions) => {
+      runtimeOptions = nextOptions;
+      const maxIndex = Math.max(0, runtimeOptions.buttons.length - 1);
+      setFocusedIndex((index) => Math.min(index, maxIndex));
+    },
   };
 }
 
@@ -596,14 +605,7 @@ export function ButtonGroup(props: ButtonGroupProps): VNode {
 
   // If state is provided, use renderButtonGroup for full keyboard support
   if (state) {
-    return renderButtonGroup(state, buttons, { direction, gap });
-  }
-
-  // If isActive is true and no state provided, create internal state for keyboard nav
-  const isActiveValue = typeof isActive === 'function' ? isActive() : isActive;
-  if (isActiveValue && buttons.length > 0) {
-    // Create inline state for keyboard handling
-    const internalState = createButtonGroup({
+    state.updateOptions?.({
       buttons,
       initialFocusedIndex: manualFocusedIndex ?? 0,
       direction,
@@ -611,6 +613,24 @@ export function ButtonGroup(props: ButtonGroupProps): VNode {
       isActive,
       onFocusChange,
     });
+    return renderButtonGroup(state, buttons, { direction, gap });
+  }
+
+  // If isActive is true and no state provided, create internal state for keyboard nav
+  const isActiveValue = typeof isActive === 'function' ? isActive() : isActive;
+  if (isActiveValue && buttons.length > 0) {
+    const internalState = useFactoryState(
+      undefined,
+      {
+        buttons,
+        initialFocusedIndex: manualFocusedIndex ?? 0,
+        direction,
+        wrap,
+        isActive,
+        onFocusChange,
+      },
+      createButtonGroup
+    );
 
     return renderButtonGroup(internalState, buttons, { direction, gap });
   }

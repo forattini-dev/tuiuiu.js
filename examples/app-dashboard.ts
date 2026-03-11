@@ -1026,7 +1026,7 @@ function Dashboard(): VNode {
                     Text({ color: s.status === 'running' ? resolveColor('success') as any : resolveColor('error') as any }, s.status === 'running' ? '●' : '○'),
                     Text({}, s.name),
                     Spacer({}),
-                    Text({ color: 'muted' as any, dim: true }, s.load),
+                    Text({ color: 'muted' as any, dim: true }, `${s.cpu}% CPU · ${s.mem}MB`),
                   )
                 ),
               ],

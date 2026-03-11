@@ -32,6 +32,7 @@ import { Box, Text } from './nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from './signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { renderToString } from '../core/renderer.js';
 
@@ -40,6 +41,9 @@ import { renderToString } from '../core/renderer.js';
 // =============================================================================
 
 export interface ScrollProps {
+  /** Explicit runtime query ID */
+  id?: string;
+
   /** Visible height in lines */
   height: number;
 
@@ -77,6 +81,7 @@ export interface ScrollState {
   scrollToBottom: () => void;
   pageUp: () => void;
   pageDown: () => void;
+  updateOptions: (options: ScrollInternalOptions) => void;
 }
 
 interface ScrollInternalOptions {
@@ -88,11 +93,9 @@ interface ScrollInternalOptions {
 // =============================================================================
 
 export function createScroll(options: ScrollInternalOptions = {}): ScrollState & { _setMaxScroll: (max: number) => void; _setHeight: (h: number) => void } {
-  const { height: initialHeight = 10 } = options;
-
   const [scrollTop, setScrollTop] = createSignal(0);
   const [maxScroll, setMaxScroll] = createSignal(0);
-  const [height, setHeight] = createSignal(initialHeight);
+  const [height, setHeight] = createSignal(options.height ?? 10);
 
   const scrollBy = (delta: number) => {
     const max = maxScroll();
@@ -118,6 +121,9 @@ export function createScroll(options: ScrollInternalOptions = {}): ScrollState &
     scrollToBottom,
     pageUp,
     pageDown,
+    updateOptions: (nextOptions: ScrollInternalOptions) => {
+      setHeight(nextOptions.height ?? 10);
+    },
     _setMaxScroll: setMaxScroll,
     _setHeight: setHeight,
   };
@@ -156,7 +162,10 @@ export interface UseScrollReturn {
  * )
  */
 export function useScroll(options: UseScrollOptions = {}): UseScrollReturn {
-  const state = createScroll(options);
+  const state = useFactoryState<
+    UseScrollOptions,
+    ScrollState & { _setMaxScroll: (max: number) => void; _setHeight: (h: number) => void }
+  >(undefined, options, createScroll);
 
   return {
     scrollToTop: () => state.scrollToTop(),
@@ -203,6 +212,7 @@ export function useScroll(options: UseScrollOptions = {}): UseScrollReturn {
  */
 export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   const {
+    id,
     height,
     width = 80,
     showScrollbar = true,
@@ -215,7 +225,11 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   } = props;
 
   // Use external state or create internal
-  const state = externalState || createScroll({ height });
+  const state = useFactoryState(
+    externalState,
+    { height },
+    createScroll
+  );
 
   // Update height in state
   if ('_setHeight' in state) {
@@ -299,9 +313,23 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   const hasScrollbar = showScrollbar && maxScroll > 0;
   const scrollbarWidth = 2;
   const contentWidth = hasScrollbar ? width - scrollbarWidth : width;
+  const scrollQuery = {
+    getViewport: () => ({ width: contentWidth, height }),
+    getContent: () => ({ width: contentWidth, height: totalHeight }),
+    getOffset: () => ({ x: 0, y: state.scrollTop() }),
+    getMaxOffset: () => ({ x: 0, y: state.maxScroll() }),
+    scrollTo: ({ y }: { x?: number; y?: number }) => {
+      state.scrollTo(y ?? state.scrollTop());
+    },
+    scrollBy: ({ y }: { x?: number; y?: number }) => {
+      state.scrollBy(y ?? 0);
+    },
+    scrollToStart: () => state.scrollToTop(),
+    scrollToEnd: () => state.scrollToBottom(),
+  };
 
   return Box(
-    { flexDirection: 'row', width, onScroll: handleScroll },
+    { id, flexDirection: 'row', width, onScroll: handleScroll, __scrollQuery: scrollQuery },
     Box(
       { flexDirection: 'column', flexGrow: 1, height, width: contentWidth },
       ...contentNodes

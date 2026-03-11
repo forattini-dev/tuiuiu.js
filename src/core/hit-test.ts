@@ -49,6 +49,67 @@ export interface HitTestResult {
   absoluteY: number;
 }
 
+function hasMouseHandlers(node: VNode): boolean {
+  const props = node.props;
+
+  return !!(
+    props.onClick ||
+    props.onDoubleClick ||
+    props.onMouseDown ||
+    props.onMouseUp ||
+    props.onMouseMove ||
+    props.onMouseEnter ||
+    props.onMouseLeave ||
+    props.onContextMenu ||
+    props.onScroll
+  );
+}
+
+function walkHitTestLayout(
+  layout: LayoutNode,
+  visitor: (node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null) => void,
+  offsetX = 0,
+  offsetY = 0,
+  parentNode: VNode | null = null,
+): void {
+  const { node, x, y, width, height, children } = layout;
+  const absX = offsetX + x;
+  const absY = offsetY + y;
+
+  visitor(node, absX, absY, width, height, parentNode);
+
+  const style = node.props;
+  const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
+  const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
+  const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
+  const contentOffsetX = absX + paddingLeft + borderSize;
+  const contentOffsetY = absY + paddingTop + borderSize;
+
+  for (const child of children) {
+    walkHitTestLayout(child, visitor, contentOffsetX, contentOffsetY, node);
+  }
+}
+
+export function collectHitTestTargetsFromLayout(layout: LayoutNode): ElementBounds[] {
+  const elements: ElementBounds[] = [];
+  let zCounter = 0;
+
+  walkHitTestLayout(layout, (node, x, y, width, height) => {
+    if (!hasMouseHandlers(node)) return;
+
+    elements.push({
+      node,
+      x,
+      y,
+      width,
+      height,
+      zIndex: zCounter++,
+    });
+  });
+
+  return elements;
+}
+
 // =============================================================================
 // Hit Test Registry
 // =============================================================================
@@ -83,19 +144,7 @@ class HitTestRegistry {
    */
   register(node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null): void {
     this.parentMap.set(node, parent);
-    // Only register if element has mouse handlers
-    const props = node.props;
-    if (
-      props.onClick ||
-      props.onDoubleClick ||
-      props.onMouseDown ||
-      props.onMouseUp ||
-      props.onMouseMove ||
-      props.onMouseEnter ||
-      props.onMouseLeave ||
-      props.onContextMenu ||
-      props.onScroll
-    ) {
+    if (hasMouseHandlers(node)) {
       const bounds = {
         node,
         x,
@@ -113,25 +162,9 @@ class HitTestRegistry {
    * Register from layout node (recursive)
    */
   registerFromLayout(layout: LayoutNode, offsetX = 0, offsetY = 0, parentNode: VNode | null = null): void {
-    const { node, x, y, width, height, children } = layout;
-    const absX = offsetX + x;
-    const absY = offsetY + y;
-
-    // Register this element
-    this.register(node, absX, absY, width, height, parentNode);
-
-    // Calculate content offset for children
-    const style = node.props;
-    const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
-    const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
-    const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
-    const contentOffsetX = absX + paddingLeft + borderSize;
-    const contentOffsetY = absY + paddingTop + borderSize;
-
-    // Register children
-    for (const child of children) {
-      this.registerFromLayout(child, contentOffsetX, contentOffsetY, node);
-    }
+    walkHitTestLayout(layout, (node, x, y, width, height, parent) => {
+      this.register(node, x, y, width, height, parent);
+    }, offsetX, offsetY, parentNode);
   }
 
   /**

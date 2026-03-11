@@ -88,13 +88,7 @@ describe('Renderer with emojis', () => {
       )
     );
 
-    console.log('Output:');
-    console.log(output);
-    console.log('---');
     const lines = output.split('\n');
-    for (const line of lines) {
-      console.log(`Line width: ${stringWidth(line)}, raw length: ${line.length}, line: "${line}"`);
-    }
 
     // Box should be 10 wide
     for (const line of lines) {

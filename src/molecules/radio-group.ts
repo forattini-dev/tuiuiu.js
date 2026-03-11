@@ -15,6 +15,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars } from '../core/capabilities.js';
 
 // =============================================================================
@@ -60,6 +61,7 @@ export interface RadioGroupState<T = string> {
   moveNext: () => void;
   selectCurrent: () => void;
   select: (value: T) => void;
+  updateOptions: (options: RadioGroupOptions<T>) => void;
 }
 
 // =============================================================================
@@ -72,11 +74,12 @@ export interface RadioGroupState<T = string> {
 export function createRadioGroup<T = string>(
   options: RadioGroupOptions<T>
 ): RadioGroupState<T> {
-  const { options: opts, initialValue, onChange } = options;
+  const { initialValue } = options;
+  let runtimeOptions = options;
 
   // Find initial focus index
   const initialIndex = initialValue
-    ? opts.findIndex((o) => o.value === initialValue)
+    ? runtimeOptions.options.findIndex((o) => o.value === initialValue)
     : 0;
 
   const [focusIndex, setFocusIndex] = createSignal(Math.max(0, initialIndex));
@@ -85,7 +88,7 @@ export function createRadioGroup<T = string>(
   const movePrev = () => {
     setFocusIndex((i) => {
       let newIndex = i - 1;
-      while (newIndex >= 0 && opts[newIndex]?.disabled) {
+      while (newIndex >= 0 && runtimeOptions.options[newIndex]?.disabled) {
         newIndex--;
       }
       return newIndex >= 0 ? newIndex : i;
@@ -95,27 +98,27 @@ export function createRadioGroup<T = string>(
   const moveNext = () => {
     setFocusIndex((i) => {
       let newIndex = i + 1;
-      while (newIndex < opts.length && opts[newIndex]?.disabled) {
+      while (newIndex < runtimeOptions.options.length && runtimeOptions.options[newIndex]?.disabled) {
         newIndex++;
       }
-      return newIndex < opts.length ? newIndex : i;
+      return newIndex < runtimeOptions.options.length ? newIndex : i;
     });
   };
 
   const selectCurrent = () => {
-    const opt = opts[focusIndex()];
+    const opt = runtimeOptions.options[focusIndex()];
     if (opt && !opt.disabled) {
       setSelected(opt.value);
-      onChange?.(opt.value);
+      runtimeOptions.onChange?.(opt.value);
     }
   };
 
   const select = (value: T) => {
-    const index = opts.findIndex((o) => o.value === value);
-    if (index >= 0 && !opts[index]?.disabled) {
+    const index = runtimeOptions.options.findIndex((o) => o.value === value);
+    if (index >= 0 && !runtimeOptions.options[index]?.disabled) {
       setFocusIndex(index);
       setSelected(value);
-      onChange?.(value);
+      runtimeOptions.onChange?.(value);
     }
   };
 
@@ -126,6 +129,11 @@ export function createRadioGroup<T = string>(
     moveNext,
     selectCurrent,
     select,
+    updateOptions: (nextOptions: RadioGroupOptions<T>) => {
+      runtimeOptions = nextOptions;
+      const maxIndex = Math.max(0, runtimeOptions.options.length - 1);
+      setFocusIndex((index) => Math.min(index, maxIndex));
+    },
   };
 }
 
@@ -164,7 +172,7 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createRadioGroup(props);
+  const state = useFactoryState(externalState, props, createRadioGroup);
   const chars = getChars();
 
   // Setup keyboard handling

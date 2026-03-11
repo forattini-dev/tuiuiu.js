@@ -116,17 +116,20 @@ setItems(prev => prev.map(item =>
 ));
 ```
 
-## Lazy Initial Value
+## Stable Factory Values
 
-For expensive computations, pass a function:
+When you need to create a stable object exactly once per component instance, use `useConst()`:
 
 ```typescript
-// ✅ Computed once on first render
-const [data, setData] = useState(() => expensiveComputation());
-
-// ❌ Computed every render (even if not used)
-const [data, setData] = useState(expensiveComputation());
+const input = useConst(() =>
+  createTextInput({
+    placeholder: 'Search...',
+    onSubmit: runSearch,
+  })
+);
 ```
+
+Use `useState()` for reactive local values and `useConst()` for stable controllers or factory-backed state objects.
 
 ## Type Inference
 
@@ -211,7 +214,7 @@ function App() {
 ## API Reference
 
 ```typescript
-function useState<T>(initialValue: T | (() => T)): [
+function useState<T>(initialValue: T): [
   () => T,           // getter (Signal)
   (value: T | ((prev: T) => T)) => void  // setter
 ]
@@ -219,6 +222,6 @@ function useState<T>(initialValue: T | (() => T)): [
 
 | Param | Type | Description |
 |:------|:-----|:------------|
-| `initialValue` | `T \| (() => T)` | Initial value or lazy initializer |
+| `initialValue` | `T` | Initial value |
 
 **Returns:** Tuple of `[getter, setter]`

@@ -220,9 +220,11 @@ describe('VerticalTabs Mouse Events', () => {
   describe('Tab Click Selection', () => {
     it('should switch tabs on click', () => {
       const onChange = vi.fn();
+      const state = createTabs({ tabs: basicTabs, onChange });
 
       const vnode = VerticalTabs({
         tabs: basicTabs,
+        state,
         onChange,
       });
 
@@ -238,6 +240,15 @@ describe('VerticalTabs Mouse Events', () => {
 
       // Should have 3 clickable tabs
       expect(clickableTabs.length).toBe(3);
+
+      expect(state.activeTab()).toBe('home');
+
+      const settingsTab = clickableTabs[1];
+      const sim = new MouseSimulator();
+      sim.click(settingsTab.x + 1, settingsTab.y);
+
+      expect(state.activeTab()).toBe('settings');
+      expect(onChange).toHaveBeenCalledWith('settings');
     });
 
     it('should not switch to disabled tab on click', () => {

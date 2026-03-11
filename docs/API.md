@@ -140,7 +140,7 @@ app.exit(1); // Exit with error code
 
 ### `useState<T>(initialValue: T): [Accessor<T>, Setter<T>]`
 
-Component state hook (alias for createSignal).
+Component state hook that persists across re-renders. Use `createSignal()` outside components.
 
 ```typescript
 const [visible, setVisible] = useState(true);
@@ -356,7 +356,7 @@ Select({
     { label: 'Option 1', value: '1' },
     { label: 'Option 2', value: '2' },
   ],
-  onSelect: (item) => console.log(item.value),
+  onSubmit: (value) => console.log(value),
   onCancel: () => console.log('cancelled'),
 })
 ```

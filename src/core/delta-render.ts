@@ -11,25 +11,200 @@
  * zaz (delta updates)
  */
 
-import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../utils/types.js';
+import type { VNode, TextStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
-import { calculateLayout, getVisibleWidth } from './layout.js';
-import { stringWidth } from '../utils/text-utils.js';
+import { getVisibleWidth } from './layout.js';
+import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
 import {
   CellBuffer,
   DoubleBuffer,
-  Cell,
   CellAttrs,
   Color,
+  emptyCell,
   patchesToAnsi,
   bufferToAnsi,
-  emptyCell,
-  colorToAnsi,
+  type DamageRect,
 } from './buffer.js';
-import { getDirtyRegistry, needsRender, markClean, clearChanges } from './dirty.js';
+import { markClean, clearChanges } from './dirty.js';
 import { hideCursor, showCursor } from '../utils/cursor.js';
-import { resolveColor as resolveThemeColor } from './theme.js';
-import type { Writable } from 'node:stream';
+import { getTheme, resolveColor as resolveThemeColor } from './theme.js';
+import {
+  clearImagesForProtocol,
+  renderImageWithProtocol,
+} from './graphics.js';
+import type {
+  DrawBoxCommand,
+  DrawCommand,
+  DrawTerminalImageCommand,
+  DrawTextCommand,
+  FrameSnapshot,
+  ReservedRegion,
+} from './frame.js';
+import { createFrameSnapshot, recordFramePhaseMetric } from './frame.js';
+
+const PRODUCTION_FRAME_OPTIONS = {
+  eagerHitTargets: false,
+  eagerQueries: false,
+  eagerWarnings: false,
+} as const;
+
+const DIRTY_AREA_FALLBACK_RATIO = 0.4;
+const DIRTY_RECT_FALLBACK_COUNT = 64;
+
+function now(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+const parsedColorCache = new WeakMap<object, Map<string, Color>>();
+
+function getParsedColorCache(): Map<string, Color> {
+  const theme = getTheme() as unknown as object;
+  let cache = parsedColorCache.get(theme);
+  if (!cache) {
+    cache = new Map();
+    parsedColorCache.set(theme, cache);
+  }
+  return cache;
+}
+
+function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
+  if (
+    left.type !== right.type ||
+    left.order !== right.order ||
+    left.zIndex !== right.zIndex ||
+    left.id !== right.id ||
+    left.nodeType !== right.nodeType
+  ) {
+    return false;
+  }
+
+  if (left.type === 'box' && right.type === 'box') {
+    return (
+      left.x === right.x &&
+      left.y === right.y &&
+      left.width === right.width &&
+      left.height === right.height &&
+      left.backgroundColor === right.backgroundColor &&
+      left.borderStyle === right.borderStyle &&
+      left.borderColor === right.borderColor
+    );
+  }
+
+  if (left.type === 'text' && right.type === 'text') {
+    return (
+      left.x === right.x &&
+      left.y === right.y &&
+      left.maxWidth === right.maxWidth &&
+      left.text === right.text &&
+      left.inheritedBackgroundColor === right.inheritedBackgroundColor &&
+      textStyleEquals(left.style, right.style)
+    );
+  }
+
+  if (left.type === 'terminal-image' && right.type === 'terminal-image') {
+    return (
+      left.x === right.x &&
+      left.y === right.y &&
+      left.width === right.width &&
+      left.height === right.height &&
+      left.protocol === right.protocol &&
+      left.fit === right.fit &&
+      left.threshold === right.threshold &&
+      left.dither === right.dither &&
+      left.preserveAspectRatio === right.preserveAspectRatio &&
+      left.cellRender === right.cellRender &&
+      left.source.hash === right.source.hash
+    );
+  }
+
+  return false;
+}
+
+function textStyleEquals(left: TextStyle, right: TextStyle): boolean {
+  const leftKeys = Object.keys(left) as Array<keyof TextStyle>;
+  const rightKeys = Object.keys(right) as Array<keyof TextStyle>;
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  for (const key of leftKeys) {
+    if (left[key] !== right[key]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function rectsIntersect(left: DamageRect, right: DamageRect): boolean {
+  return !(
+    left.x + left.width <= right.x ||
+    right.x + right.width <= left.x ||
+    left.y + left.height <= right.y ||
+    right.y + right.height <= left.y
+  );
+}
+
+function normalizeRect(rect: DamageRect, width: number, height: number): DamageRect | null {
+  const x1 = Math.max(0, rect.x);
+  const y1 = Math.max(0, rect.y);
+  const x2 = Math.min(width, rect.x + rect.width);
+  const y2 = Math.min(height, rect.y + rect.height);
+
+  if (x2 <= x1 || y2 <= y1) {
+    return null;
+  }
+
+  return {
+    x: x1,
+    y: y1,
+    width: x2 - x1,
+    height: y2 - y1,
+  };
+}
+
+function mergeDirtyRects(rects: DamageRect[], width: number, height: number): DamageRect[] {
+  const normalized = rects
+    .map(rect => normalizeRect(rect, width, height))
+    .filter((rect): rect is DamageRect => rect !== null)
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x));
+
+  if (normalized.length <= 1) {
+    return normalized;
+  }
+
+  const merged: DamageRect[] = [];
+
+  for (const rect of normalized) {
+    const last = merged[merged.length - 1];
+    if (!last) {
+      merged.push({ ...rect });
+      continue;
+    }
+
+    const touches =
+      rectsIntersect(last, rect) ||
+      (rect.y <= last.y + last.height && rect.x <= last.x + last.width);
+
+    if (!touches) {
+      merged.push({ ...rect });
+      continue;
+    }
+
+    const nextX1 = Math.min(last.x, rect.x);
+    const nextY1 = Math.min(last.y, rect.y);
+    const nextX2 = Math.max(last.x + last.width, rect.x + rect.width);
+    const nextY2 = Math.max(last.y + last.height, rect.y + rect.height);
+
+    last.x = nextX1;
+    last.y = nextY1;
+    last.width = nextX2 - nextX1;
+    last.height = nextY2 - nextY1;
+  }
+
+  return merged;
+}
 
 // =============================================================================
 // Types
@@ -49,6 +224,8 @@ export interface DeltaRenderOptions {
 export interface DeltaRenderer {
   /** Render a VNode tree */
   render(node: VNode): void;
+  /** Render a previously committed frame */
+  renderFrame(frame: FrameSnapshot): void;
   /** Force full redraw */
   fullRedraw(): void;
   /** Clear the screen */
@@ -97,6 +274,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
   let isFirstRender = true;
   let hasHiddenCursor = false;
   let lastNode: VNode | null = null;
+  let lastFrame: FrameSnapshot | null = null;
 
   // Statistics
   let totalRenders = 0;
@@ -108,57 +286,21 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
    * Render a VNode tree with delta updates
    */
   function render(node: VNode): void {
-    // Hide cursor if needed
-    if (!showCursorOption && !hasHiddenCursor) {
-      hideCursor(stdout);
-      hasHiddenCursor = true;
-    }
+    prepareRender(stdout.columns || 80, stdout.rows || 24);
+    const frame = createFrameSnapshot(node, { width, height }, PRODUCTION_FRAME_OPTIONS);
+    renderFrame(frame);
+  }
 
-    // Check if resize needed
-    const newWidth = stdout.columns || 80;
-    const newHeight = stdout.rows || 24;
-    if (newWidth !== width || newHeight !== height) {
-      resize(newWidth, newHeight);
-    }
-
-    // Calculate layout
-    const layout = calculateLayout(node, width, height);
-
-    // Get back buffer and clear it
-    const backBuffer = doubleBuffer.getBackBuffer();
-    backBuffer.clear();
-
-    // Render layout to back buffer
-    renderLayoutToBuffer(layout, backBuffer, 0, 0);
-
-    // Swap buffers and get patches
-    const patches = doubleBuffer.swap();
-    lastPatchCount = patches.length;
-    totalRenders++;
-
-    if (debug) {
-      console.error(`[delta-render] patches: ${patches.length}, cells: ${width * height}`);
-    }
-
-    // Decide rendering strategy
-    if (isFirstRender || !useDelta || patches.length > (width * height * 0.5)) {
-      // Full redraw for first render or if >50% changed
-      const output = bufferToAnsi(doubleBuffer.getFrontBuffer());
-      stdout.write('\x1b[H'); // Move to home position
-      stdout.write(output);
-      fullRenders++;
-      isFirstRender = false;
-    } else if (patches.length > 0) {
-      // Delta update - only render changed cells
-      const output = patchesToAnsi(patches, width);
-      stdout.write(output);
-      deltaRenders++;
-    }
-
-    // Mark all nodes clean
-    markClean(node);
+  /**
+   * Render a committed frame with delta updates
+   */
+  function renderFrame(frame: FrameSnapshot): void {
+    prepareRender(frame.info.viewport.width, frame.info.viewport.height);
+    commitFrame(frame);
+    markClean(frame.root);
     clearChanges();
-    lastNode = node;
+    lastNode = frame.root;
+    lastFrame = frame;
   }
 
   /**
@@ -168,6 +310,8 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
     isFirstRender = true;
     if (lastNode) {
       render(lastNode);
+    } else if (lastFrame) {
+      commitFrame(lastFrame);
     }
   }
 
@@ -215,8 +359,118 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
     isFirstRender = true;
   }
 
+  /**
+   * Prepare terminal cursor and buffer dimensions before rendering.
+   */
+  function prepareRender(nextWidth: number, nextHeight: number): void {
+    if (!showCursorOption && !hasHiddenCursor) {
+      hideCursor(stdout);
+      hasHiddenCursor = true;
+    }
+
+    if (nextWidth !== width || nextHeight !== height) {
+      resize(nextWidth, nextHeight);
+    }
+  }
+
+  /**
+   * Commit a frame to the double buffer and emit either a full redraw or patches.
+   */
+  function commitFrame(frame: FrameSnapshot): void {
+    const renderStart = now();
+    const frontBuffer = doubleBuffer.getFrontBuffer();
+    const backBuffer = doubleBuffer.getBackBuffer();
+    totalRenders++;
+    const screenArea = width * height;
+    const graphicsOutput = buildProtocolGraphicsOutput(lastFrame, frame);
+
+    if (!isFirstRender && useDelta && lastFrame) {
+      const dirtyRects = collectDirtyRects(lastFrame.drawCommands, frame.drawCommands, width, height);
+
+      if (dirtyRects.length === 0) {
+        if (graphicsOutput) {
+          stdout.write(graphicsOutput);
+        }
+        lastPatchCount = 0;
+        recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+        return;
+      }
+
+      const dirtyArea = getDirtyArea(dirtyRects);
+      const shouldFallbackToFull =
+        dirtyRects.length > DIRTY_RECT_FALLBACK_COUNT ||
+        dirtyArea > (screenArea * DIRTY_AREA_FALLBACK_RATIO);
+
+      if (!shouldFallbackToFull) {
+        clearDirtyRects(backBuffer, dirtyRects);
+        renderDirtyDrawCommandsToBuffer(frame.drawCommands, dirtyRects, backBuffer, frame.reservedRegions);
+
+        const patches = frontBuffer.diffRects(backBuffer, dirtyRects);
+        frontBuffer.applyPatches(patches);
+        backBuffer.clearDamage();
+        lastPatchCount = patches.length;
+
+        if (debug) {
+          console.error(
+            `[delta-render] dirty-rects: ${dirtyRects.length}, patches: ${patches.length}, cells: ${screenArea}`,
+          );
+        }
+
+        if (graphicsOutput) {
+          stdout.write(graphicsOutput);
+        }
+
+        if (patches.length > 0) {
+          const output = patchesToAnsi(patches, width, true);
+          stdout.write(output);
+          deltaRenders++;
+        }
+
+        recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+        return;
+      }
+    }
+
+    backBuffer.clear();
+    renderDrawCommandsToBuffer(frame.drawCommands, backBuffer, frame.reservedRegions);
+
+    const patches = doubleBuffer.swap();
+    lastPatchCount = patches.length;
+
+    if (debug) {
+      console.error(`[delta-render] patches: ${patches.length}, cells: ${screenArea}`);
+    }
+
+    if (isFirstRender || !useDelta || patches.length > (screenArea * 0.5)) {
+      const output = bufferToAnsi(doubleBuffer.getFrontBuffer());
+      if (graphicsOutput) {
+        stdout.write(graphicsOutput);
+      }
+      stdout.write('\x1b[H');
+      stdout.write(output);
+      fullRenders++;
+      isFirstRender = false;
+      recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+      return;
+    }
+
+    if (graphicsOutput) {
+      stdout.write(graphicsOutput);
+    }
+
+    if (patches.length > 0) {
+      const output = patchesToAnsi(patches, width, true);
+      stdout.write(output);
+      deltaRenders++;
+    }
+
+    isFirstRender = false;
+    recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+  }
+
   return {
     render,
+    renderFrame,
     fullRedraw,
     clear,
     cleanup,
@@ -226,123 +480,440 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
 }
 
 // =============================================================================
-// Layout to Buffer Rendering
+// Draw Commands to Buffer Rendering
 // =============================================================================
 
-/**
- * Render a layout tree to a CellBuffer
- */
-function renderLayoutToBuffer(
-  layout: LayoutNode,
-  buffer: CellBuffer,
-  offsetX: number,
-  offsetY: number,
-  parentBg?: Color
-): void {
-  const { node, x, y, width, height, children } = layout;
-  const absX = offsetX + x;
-  const absY = offsetY + y;
-
-  // Get this node's background color (or inherit from parent)
-  const style = node.props as BoxStyle;
-  const nodeBg = style.backgroundColor ? parseColor(style.backgroundColor) : parentBg;
-
-  // Render based on node type
-  switch (node.type) {
-    case 'box':
-      renderBoxToBuffer(node, buffer, absX, absY, width, height, nodeBg);
-      break;
-    case 'text':
-      renderTextToBuffer(node, buffer, absX, absY, width, nodeBg);
-      break;
-    case 'spacer':
-      // Note: Spacer background is NOT filled to avoid flickering.
-      // Background inheritance happens through text children.
-      break;
-    case 'newline':
-    case 'fragment':
-      // No visual representation
-      break;
+function getTextCommandBounds(command: DrawTextCommand): DamageRect {
+  if (command.maxWidth <= 0 || command.text.length === 0) {
+    return { x: command.x, y: command.y, width: 0, height: 0 };
   }
 
-  // Calculate content offset (for padding and border)
-  const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
-  const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
-  const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
-  const contentOffsetX = absX + paddingLeft + borderSize;
-  const contentOffsetY = absY + paddingTop + borderSize;
+  let maxLineWidth = 0;
+  let lastInkRow = -1;
 
-  // Render children (pass background color for inheritance)
-  for (const child of children) {
-    renderLayoutToBuffer(child, buffer, contentOffsetX, contentOffsetY, nodeBg);
+  if (command.text.includes('\x1b[')) {
+    const segments = parseAnsiText(command.text);
+    let row = 0;
+    let col = 0;
+
+    for (const segment of segments) {
+      let index = 0;
+      while (index < segment.text.length) {
+        const symbol = readRenderableSymbol(segment.text, index);
+        if (!symbol) {
+          break;
+        }
+
+        const char = symbol.symbol;
+        if (char === '\n') {
+          maxLineWidth = Math.max(maxLineWidth, col);
+          row++;
+          col = 0;
+          index = symbol.nextIndex;
+          continue;
+        }
+
+        if (col >= command.maxWidth) {
+          maxLineWidth = Math.max(maxLineWidth, col);
+          row++;
+          col = 0;
+        }
+
+        col += stringWidth(char);
+        maxLineWidth = Math.max(maxLineWidth, Math.min(command.maxWidth, col));
+        lastInkRow = row;
+        index = symbol.nextIndex;
+      }
+    }
+  } else {
+    const lines = wrapTextForBuffer(command.text, command.maxWidth, command.style.wrap);
+
+    for (let index = 0; index < lines.length; index++) {
+      const lineWidth = Math.min(command.maxWidth, getVisibleWidth(lines[index]!));
+      if (lineWidth > 0) {
+        maxLineWidth = Math.max(maxLineWidth, lineWidth);
+        lastInkRow = index;
+      }
+    }
+  }
+
+  return {
+    x: command.x,
+    y: command.y,
+    width: maxLineWidth,
+    height: lastInkRow >= 0 ? lastInkRow + 1 : 0,
+  };
+}
+
+function getCommandBounds(command: DrawCommand): DamageRect {
+  if (command.type === 'box' || command.type === 'terminal-image') {
+    return {
+      x: command.x,
+      y: command.y,
+      width: command.width,
+      height: command.height,
+    };
+  }
+
+  return getTextCommandBounds(command);
+}
+
+function collectDirtyRects(
+  previous: DrawCommand[],
+  next: DrawCommand[],
+  width: number,
+  height: number,
+): DamageRect[] {
+  const dirtyRects: DamageRect[] = [];
+  const maxLength = Math.max(previous.length, next.length);
+
+  for (let index = 0; index < maxLength; index++) {
+    const previousCommand = previous[index];
+    const nextCommand = next[index];
+
+    if (previousCommand && nextCommand && drawCommandEquals(previousCommand, nextCommand)) {
+      continue;
+    }
+
+    if (previousCommand) {
+      dirtyRects.push(getCommandBounds(previousCommand));
+    }
+
+    if (nextCommand) {
+      dirtyRects.push(getCommandBounds(nextCommand));
+    }
+  }
+
+  return mergeDirtyRects(dirtyRects, width, height);
+}
+
+function getDirtyArea(rects: DamageRect[]): number {
+  return rects.reduce((total, rect) => total + (rect.width * rect.height), 0);
+}
+
+function clearDirtyRects(buffer: CellBuffer, rects: DamageRect[]): void {
+  const blank = emptyCell();
+
+  for (const rect of rects) {
+    buffer.fill(rect.x, rect.y, rect.width, rect.height, blank);
+  }
+}
+
+function isReservedCell(regions: readonly ReservedRegion[], x: number, y: number): boolean {
+  return regions.some((region) =>
+    x >= region.x &&
+    x < region.x + region.width &&
+    y >= region.y &&
+    y < region.y + region.height
+  );
+}
+
+function writeCharReservedAware(
+  buffer: CellBuffer,
+  regions: readonly ReservedRegion[],
+  x: number,
+  y: number,
+  char: string,
+  fg?: Color,
+  bg?: Color,
+  attrs: CellAttrs = {},
+): void {
+  const width = Math.max(1, stringWidth(char));
+  for (let offset = 0; offset < width; offset++) {
+    if (isReservedCell(regions, x + offset, y)) {
+      return;
+    }
+  }
+
+  buffer.writeChar(x, y, char, fg, bg, attrs);
+}
+
+function fillRowReservedAware(
+  buffer: CellBuffer,
+  regions: readonly ReservedRegion[],
+  x: number,
+  y: number,
+  width: number,
+  char: string,
+  fg?: Color,
+  bg?: Color,
+  attrs: CellAttrs = {},
+): void {
+  for (let col = 0; col < width; col++) {
+    if (!isReservedCell(regions, x + col, y)) {
+      buffer.writeChar(x + col, y, char, fg, bg, attrs);
+    }
+  }
+}
+
+function renderDrawCommandToBuffer(
+  command: DrawCommand,
+  buffer: CellBuffer,
+  reservedRegions: readonly ReservedRegion[],
+): void {
+  switch (command.type) {
+    case 'box':
+      renderBoxToBuffer(command, buffer, reservedRegions);
+      break;
+    case 'text':
+      renderTextToBuffer(command, buffer, reservedRegions);
+      break;
+    case 'terminal-image':
+      renderTerminalImageToBuffer(command, buffer);
+      break;
+  }
+}
+
+function renderDirtyDrawCommandsToBuffer(
+  commands: DrawCommand[],
+  dirtyRects: DamageRect[],
+  buffer: CellBuffer,
+  reservedRegions: readonly ReservedRegion[],
+): void {
+  for (const command of commands) {
+    const bounds = getCommandBounds(command);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      continue;
+    }
+
+    for (const rect of dirtyRects) {
+      if (rectsIntersect(bounds, rect)) {
+        renderDrawCommandToBuffer(command, buffer, reservedRegions);
+        break;
+      }
+    }
   }
 }
 
 /**
- * Render a Box node to buffer
+ * Render semantic draw commands to a CellBuffer.
+ */
+function renderDrawCommandsToBuffer(
+  commands: DrawCommand[],
+  buffer: CellBuffer,
+  reservedRegions: readonly ReservedRegion[],
+): void {
+  for (const command of commands) {
+    renderDrawCommandToBuffer(command, buffer, reservedRegions);
+  }
+}
+
+/**
+ * Render a Box command to buffer
  */
 function renderBoxToBuffer(
-  node: VNode,
+  command: DrawBoxCommand,
   buffer: CellBuffer,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  bgColor?: Color
+  reservedRegions: readonly ReservedRegion[],
 ): void {
-  const style = node.props as BoxStyle;
-
-  // Parse colors
-  const borderColor = style.borderColor ? parseColor(style.borderColor) : undefined;
-  const boxBg = style.backgroundColor ? parseColor(style.backgroundColor) : bgColor;
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor } = command;
+  const boxBg = backgroundColor ? parseColor(backgroundColor) : undefined;
+  const parsedBorderColor = borderColor ? parseColor(borderColor) : undefined;
 
   // Fill background if specified
   if (boxBg) {
-    const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
+    const borderSize = borderStyle && borderStyle !== 'none' ? 1 : 0;
     const fillX = x + borderSize;
     const fillY = y + borderSize;
     const fillWidth = Math.max(0, width - borderSize * 2);
     const fillHeight = Math.max(0, height - borderSize * 2);
 
     for (let row = 0; row < fillHeight; row++) {
-      for (let col = 0; col < fillWidth; col++) {
-        buffer.writeChar(fillX + col, fillY + row, ' ', undefined, boxBg, {});
-      }
+      fillRowReservedAware(buffer, reservedRegions, fillX, fillY + row, fillWidth, ' ', undefined, boxBg, {});
     }
   }
 
-  if (style.borderStyle && style.borderStyle !== 'none') {
-    const borderChars = BORDER_STYLES[style.borderStyle] ?? BORDER_STYLES.single;
+  if (borderStyle && borderStyle !== 'none') {
+    const borderChars = BORDER_STYLES[borderStyle] ?? BORDER_STYLES.single;
     const attrs: CellAttrs = {};
 
     // Top border
-    buffer.writeChar(x, y, borderChars.topLeft, borderColor, undefined, attrs);
+    writeCharReservedAware(buffer, reservedRegions, x, y, borderChars.topLeft, parsedBorderColor, undefined, attrs);
     for (let i = 1; i < width - 1; i++) {
-      buffer.writeChar(x + i, y, borderChars.top, borderColor, undefined, attrs);
+      writeCharReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, parsedBorderColor, undefined, attrs);
     }
     if (width > 1) {
-      buffer.writeChar(x + width - 1, y, borderChars.topRight, borderColor, undefined, attrs);
+      writeCharReservedAware(
+        buffer,
+        reservedRegions,
+        x + width - 1,
+        y,
+        borderChars.topRight,
+        parsedBorderColor,
+        undefined,
+        attrs,
+      );
     }
 
     // Side borders
     for (let row = 1; row < height - 1; row++) {
-      buffer.writeChar(x, y + row, borderChars.left, borderColor, undefined, attrs);
+      writeCharReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, parsedBorderColor, undefined, attrs);
       if (width > 1) {
-        buffer.writeChar(x + width - 1, y + row, borderChars.right, borderColor, undefined, attrs);
+        writeCharReservedAware(
+          buffer,
+          reservedRegions,
+          x + width - 1,
+          y + row,
+          borderChars.right,
+          parsedBorderColor,
+          undefined,
+          attrs,
+        );
       }
     }
 
     // Bottom border
     if (height > 1) {
-      buffer.writeChar(x, y + height - 1, borderChars.bottomLeft, borderColor, undefined, attrs);
+      writeCharReservedAware(
+        buffer,
+        reservedRegions,
+        x,
+        y + height - 1,
+        borderChars.bottomLeft,
+        parsedBorderColor,
+        undefined,
+        attrs,
+      );
       for (let i = 1; i < width - 1; i++) {
-        buffer.writeChar(x + i, y + height - 1, borderChars.bottom, borderColor, undefined, attrs);
+        writeCharReservedAware(
+          buffer,
+          reservedRegions,
+          x + i,
+          y + height - 1,
+          borderChars.bottom,
+          parsedBorderColor,
+          undefined,
+          attrs,
+        );
       }
       if (width > 1) {
-        buffer.writeChar(x + width - 1, y + height - 1, borderChars.bottomRight, borderColor, undefined, attrs);
+        writeCharReservedAware(
+          buffer,
+          reservedRegions,
+          x + width - 1,
+          y + height - 1,
+          borderChars.bottomRight,
+          parsedBorderColor,
+          undefined,
+          attrs,
+        );
       }
     }
   }
+}
+
+function renderTerminalImageToBuffer(
+  command: DrawTerminalImageCommand,
+  buffer: CellBuffer,
+): void {
+  if (!command.cellRender) {
+    return;
+  }
+
+  renderTextToBuffer(
+    {
+      type: 'text',
+      order: command.order,
+      id: command.id,
+      nodeType: command.nodeType,
+      x: command.x,
+      y: command.y,
+      maxWidth: command.width,
+      text: getTerminalImagePayload(command),
+      style: {},
+    },
+    buffer,
+    [],
+  );
+}
+
+function protocolCommandSignature(command: DrawTerminalImageCommand): string {
+  if (command.protocolState) {
+    return command.protocolState.getCacheKey(command.source, {
+      protocol: command.protocol,
+      width: command.width,
+      height: command.height,
+      fit: command.fit,
+      threshold: command.threshold,
+      dither: command.dither,
+      preserveAspectRatio: command.preserveAspectRatio,
+    });
+  }
+
+  return [
+    command.protocol,
+    command.id ?? '',
+    command.x,
+    command.y,
+    command.width,
+    command.height,
+    command.source.hash,
+    command.fit,
+    command.threshold ?? '',
+    command.dither ? 1 : 0,
+    command.preserveAspectRatio ? 1 : 0,
+  ].join(':');
+}
+
+function getTerminalImagePayload(command: DrawTerminalImageCommand): string {
+  const options = {
+    width: command.width,
+    height: command.height,
+    fit: command.fit,
+    threshold: command.threshold,
+    dither: command.dither,
+    preserveAspectRatio: command.preserveAspectRatio,
+  };
+
+  if (command.protocolState) {
+    return command.protocolState.render(command.source, {
+      protocol: command.protocol,
+      ...options,
+    }).payload;
+  }
+
+  return renderImageWithProtocol(command.protocol, command.source, options);
+}
+
+function collectProtocolImageCommands(frame: FrameSnapshot | null): DrawTerminalImageCommand[] {
+  if (!frame) {
+    return [];
+  }
+
+  return frame.drawCommands.filter(
+    (command): command is DrawTerminalImageCommand =>
+      command.type === 'terminal-image' && !command.cellRender,
+  );
+}
+
+function buildProtocolGraphicsOutput(previousFrame: FrameSnapshot | null, frame: FrameSnapshot): string {
+  const previousCommands = collectProtocolImageCommands(previousFrame);
+  const nextCommands = collectProtocolImageCommands(frame);
+  const previousSignature = previousCommands.map(protocolCommandSignature).join('|');
+  const nextSignature = nextCommands.map(protocolCommandSignature).join('|');
+
+  if (previousFrame && previousSignature === nextSignature) {
+    return '';
+  }
+
+  let output = '';
+
+  if (previousCommands.length > 0 && previousSignature !== nextSignature) {
+    const previousProtocols = new Set(previousCommands.map(command => command.protocol));
+    if (previousProtocols.has('kitty')) {
+      output += '\x1b7\x1b[H';
+      output += clearImagesForProtocol('kitty');
+      output += '\x1b8';
+    }
+  }
+
+  for (const command of nextCommands) {
+    output += `\x1b7\x1b[${command.y + 1};${command.x + 1}H`;
+    output += getTerminalImagePayload(command);
+    output += '\x1b8';
+  }
+
+  return output;
 }
 
 /**
@@ -466,26 +1037,26 @@ function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: 
 }
 
 function renderTextToBuffer(
-  node: VNode,
+  command: DrawTextCommand,
   buffer: CellBuffer,
-  x: number,
-  y: number,
-  maxWidth: number,
-  parentBg?: Color
+  reservedRegions: readonly ReservedRegion[],
 ): void {
-  const props = node.props as TextStyle & { children: string };
-  const text = String(props.children ?? '');
+  const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
 
   // Parse colors and attributes (inherit bg from parent if not set)
-  const baseFg = props.color ? parseColor(props.color) : undefined;
-  const baseBg = props.backgroundColor ? parseColor(props.backgroundColor) : parentBg;
+  const baseFg = style.color ? parseColor(style.color) : undefined;
+  const baseBg = style.backgroundColor
+    ? parseColor(style.backgroundColor)
+    : inheritedBackgroundColor
+      ? parseColor(inheritedBackgroundColor)
+      : undefined;
   const baseAttrs: CellAttrs = {
-    bold: props.bold,
-    dim: props.dim,
-    italic: props.italic,
-    underline: props.underline,
-    inverse: props.inverse,
-    strikethrough: props.strikethrough,
+    bold: style.bold,
+    dim: style.dim,
+    italic: style.italic,
+    underline: style.underline,
+    inverse: style.inverse,
+    strikethrough: style.strikethrough,
   };
 
   // Check if text contains ANSI sequences
@@ -498,10 +1069,18 @@ function renderTextToBuffer(
     let row = 0;
 
     for (const segment of segments) {
-      for (const char of segment.text) {
+      let index = 0;
+      while (index < segment.text.length) {
+        const symbol = readRenderableSymbol(segment.text, index);
+        if (!symbol) {
+          break;
+        }
+
+        const char = symbol.symbol;
         if (char === '\n') {
           row++;
           col = 0;
+          index = symbol.nextIndex;
           continue;
         }
         if (col >= maxWidth) {
@@ -509,21 +1088,34 @@ function renderTextToBuffer(
           col = 0;
         }
         const charWidth = stringWidth(char);
-        buffer.writeChar(x + col, y + row, char, segment.fg, segment.bg, segment.attrs);
-        col += charWidth;
+        if (charWidth > 0) {
+          writeCharReservedAware(buffer, reservedRegions, x + col, y + row, char, segment.fg, segment.bg, segment.attrs);
+          col += charWidth;
+        }
+        index = symbol.nextIndex;
       }
     }
   } else {
     // Handle wrapping for non-ANSI text
-    const lines = wrapTextForBuffer(text, maxWidth, props.wrap);
+    const lines = wrapTextForBuffer(text, maxWidth, style.wrap);
 
     for (let i = 0; i < lines.length; i++) {
       let col = 0;
-      for (const char of lines[i]!) {
+      let index = 0;
+      while (index < lines[i]!.length) {
+        const symbol = readRenderableSymbol(lines[i]!, index);
+        if (!symbol) {
+          break;
+        }
+
+        const char = symbol.symbol;
         if (col >= maxWidth) break;
         const charWidth = stringWidth(char);
-        buffer.writeChar(x + col, y + i, char, baseFg, baseBg, baseAttrs);
-        col += charWidth;
+        if (charWidth > 0) {
+          writeCharReservedAware(buffer, reservedRegions, x + col, y + i, char, baseFg, baseBg, baseAttrs);
+          col += charWidth;
+        }
+        index = symbol.nextIndex;
       }
     }
   }
@@ -534,8 +1126,15 @@ function renderTextToBuffer(
  * Resolves semantic theme colors (primary, success, etc.) to actual color values
  */
 function parseColor(color: string): Color {
+  const cache = getParsedColorCache();
+  const cached = cache.get(color);
+  if (cached) {
+    return cached;
+  }
+
   // Resolve semantic/theme colors (primary, success, foreground, etc.)
   const resolved = resolveThemeColor(color);
+  cache.set(color, resolved);
   return resolved;
 }
 

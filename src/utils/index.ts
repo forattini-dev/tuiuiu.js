@@ -97,7 +97,8 @@ export type {
 
 // Node.js FS Storage for persistence
 export {
-  createNodeFsStorage
+  createNodeFsStorage,
+  createNodeFsSyncStorage,
 } from './fs-storage.js';
 
 // System data (Linux /proc filesystem)
@@ -144,4 +145,3 @@ export {
   truncateMiddle,
   truncateEnd,
 } from './formatters.js';
-

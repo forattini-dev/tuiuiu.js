@@ -339,7 +339,7 @@ ScrollList({
 const store = createStore(todoReducer, { items: [] });
 
 ScrollList({
-  items: () => store.getState().items,  // Reactive!
+  items: () => store.state().items,
   children: (item) => TodoItem({ item }),
   height: 20,
 })
@@ -423,14 +423,14 @@ List components (ScrollList, Each, Static) accept reactive data sources:
 |--------|---------|---------------|
 | Static array | \`items: [1, 2, 3]\` | ❌ No |
 | Signal | \`items: items\` or \`items: () => items()\` | ✅ Yes |
-| Store | \`items: () => store.getState().items\` | ✅ Yes |
+| Store | \`items: () => store.state().items\` | ✅ Yes |
 
 \`\`\`typescript
 // With createStore (Redux-like)
 const store = createStore(todoReducer, { items: [] });
 
 ScrollList({
-  items: () => store.getState().items,  // Auto-updates on dispatch!
+  items: () => store.state().items,  // Auto-updates on dispatch!
   children: (item) => TodoItem({ item }),
   height: 20,
 });

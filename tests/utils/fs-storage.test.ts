@@ -7,7 +7,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { createNodeFsStorage } from '../../src/utils/fs-storage.js';
+import {
+  createNodeFsStorage,
+  createNodeFsSyncStorage,
+} from '../../src/utils/fs-storage.js';
 
 const TEST_DIR = './.tuiuiu-test-data';
 
@@ -130,5 +133,50 @@ describe('createNodeFsStorage', () => {
 
       expect(await storage.getItem('overwrite')).toBe('second');
     });
+  });
+});
+
+describe('createNodeFsSyncStorage', () => {
+  beforeEach(() => {
+    if (fs.existsSync(TEST_DIR)) {
+      fs.rmSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(TEST_DIR)) {
+      fs.rmSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  it('should save and read values synchronously', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
+
+    storage.setItem('sync-key', '{"count": 1}');
+
+    expect(storage.getItem('sync-key')).toBe('{"count": 1}');
+  });
+
+  it('should return null for missing keys', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
+
+    expect(storage.getItem('missing')).toBeNull();
+  });
+
+  it('should reject unsafe keys', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
+
+    expect(() => storage.getItem('../evil')).toThrow('Invalid storage key');
+    expect(() => storage.setItem('bad/key', 'x')).toThrow('Invalid storage key');
+  });
+
+  it('should respect custom extensions', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR, ext: '.txt' });
+
+    storage.setItem('plain', 'hello');
+
+    const filePath = path.join(TEST_DIR, 'plain.txt');
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(storage.getItem('plain')).toBe('hello');
   });
 });

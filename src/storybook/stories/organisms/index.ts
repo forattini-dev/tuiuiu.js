@@ -24,6 +24,7 @@ import {
   VirtualList,
   ScrollableText,
   LogViewer,
+  ScrollPanel,
   ScrollList,
   ChatList,
   Grid,
@@ -634,6 +635,30 @@ export const scrollAreaStories: Story[] = [
     ),
 ];
 
+export const scrollPanelStories: Story[] = [
+  story('ScrollPanel - Basic')
+    .category('Organisms')
+    .description('Panel wrapper around ScrollArea with title and chrome')
+    .controls({
+      title: defaultControls.text('Title', 'Recent Logs'),
+      height: defaultControls.range('Height', 12, 8, 18),
+      borderStyle: defaultControls.select('Border Style', ['single', 'double', 'round', 'bold'], 'round'),
+      showScrollbar: defaultControls.boolean('Show Scrollbar', true),
+      isActive: defaultControls.boolean('Active', true),
+    })
+    .render((props) =>
+      ScrollPanel({
+        title: props.title,
+        content: scrollLines,
+        height: props.height,
+        borderStyle: props.borderStyle,
+        showScrollbar: props.showScrollbar,
+        isActive: props.isActive,
+        width: 48,
+      })
+    ),
+];
+
 export const scrollListStories: Story[] = [
   story('ScrollList - Basic')
     .category('Organisms')
@@ -1041,6 +1066,7 @@ export const allOrganismStories: Story[] = [
   ...overlayStories,
   ...splitPanelStories,
   ...scrollAreaStories,
+  ...scrollPanelStories,
   ...scrollListStories,
   ...gridStories,
   ...dataTableStories,

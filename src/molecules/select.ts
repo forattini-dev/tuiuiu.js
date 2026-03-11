@@ -19,7 +19,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { useInput, type Key } from '../hooks/index.js';
+import { useConst, useInput, type Key } from '../hooks/index.js';
+import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 
@@ -40,7 +41,7 @@ export interface SelectItem<T = any> {
   icon?: string;
 }
 
-export interface SelectOptions<T = any> {
+export interface CreateSelectOptions<T = any> {
   /** Items to select from */
   items: SelectItem<T>[];
   /** Allow multiple selections */
@@ -51,6 +52,23 @@ export interface SelectOptions<T = any> {
   maxVisible?: number;
   /** Enable type-ahead search */
   searchable?: boolean;
+  /** On selection change */
+  onChange?: (value: T | T[]) => void;
+  /** On submit (Enter) */
+  onSubmit?: (value: T | T[]) => void;
+  /** On cancel (Escape) */
+  onCancel?: () => void;
+  /** Is active/focused - can be boolean or getter function for reactive updates */
+  isActive?: boolean | (() => boolean);
+}
+
+export interface SelectRenderOptions<T = any> {
+  /** Enable type-ahead search */
+  searchable?: boolean;
+  /** Expand to fill available width */
+  fullWidth?: boolean;
+  /** Optional border around the select list */
+  borderStyle?: 'none' | 'single' | 'round' | 'double';
   /** Placeholder for search */
   searchPlaceholder?: string;
   /** Cursor indicator */
@@ -69,41 +87,50 @@ export interface SelectOptions<T = any> {
   colorDisabled?: string;
   /** Show item count */
   showCount?: boolean;
-  /** On selection change */
+}
+
+export type SelectOptions<T = any> = CreateSelectOptions<T> & SelectRenderOptions<T>;
+
+interface SelectRuntimeOptions<T = any> {
+  items: SelectItem<T>[];
+  multiple: boolean;
+  maxVisible: number;
+  searchable: boolean;
   onChange?: (value: T | T[]) => void;
-  /** On submit (Enter) */
   onSubmit?: (value: T | T[]) => void;
-  /** On cancel (Escape) */
   onCancel?: () => void;
-  /** Is active/focused - can be boolean or getter function for reactive updates */
-  isActive?: boolean | (() => boolean);
-  /** Expand to fill available width */
-  fullWidth?: boolean;
+  isActive: boolean | (() => boolean);
+}
+
+function resolveRuntimeOptions<T>(options: CreateSelectOptions<T>): SelectRuntimeOptions<T> {
+  return {
+    items: options.items,
+    multiple: options.multiple ?? false,
+    maxVisible: options.maxVisible ?? 10,
+    searchable: options.searchable ?? false,
+    onChange: options.onChange,
+    onSubmit: options.onSubmit,
+    onCancel: options.onCancel,
+    isActive: options.isActive ?? true,
+  };
 }
 
 /**
  * Create a select state manager
  */
-export function createSelect<T = any>(options: SelectOptions<T>) {
-  const {
-    items,
-    multiple = false,
-    initialValue,
-    maxVisible = 10,
-    searchable = false,
-    onChange,
-    isActive: isActiveProp = true,
-  } = options;
+export function createSelect<T = any>(options: CreateSelectOptions<T>) {
+  let runtimeOptions = resolveRuntimeOptions(options);
+  const { initialValue } = options;
 
   // Helper to check if select is currently active
   // Supports both static boolean and reactive getter function
   const checkIsActive = (): boolean => {
-    return typeof isActiveProp === 'function' ? isActiveProp() : isActiveProp;
+    return typeof runtimeOptions.isActive === 'function' ? runtimeOptions.isActive() : runtimeOptions.isActive;
   };
 
   // Initialize selected values
   let initialSelected: T[] = [];
-  if (multiple) {
+  if (runtimeOptions.multiple) {
     if (Array.isArray(initialValue)) {
       initialSelected = initialValue as T[];
     } else if (initialValue !== undefined) {
@@ -122,8 +149,8 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
   // Filter items based on search
   const getFilteredItems = (): SelectItem<T>[] => {
     const query = searchQuery().toLowerCase();
-    if (!query) return items;
-    return items.filter((item) =>
+    if (!query) return runtimeOptions.items;
+    return runtimeOptions.items.filter((item) =>
       item.label.toLowerCase().includes(query) ||
       item.description?.toLowerCase().includes(query)
     );
@@ -133,7 +160,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
   const getVisibleItems = (): { items: SelectItem<T>[]; startIndex: number } => {
     const filtered = getFilteredItems();
     const offset = scrollOffset();
-    const visible = filtered.slice(offset, offset + maxVisible);
+    const visible = filtered.slice(offset, offset + runtimeOptions.maxVisible);
     return { items: visible, startIndex: offset };
   };
 
@@ -167,8 +194,8 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
       if (newIndex >= filtered.length) newIndex = i; // Stay at current if can't move
 
       // Adjust scroll
-      if (newIndex >= scrollOffset() + maxVisible) {
-        setScrollOffset(newIndex - maxVisible + 1);
+      if (newIndex >= scrollOffset() + runtimeOptions.maxVisible) {
+        setScrollOffset(newIndex - runtimeOptions.maxVisible + 1);
       }
       return newIndex;
     });
@@ -183,7 +210,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     const filtered = getFilteredItems();
     const lastIndex = filtered.length - 1;
     setCursorIndex(lastIndex);
-    setScrollOffset(Math.max(0, filtered.length - maxVisible));
+    setScrollOffset(Math.max(0, filtered.length - runtimeOptions.maxVisible));
   };
 
   // Selection
@@ -192,31 +219,31 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     const item = filtered[cursorIndex()];
     if (!item || item.disabled) return;
 
-    if (multiple) {
+    if (runtimeOptions.multiple) {
       setSelected((prev) => {
         const newSelected = prev.includes(item.value)
           ? prev.filter((v) => v !== item.value)
           : [...prev, item.value];
-        onChange?.(newSelected);
+        runtimeOptions.onChange?.(newSelected);
         return newSelected;
       });
     } else {
       setSelected([item.value]);
-      onChange?.(item.value);
+      runtimeOptions.onChange?.(item.value);
     }
   };
 
   const selectAll = () => {
-    if (!multiple) return;
+    if (!runtimeOptions.multiple) return;
     const filtered = getFilteredItems();
     const allValues = filtered.filter((i) => !i.disabled).map((i) => i.value);
     setSelected(allValues);
-    onChange?.(allValues);
+    runtimeOptions.onChange?.(allValues);
   };
 
   const selectNone = () => {
     setSelected([]);
-    onChange?.(multiple ? [] : undefined as any);
+    runtimeOptions.onChange?.(runtimeOptions.multiple ? [] : undefined as any);
   };
 
   // Search
@@ -237,7 +264,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
         setIsSearching(false);
         setSearchQuery('');
       } else {
-        options.onCancel?.();
+        runtimeOptions.onCancel?.();
       }
       return true;
     }
@@ -247,8 +274,8 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
       if (isSearching()) {
         setIsSearching(false);
       } else {
-        const value = multiple ? selected() : selected()[0];
-        options.onSubmit?.(value);
+        const value = runtimeOptions.multiple ? selected() : selected()[0];
+        runtimeOptions.onSubmit?.(value);
       }
       return true;
     }
@@ -314,7 +341,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     }
 
     // Tab in multi-select - toggle and move
-    if (key.tab && multiple) {
+    if (key.tab && runtimeOptions.multiple) {
       toggleSelection();
       if (key.shift) {
         moveUp();
@@ -325,7 +352,7 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     }
 
     // Ctrl+A - select all (multi)
-    if (key.ctrl && input === 'a' && multiple) {
+    if (key.ctrl && input === 'a' && runtimeOptions.multiple) {
       selectAll();
       return true;
     }
@@ -337,13 +364,13 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     }
 
     // / - start search
-    if (input === '/' && searchable && !isSearching()) {
+    if (input === '/' && runtimeOptions.searchable && !isSearching()) {
       setIsSearching(true);
       return true;
     }
 
     // Type-ahead search (when searchable and not in search mode)
-    if (searchable && input && input.length === 1 && !key.ctrl && !key.meta && !isSearching()) {
+    if (runtimeOptions.searchable && input && input.length === 1 && !key.ctrl && !key.meta && !isSearching()) {
       setIsSearching(true);
       updateSearch(input);
       return true;
@@ -368,22 +395,22 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     // Adjust scroll if needed
     if (index < scrollOffset()) {
       setScrollOffset(index);
-    } else if (index >= scrollOffset() + maxVisible) {
-      setScrollOffset(index - maxVisible + 1);
+    } else if (index >= scrollOffset() + runtimeOptions.maxVisible) {
+      setScrollOffset(index - runtimeOptions.maxVisible + 1);
     }
 
     // Toggle selection
-    if (multiple) {
+    if (runtimeOptions.multiple) {
       setSelected((prev) => {
         const newSelected = prev.includes(item.value)
           ? prev.filter((v) => v !== item.value)
           : [...prev, item.value];
-        onChange?.(newSelected);
+        runtimeOptions.onChange?.(newSelected);
         return newSelected;
       });
     } else {
       setSelected([item.value]);
-      onChange?.(item.value);
+      runtimeOptions.onChange?.(item.value);
     }
   };
 
@@ -402,6 +429,9 @@ export function createSelect<T = any>(options: SelectOptions<T>) {
     moveDown,
     selectIndex,
     handleInput, // Expose handler to be registered during render
+    updateOptions: (nextOptions: CreateSelectOptions<T>) => {
+      runtimeOptions = resolveRuntimeOptions(nextOptions);
+    },
   };
 }
 
@@ -429,6 +459,7 @@ export function renderSelect<T = any>(
     searchable = false,
     searchPlaceholder = 'Type to search...',
     fullWidth = false,
+    borderStyle = 'none',
   } = options;
 
   // Register input handler during render phase
@@ -587,15 +618,40 @@ export function renderSelect<T = any>(
     }
   };
 
-  return Box({ flexDirection: 'column', flexGrow: fullWidth ? 1 : 0, onScroll: handleScroll }, ...rows);
+  return Box(
+    {
+      flexDirection: 'column',
+      flexGrow: fullWidth ? 1 : 0,
+      onScroll: handleScroll,
+      borderStyle: borderStyle !== 'none' ? borderStyle : undefined,
+      borderColor: borderStyle !== 'none' ? theme.borders.default : undefined,
+      padding: borderStyle !== 'none' ? 1 : undefined,
+    },
+    ...rows
+  );
+}
+
+export interface SelectProps<T = any> extends SelectOptions<T> {
+  state?: ReturnType<typeof createSelect<T>>;
+}
+
+export function useSelectState<T = any>(options: CreateSelectOptions<T>) {
+  const state = useConst(() => createSelect(options));
+  state.updateOptions(options);
+  return state;
 }
 
 /**
  * Simple standalone Select component
  */
-export function Select<T = any>(options: SelectOptions<T>): VNode {
-  const state = createSelect(options);
-  return renderSelect(state, options);
+export function Select<T = any>({ state, ...options }: SelectProps<T>): VNode {
+  const internalState = state
+    ? (state.updateOptions(options), state)
+    : isRenderingHooks()
+    ? useSelectState(options)
+    : createSelect(options);
+
+  return renderSelect(internalState, options);
 }
 
 /**

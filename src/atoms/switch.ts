@@ -15,6 +15,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getTheme } from '../core/theme.js';
 
@@ -53,6 +54,7 @@ export interface SwitchState {
   setOn: () => void;
   setOff: () => void;
   setValue: (value: boolean) => void;
+  updateOptions: (options: SwitchOptions) => void;
 }
 
 // =============================================================================
@@ -63,14 +65,15 @@ export interface SwitchState {
  * Create a Switch state manager
  */
 export function createSwitch(options: SwitchOptions = {}): SwitchState {
-  const { initialValue = false, onChange } = options;
+  const { initialValue = false } = options;
+  let runtimeOptions = options;
 
   const [value, setValueSignal] = createSignal(initialValue);
 
   const toggle = () => {
     setValueSignal((v) => {
       const newValue = !v;
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
       return newValue;
     });
   };
@@ -78,25 +81,34 @@ export function createSwitch(options: SwitchOptions = {}): SwitchState {
   const setOn = () => {
     if (!value()) {
       setValueSignal(true);
-      onChange?.(true);
+      runtimeOptions.onChange?.(true);
     }
   };
 
   const setOff = () => {
     if (value()) {
       setValueSignal(false);
-      onChange?.(false);
+      runtimeOptions.onChange?.(false);
     }
   };
 
   const setValue = (newValue: boolean) => {
     if (value() !== newValue) {
       setValueSignal(newValue);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
     }
   };
 
-  return { value, toggle, setOn, setOff, setValue };
+  return {
+    value,
+    toggle,
+    setOn,
+    setOff,
+    setValue,
+    updateOptions: (nextOptions: SwitchOptions) => {
+      runtimeOptions = nextOptions;
+    },
+  };
 }
 
 // =============================================================================
@@ -146,7 +158,7 @@ export function Switch(props: SwitchProps): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createSwitch(props);
+  const state = useFactoryState(externalState, props, createSwitch);
   const isAscii = getRenderMode() === 'ascii';
 
   // Setup keyboard handling

@@ -10,6 +10,14 @@ While Tuiuiu components are typically controlled through keyboard input, many ap
 - Control multiple components from a central state store
 - Process command queues from external sources
 
+For engine-level imperative control, the important helpers are:
+
+- `getCommittedFrameQueries()`
+- `getCommittedFrameSnapshot()`
+- `getInspectorSnapshot()`
+
+These read the **last committed frame**, not speculative in-progress layout work.
+
 ## Key Pattern: External State Controller
 
 The fundamental pattern is creating state and control methods **outside** the component:
@@ -109,6 +117,58 @@ websocket.on('log', (log) => {
 // Jump to specific log
 scroll.scrollToItem(500, 'center');
 ```
+
+## Pattern 1B: Committed-Frame Queries by ID
+
+When you need geometry or scroll access after a frame is already rendered, use explicit IDs and committed-frame queries:
+
+```typescript
+import {
+  Box,
+  ScrollArea,
+  Text,
+  getCommittedFrameQueries,
+  getInspectorSnapshot,
+} from 'tuiuiu.js';
+
+function App() {
+  return Box(
+    { id: 'root', flexDirection: 'column' },
+    ScrollArea({
+      id: 'log-scroll',
+      height: 8,
+      content: Array.from({ length: 40 }, (_, i) => `Line ${i + 1}`),
+    }),
+    Text({}, 'Press b to jump to bottom')
+  );
+}
+
+function jumpToBottom() {
+  const queries = getCommittedFrameQueries();
+  const log = queries?.getScrollContainer('log-scroll');
+
+  if (log?.status === 'found') {
+    log.controls?.scrollToEnd();
+  }
+}
+
+function inspectRuntime() {
+  const queries = getCommittedFrameQueries();
+  const bounds = queries?.getElement('log-scroll');
+  const inspector = getInspectorSnapshot();
+
+  console.log(bounds);
+  console.log(inspector?.metrics.structural.drawCommandCount);
+}
+```
+
+Rules worth remembering:
+
+- imperative lookup is defined around explicit IDs
+- bounds are root-relative
+- query results can be `found`, `missing`, or `ambiguous`
+- scroll commands clamp and show up on the next committed frame
+- inspector helpers read committed frame data without parsing ANSI output
 
 ## Pattern 2: Animation Controller
 
@@ -267,6 +327,18 @@ function MyComponent() {
   return Box({}, ...renderItems(state));
 }
 ```
+
+## Runtime Contract Example
+
+See:
+
+- `pnpm example programmatic-runtime-contracts`
+
+That example shows:
+
+- `getElement()` for committed geometry lookup
+- `getScrollContainer()` for programmatic scroll by ID
+- `getInspectorSnapshot()` for frame metrics and warnings
 
 ## Auto-Scroll Example
 

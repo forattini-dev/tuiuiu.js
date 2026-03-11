@@ -68,6 +68,13 @@ export {
   renderToString,
   measureHeight,
   OutputBuffer,
+  // Frame runtime contracts
+  createFrameSnapshot,
+  setCommittedFrameSnapshot,
+  getCommittedFrameSnapshot,
+  getCommittedFrameQueries,
+  clearCommittedFrameSnapshot,
+  resetFrameSequenceForTesting,
   // App
   render,
   renderOnce,
@@ -76,8 +83,30 @@ export {
 } from './core/index.js';
 
 export type {
+  FixedStepOptions,
+  FixedStepUpdate,
   RenderOptions,
   TuiInstance,
+  FrameInput,
+  FrameSnapshotOptions,
+  FrameInfo,
+  FrameSnapshot,
+  FrameQueries,
+  QueryStatus,
+  Bounds,
+  ElementQueryResult,
+  ScrollQueryControls,
+  ScrollQueryResult,
+  RuntimeWarning,
+  RuntimeWarningCode,
+  RuntimeWarningSeverity,
+  FramePhaseMetrics,
+  FrameStructuralMetrics,
+  FrameMetrics,
+  DrawCommandBase,
+  DrawBoxCommand,
+  DrawTextCommand,
+  DrawCommand,
 } from './core/index.js';
 
 // =============================================================================
@@ -86,6 +115,7 @@ export type {
 
 export {
   useState,
+  useConst,
   useEffect,
   useInput,
   useApp,
@@ -155,6 +185,33 @@ export type {
   ValidationRule,
   FieldValidators,
 } from './hooks/index.js';
+
+// =============================================================================
+// Shared State - Store
+// =============================================================================
+
+export {
+  createStore,
+  createPersistedStore,
+  applyMiddleware,
+  createPersistMiddleware,
+  createLoggerMiddleware,
+} from './primitives/store.js';
+
+export type {
+  Action,
+  AnyAction,
+  Reducer,
+  Dispatch,
+  StoreEnhancer,
+  StoreCreator,
+  Store,
+  MiddlewareAPI,
+  Middleware,
+  PersistedStoreOptions,
+  PersistOptions,
+  SyncStorageAdapter,
+} from './primitives/store.js';
 
 // =============================================================================
 // Primitives - Box, Text, Spacer, etc.
@@ -591,6 +648,8 @@ export {
   createUpdateBatcher,
   createDebounced as debouncedFn,
   createThrottled as throttledFn,
+  createNodeFsStorage,
+  createNodeFsSyncStorage,
 } from './utils/index.js';
 
 export type {
@@ -685,16 +744,24 @@ export {
   detectGraphicsProtocol,
   setGraphicsProtocol,
   getGraphicsProtocol,
+  getGraphicsCapabilities,
   getProtocolCapabilities,
+  queryGraphicsCapabilities,
+  parseGraphicsCapabilityResponse,
   resetGraphicsDetection,
   // Protocol implementations
   kittyGraphics,
   iterm2Graphics,
   sixelGraphics,
+  halfblockGraphics,
   brailleGraphics,
   // Unified rendering
   renderImage,
+  renderImageWithProtocol,
   clearImages,
+  createTerminalImageSource,
+  planImageRender,
+  createTerminalImageProtocolState,
   // Image utilities
   createImageData,
   createSolidImage,
@@ -704,9 +771,17 @@ export {
 
 export type {
   GraphicsProtocol,
+  CellSize,
   ProtocolCapabilities,
   ImageOptions,
   ImageData,
+  TerminalImageCapabilities,
+  TerminalImageProtocolRenderOptions,
+  TerminalImageProtocolRenderResult,
+  TerminalImageProtocolState,
+  TerminalGraphicsQueryTransport,
+  TerminalImageSource,
+  TerminalImageRenderPlan,
 } from './core/index.js';
 
 // =============================================================================
@@ -961,8 +1036,8 @@ export {
 } from './core/index.js';
 
 export type {
-  ScreenComponent,
-  Screen,
+  ScreenComponent as ManagedScreenComponent,
+  Screen as ManagedScreen,
   ScreenStackEntry,
   TransitionDirection,
   ScreenNavigationEvent,
@@ -985,6 +1060,8 @@ export {
   // Layout inspector
   inspectLayout,
   formatLayoutTree,
+  createInspectorSnapshot,
+  getInspectorSnapshot,
   // Event log
   logEvent,
   getEventLog,
@@ -1032,6 +1109,8 @@ export type {
   // Debugger types
   DevToolsConfig,
   LayoutInfo,
+  InspectorTreeNode,
+  InspectorSnapshot,
   EventLogEntry,
   PerformanceMetrics,
   FrameStats,

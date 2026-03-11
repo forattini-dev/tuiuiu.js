@@ -17,6 +17,8 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useConst } from '../hooks/use-const.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getContrastColor, getTheme } from '../core/theme.js';
 
@@ -78,6 +80,7 @@ export interface TabsState<T = string> {
   selectFocused: () => void;
   closeTab: (key: T) => void;
   addTab: (tab: Tab<T>) => void;
+  updateOptions: (options: TabsOptions<T>) => void;
 }
 
 // =============================================================================
@@ -88,7 +91,8 @@ export interface TabsState<T = string> {
  * Create a Tabs state manager
  */
 export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
-  const { tabs: initialTabs, initialTab, onChange, onClose } = options;
+  const { tabs: initialTabs, initialTab } = options;
+  let runtimeOptions = options;
 
   const [tabsSignal, setTabs] = createSignal<Tab<T>[]>(initialTabs);
   const [activeTab, setActiveTabSignal] = createSignal<T>(
@@ -106,7 +110,7 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     if (tab && !tab.disabled) {
       setActiveTabSignal(key);
       setFocusIndex(currentTabs.findIndex((t) => t.key === key));
-      onChange?.(key);
+      runtimeOptions.onChange?.(key);
     }
   };
 
@@ -137,7 +141,7 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     const tab = currentTabs[focusIndex()];
     if (tab && !tab.disabled) {
       setActiveTabSignal(tab.key);
-      onChange?.(tab.key);
+      runtimeOptions.onChange?.(tab.key);
     }
   };
 
@@ -147,7 +151,7 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     if (index >= 0) {
       const newTabs = currentTabs.filter((t) => t.key !== key);
       setTabs(newTabs);
-      onClose?.(key);
+      runtimeOptions.onClose?.(key);
 
       // If closed tab was active, select adjacent
       if (activeTab() === key && newTabs.length > 0) {
@@ -171,7 +175,16 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     selectFocused,
     closeTab,
     addTab,
+    updateOptions: (nextOptions: TabsOptions<T>) => {
+      runtimeOptions = nextOptions;
+    },
   };
+}
+
+export function useTabsState<T = string>(options: TabsOptions<T>) {
+  const state = useConst(() => createTabs(options));
+  state.updateOptions(options);
+  return state;
 }
 
 // =============================================================================
@@ -233,7 +246,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
   const activeFg = tabTokens.tab.activeFg;
   const activeBg = tabTokens.tab.activeBg;
 
-  const state = externalState || createTabs(props);
+  const state = useFactoryState(externalState, props, createTabs);
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 
@@ -516,10 +529,15 @@ export interface VerticalTabsOptions<T = string> extends TabsOptions<T> {
   contentWidth?: number;
 }
 
+export interface VerticalTabsProps<T = string> extends VerticalTabsOptions<T> {
+  /** Pre-created state */
+  state?: TabsState<T>;
+}
+
 /**
  * VerticalTabs - Tabs with vertical tab bar on the left
  */
-export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
+export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
   const theme = getTheme();
   const {
     tabs,
@@ -528,6 +546,7 @@ export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
     colorActive: customColorActive,
     colorInactive: customColorInactive,
     isActive = true,
+    state: externalState,
   } = props;
 
   // Resolve colors from theme tokens or custom colors
@@ -535,7 +554,7 @@ export function VerticalTabs<T = string>(props: VerticalTabsOptions<T>): VNode {
   const colorActive = customColorActive ?? tabTokens.tab.indicator;
   const colorInactive = customColorInactive ?? tabTokens.tab.fg;
 
-  const state = createTabs(props);
+  const state = useFactoryState(externalState, props, createTabs);
   const chars = getChars();
 
   // Setup keyboard handling

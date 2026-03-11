@@ -946,6 +946,22 @@ export const collapsibleStories: Story[] = [
       })
     ),
 
+  story('Collapsible - Summary')
+    .category('Molecules')
+    .description('Collapsed preview using the summary prop')
+    .render(() =>
+      Collapsible({
+        title: 'Deployment',
+        summary: '3 pending changes',
+        children: Box(
+          { flexDirection: 'column', gap: 1 },
+          Text({}, 'workers: 2 restarting'),
+          Text({}, 'schema: pending migration'),
+          Text({}, 'edge cache: warming'),
+        ),
+      })
+    ),
+
   story('Accordion - Basic')
     .category('Molecules')
     .description('Accordion list')

@@ -1,169 +1,219 @@
 # Form Components
 
-Interactive components for user input.
+Interactive form controls for TUI workflows.
+
+## Canonical State Path
+
+For normal component usage, prefer the rerender-safe hook path:
+
+```typescript
+import {
+  Box,
+  FormField,
+  Select,
+  TextInput,
+  useSelectState,
+  useState,
+  useTextInputState,
+} from 'tuiuiu.js';
+
+function ProfileForm() {
+  const [step, setStep] = useState(0);
+  const roleOptions = [
+    { value: 'dev', label: 'Developer' },
+    { value: 'design', label: 'Designer' },
+  ];
+
+  const name = useTextInputState({
+    placeholder: 'Enter name...',
+    isActive: () => step() === 0,
+    onSubmit: () => setStep(1),
+  });
+
+  const role = useSelectState({
+    items: roleOptions,
+    isActive: () => step() === 1,
+  });
+
+  return Box(
+    { flexDirection: 'column', gap: 1 },
+    FormField({
+      label: 'Name',
+      children: TextInput({ state: name, borderStyle: 'round', fullWidth: true }),
+    }),
+    FormField({
+      label: 'Role',
+      children: Select({ state: role, items: roleOptions, borderStyle: 'round', showCount: false }),
+    })
+  );
+}
+```
+
+Use `createTextInput()` / `renderTextInput()` and `createSelect()` / `renderSelect()` when you explicitly need low-level or programmatic control.
+
+The same rerender-safe pattern now applies to `MultiSelect`, `Autocomplete`, and `TagInput`: use the direct component API for ordinary screens, and reach for `useMultiSelectState()` / `useAutocompleteState()` when you need explicit controller reuse.
 
 ## TextInput
 
-A fully featured text input field.
-
 ### Features
-- Cursor navigation
-- History support (Up/Down arrows)
-- Password mode (masking)
-- Multi-line support with visual line navigation
-- Auto-grow with optional scrollbar for overflow
-- Mouse click to position caret (click-to-caret)
-- Up/Down arrow navigation between visual lines
-- Placeholder text
 
-### Props
+- Cursor navigation
+- History support
+- Password mode
+- Multi-line mode with wrapping
+- Auto-grow and scrollbar
+- Click-to-caret
+
+### Main Props
 
 | Prop | Type | Description |
 | :--- | :--- | :--- |
+| `state` | `ReturnType<typeof createTextInput>` | External state from `useTextInputState()` or `createTextInput()` |
 | `initialValue` | `string` | Starting value |
 | `placeholder` | `string` | Text when empty |
 | `password` | `boolean` | Mask characters |
 | `multiline` | `boolean` | Enable multi-line input |
 | `wordWrap` | `boolean` | Wrap text at the input width |
 | `maxLines` | `number` | Maximum visible lines before scrolling |
-| `autoGrow` | `boolean` | Grow height up to maxLines (defaults to 5 when enabled) |
-| `showScrollbar` | `boolean` | Show scrollbar on overflow (default: true) |
+| `autoGrow` | `boolean` | Grow height up to `maxLines` |
+| `showScrollbar` | `boolean` | Show overflow scrollbar |
 | `onChange` | `(val: string) => void` | Change handler |
 | `onSubmit` | `(val: string) => void` | Enter key handler |
 
-### Usage (with state)
+### Canonical Usage
 
 ```typescript
-const input = createTextInput({
-  placeholder: 'Enter name...',
-  onSubmit: (name) => console.log('Hello', name)
-});
-
-// Render
-renderTextInput(input);
-```
-
-### Auto-grow example
-
-```typescript
-const input = createTextInput({
+const message = useTextInputState({
   multiline: true,
   wordWrap: true,
   autoGrow: true,
   maxLines: 5,
-  showScrollbar: true,
+  placeholder: 'Type your message...',
+});
+
+TextInput({
+  state: message,
+  borderStyle: 'round',
+  fullWidth: true,
+});
+```
+
+### Advanced Usage
+
+```typescript
+const input = createTextInput({
+  history: ['help', 'status', 'deploy'],
+  onSubmit: runCommand,
 });
 
 renderTextInput(input, {
-  multiline: true,
-  wordWrap: true,
-  autoGrow: true,
-  maxLines: 5,
-  showScrollbar: true,
+  borderStyle: 'round',
+  fullWidth: true,
 });
 ```
-
-### Keyboard Navigation (Multiline)
-
-In multiline mode, TextInput supports visual line navigation:
-
-- **Up/Down arrows**: Move cursor between visual lines, preserving column position
-- **Home/End**: Jump to start/end of current visual line
-- **Ctrl+Home/End**: Jump to start/end of entire text
-
-### Click-to-Caret
-
-Clicking on the TextInput positions the cursor at the clicked location. This works for both single-line and multiline inputs.
-
-```typescript
-// The onClick handler is set up automatically when rendering
-// Clicking at column 5, row 2 positions cursor there
-renderTextInput(input, { multiline: true, width: 40 });
-```
-
-?> **Testing Tip:** When unit testing `TextInput` logic without rendering, you must manually register the input handler: `addInputHandler(input.handleInput)`.
 
 ## Select
 
-A dropdown-like selection component.
-
 ### Features
-- Single or Multi-select
-- Search / Filtering
-- Keyboard navigation
-- Grouping
 
-### Props
+- Single or multi-select
+- Search/filter
+- Grouping
+- Keyboard navigation
+
+### Main Props
 
 | Prop | Type | Description |
 | :--- | :--- | :--- |
-| `items` | `SelectItem[]` | List of items `{ label, value }` |
-| `multiple` | `boolean` | Allow multiple selections |
+| `state` | `ReturnType<typeof createSelect>` | External state from `useSelectState()` or `createSelect()` |
+| `items` | `SelectItem[]` | List of options |
+| `multiple` | `boolean` | Allow multiple selection |
 | `searchable` | `boolean` | Enable filtering |
+| `showCount` | `boolean` | Show footer count |
+| `borderStyle` | `'none' \| 'single' \| 'round' \| 'double'` | Optional border |
 
-### Usage
+### Canonical Usage
+
+```typescript
+const countryOptions = [
+  { value: 'br', label: 'Brazil' },
+  { value: 'us', label: 'United States' },
+];
+
+const country = useSelectState({
+  items: countryOptions,
+  searchable: true,
+});
+
+Select({
+  state: country,
+  items: countryOptions,
+  borderStyle: 'round',
+});
+```
+
+### Advanced Usage
 
 ```typescript
 const select = createSelect({
-  items: [
-    { label: 'Option A', value: 'a' },
-    { label: 'Option B', value: 'b' }
-  ],
-  onSubmit: (val) => console.log('Selected:', val)
+  items: countryOptions,
+  searchable: true,
 });
 
-// Render
-renderSelect(select);
+renderSelect(select, {
+  items: countryOptions,
+  borderStyle: 'round',
+});
 ```
 
-## Checkbox
+## Specialized Inputs
 
-A convenience wrapper around `Select` with `multiple: true`.
-
-### Example
+These wrappers now follow the same rerender-safe pattern internally:
 
 ```typescript
-Checkbox({
+SearchInput({ placeholder: 'Search...' })
+PasswordInput({ placeholder: 'Password' })
+NumberInput({ min: 0, max: 100, step: 1 })
+```
+
+You can still pass `state` when you want explicit control:
+
+```typescript
+const search = createSearchInput({ onSubmit: performSearch });
+SearchInput({ state: search });
+```
+
+## MultiSelect and Autocomplete
+
+```typescript
+const skillOptions = [
+  { value: 'ts', label: 'TypeScript' },
+  { value: 'go', label: 'Go' },
+];
+
+const frameworkOptions = [
+  { value: 'react', label: 'React' },
+  { value: 'solid', label: 'Solid' },
+];
+
+const skills = useMultiSelectState({
   items: [
-    { label: 'Read Terms', value: 'terms' },
-    { label: 'Subscribe', value: 'sub' }
+    ...skillOptions,
   ],
-  onSubmit: (values) => console.log('Checked:', values)
-})
-```
-
-## ConfirmDialog
-
-A pre-built modal for Yes/No confirmations.
-
-### Example
-
-```typescript
-const confirm = createConfirmDialog({
-  title: 'Delete File?',
-  message: 'Are you sure?',
-  onConfirm: () => deleteFile()
+  searchable: true,
 });
 
-// Render
-ConfirmDialog(confirm.props);
+const framework = useAutocompleteState({
+  items: frameworkOptions,
+});
+
+MultiSelect({ state: skills, items: skillOptions, showTags: true })
+Autocomplete({ state: framework, items: frameworkOptions, placeholder: 'Search...' })
 ```
+
+`TagInput` also accepts `state` and keeps internal selections stable across parent rerenders.
 
 ## FormField
-
-A wrapper component for form inputs with label, error, and helper text support.
-
-### Props
-
-| Prop | Type | Description |
-| :--- | :--- | :--- |
-| `label` | `string` | Field label |
-| `required` | `boolean` | Show required indicator |
-| `error` | `string` | Error message |
-| `helperText` | `string` | Helper text (shown when no error) |
-| `children` | `VNode` | Input component |
-
-### Example
 
 ```typescript
 FormField({
@@ -177,10 +227,6 @@ FormField({
 
 ## FormGroup
 
-A container for multiple related form fields with consistent styling.
-
-### Example
-
 ```typescript
 FormGroup({
   title: 'Personal Information',
@@ -191,75 +237,6 @@ FormGroup({
 })
 ```
 
-## Specialized Inputs
-
-These inputs are composite controls built on top of TextInput (molecules).
-
-### SearchInput
-
-Text input with search icon and clear button.
-
-```typescript
-const search = createSearchInput({
-  placeholder: 'Search...',
-  onSubmit: (query) => performSearch(query),
-})
-
-SearchInput({ state: search })
-```
-
-### PasswordInput
-
-Text input with show/hide toggle.
-
-```typescript
-const password = createPasswordInput({
-  placeholder: 'Enter password',
-})
-
-PasswordInput({ state: password })
-```
-
-### NumberInput
-
-Numeric input with increment/decrement buttons.
-
-```typescript
-const count = createNumberInput({
-  min: 0,
-  max: 100,
-  step: 1,
-  initialValue: 50,
-})
-
-NumberInput({ state: count })
-```
-
 ## Form State Management
 
-For complex forms, use the `useForm` hook. See the [useForm](/hooks/use-form.md) documentation for details.
-
-```typescript
-import { useForm, FormField, TextInput, Button } from 'tuiuiu.js'
-
-const form = useForm({
-  initialValues: { email: '', password: '' },
-  validate: (values) => ({
-    email: !values.email ? 'Required' : undefined,
-  }),
-  onSubmit: handleSubmit,
-})
-
-// Use form.field() for easy binding
-FormField({
-  label: 'Email',
-  error: form.errors().email,
-  children: TextInput({ ...form.field('email') }),
-})
-```
-
-## Related
-
-- [useForm](/hooks/use-form.md) - Form state management hook
-- [Button](/components/atoms/button.md) - Button components
-- [Modal](/components/organisms/modal.md) - Modal dialogs
+For larger forms, use [`useForm`](/hooks/use-form.md).

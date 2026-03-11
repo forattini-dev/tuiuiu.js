@@ -4,7 +4,7 @@
  */
 
 import { render, Box, Text, useInput, useApp, type VNode } from '../../src/index.js';
-import { DataTable, createDataTable } from '../../src/organisms/data-table.js';
+import { DataTable } from '../../src/organisms/data-table.js';
 
 const sampleData = [
   { id: 1, name: 'Alice Johnson', role: 'Engineer', status: 'Active', score: 95 },
@@ -17,20 +17,6 @@ const sampleData = [
 function DataTableDemo(): VNode {
   const { exit } = useApp();
 
-  const table = createDataTable({
-    columns: [
-      { key: 'name', label: 'Name', width: 16, sortable: true },
-      { key: 'role', label: 'Role', width: 10, sortable: true },
-      { key: 'status', label: 'Status', width: 8 },
-      { key: 'score', label: 'Score', width: 6, align: 'right' as const, sortable: true },
-    ],
-    data: sampleData,
-    selectionMode: 'single',
-    borderStyle: 'round',
-    colorHeader: 'cyan',
-    colorSelected: 'blue',
-  });
-
   useInput((_, key) => {
     if (key.escape) exit();
   });
@@ -39,7 +25,20 @@ function DataTableDemo(): VNode {
     { flexDirection: 'column', padding: 1 },
     Text({ color: 'cyan', bold: true }, '📋 DataTable'),
     Box({ height: 1 }),
-    DataTable(table.options),
+    DataTable({
+      columns: [
+        { key: 'name', header: 'Name', width: 16, sortable: true },
+        { key: 'role', header: 'Role', width: 10, sortable: true },
+        { key: 'status', header: 'Status', width: 8 },
+        { key: 'score', header: 'Score', width: 6, align: 'right' as const, sortable: true },
+      ],
+      data: sampleData,
+      selectionMode: 'single',
+      borderStyle: 'round',
+      colorHeader: 'cyan',
+      colorSelected: 'blue',
+      isActive: true,
+    }),
     Box({ height: 1 }),
     Text({ color: 'gray', dim: true }, '↑↓ navigate • Enter select • Esc exit')
   );

@@ -11,8 +11,41 @@ import {
   resetDeltaRenderer,
   type DeltaRenderer,
 } from '../../src/core/delta-render.js';
+import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
+import { createSolidImage } from '../../src/core/graphics.js';
+import { renderFrameToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 import type { VNode } from '../../src/utils/types.js';
+
+function normalizeAnsiSgrOrder(output: string): string {
+  let normalized = output;
+
+  // Collapse adjacent SGR codes with no text between them into one canonical sequence.
+  let previous: string;
+  do {
+    previous = normalized;
+    normalized = normalized.replace(
+      /\x1b\[([0-9;]+)m\x1b\[([0-9;]+)m/g,
+      (_match, left: string, right: string) => {
+        const merged = [...left.split(';'), ...right.split(';')]
+          .filter(Boolean)
+          .sort((a, b) => Number(a) - Number(b))
+          .join(';');
+        return `\x1b[${merged}m`;
+      },
+    );
+  } while (normalized !== previous);
+
+  return normalized.replace(/\x1b\[([0-9;]+)m/g, (_match, codes: string) => {
+    const normalized = codes
+      .split(';')
+      .filter(Boolean)
+      .sort((a, b) => Number(a) - Number(b))
+      .join(';');
+    return `\x1b[${normalized}m`;
+  });
+}
 
 describe('Delta Renderer', () => {
   let mockStdout: {
@@ -23,6 +56,7 @@ describe('Delta Renderer', () => {
 
   beforeEach(() => {
     resetDeltaRenderer();
+    resetFrameSequenceForTesting();
     mockStdout = {
       columns: 40,
       rows: 10,
@@ -38,6 +72,7 @@ describe('Delta Renderer', () => {
 
       expect(renderer).toBeDefined();
       expect(renderer.render).toBeInstanceOf(Function);
+      expect(renderer.renderFrame).toBeInstanceOf(Function);
       expect(renderer.fullRedraw).toBeInstanceOf(Function);
       expect(renderer.clear).toBeInstanceOf(Function);
       expect(renderer.cleanup).toBeInstanceOf(Function);
@@ -55,6 +90,185 @@ describe('Delta Renderer', () => {
       renderer.render(node);
 
       expect(mockStdout.write).toHaveBeenCalled();
+    });
+
+    it('should render a committed frame snapshot', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+      });
+
+      const frame = createFrameSnapshot(Text({}, 'Committed'), {
+        width: mockStdout.columns,
+        height: mockStdout.rows,
+      });
+
+      renderer.renderFrame(frame);
+
+      expect(mockStdout.write).toHaveBeenCalled();
+      const stats = renderer.stats();
+      expect(stats.totalRenders).toBe(1);
+    });
+
+    it('should short-circuit identical committed frames without emitting terminal writes', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+
+      const frame = createFrameSnapshot(
+        Box(
+          { id: 'root', width: 18, height: 5, borderStyle: 'single', padding: 1 },
+          Text({}, 'Stable frame'),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(frame);
+      const firstWriteCount = mockStdout.write.mock.calls.length;
+
+      renderer.renderFrame(frame);
+
+      expect(mockStdout.write.mock.calls.length).toBe(firstWriteCount);
+      expect(renderer.stats().lastPatchCount).toBe(0);
+    });
+
+    it('should short-circuit identical protocol-image frames without re-emitting graphics payloads', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+
+      const frame = createFrameSnapshot(
+        Box({
+          id: 'image-box',
+          width: 10,
+          height: 6,
+          borderStyle: 'single',
+          padding: 1,
+          __terminalImage: {
+            source: createSolidImage(60, 40, 255, 0, 0),
+            options: { protocol: 'kitty' as const },
+          },
+        } as any),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(frame);
+      mockStdout.write.mockClear();
+
+      renderer.renderFrame(frame);
+
+      expect(mockStdout.write).not.toHaveBeenCalled();
+      expect(renderer.stats().lastPatchCount).toBe(0);
+    });
+
+    it('should emit kitty cleanup when a protocol image is removed', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+
+      const previousFrame = createFrameSnapshot(
+        Box({
+          id: 'image-box',
+          width: 10,
+          height: 6,
+          borderStyle: 'single',
+          padding: 1,
+          __terminalImage: {
+            source: createSolidImage(60, 40, 255, 255, 0),
+            options: { protocol: 'kitty' as const },
+          },
+        } as any),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+      const nextFrame = createFrameSnapshot(
+        Box({ id: 'image-box', width: 10, height: 6, borderStyle: 'single', padding: 1 } as any,
+          Text({}, 'gone'),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(previousFrame);
+      mockStdout.write.mockClear();
+
+      renderer.renderFrame(nextFrame);
+
+      const output = mockStdout.write.mock.calls.map(([chunk]) => String(chunk)).join('');
+      expect(output).toContain('\x1b_Ga=d,d=A\x1b\\');
+    });
+
+    it('should keep full delta output aligned with canonical ANSI output', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+
+      const frame = createFrameSnapshot(
+        Box(
+          { id: 'root', width: 16, height: 4, borderStyle: 'single', padding: 1, backgroundColor: 'blue' },
+          Text({ color: 'white' }, 'Frame'),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(frame);
+
+      const output = mockStdout.write.mock.calls.map(([chunk]) => String(chunk)).join('');
+      expect(normalizeAnsiSgrOrder(output)).toBe(
+        normalizeAnsiSgrOrder(`\x1b[H${renderFrameToString(frame)}`),
+      );
+    });
+
+    it('should keep wide-character output aligned with canonical ANSI output', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+
+      const frame = createFrameSnapshot(
+        Box(
+          { id: 'emoji-root', width: 16, height: 4, borderStyle: 'single', padding: 1 },
+          Text({}, '📚 Hi'),
+          Text({}, '🎉🎊'),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(frame);
+
+      const output = mockStdout.write.mock.calls.map(([chunk]) => String(chunk)).join('');
+      const canonical = `\x1b[H${renderFrameToString(frame)}`;
+
+      expect(normalizeAnsiSgrOrder(output)).toBe(normalizeAnsiSgrOrder(canonical));
+
+      for (const line of renderFrameToString(frame).split('\n')) {
+        expect(stringWidth(line)).toBe(16);
+      }
     });
 
     it('should track render statistics', () => {

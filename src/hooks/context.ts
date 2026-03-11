@@ -70,6 +70,11 @@ export function endRender(): void {
   lastMaxHookIndex = currentMaxIndex;
 }
 
+/** Whether hooks are currently executing inside a render cycle. */
+export function isRenderingHooks(): boolean {
+  return isRendering;
+}
+
 /** Get or initialize hook state at current index */
 export function getHookState<T>(initialValue: T): { value: T; isNew: boolean } {
   const index = hookIndex++;

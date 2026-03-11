@@ -628,6 +628,8 @@ export interface SpinnerOptions {
   minWidth?: number;
 }
 
+export type SpinnerState = ReturnType<typeof createSpinner>;
+
 /**
  * Create a spinner state
  */
@@ -709,7 +711,7 @@ export function createSpinner(options: SpinnerOptions = {}) {
  * Render a spinner
  */
 export function renderSpinner(
-  state: ReturnType<typeof createSpinner>,
+  state: SpinnerState,
   options: SpinnerOptions = {}
 ): VNode {
   const theme = getTheme();

@@ -284,6 +284,28 @@ describe('useScroll', () => {
     expect(scroll.scrollTop()).toBeDefined();
     expect(scroll.maxScroll()).toBeDefined();
   });
+
+  it('should update rendered output when controlled programmatically', () => {
+    const scroll = useScroll();
+    const lines = Array.from({ length: 8 }, (_, i) => Text({}, `Line ${i + 1}`));
+
+    const initial = Scroll(
+      { ...scroll.bind, height: 3, width: 40 },
+      ...lines
+    );
+    expect(renderToString(initial, 40)).toContain('Line 1');
+
+    scroll.scrollBy(2);
+
+    const rerendered = Scroll(
+      { ...scroll.bind, height: 3, width: 40 },
+      ...lines
+    );
+    const output = renderToString(rerendered, 40);
+
+    expect(output).toContain('Line 3');
+    expect(output).not.toContain('Line 1');
+  });
 });
 
 describe('external state', () => {

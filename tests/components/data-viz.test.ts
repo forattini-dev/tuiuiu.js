@@ -5,8 +5,14 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
+import {
+  getHitTestRegistry,
+  registerHitTestFromLayout,
+  resetHitTestRegistry,
+} from '../../src/core/hit-test.js';
 
 // Sparkline
 import {
@@ -665,6 +671,24 @@ describe('Data Visualization Components', () => {
     it('handles single cell', () => {
       const node = Heatmap({ data: [[5]] });
       expect(node).not.toBeNull();
+    });
+
+    it('does not register click handlers for interactive mode', () => {
+      resetHitTestRegistry();
+
+      const node = Heatmap({
+        data: sampleData,
+        interactive: true,
+      });
+
+      const layout = calculateLayout(node, 80, 24);
+      registerHitTestFromLayout(layout);
+
+      const clickable = getHitTestRegistry()
+        .getElements()
+        .filter((element) => element.node.props.onClick);
+
+      expect(clickable).toHaveLength(0);
     });
   });
 

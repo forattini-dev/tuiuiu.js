@@ -103,6 +103,9 @@ Build terminal apps that feel native. These examples recreate familiar CLI tools
 pnpm tsx examples/app-htop.ts   # Process monitor with live updates
 pnpm tsx examples/app-mtr.ts    # Network route tracer
 pnpm tsx examples/app-ping.ts   # Network latency monitor
+pnpm example tuiuiu-invaders    # Literal ASCII Space Invaders
+pnpm example tuiuiu-meteor      # Asteroids-style meteor splitter
+pnpm example tuiuiu-sideblaster # Horizontal shoot'em up
 ```
 
 ## Gallery
@@ -153,6 +156,25 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 <strong>🏰 Tuiuiu Defence</strong><br>
 <em>Tower Defense Game</em><br>
 <img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-tuiuiu-defence.gif" alt="Tuiuiu Defence" width="100%">
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<strong>👾 Tuiuiu Invaders</strong><br>
+<em>Literal Space Invaders Clone</em><br>
+<code>pnpm example tuiuiu-invaders</code>
+</td>
+<td align="center" width="50%">
+<strong>☄️ Tuiuiu Meteor</strong><br>
+<em>Asteroids-style Meteor Splitter</em><br>
+<code>pnpm example tuiuiu-meteor</code>
+</td>
+</tr>
+<tr>
+<td align="center" colspan="2">
+<strong>🚀 Tuiuiu Sideblaster</strong><br>
+<em>Horizontal Shoot'em Up Showcase</em><br>
+<code>pnpm example tuiuiu-sideblaster</code>
 </td>
 </tr>
 </table>

@@ -26,6 +26,7 @@ import {
   resolveColor,
   useState,
   useEffect,
+  useConst,
 } from '../src/index.js';
 import { orangeTheme } from '../src/themes/index.js';
 
@@ -575,8 +576,15 @@ function TuiuiuPlayer(): VNode {
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [mode, setMode] = useState<'playlist' | 'controls'>('playlist');
 
-  // FPS counter
-  const [fps, setFps] = useState(0);
+  // Runtime counters
+  const [updateRate, setUpdateRate] = useState(0);
+  const [renderRate, setRenderRate] = useState(0);
+  const runtimeCounters = useConst(() => ({
+    renderedFrames: 0,
+    renderedSinceLastSample: 0,
+  }));
+  runtimeCounters.renderedFrames++;
+  runtimeCounters.renderedSinceLastSample++;
 
   // Spectrum analyzer state
   const SPECTRUM_BINS = 32;
@@ -611,11 +619,13 @@ function TuiuiuPlayer(): VNode {
       const now = Date.now();
       const playing = isPlaying();
 
-      // === FPS COUNTER ===
+      // === UPDATE / RENDER RATE COUNTERS ===
       frameCount++;
       if (now - lastFpsUpdate >= 1000) {
-        setFps(frameCount);
+        setUpdateRate(frameCount);
+        setRenderRate(runtimeCounters.renderedSinceLastSample);
         frameCount = 0;
+        runtimeCounters.renderedSinceLastSample = 0;
         lastFpsUpdate = now;
       }
 
@@ -672,7 +682,7 @@ function TuiuiuPlayer(): VNode {
       } else {
         setSpectrumData(Array(SPECTRUM_BINS).fill(0.1));
       }
-    }, 60); // ~16fps for smooth animation
+    }, 16); // ~60Hz nominal update loop
 
     return () => clearInterval(interval);
   });
@@ -759,7 +769,9 @@ function TuiuiuPlayer(): VNode {
       { flexDirection: 'row', backgroundColor: 'primary', paddingX: 2 },
       Text({ color: 'primaryForeground', bold: true }, '🎵 TUIUIU PLAYER'),
       Spacer({}),
-      Text({ color: 'primaryForeground', dim: true }, `${fps()} fps`),
+      Text({ color: 'primaryForeground', dim: true }, `${updateRate()} upd`),
+      Text({ color: 'primaryForeground', dim: true }, ` • `),
+      Text({ color: 'primaryForeground', dim: true }, `${renderRate()} rnd`),
       Text({ color: 'primaryForeground', dim: true }, ` • `),
       Text({ color: 'primaryForeground', dim: true }, `[${theme.name}]`)
     ),
@@ -885,5 +897,6 @@ function TuiuiuPlayer(): VNode {
 const { waitUntilExit } = render(TuiuiuPlayer, {
   autoTabNavigation: false,
   fullHeight: true, // Use clear-and-redraw mode instead of incremental (fixes accumulation bug)
+  maxFps: 60,
 });
 await waitUntilExit();

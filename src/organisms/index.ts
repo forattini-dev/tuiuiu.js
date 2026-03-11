@@ -209,6 +209,7 @@ export {
   DataTable,
   VirtualDataTable,
   EditableDataTable,
+  useDataTableState,
   // State factory
   createDataTable,
   // Types

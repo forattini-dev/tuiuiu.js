@@ -127,7 +127,9 @@ pnpm install
 pnpm storybook
 
 # Run examples
-pnpm example:01
+pnpm example:list
+pnpm example app-counter
+pnpm example tuiuiu-meteor
 ```
 
 ## Next Steps

@@ -18,6 +18,9 @@ import { Timer } from '../../../atoms/timer.js';
 import { Tooltip, WithTooltip, InfoBox, Popover, Tag } from '../../../atoms/tooltip.js';
 import { StatusIndicator } from '../../../atoms/status-indicator.js';
 import { MetricDisplay } from '../../../atoms/metric-display.js';
+import { DataRow } from '../../../atoms/data-row.js';
+import { ListItem } from '../../../atoms/list-item.js';
+import { HttpStatus } from '../../../atoms/http-status.js';
 import { Scrollbar } from '../../../atoms/scrollbar.js';
 import { BigText, FigletText, BigTitle, Logo, listBigTextFonts } from '../../../atoms/big-text.js';
 import { Digits, Clock, Counter, Countdown, Stopwatch, DigitRoll, Score } from '../../../atoms/digits.js';
@@ -733,6 +736,64 @@ export const statusStories: Story[] = [
         trend: [30, 40, 35, 50, 45, 60],
         showTrend: props.showTrend,
         showDelta: props.showDelta,
+      })
+    ),
+
+  story('DataRow - Basic')
+    .category('Atoms')
+    .description('Key/value row with optional status indicator')
+    .controls({
+      label: defaultControls.text('Label', 'Host'),
+      value: defaultControls.text('Value', 'api.internal.local'),
+      status: defaultControls.select('Status', ['success', 'warning', 'error', 'info', 'pending', 'running', 'stopped'], 'success'),
+      truncate: defaultControls.range('Truncate', 18, 8, 40),
+    })
+    .render((props) =>
+      DataRow({
+        label: props.label,
+        value: props.value,
+        status: props.status,
+        truncate: props.truncate,
+      })
+    ),
+
+  story('ListItem - Basic')
+    .category('Atoms')
+    .description('Standardized list row')
+    .controls({
+      icon: defaultControls.text('Icon', '📄'),
+      primary: defaultControls.text('Primary', 'README.md'),
+      secondary: defaultControls.text('Secondary', '2.1 KB'),
+      trailing: defaultControls.text('Trailing', 'today'),
+      selected: defaultControls.boolean('Selected', false),
+      disabled: defaultControls.boolean('Disabled', false),
+      indent: defaultControls.range('Indent', 0, 0, 4),
+    })
+    .render((props) =>
+      ListItem({
+        icon: props.icon,
+        primary: props.primary,
+        secondary: props.secondary,
+        trailing: props.trailing,
+        selected: props.selected,
+        disabled: props.disabled,
+        indent: props.indent,
+      })
+    ),
+
+  story('HttpStatus - Basic')
+    .category('Atoms')
+    .description('HTTP status code with semantic colors')
+    .controls({
+      code: defaultControls.number('Code', 404),
+      showText: defaultControls.boolean('Show Text', true),
+      variant: defaultControls.select('Variant', ['badge', 'text', 'dot'], 'badge'),
+    })
+    .render((props) =>
+      HttpStatus({
+        code: props.code,
+        showText: props.showText,
+        variant: props.variant,
       })
     ),
 ];

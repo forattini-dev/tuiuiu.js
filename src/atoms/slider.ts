@@ -16,6 +16,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getRenderMode } from '../core/capabilities.js';
 
 // =============================================================================
@@ -62,6 +63,7 @@ export interface SliderState {
   decrementLarge: () => void;
   setValue: (value: number) => void;
   setNormalized: (normalized: number) => void;
+  updateOptions: (options: SliderOptions) => void;
 }
 
 // =============================================================================
@@ -75,49 +77,53 @@ export function createSlider(options: SliderOptions = {}): SliderState {
   const {
     min = 0,
     max = 100,
-    step = 1,
     initialValue = min,
-    onChange,
   } = options;
+  let runtimeOptions = options;
 
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  const getMin = () => runtimeOptions.min ?? min;
+  const getMax = () => runtimeOptions.max ?? max;
+  const getStep = () => runtimeOptions.step ?? 1;
+  const clamp = (v: number) => Math.max(getMin(), Math.min(getMax(), v));
   const [value, setValueSignal] = createSignal(clamp(initialValue));
 
   const normalized = () => {
-    const range = max - min;
-    return range > 0 ? (value() - min) / range : 0;
+    const currentMin = getMin();
+    const currentMax = getMax();
+    const range = currentMax - currentMin;
+    return range > 0 ? (value() - currentMin) / range : 0;
   };
 
   const increment = () => {
     setValueSignal((v) => {
-      const newValue = clamp(v + step);
-      if (newValue !== v) onChange?.(newValue);
+      const newValue = clamp(v + getStep());
+      if (newValue !== v) runtimeOptions.onChange?.(newValue);
       return newValue;
     });
   };
 
   const decrement = () => {
     setValueSignal((v) => {
-      const newValue = clamp(v - step);
-      if (newValue !== v) onChange?.(newValue);
+      const newValue = clamp(v - getStep());
+      if (newValue !== v) runtimeOptions.onChange?.(newValue);
       return newValue;
     });
   };
 
   const incrementLarge = () => {
-    const largeStep = step * 10;
+    const largeStep = getStep() * 10;
     setValueSignal((v) => {
       const newValue = clamp(v + largeStep);
-      if (newValue !== v) onChange?.(newValue);
+      if (newValue !== v) runtimeOptions.onChange?.(newValue);
       return newValue;
     });
   };
 
   const decrementLarge = () => {
-    const largeStep = step * 10;
+    const largeStep = getStep() * 10;
     setValueSignal((v) => {
       const newValue = clamp(v - largeStep);
-      if (newValue !== v) onChange?.(newValue);
+      if (newValue !== v) runtimeOptions.onChange?.(newValue);
       return newValue;
     });
   };
@@ -126,13 +132,15 @@ export function createSlider(options: SliderOptions = {}): SliderState {
     const clamped = clamp(newValue);
     if (clamped !== value()) {
       setValueSignal(clamped);
-      onChange?.(clamped);
+      runtimeOptions.onChange?.(clamped);
     }
   };
 
   const setNormalized = (norm: number) => {
     const clampedNorm = Math.max(0, Math.min(1, norm));
-    const newValue = min + clampedNorm * (max - min);
+    const currentMin = getMin();
+    const currentMax = getMax();
+    const newValue = currentMin + clampedNorm * (currentMax - currentMin);
     setValue(newValue);
   };
 
@@ -145,6 +153,13 @@ export function createSlider(options: SliderOptions = {}): SliderState {
     decrementLarge,
     setValue,
     setNormalized,
+    updateOptions: (nextOptions: SliderOptions) => {
+      runtimeOptions = nextOptions;
+      const clamped = clamp(value());
+      if (clamped !== value()) {
+        setValueSignal(clamped);
+      }
+    },
   };
 }
 
@@ -199,7 +214,7 @@ export function Slider(props: SliderProps): VNode {
     state: externalState,
   } = props;
 
-  const state = externalState || createSlider(props);
+  const state = useFactoryState(externalState, props, createSlider);
   const isAscii = getRenderMode() === 'ascii';
 
   // Setup keyboard handling
@@ -318,6 +333,7 @@ export interface RangeSliderState {
   increment: () => void;
   decrement: () => void;
   setRange: (range: [number, number]) => void;
+  updateOptions: (options: RangeSliderOptions) => void;
 }
 
 /**
@@ -327,12 +343,14 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
   const {
     min = 0,
     max = 100,
-    step = 1,
     initialValue = [min, max],
-    onChange,
   } = options;
+  let runtimeOptions = options;
 
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  const getMin = () => runtimeOptions.min ?? min;
+  const getMax = () => runtimeOptions.max ?? max;
+  const getStep = () => runtimeOptions.step ?? 1;
+  const clamp = (v: number) => Math.max(getMin(), Math.min(getMax(), v));
   const [range, setRangeSignal] = createSignal<[number, number]>([
     clamp(initialValue[0]),
     clamp(initialValue[1]),
@@ -349,15 +367,15 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
       let newRange: [number, number];
 
       if (thumb === 'start') {
-        const newStart = clamp(r[0] + step);
+        const newStart = clamp(r[0] + getStep());
         newRange = [Math.min(newStart, r[1]), r[1]];
       } else {
-        const newEnd = clamp(r[1] + step);
+        const newEnd = clamp(r[1] + getStep());
         newRange = [r[0], newEnd];
       }
 
       if (newRange[0] !== r[0] || newRange[1] !== r[1]) {
-        onChange?.(newRange);
+        runtimeOptions.onChange?.(newRange);
       }
       return newRange;
     });
@@ -369,15 +387,15 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
       let newRange: [number, number];
 
       if (thumb === 'start') {
-        const newStart = clamp(r[0] - step);
+        const newStart = clamp(r[0] - getStep());
         newRange = [newStart, r[1]];
       } else {
-        const newEnd = clamp(r[1] - step);
+        const newEnd = clamp(r[1] - getStep());
         newRange = [r[0], Math.max(newEnd, r[0])];
       }
 
       if (newRange[0] !== r[0] || newRange[1] !== r[1]) {
-        onChange?.(newRange);
+        runtimeOptions.onChange?.(newRange);
       }
       return newRange;
     });
@@ -389,7 +407,7 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
       clamp(Math.max(newRange[0], newRange[1])),
     ];
     setRangeSignal(clamped);
-    onChange?.(clamped);
+    runtimeOptions.onChange?.(clamped);
   };
 
   return {
@@ -399,6 +417,17 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
     increment,
     decrement,
     setRange,
+    updateOptions: (nextOptions: RangeSliderOptions) => {
+      runtimeOptions = nextOptions;
+      const [start, end] = range();
+      const clamped: [number, number] = [
+        clamp(Math.min(start, end)),
+        clamp(Math.max(start, end)),
+      ];
+      if (clamped[0] !== start || clamped[1] !== end) {
+        setRangeSignal(clamped);
+      }
+    },
   };
 }
 
@@ -413,7 +442,12 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
  *   onChange: ([start, end]) => console.log(start, end),
  * })
  */
-export function RangeSlider(props: RangeSliderOptions): VNode {
+export interface RangeSliderProps extends RangeSliderOptions {
+  /** Pre-created state */
+  state?: RangeSliderState;
+}
+
+export function RangeSlider(props: RangeSliderProps): VNode {
   const {
     min = 0,
     max = 100,
@@ -423,9 +457,10 @@ export function RangeSlider(props: RangeSliderOptions): VNode {
     rangeColor = 'primary',
     trackColor = 'border',
     isActive = true,
+    state: externalState,
   } = props;
 
-  const state = createRangeSlider(props);
+  const state = useFactoryState(externalState, props, createRangeSlider);
   const isAscii = getRenderMode() === 'ascii';
 
   // Setup keyboard handling

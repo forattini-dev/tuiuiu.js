@@ -30,6 +30,7 @@ export const molecules: ComponentDoc[] = [
     ],
     examples: [
       `Collapsible({\n  title: 'Advanced Options',\n  children: Box({}, Text({}, 'Hidden content'))\n})`,
+      `Collapsible({\n  title: 'Deployment',\n  summary: '3 pending changes',\n  children: DeploymentDetails()\n})`,
       `// With custom icons\nCollapsible({\n  title: 'Details',\n  collapsedIcon: '📁',\n  expandedIcon: '📂',\n  children: detailsContent\n})`,
     ],
     relatedComponents: ['Accordion', 'Details', 'ExpandableText'],
@@ -116,7 +117,8 @@ export const molecules: ComponentDoc[] = [
       { name: 'state', type: "ReturnType<typeof createSelect>", required: false, description: 'External state from createSelect()' },
     ],
     examples: [
-      `Select({\n  items: [\n    { value: 'us', label: 'United States' },\n    { value: 'uk', label: 'United Kingdom' },\n  ],\n  onChange: (country) => setCountry(country),\n})`,
+      `const countries = [\n  { value: 'us', label: 'United States' },\n  { value: 'uk', label: 'United Kingdom' },\n];\nconst country = useSelectState({ items: countries, searchable: true });\n\nSelect({\n  state: country,\n  items: countries,\n  onChange: (value) => setCountry(value),\n})`,
+      `// Advanced explicit-state usage\nconst select = createSelect({ items: countries });\nrenderSelect(select, { items: countries, borderStyle: 'round' })`,
     ],
     relatedComponents: ['MultiSelect', 'RadioGroup', 'Combobox'],
   },
@@ -548,9 +550,11 @@ export const molecules: ComponentDoc[] = [
       { name: 'colorInactive', type: "ColorValue", required: false, description: 'Inactive tab color' },
       { name: 'onChange', type: "(key: T) => void", required: false, description: 'Tab change handler' },
       { name: 'isActive', type: "boolean", required: false, default: 'true', description: 'Enable keyboard' },
+      { name: 'state', type: "TabsState", required: false, description: 'External state from useTabsState() or createTabs()' },
     ],
     examples: [
       `VerticalTabs({\n  tabs: [\n    { key: 'general', label: '⚙️ General', content: GeneralPanel() },\n    { key: 'appearance', label: '🎨 Appearance', content: AppearancePanel() },\n    { key: 'advanced', label: '🔧 Advanced', content: AdvancedPanel() },\n  ],\n  tabWidth: 18,\n})`,
+      `// Shared stable state in a wrapper\nconst tabs = useTabsState({ tabs: settingsTabs })\nVerticalTabs({ state: tabs, tabs: settingsTabs, tabWidth: 18 })`,
     ],
     relatedComponents: ['Tabs', 'LazyTabs'],
   },
@@ -803,5 +807,28 @@ export const molecules: ComponentDoc[] = [
       `FormGroup({\n  title: 'Account Settings',\n  description: 'Update your account information',\n  gap: 1,\n  children: [\n    FormField({ label: 'Name', children: TextInput({ ... }) }),\n    FormField({ label: 'Email', children: TextInput({ ... }) }),\n  ],\n})`,
     ],
     relatedComponents: ['FormField'],
+  },
+  {
+    name: 'SplitView',
+    category: 'molecules',
+    description: 'Master-detail layout with built-in selection state and keyboard navigation.',
+    props: [
+      { name: 'state', type: 'SplitViewState<T>', required: false, description: 'State from createSplitView()' },
+      { name: 'items', type: 'MaybeReactive<T[]>', required: false, description: 'Items array for uncontrolled mode' },
+      { name: 'selectedIndex', type: 'MaybeReactive<number | null>', required: false, description: 'Controlled selected index' },
+      { name: 'onSelect', type: '(item: T, index: number) => void', required: false, description: 'Selection callback for uncontrolled mode' },
+      { name: 'renderItem', type: '(item: T, index: number, selected: boolean) => VNode', required: true, description: 'List item renderer' },
+      { name: 'renderDetail', type: '(item: T | null) => VNode', required: true, description: 'Detail panel renderer' },
+      { name: 'ratio', type: 'number', required: false, default: '0.33', description: 'List/detail split ratio' },
+      { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Layout direction' },
+      { name: 'divider', type: 'boolean', required: false, default: 'true', description: 'Show divider between panels' },
+      { name: 'listWidth', type: 'number', required: false, description: 'Fixed list width instead of ratio' },
+      { name: 'gap', type: 'number', required: false, default: '0', description: 'Gap between panes' },
+    ],
+    examples: [
+      `const view = createSplitView({ items: requests, initialIndex: 0 })\n\nSplitView({\n  state: view,\n  renderItem: (item, _index, selected) =>\n    ListItem({ primary: item.name, secondary: item.status, selected }),\n  renderDetail: (item) => item ? RequestDetail({ request: item }) : Text({}, 'Select a request'),\n})`,
+      `// Uncontrolled mode\nSplitView({\n  items: files,\n  ratio: 0.4,\n  renderItem: (file, _index, selected) => ListItem({ primary: file.name, selected }),\n  renderDetail: (file) => file ? FilePreview({ file }) : Text({}, 'No file selected'),\n})`,
+    ],
+    relatedComponents: ['ListItem', 'DataRow', 'Tree'],
   },
 ];

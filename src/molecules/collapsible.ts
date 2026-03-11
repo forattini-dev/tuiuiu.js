@@ -16,6 +16,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
@@ -58,6 +59,7 @@ export interface CollapsibleState {
   expand: () => void;
   collapse: () => void;
   setExpanded: (expanded: boolean) => void;
+  updateOptions: (options: CollapsibleOptions) => void;
 }
 
 // =============================================================================
@@ -68,14 +70,15 @@ export interface CollapsibleState {
  * Create a Collapsible state manager
  */
 export function createCollapsible(options: CollapsibleOptions = {}): CollapsibleState {
-  const { initialExpanded = false, onToggle } = options;
+  const { initialExpanded = false } = options;
+  let runtimeOptions = options;
 
   const [expanded, setExpandedSignal] = createSignal(initialExpanded);
 
   const toggle = () => {
     setExpandedSignal((v) => {
       const newValue = !v;
-      onToggle?.(newValue);
+      runtimeOptions.onToggle?.(newValue);
       return newValue;
     });
   };
@@ -83,25 +86,34 @@ export function createCollapsible(options: CollapsibleOptions = {}): Collapsible
   const expand = () => {
     if (!expanded()) {
       setExpandedSignal(true);
-      onToggle?.(true);
+      runtimeOptions.onToggle?.(true);
     }
   };
 
   const collapse = () => {
     if (expanded()) {
       setExpandedSignal(false);
-      onToggle?.(false);
+      runtimeOptions.onToggle?.(false);
     }
   };
 
   const setExpanded = (value: boolean) => {
     if (expanded() !== value) {
       setExpandedSignal(value);
-      onToggle?.(value);
+      runtimeOptions.onToggle?.(value);
     }
   };
 
-  return { expanded, toggle, expand, collapse, setExpanded };
+  return {
+    expanded,
+    toggle,
+    expand,
+    collapse,
+    setExpanded,
+    updateOptions: (nextOptions: CollapsibleOptions) => {
+      runtimeOptions = nextOptions;
+    },
+  };
 }
 
 // =============================================================================
@@ -173,7 +185,7 @@ export function Collapsible(props: CollapsibleProps): VNode {
     borderColor = tokens.border;
   }
 
-  const state = externalState || createCollapsible(props);
+  const state = useFactoryState(externalState, props, createCollapsible);
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 
@@ -282,13 +294,15 @@ export interface AccordionState {
   movePrev: () => void;
   moveNext: () => void;
   toggleFocused: () => void;
+  updateOptions: (options: AccordionOptions) => void;
 }
 
 /**
  * Create an Accordion state manager
  */
 export function createAccordion(options: AccordionOptions): AccordionState {
-  const { sections, initialExpanded, multiple = false, onChange } = options;
+  const { sections, initialExpanded } = options;
+  let runtimeOptions = options;
 
   const [expanded, setExpanded] = createSignal<Set<string>>(
     new Set(initialExpanded ? [initialExpanded] : [])
@@ -301,21 +315,21 @@ export function createAccordion(options: AccordionOptions): AccordionState {
       if (newExp.has(key)) {
         newExp.delete(key);
       } else {
-        if (!multiple) {
+        if (!(runtimeOptions.multiple ?? false)) {
           newExp.clear();
         }
         newExp.add(key);
       }
-      onChange?.([...newExp]);
+      runtimeOptions.onChange?.([...newExp]);
       return newExp;
     });
   };
 
   const expand = (key: string) => {
     setExpanded((exp) => {
-      const newExp = multiple ? new Set(exp) : new Set<string>();
+      const newExp = (runtimeOptions.multiple ?? false) ? new Set(exp) : new Set<string>();
       newExp.add(key);
-      onChange?.([...newExp]);
+      runtimeOptions.onChange?.([...newExp]);
       return newExp;
     });
   };
@@ -324,28 +338,28 @@ export function createAccordion(options: AccordionOptions): AccordionState {
     setExpanded((exp) => {
       const newExp = new Set(exp);
       newExp.delete(key);
-      onChange?.([...newExp]);
+      runtimeOptions.onChange?.([...newExp]);
       return newExp;
     });
   };
 
   const expandAll = () => {
-    if (multiple) {
-      const allKeys = sections.filter((s) => !s.disabled).map((s) => s.key);
+    if (runtimeOptions.multiple ?? false) {
+      const allKeys = runtimeOptions.sections.filter((s) => !s.disabled).map((s) => s.key);
       setExpanded(new Set(allKeys));
-      onChange?.(allKeys);
+      runtimeOptions.onChange?.(allKeys);
     }
   };
 
   const collapseAll = () => {
     setExpanded(new Set());
-    onChange?.([]);
+    runtimeOptions.onChange?.([]);
   };
 
   const movePrev = () => {
     setFocusIndex((i) => {
       let newIndex = i - 1;
-      while (newIndex >= 0 && sections[newIndex]?.disabled) {
+      while (newIndex >= 0 && runtimeOptions.sections[newIndex]?.disabled) {
         newIndex--;
       }
       return newIndex >= 0 ? newIndex : i;
@@ -355,15 +369,15 @@ export function createAccordion(options: AccordionOptions): AccordionState {
   const moveNext = () => {
     setFocusIndex((i) => {
       let newIndex = i + 1;
-      while (newIndex < sections.length && sections[newIndex]?.disabled) {
+      while (newIndex < runtimeOptions.sections.length && runtimeOptions.sections[newIndex]?.disabled) {
         newIndex++;
       }
-      return newIndex < sections.length ? newIndex : i;
+      return newIndex < runtimeOptions.sections.length ? newIndex : i;
     });
   };
 
   const toggleFocused = () => {
-    const section = sections[focusIndex()];
+    const section = runtimeOptions.sections[focusIndex()];
     if (section && !section.disabled) {
       toggle(section.key);
     }
@@ -380,6 +394,11 @@ export function createAccordion(options: AccordionOptions): AccordionState {
     movePrev,
     moveNext,
     toggleFocused,
+    updateOptions: (nextOptions: AccordionOptions) => {
+      runtimeOptions = nextOptions;
+      const maxIndex = Math.max(0, runtimeOptions.sections.length - 1);
+      setFocusIndex((index) => Math.min(index, maxIndex));
+    },
   };
 }
 
@@ -417,7 +436,7 @@ export function Accordion(props: AccordionProps): VNode {
   const iconFg = tokens.iconFg;
   const headerBg = tokens.headerBg;
 
-  const state = externalState || createAccordion(props);
+  const state = useFactoryState(externalState, props, createAccordion);
   const chars = getChars();
   const isAscii = getRenderMode() === 'ascii';
 

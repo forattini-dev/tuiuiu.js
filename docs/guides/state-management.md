@@ -4,14 +4,13 @@ Tuiuiu relies on a **Signals** architecture for state management. This guide cov
 
 ## 1. Local Component State
 
-For state that is only relevant to a specific component (e.g., whether a collapsible is open), use `createSignal` or `useState` inside the component function.
+For state that is only relevant to a specific component (e.g., whether a collapsible is open), use `useState()` inside the component function.
 
 ```typescript
 function Counter() {
-  // Local state
-  const [count, setCount] = createSignal(0);
+  const [count, setCount] = useState(0);
 
-  return Box({}, 
+  return Box({},
     Text({}, `Count: ${count()}`),
     Button('Inc', () => setCount(c => c + 1))
   );
@@ -20,7 +19,7 @@ function Counter() {
 
 ## 2. Global State (Store Pattern)
 
-For data shared across the app (e.g., User Profile, Theme, App Config), create signals outside your components and export them.
+For data shared across the app (e.g., user profile, session, app config), create signals outside your components and export them.
 
 ```typescript
 // store.ts
@@ -46,9 +45,9 @@ function Header() {
 }
 ```
 
-## 3. Complex Logic (Reducers)
+## 3. Reducer-Driven Shared State
 
-If your state logic involves many different actions, a reducer pattern might be cleaner. Tuiuiu provides `createReducer` for this.
+If your state logic involves many different actions, a reducer pattern might be cleaner. Inside components, prefer `useState()`. At module scope, prefer `createSignal()` for simple shared state and `createStore()` when you need reducers plus middleware.
 
 ```typescript
 import { createReducer } from 'tuiuiu.js';

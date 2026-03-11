@@ -122,6 +122,8 @@ Box({ flexDirection: 'row', gap: 1 },
 
 Group of buttons with **built-in keyboard navigation** - no `useInput` needed!
 
+When `isActive` is enabled, direct `ButtonGroup({ ... })` usage now keeps keyboard focus stable across parent rerenders.
+
 ```typescript
 // Out-of-the-box keyboard navigation
 ButtonGroup({

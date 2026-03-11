@@ -445,7 +445,7 @@ List components support **reactive data sources** - when data changes, the list 
 |--------|---------|---------------|
 | Static array | `items: [1, 2, 3]` | ❌ No |
 | Signal | `items: items` or `items: () => items()` | ✅ Yes |
-| Store | `items: () => store.getState().items` | ✅ Yes |
+| Store | `items: () => store.state().items` | ✅ Yes |
 
 ```typescript
 // ✅ With createSignal - auto-updates!
@@ -463,7 +463,7 @@ setItems(prev => [...prev, newItem]) // List re-renders!
 const store = createStore(todoReducer, { items: [] })
 
 ScrollList({
-  items: () => store.getState().items,  // Derived from store
+  items: () => store.state().items,  // Derived from the reactive accessor
   children: (item) => TodoItem({ item }),
   height: 20,
 })

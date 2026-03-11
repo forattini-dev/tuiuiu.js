@@ -18,7 +18,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, MouseEventData } from '../utils/types.js';
 import { createSignal, createEffect } from '../primitives/signal.js';
-import { useInput, type Key } from '../hooks/index.js';
+import { useConst, useInput, type Key } from '../hooks/index.js';
+import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { stringWidth } from '../utils/text-utils.js';
@@ -82,6 +83,30 @@ export interface TextInputOptions {
   wordWrap?: boolean;
   /** If true, Enter creates a newline without Shift */
   enterCreatesNewline?: boolean;
+}
+
+interface TextInputRuntimeOptions {
+  maxLength?: number;
+  history: string[];
+  onChange?: (value: string) => void;
+  onSubmit?: (value: string) => void;
+  onCancel?: () => void;
+  isActive: boolean | (() => boolean);
+  multiline: boolean;
+  enterCreatesNewline: boolean;
+}
+
+function resolveRuntimeOptions(options: TextInputOptions): TextInputRuntimeOptions {
+  return {
+    maxLength: options.maxLength,
+    history: options.history ?? [],
+    onChange: options.onChange,
+    onSubmit: options.onSubmit,
+    onCancel: options.onCancel,
+    isActive: options.isActive ?? true,
+    multiline: options.multiline ?? false,
+    enterCreatesNewline: options.enterCreatesNewline ?? false,
+  };
 }
 
 interface VisualLine {
@@ -195,22 +220,12 @@ function getCursorIndexFromColumn(text: string, column: number): number {
 export function createTextInput(options: TextInputOptions = {}) {
   const {
     initialValue = '',
-    placeholder = '',
-    password = false,
-    maskChar = '*',
-    multiline = false,
-    maxLength,
-    history = [],
-    onChange,
-    onSubmit,
-    onCancel,
-    isActive: isActiveProp = true,
     width = 80, // Default width for wrapping
     maxLines,
     autoGrow = false,
     wordWrap = false,
-    enterCreatesNewline = false,
   } = options;
+  let runtimeOptions = resolveRuntimeOptions(options);
   let wrapWidth = width;
   let wrapWordWrap = wordWrap;
   let wrapMaxLines = maxLines;
@@ -220,7 +235,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   // Helper to check if input is currently active
   // Supports both static boolean and reactive getter function
   const checkIsActive = (): boolean => {
-    return typeof isActiveProp === 'function' ? isActiveProp() : isActiveProp;
+    return typeof runtimeOptions.isActive === 'function' ? runtimeOptions.isActive() : runtimeOptions.isActive;
   };
 
   const [value, setValue] = createSignal(initialValue);
@@ -369,35 +384,35 @@ export function createTextInput(options: TextInputOptions = {}) {
 
     // Escape - cancel
     if (key.escape) {
-      onCancel?.();
+      runtimeOptions.onCancel?.();
       return;
     }
 
     // Ctrl+N - insert newline (N = New line, works in all terminals)
-    if (key.ctrl && input === 'n' && multiline) {
+    if (key.ctrl && input === 'n' && runtimeOptions.multiline) {
       const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
       setValue(newValue);
       const newPos = pos + 1;
       setCursorPositionInternal(newPos);
       setIsMultilineMode(true);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
       return;
     }
 
     // Enter - submit or newline
     // Ctrl+Alt+Enter, Alt+Enter, or Shift+Enter creates newline (if terminal supports it)
     if (key.return) {
-      if (((key.shift || key.meta) && multiline) || (multiline && enterCreatesNewline)) {
+      if (((key.shift || key.meta) && runtimeOptions.multiline) || (runtimeOptions.multiline && runtimeOptions.enterCreatesNewline)) {
         // Insert newline
         const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
         setValue(newValue);
         const newPos = pos + 1;
         setCursorPositionInternal(newPos);
         setIsMultilineMode(true);
-        onChange?.(newValue);
+        runtimeOptions.onChange?.(newValue);
       } else {
         // Submit
-        onSubmit?.(currentValue);
+        runtimeOptions.onSubmit?.(currentValue);
         setHistoryIndex(-1);
       }
       return;
@@ -461,17 +476,17 @@ export function createTextInput(options: TextInputOptions = {}) {
         return;
       }
 
-      if (history.length > 0) {
+      if (runtimeOptions.history.length > 0) {
         const currentIndex = historyIndex();
         if (currentIndex === -1) {
           setOriginalValue(currentValue);
         }
-        const newIndex = Math.min(currentIndex + 1, history.length - 1);
+        const newIndex = Math.min(currentIndex + 1, runtimeOptions.history.length - 1);
         setHistoryIndex(newIndex);
-        const historyValue = history[history.length - 1 - newIndex];
+        const historyValue = runtimeOptions.history[runtimeOptions.history.length - 1 - newIndex];
         setValue(historyValue);
         setCursorPositionInternal(historyValue.length);
-        onChange?.(historyValue);
+        runtimeOptions.onChange?.(historyValue);
       }
       return;
     }
@@ -498,12 +513,12 @@ export function createTextInput(options: TextInputOptions = {}) {
           const orig = originalValue();
           setValue(orig);
           setCursorPositionInternal(orig.length);
-          onChange?.(orig);
+          runtimeOptions.onChange?.(orig);
         } else {
-          const historyValue = history[history.length - 1 - newIndex];
+          const historyValue = runtimeOptions.history[runtimeOptions.history.length - 1 - newIndex];
           setValue(historyValue);
           setCursorPositionInternal(historyValue.length);
-          onChange?.(historyValue);
+          runtimeOptions.onChange?.(historyValue);
         }
       }
       return;
@@ -519,13 +534,13 @@ export function createTextInput(options: TextInputOptions = {}) {
           const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
           setValue(newValue);
           setCursorPositionInternal(boundary);
-          onChange?.(newValue);
+          runtimeOptions.onChange?.(newValue);
         } else {
           // Delete single char
           const newValue = currentValue.slice(0, pos - 1) + currentValue.slice(pos);
           setValue(newValue);
           setCursorPositionInternal(pos - 1);
-          onChange?.(newValue);
+          runtimeOptions.onChange?.(newValue);
         }
       }
       return;
@@ -538,12 +553,12 @@ export function createTextInput(options: TextInputOptions = {}) {
           const boundary = findNextWordBoundary(currentValue, pos);
           const newValue = currentValue.slice(0, pos) + currentValue.slice(boundary);
           setValue(newValue);
-          onChange?.(newValue);
+          runtimeOptions.onChange?.(newValue);
         } else {
           // Delete single char
           const newValue = currentValue.slice(0, pos) + currentValue.slice(pos + 1);
           setValue(newValue);
-          onChange?.(newValue);
+          runtimeOptions.onChange?.(newValue);
         }
       }
       return;
@@ -555,7 +570,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       const endPos = lineEnd >= 0 ? lineEnd : currentValue.length;
       const newValue = currentValue.slice(0, pos) + currentValue.slice(endPos);
       setValue(newValue);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
       return;
     }
 
@@ -566,7 +581,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       const newValue = currentValue.slice(0, startPos) + currentValue.slice(pos);
       setValue(newValue);
       setCursorPositionInternal(startPos);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
       return;
     }
 
@@ -576,7 +591,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
       setValue(newValue);
       setCursorPositionInternal(boundary);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
       return;
     }
 
@@ -584,15 +599,15 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (key.ctrl && input === 'x') {
       setValue('');
       setCursorPositionInternal(0);
-      onChange?.('');
+      runtimeOptions.onChange?.('');
       return;
     }
 
     // Regular character input
     if (input && input.length > 0 && !key.ctrl && !key.meta) {
       // Check max length
-      if (maxLength && currentValue.length + input.length > maxLength) {
-        const remaining = maxLength - currentValue.length;
+      if (runtimeOptions.maxLength && currentValue.length + input.length > runtimeOptions.maxLength) {
+        const remaining = runtimeOptions.maxLength - currentValue.length;
         if (remaining <= 0) return;
         input = input.slice(0, remaining);
       }
@@ -601,7 +616,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       setValue(newValue);
       setCursorPositionInternal(pos + input.length);
       setHistoryIndex(-1);
-      onChange?.(newValue);
+      runtimeOptions.onChange?.(newValue);
     }
   };
 
@@ -621,13 +636,16 @@ export function createTextInput(options: TextInputOptions = {}) {
     setValue: (v: string) => {
       setValue(v);
       setCursorPositionInternal(v.length);
-      onChange?.(v);
+      runtimeOptions.onChange?.(v);
     },
     clear: () => {
       setValue('');
       setCursorPositionInternal(0);
       setHistoryIndex(-1);
-      onChange?.('');
+      runtimeOptions.onChange?.('');
+    },
+    updateOptions: (nextOptions: TextInputOptions = {}) => {
+      runtimeOptions = resolveRuntimeOptions(nextOptions);
     },
     focus: () => {
       // Focus logic if needed
@@ -921,12 +939,25 @@ export function renderTextInput(
   );
 }
 
-export type { TextInputOptions as TextInputProps };
+export interface TextInputProps extends TextInputOptions {
+  state?: ReturnType<typeof createTextInput>;
+}
+
+export function useTextInputState(options: TextInputOptions = {}) {
+  const state = useConst(() => createTextInput(options));
+  state.updateOptions(options);
+  return state;
+}
 
 /**
  * Simple standalone TextInput component
  */
-export function TextInput(options: TextInputOptions): VNode {
-  const state = createTextInput(options);
-  return renderTextInput(state, options);
+export function TextInput({ state, ...options }: TextInputProps): VNode {
+  const internalState = state
+    ? (state.updateOptions(options), state)
+    : isRenderingHooks()
+    ? useTextInputState(options)
+    : createTextInput(options);
+
+  return renderTextInput(internalState, options);
 }

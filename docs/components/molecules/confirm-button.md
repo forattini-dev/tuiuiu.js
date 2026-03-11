@@ -2,6 +2,8 @@
 
 Two-click safety button for destructive actions.
 
+Direct `ConfirmButton({ ... })` usage now preserves the confirmation step across parent rerenders. Use `createConfirmButton()` only when you want explicit external control.
+
 ```typescript
 import { ConfirmButton, createConfirmButton } from 'tuiuiu.js'
 

@@ -63,6 +63,8 @@ interface Cell {
 - **Double Buffering**: Front buffer (displayed) and back buffer (being drawn)
 - **Dirty Tracking**: Only cells that changed are written to terminal
 - **ANSI Optimization**: Minimizes escape sequences by tracking style state
+- **Wide Glyph Footprints**: Emoji, CJK, and other 2-cell symbols reserve their trailing cells so later output stays aligned
+- **Renderable Symbol Parsing**: Zero-width modifiers stay attached to the visible glyph before width calculation and painting
 
 ## The Output Buffer (String Renderer)
 
@@ -70,6 +72,7 @@ The string renderer uses a simpler approach, constructing a full frame in memory
 
 - **ANSI Styling**: Applying colors and text modifiers.
 - **Wide Characters**: Correctly handling emojis and CJK characters (which take up 2 cells).
+- **Wide-Cell Cleanup**: Overwrites clear any previous wide-glyph placeholders before painting new content.
 - **Z-Index**: (Implicitly) by painting nodes in tree order (painters algorithm).
 
 ## Usage
@@ -98,6 +101,21 @@ interface RenderOptions {
   autoTabNavigation?: boolean;    // Tab/Shift+Tab navigation (default: true)
   fullHeight?: boolean;           // Fill entire terminal (default: false)
   useDeltaRenderer?: boolean;     // Use delta renderer (default: true)
+  fixedStep?: FixedStepOptions;   // Fixed-step logical updates for game-like workloads
+}
+```
+
+```typescript
+interface FixedStepOptions {
+  updateFps: number;
+  maxCatchUpUpdates?: number;
+  onUpdate: (update: FixedStepUpdate) => void;
+}
+
+interface FixedStepUpdate {
+  deltaTimeMs: number;
+  step: number;
+  elapsedMs: number;
 }
 ```
 
@@ -109,6 +127,11 @@ The renderer is optimized for terminal performance:
 - **Text Measurement Caching**: It caches the width of strings to avoid repeated calculations
 - **Batched Updates**: Multiple signal changes result in a single re-render frame
 - **FPS Throttling**: Renders are throttled to 30 FPS by default
+- **Latest-State Scheduling**: Burst invalidations collapse to the newest frame instead of painting every intermediate state
+- **Backpressure Handling**: Terminal saturation pauses flushes and resumes from the latest pending frame
+- **ANSI/Delta Parity**: The string renderer and delta renderer consume the same renderable-symbol boundaries so wide-character layout stays consistent across both paths
+
+For the interactive scheduling model behind `render()`, see [Interactive Render Loop](/core/render-loop.md).
 
 ## Key APIs
 

@@ -5,7 +5,7 @@ Interactive selection component with keyboard navigation, search, and multi-sele
 ## Import
 
 ```typescript
-import { Select, createSelect, Checkbox, Confirm } from 'tuiuiu.js'
+import { Select, useSelectState, createSelect, Checkbox, Confirm } from 'tuiuiu.js'
 ```
 
 ## Basic Usage
@@ -57,8 +57,9 @@ Select({
 | `uncheckedIndicator` | `string` | `'○'` | Unchecked (multi) |
 | `colorActive` | `string` | theme | Active item color |
 | `colorSelected` | `string` | theme | Selected color |
-| `showCount` | `boolean` | `false` | Show selection count |
+| `showCount` | `boolean` | `true` | Show selection count |
 | `fullWidth` | `boolean` | `false` | Expand to fill width |
+| `borderStyle` | `'none' \| 'single' \| 'round' \| 'double'` | `'none'` | Optional border around the list |
 | `isActive` | `boolean` | `true` | Handle keyboard input |
 | `onChange` | `(value) => void` | - | Selection change |
 | `onSubmit` | `(value) => void` | - | Enter key handler |
@@ -95,6 +96,27 @@ Select({
 
 ## Programmatic Control
 
+Canonical component usage:
+
+```typescript
+const items = [
+  { value: 'npm', label: 'npm' },
+  { value: 'pnpm', label: 'pnpm' },
+];
+
+function PackageManagerField() {
+  const select = useSelectState({ items, searchable: true });
+
+  return Select({
+    state: select,
+    items,
+    borderStyle: 'round',
+  });
+}
+```
+
+Advanced explicit-state usage:
+
 ```typescript
 const select = createSelect({
   items: [...],
@@ -102,27 +124,22 @@ const select = createSelect({
 })
 
 // Navigation
-select.next()       // Move cursor down
-select.prev()       // Move cursor up
-select.first()      // Go to first
-select.last()       // Go to last
+select.moveDown()   // Move cursor down
+select.moveUp()     // Move cursor up
 
 // Selection
-select.toggle()     // Toggle current item
-select.select()     // Select current (single)
+select.toggleSelection() // Toggle current item
+select.selectIndex(0)    // Jump to a specific item
 select.selectAll()  // Select all (multi)
-select.deselectAll()// Deselect all
-
-// Search
-select.search('ban') // Filter items
+select.selectNone() // Deselect all
 
 // State
-select.cursor()     // Current cursor index
+select.cursorIndex() // Current cursor index
 select.selected()   // Selected value(s)
-select.items()      // Filtered items
+select.getFilteredItems()
 
 // Render
-renderSelect(select)
+renderSelect(select, { items })
 ```
 
 ## Features

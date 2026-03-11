@@ -349,20 +349,29 @@ Legend({
 ### Interactive Legend
 
 ```typescript
+Legend({
+  items: series.map(s => ({ label: s.name, color: s.color })),
+  interactive: true,
+  onItemClick: (idx, label) => console.log('Toggled:', idx, label),
+})
+```
+
+For coordinated chart visibility outside the default render path, keep `createLegend()` as the advanced option:
+
+```typescript
 const legendState = createLegend({
   items: series.map(s => ({ label: s.name, color: s.color })),
 })
 
 Box({ flexDirection: 'column' },
   LineChart({
-    series: series.filter((_, i) => legendState.isVisible(i)),
+    series: series.filter((_, i) => legendState.visibleItems()[i]),
     // ...other props
   }),
   Legend({
-    items: legendState.items(),
+    items: series.map(s => ({ label: s.name, color: s.color })),
     interactive: true,
     state: legendState,
-    onItemClick: (idx) => legendState.toggle(idx),
   }),
 )
 ```

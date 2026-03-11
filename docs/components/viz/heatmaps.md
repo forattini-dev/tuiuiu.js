@@ -49,6 +49,7 @@ Heatmap({
 | `interactive` | `boolean` | `false` | Enable keyboard navigation |
 | `isActive` | `boolean` | `true` | Is active for input |
 | `onSelect` | `(row, col, value) => void` | - | Selection callback |
+| `state` | `HeatmapState` | - | External interactive state |
 
 ### With Headers
 
@@ -61,6 +62,21 @@ Heatmap({
   colorScale: 'viridis',
 })
 ```
+
+### Interactive Heatmap
+
+```typescript
+Heatmap({
+  data: latencyMatrix,
+  columnHeaders: ['us-east', 'us-west'],
+  rowHeaders: ['api', 'worker'],
+  interactive: true,
+  onSelect: (row, col, value) => console.log(row, col, value),
+})
+```
+
+Interactive `Heatmap` is keyboard-first today. Use arrows plus `Enter`/`Space` for selection.
+Mouse click selection is not part of the current public contract.
 
 ### Color Scales
 

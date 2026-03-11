@@ -14,6 +14,7 @@ import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 import { useInput } from '../../hooks/index.js';
+import { useFactoryState } from '../../hooks/factory-state.js';
 import { getRenderMode } from '../../core/capabilities.js';
 
 // =============================================================================
@@ -197,15 +198,14 @@ export interface HeatmapState {
   moveLeft: () => void;
   moveRight: () => void;
   select: (row: number, col: number) => void;
+  updateOptions: (options: HeatmapOptions) => void;
 }
 
 /**
  * Create Heatmap state
  */
 export function createHeatmap(options: HeatmapOptions): HeatmapState {
-  const { data, onSelect } = options;
-  const rows = data.length;
-  const cols = data[0]?.length ?? 0;
+  let runtimeOptions = options;
 
   const [selectedRow, setSelectedRow] = createSignal(0);
   const [selectedCol, setSelectedCol] = createSignal(0);
@@ -215,7 +215,7 @@ export function createHeatmap(options: HeatmapOptions): HeatmapState {
   };
 
   const moveDown = () => {
-    setSelectedRow((r) => Math.min(rows - 1, r + 1));
+    setSelectedRow((r) => Math.min(runtimeOptions.data.length - 1, r + 1));
   };
 
   const moveLeft = () => {
@@ -223,14 +223,14 @@ export function createHeatmap(options: HeatmapOptions): HeatmapState {
   };
 
   const moveRight = () => {
-    setSelectedCol((c) => Math.min(cols - 1, c + 1));
+    setSelectedCol((c) => Math.min((runtimeOptions.data[0]?.length ?? 0) - 1, c + 1));
   };
 
   const select = (row: number, col: number) => {
     setSelectedRow(row);
     setSelectedCol(col);
-    const value = getCellValue(data[row]?.[col] ?? 0);
-    onSelect?.(row, col, value);
+    const value = getCellValue(runtimeOptions.data[row]?.[col] ?? 0);
+    runtimeOptions.onSelect?.(row, col, value);
   };
 
   return {
@@ -241,6 +241,11 @@ export function createHeatmap(options: HeatmapOptions): HeatmapState {
     moveLeft,
     moveRight,
     select,
+    updateOptions: (nextOptions: HeatmapOptions) => {
+      runtimeOptions = nextOptions;
+      setSelectedRow((row) => Math.max(0, Math.min(row, nextOptions.data.length - 1)));
+      setSelectedCol((col) => Math.max(0, Math.min(col, (nextOptions.data[0]?.length ?? 1) - 1)));
+    },
   };
 }
 
@@ -295,7 +300,9 @@ export function Heatmap(props: HeatmapProps): VNode {
   const effectiveMin = minValue ?? min;
   const effectiveMax = maxValue ?? max;
 
-  const state = externalState || (interactive ? createHeatmap(props) : undefined);
+  const state = interactive
+    ? useFactoryState(externalState, props, createHeatmap)
+    : externalState;
 
   // Keyboard handling for interactive mode
   if (interactive && state) {

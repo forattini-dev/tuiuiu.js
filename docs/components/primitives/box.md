@@ -94,6 +94,23 @@ Box({ flexDirection: 'row' },
 )
 ```
 
+## Layout Measurement
+
+Use `layoutRef` when a component needs its computed size from the previous layout pass.
+
+```typescript
+import { Box, Text, useLayoutRef } from 'tuiuiu.js'
+
+function MeasuredPanel() {
+  const ref = useLayoutRef()
+
+  return Box(
+    { layoutRef: ref, borderStyle: 'round', padding: 1 },
+    Text({}, `w=${ref.width()} h=${ref.height()}`)
+  )
+}
+```
+
 ## Mouse Events
 
 ```typescript

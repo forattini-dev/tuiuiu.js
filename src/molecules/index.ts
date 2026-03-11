@@ -15,13 +15,18 @@ export {
   Checkbox,
   createSelect,
   renderSelect,
+  useSelectState,
   type SelectItem,
+  type CreateSelectOptions,
+  type SelectRenderOptions,
+  type SelectProps,
   type SelectOptions,
 } from './select.js';
 
 export {
   MultiSelect,
   createMultiSelect,
+  useMultiSelectState,
   type MultiSelectItem,
   type MultiSelectOptions,
   type MultiSelectState,
@@ -44,9 +49,11 @@ export {
   AutocompleteInput,
   AutocompleteSuggestions,
   createAutocomplete,
+  useAutocompleteState,
   Combobox,
   TagInput,
   createTagInput,
+  useTagInputState,
   type AutocompleteItem,
   type AutocompleteOptions,
   type AutocompleteState,
@@ -56,6 +63,7 @@ export {
   type ComboboxProps,
   type TagInputOptions,
   type TagInputState,
+  type TagInputProps,
 } from './autocomplete.js';
 
 // Composite Inputs
@@ -102,12 +110,14 @@ export {
   VerticalTabs,
   LazyTabs,
   createTabs,
+  useTabsState,
   type Tab,
   type TabsOptions,
   type TabsState,
   type TabsProps,
   type TabPanelProps,
   type VerticalTabsOptions,
+  type VerticalTabsProps,
   type LazyTabsProps,
 } from './tabs.js';
 
@@ -115,6 +125,7 @@ export {
   Tree,
   DirectoryTree,
   createTree,
+  useTreeState,
   type TreeNode,
   type TreeOptions,
   type TreeState,
@@ -130,6 +141,8 @@ export {
   DatePicker,
   createCalendar,
   createDatePicker,
+  useCalendarState,
+  useDatePickerState,
   type CalendarEvent,
   type CalendarOptions,
   type CalendarState,
@@ -138,6 +151,7 @@ export {
   type MiniCalendarOptions,
   type DatePickerOptions,
   type DatePickerState,
+  type DatePickerProps,
 } from './calendar.js';
 
 export {

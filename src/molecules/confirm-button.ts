@@ -15,10 +15,10 @@
  * ```
  */
 
-import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { createSignal, createEffect } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { getTheme } from '../core/theme.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { Button, type ButtonVariant, type ButtonSize } from '../atoms/button.js';
 
 export interface ConfirmButtonState {
@@ -34,6 +34,8 @@ export interface ConfirmButtonState {
   cancel: () => void;
   /** Reset to initial state */
   reset: () => void;
+  /** Update runtime options without recreating controller */
+  updateOptions: (options: ConfirmButtonOptions) => void;
 }
 
 export interface ConfirmButtonOptions {
@@ -64,7 +66,7 @@ export interface ConfirmButtonOptions {
  * ```
  */
 export function createConfirmButton(options: ConfirmButtonOptions = {}): ConfirmButtonState {
-  const { timeout = 3000, onConfirm, onCancel } = options;
+  let runtimeOptions = options;
 
   const [isConfirming, setIsConfirming] = createSignal(false);
   const [remainingTime, setRemainingTime] = createSignal(0);
@@ -91,10 +93,11 @@ export function createConfirmButton(options: ConfirmButtonOptions = {}): Confirm
   const click = () => {
     if (isConfirming()) {
       // Second click = confirm
-      onConfirm?.();
+      runtimeOptions.onConfirm?.();
       reset();
     } else {
       // First click = enter confirmation mode
+      const timeout = runtimeOptions.timeout ?? 3000;
       setIsConfirming(true);
       setRemainingTime(timeout);
 
@@ -115,13 +118,13 @@ export function createConfirmButton(options: ConfirmButtonOptions = {}): Confirm
 
   const confirm = () => {
     if (isConfirming()) {
-      onConfirm?.();
+      runtimeOptions.onConfirm?.();
       reset();
     }
   };
 
   const cancel = () => {
-    onCancel?.();
+    runtimeOptions.onCancel?.();
     reset();
   };
 
@@ -132,6 +135,9 @@ export function createConfirmButton(options: ConfirmButtonOptions = {}): Confirm
     confirm,
     cancel,
     reset,
+    updateOptions: (nextOptions: ConfirmButtonOptions) => {
+      runtimeOptions = nextOptions;
+    },
   };
 }
 
@@ -205,11 +211,15 @@ export function ConfirmButton(props: ConfirmButtonProps): VNode {
   } = props;
 
   // Use state or create inline
-  const internalState = state || createConfirmButton({
-    timeout,
-    onConfirm,
-    onCancel,
-  });
+  const internalState = useFactoryState(
+    state,
+    {
+      timeout,
+      onConfirm,
+      onCancel,
+    },
+    createConfirmButton
+  );
 
   const isConfirming = internalState.isConfirming();
   const remainingTime = internalState.remainingTime();

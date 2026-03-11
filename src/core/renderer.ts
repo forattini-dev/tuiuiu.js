@@ -6,9 +6,32 @@
 
 import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
-import { calculateLayout, getVisibleWidth } from './layout.js';
-import { stringWidth } from '../utils/text-utils.js';
-import { resolveColor } from './theme.js';
+import { getVisibleWidth } from './layout.js';
+import {
+  createFrameSnapshot,
+  recordFramePhaseMetric,
+  type DrawBoxCommand,
+  type DrawCommand,
+  type DrawTerminalImageCommand,
+  type DrawTextCommand,
+  type FrameSnapshot,
+  type ReservedRegion,
+} from './frame.js';
+import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
+import { getTheme, resolveColor } from './theme.js';
+import { renderImageWithProtocol } from './graphics.js';
+
+const PRODUCTION_FRAME_OPTIONS = {
+  eagerHitTargets: false,
+  eagerQueries: false,
+  eagerWarnings: false,
+} as const;
+
+function now(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+const colorCodeCache = new WeakMap<object, Map<string, string | undefined>>();
 
 /**
  * Calculate the maximum bounding box of a layout tree,
@@ -57,10 +80,49 @@ export class OutputBuffer {
     }
   }
 
+  private clearWideFootprint(x: number, y: number): void {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return;
+    }
+
+    const cell = this.cells[y][x]!;
+
+    if (cell.isPlaceholder) {
+      this.cells[y][x] = { char: ' ' };
+
+      if (x > 0) {
+        const previous = this.cells[y][x - 1]!;
+        if (!previous.isPlaceholder && stringWidth(previous.char) > 1) {
+          this.cells[y][x - 1] = { char: ' ' };
+        }
+      }
+
+      return;
+    }
+
+    if (stringWidth(cell.char) > 1) {
+      const footprint = stringWidth(cell.char);
+      for (let offset = 1; offset < footprint && x + offset < this.width; offset++) {
+        if (this.cells[y][x + offset]?.isPlaceholder) {
+          this.cells[y][x + offset] = { char: ' ' };
+        }
+      }
+    }
+  }
+
   /** Write a character at position */
   write(x: number, y: number, char: string, style?: string): void {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      const charWidth = Math.max(1, stringWidth(char));
+      this.clearWideFootprint(x, y);
+      for (let offset = 1; offset < charWidth && x + offset < this.width; offset++) {
+        this.clearWideFootprint(x + offset, y);
+      }
+
       this.cells[y][x] = { char, style };
+      for (let offset = 1; offset < charWidth && x + offset < this.width; offset++) {
+        this.cells[y][x + offset] = { char: '', style, isPlaceholder: true };
+      }
     }
   }
 
@@ -101,30 +163,22 @@ export class OutputBuffer {
         continue;
       }
 
-      // Handle surrogate pairs (emoji, etc.)
-      let fullChar = char;
-      const code = char.charCodeAt(0);
-      if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
-        // High surrogate - combine with low surrogate
-        fullChar = char + text[i + 1];
-        i++; // Skip the low surrogate
+      const symbol = readRenderableSymbol(text, i);
+      if (!symbol) {
+        break;
       }
 
-      // Get character width (1 for normal, 2 for wide chars like emoji)
-      const charWidth = stringWidth(fullChar);
+      const charWidth = stringWidth(symbol.symbol);
+      if (charWidth <= 0) {
+        i = symbol.nextIndex;
+        continue;
+      }
 
       // Write visible character
-      this.write(col, y, fullChar, currentStyle);
-
-      // For wide characters, mark the next cell as a placeholder
-      if (charWidth === 2 && col + 1 < this.width) {
-        if (y >= 0 && y < this.height) {
-          this.cells[y][col + 1] = { char: '', isPlaceholder: true };
-        }
-      }
+      this.write(col, y, symbol.symbol, currentStyle);
 
       col += charWidth;
-      i++;
+      i = symbol.nextIndex;
     }
   }
 
@@ -194,41 +248,64 @@ export interface RenderOptions {
   fullHeight?: boolean;
 }
 
+export interface FrameRenderOptions {
+  fullHeight?: boolean;
+  previousFrame?: FrameSnapshot | null;
+}
+
+function resolveRenderOptions(widthOrOptions?: number | RenderOptions, height?: number): {
+  width: number;
+  height: number;
+  fullHeight: boolean;
+} {
+  if (typeof widthOrOptions === 'object') {
+    return {
+      width: widthOrOptions.width ?? process.stdout.columns ?? 80,
+      height: widthOrOptions.height ?? 1000,
+      fullHeight: widthOrOptions.fullHeight ?? false,
+    };
+  }
+
+  return {
+    width: widthOrOptions ?? process.stdout.columns ?? 80,
+    height: height ?? 1000,
+    fullHeight: false,
+  };
+}
+
+export function renderFrameToString(frame: FrameSnapshot, options: FrameRenderOptions = {}): string {
+  const renderStart = now();
+  const { fullHeight = false, previousFrame = null } = options;
+  const layout = frame.layout;
+  const style = frame.root.props as BoxStyle;
+  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
+  const bounds = getLayoutBounds(layout);
+  const layoutFullHeight = bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
+  const viewportHeight = frame.info.viewport.height;
+  const bufferHeight = fullHeight && viewportHeight < 1000 ? viewportHeight : layoutFullHeight;
+  const buffer = new OutputBuffer(frame.info.viewport.width, bufferHeight);
+
+  renderDrawCommands(frame, buffer);
+
+  const output = buffer.toString(fullHeight);
+  const graphicsOutput = renderProtocolGraphics(frame, previousFrame);
+  recordFramePhaseMetric(frame, 'ansiRenderMs', now() - renderStart);
+  return graphicsOutput + output;
+}
+
 /**
  * Render a VNode tree to ANSI string
  */
 export function renderToString(node: VNode, widthOrOptions?: number | RenderOptions, height?: number): string {
-  // Support both old signature (width, height) and new options object
-  let termWidth: number;
-  let termHeight: number;
-  let fullHeight = false;
+  const resolved = resolveRenderOptions(widthOrOptions, height);
+  const frame = createFrameSnapshot(node, {
+    width: resolved.width,
+    height: resolved.height,
+  }, PRODUCTION_FRAME_OPTIONS);
 
-  if (typeof widthOrOptions === 'object') {
-    termWidth = widthOrOptions.width ?? process.stdout.columns ?? 80;
-    termHeight = widthOrOptions.height ?? 1000;
-    fullHeight = widthOrOptions.fullHeight ?? false;
-  } else {
-    termWidth = widthOrOptions ?? process.stdout.columns ?? 80;
-    termHeight = height ?? 1000; // Large default for unbounded height
-  }
-
-  const layout = calculateLayout(node, termWidth, termHeight);
-
-  // Calculate full bounding box height including margins AND absolute positioned elements
-  // Use getLayoutBounds to include children that may extend beyond the parent's bounds
-  // (e.g., Static component with position: absolute)
-  const style = node.props as BoxStyle;
-  const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
-  const bounds = getLayoutBounds(layout);
-  const layoutFullHeight = bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
-
-  // For fullHeight mode, use the requested height, otherwise use calculated height with margins
-  const bufferHeight = fullHeight && termHeight < 1000 ? termHeight : layoutFullHeight;
-  const buffer = new OutputBuffer(termWidth, bufferHeight);
-
-  renderLayout(layout, buffer, 0, 0);
-
-  return buffer.toString(fullHeight);
+  return renderFrameToString(frame, {
+    fullHeight: resolved.fullHeight,
+  });
 }
 
 /**
@@ -237,7 +314,11 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
  */
 export function measureHeight(node: VNode, width?: number): number {
   const termWidth = width ?? process.stdout.columns ?? 80;
-  const layout = calculateLayout(node, termWidth, 1000);
+  const frame = createFrameSnapshot(node, {
+    width: termWidth,
+    height: 1000,
+  }, PRODUCTION_FRAME_OPTIONS);
+  const layout = frame.layout;
 
   // Calculate full bounding box height including margins AND absolute positioned elements
   const style = node.props as BoxStyle;
@@ -246,121 +327,294 @@ export function measureHeight(node: VNode, width?: number): number {
   return bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
 }
 
-/**
- * Render a layout node to the buffer
- */
-function renderLayout(layout: LayoutNode, buffer: OutputBuffer, offsetX: number, offsetY: number, parentBgStyle?: string): void {
-  const { node, x, y, width, height, children } = layout;
-  const absX = offsetX + x;
-  const absY = offsetY + y;
-
-  // Get this node's background style (or inherit from parent)
-  const style = node.props as BoxStyle;
-  // Get background color code, checking for undefined to avoid "[undefinedm" in output
-  const bgCode = style.backgroundColor ? getColorCode(style.backgroundColor, true) : undefined;
-  const nodeBgStyle = bgCode ? `\x1b[${bgCode}m` : parentBgStyle;
-
-  // Render based on node type
-  switch (node.type) {
-    case 'box':
-      renderBox(node, buffer, absX, absY, width, height);
-      break;
-    case 'text':
-      renderText(node, buffer, absX, absY, width, nodeBgStyle);
-      break;
-    case 'spacer':
-      // Spacer is just empty space (no visual)
-      break;
-    case 'newline':
-      // Newline is handled by layout
-      break;
-    case 'fragment':
-      // Fragment just renders children
-      break;
-  }
-
-  // Calculate content offset (for padding and border)
-  const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
-  const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
-  const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
-  const contentOffsetX = absX + paddingLeft + borderSize;
-  const contentOffsetY = absY + paddingTop + borderSize;
-
-  // Render children (pass background style for inheritance)
-  for (const child of children) {
-    renderLayout(child, buffer, contentOffsetX, contentOffsetY, nodeBgStyle);
+function renderDrawCommands(frame: FrameSnapshot, buffer: OutputBuffer): void {
+  for (const command of frame.drawCommands) {
+    switch (command.type) {
+      case 'box':
+        renderBoxCommand(command, buffer, frame.reservedRegions);
+        break;
+      case 'text':
+        renderTextCommand(command, buffer, frame.reservedRegions);
+        break;
+      case 'terminal-image':
+        renderTerminalImageCommand(command, buffer);
+        break;
+    }
   }
 }
 
-/**
- * Render a Box node
- */
-function renderBox(
-  node: VNode,
+function isReservedCell(regions: readonly ReservedRegion[], x: number, y: number): boolean {
+  return regions.some((region) =>
+    x >= region.x &&
+    x < region.x + region.width &&
+    y >= region.y &&
+    y < region.y + region.height
+  );
+}
+
+function writeReservedAware(
   buffer: OutputBuffer,
+  regions: readonly ReservedRegion[],
+  x: number,
+  y: number,
+  char: string,
+  style?: string,
+): void {
+  const width = Math.max(1, stringWidth(char));
+  for (let offset = 0; offset < width; offset++) {
+    if (isReservedCell(regions, x + offset, y)) {
+      return;
+    }
+  }
+  buffer.write(x, y, char, style);
+}
+
+function fillReservedAware(
+  buffer: OutputBuffer,
+  regions: readonly ReservedRegion[],
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  char: string,
+  style?: string,
 ): void {
-  const style = node.props as BoxStyle;
-
-  // Fill background if backgroundColor is specified
-  if (style.backgroundColor) {
-    const bgCode = getColorCode(style.backgroundColor, true);
-    if (bgCode) {
-      const bgStyle = `\x1b[${bgCode}m`;
-      buffer.fill(x, y, width, height, ' ', bgStyle);
+  for (let row = y; row < y + height; row++) {
+    for (let col = x; col < x + width; col++) {
+      if (!isReservedCell(regions, col, row)) {
+        buffer.write(col, row, char, style);
+      }
     }
-  }
-
-  // Border rendering
-  if (style.borderStyle && style.borderStyle !== 'none') {
-    const borderChars = BORDER_STYLES[style.borderStyle] ?? BORDER_STYLES.single;
-    const borderStyle = style.borderColor ? getColorStyle(style.borderColor) : undefined;
-
-    // Top border
-    buffer.write(x, y, borderChars.topLeft, borderStyle);
-    for (let i = 1; i < width - 1; i++) {
-      buffer.write(x + i, y, borderChars.top, borderStyle);
-    }
-    buffer.write(x + width - 1, y, borderChars.topRight, borderStyle);
-
-    // Side borders
-    for (let row = 1; row < height - 1; row++) {
-      buffer.write(x, y + row, borderChars.left, borderStyle);
-      buffer.write(x + width - 1, y + row, borderChars.right, borderStyle);
-    }
-
-    // Bottom border
-    buffer.write(x, y + height - 1, borderChars.bottomLeft, borderStyle);
-    for (let i = 1; i < width - 1; i++) {
-      buffer.write(x + i, y + height - 1, borderChars.bottom, borderStyle);
-    }
-    buffer.write(x + width - 1, y + height - 1, borderChars.bottomRight, borderStyle);
   }
 }
 
-/**
- * Render a Text node
- */
-function renderText(node: VNode, buffer: OutputBuffer, x: number, y: number, maxWidth: number, parentBgStyle?: string): void {
-  const props = node.props as TextStyle & { children: string };
-  const text = String(props.children ?? '');
+function writeStringReservedAware(
+  buffer: OutputBuffer,
+  regions: readonly ReservedRegion[],
+  x: number,
+  y: number,
+  text: string,
+  style?: string,
+): void {
+  let col = x;
+  let index = 0;
+  let currentStyle = style;
 
-  // Combine text style with inherited background
-  let style = getTextStyle(props);
-  if (parentBgStyle && !props.backgroundColor) {
-    // Inherit background from parent
-    style = parentBgStyle + (style || '');
+  while (index < text.length) {
+    const char = text[index]!;
+
+    if (char === '\x1b' && text[index + 1] === '[') {
+      let ansiEnd = index + 2;
+      while (ansiEnd < text.length && !/[A-Za-z]/.test(text[ansiEnd]!)) {
+        ansiEnd++;
+      }
+      if (ansiEnd < text.length) {
+        const ansiSeq = text.slice(index, ansiEnd + 1);
+        if (ansiSeq === '\x1b[0m' || ansiSeq === '\x1b[m') {
+          currentStyle = style;
+        } else {
+          currentStyle = (currentStyle || '') + ansiSeq;
+        }
+        index = ansiEnd + 1;
+        continue;
+      }
+    }
+
+    if (char === '\n') {
+      index++;
+      continue;
+    }
+
+    const symbol = readRenderableSymbol(text, index);
+    if (!symbol) {
+      break;
+    }
+
+    const symbolWidth = stringWidth(symbol.symbol);
+    if (symbolWidth > 0) {
+      writeReservedAware(buffer, regions, col, y, symbol.symbol, currentStyle);
+      col += symbolWidth;
+    }
+
+    index = symbol.nextIndex;
+  }
+}
+
+function renderBoxCommand(
+  command: DrawBoxCommand,
+  buffer: OutputBuffer,
+  reservedRegions: readonly ReservedRegion[],
+): void {
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor } = command;
+
+  if (backgroundColor) {
+    const bgCode = getColorCode(backgroundColor, true);
+    if (bgCode) {
+      const bgStyle = `\x1b[${bgCode}m`;
+      fillReservedAware(buffer, reservedRegions, x, y, width, height, ' ', bgStyle);
+    }
   }
 
-  // Handle wrapping
-  const lines = wrapText(text, maxWidth, props.wrap);
+  if (borderStyle && borderStyle !== 'none') {
+    const borderChars = BORDER_STYLES[borderStyle] ?? BORDER_STYLES.single;
+    const borderAnsiStyle = borderColor ? getColorStyle(borderColor) : undefined;
 
+    writeReservedAware(buffer, reservedRegions, x, y, borderChars.topLeft, borderAnsiStyle);
+    for (let i = 1; i < width - 1; i++) {
+      writeReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, borderAnsiStyle);
+    }
+    if (width > 1) {
+      writeReservedAware(buffer, reservedRegions, x + width - 1, y, borderChars.topRight, borderAnsiStyle);
+    }
+
+    for (let row = 1; row < height - 1; row++) {
+      writeReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, borderAnsiStyle);
+      if (width > 1) {
+        writeReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, borderAnsiStyle);
+      }
+    }
+
+    if (height > 1) {
+      writeReservedAware(buffer, reservedRegions, x, y + height - 1, borderChars.bottomLeft, borderAnsiStyle);
+      for (let i = 1; i < width - 1; i++) {
+        writeReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, borderAnsiStyle);
+      }
+      if (width > 1) {
+        writeReservedAware(
+          buffer,
+          reservedRegions,
+          x + width - 1,
+          y + height - 1,
+          borderChars.bottomRight,
+          borderAnsiStyle,
+        );
+      }
+    }
+  }
+}
+
+function renderTextCommand(
+  command: DrawTextCommand,
+  buffer: OutputBuffer,
+  reservedRegions: readonly ReservedRegion[],
+): void {
+  const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
+
+  let ansiStyle = getTextStyle(style);
+  if (inheritedBackgroundColor && !style.backgroundColor) {
+    const inheritedCode = getColorCode(inheritedBackgroundColor, true);
+    if (inheritedCode) {
+      ansiStyle = `\x1b[${inheritedCode}m${ansiStyle ?? ''}`;
+    }
+  }
+
+  const lines = wrapText(text, maxWidth, style.wrap);
   for (let i = 0; i < lines.length; i++) {
-    buffer.writeString(x, y + i, lines[i], style);
+    writeStringReservedAware(buffer, reservedRegions, x, y + i, lines[i]!, ansiStyle);
   }
+}
+
+function renderTerminalImageCommand(command: DrawTerminalImageCommand, buffer: OutputBuffer): void {
+  if (!command.cellRender) {
+    return;
+  }
+
+  const rendered = getTerminalImagePayload(command);
+  const lines = rendered.split('\n');
+
+  for (let row = 0; row < lines.length; row++) {
+    buffer.writeString(command.x, command.y + row, lines[row]!);
+  }
+}
+
+function protocolCommandSignature(command: DrawTerminalImageCommand): string {
+  if (command.protocolState) {
+    return command.protocolState.getCacheKey(command.source, {
+      protocol: command.protocol,
+      width: command.width,
+      height: command.height,
+      fit: command.fit,
+      threshold: command.threshold,
+      dither: command.dither,
+      preserveAspectRatio: command.preserveAspectRatio,
+    });
+  }
+
+  return [
+    command.protocol,
+    command.id ?? '',
+    command.x,
+    command.y,
+    command.width,
+    command.height,
+    command.source.hash,
+    command.fit,
+    command.threshold ?? '',
+    command.dither ? 1 : 0,
+    command.preserveAspectRatio ? 1 : 0,
+  ].join(':');
+}
+
+function getTerminalImagePayload(command: DrawTerminalImageCommand): string {
+  const options = {
+    width: command.width,
+    height: command.height,
+    fit: command.fit,
+    threshold: command.threshold,
+    dither: command.dither,
+    preserveAspectRatio: command.preserveAspectRatio,
+  };
+
+  if (command.protocolState) {
+    return command.protocolState.render(command.source, {
+      protocol: command.protocol,
+      ...options,
+    }).payload;
+  }
+
+  return renderImageWithProtocol(command.protocol, command.source, options);
+}
+
+function collectProtocolImageCommands(frame: FrameSnapshot | null): DrawTerminalImageCommand[] {
+  if (!frame) {
+    return [];
+  }
+
+  return frame.drawCommands.filter(
+    (command): command is DrawTerminalImageCommand =>
+      command.type === 'terminal-image' && !command.cellRender,
+  );
+}
+
+function renderProtocolGraphics(frame: FrameSnapshot, previousFrame: FrameSnapshot | null): string {
+  const nextCommands = collectProtocolImageCommands(frame);
+  if (nextCommands.length === 0 && !previousFrame) {
+    return '';
+  }
+
+  const previousCommands = collectProtocolImageCommands(previousFrame);
+  const previousSignature = previousCommands.map(protocolCommandSignature).join('|');
+  const nextSignature = nextCommands.map(protocolCommandSignature).join('|');
+
+  if (previousFrame && previousSignature === nextSignature) {
+    return '';
+  }
+
+  let output = '';
+
+  if (previousCommands.length > 0 && previousSignature !== nextSignature) {
+    const previousProtocols = new Set(previousCommands.map(command => command.protocol));
+    if (previousProtocols.has('kitty')) {
+      output += '\x1b7\x1b[H\x1b_Ga=d,d=A\x1b\\\x1b8';
+    }
+  }
+
+  for (const command of nextCommands) {
+    const payload = getTerminalImagePayload(command);
+    output += `\x1b7\x1b[${command.y + 1};${command.x + 1}H${payload}\x1b8`;
+  }
+
+  return output;
 }
 
 /**
@@ -409,6 +663,18 @@ function getColorStyle(color: string): string | undefined {
  * - RGB colors: 'rgb(255, 100, 50)'
  */
 function getColorCode(color: string, background: boolean): string | undefined {
+  const theme = getTheme() as unknown as object;
+  let cache = colorCodeCache.get(theme);
+  if (!cache) {
+    cache = new Map();
+    colorCodeCache.set(theme, cache);
+  }
+
+  const cacheKey = `${background ? 'bg' : 'fg'}:${color}`;
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
   const offset = background ? 10 : 0;
 
   // Basic ANSI colors (check these first for performance)
@@ -434,7 +700,9 @@ function getColorCode(color: string, background: boolean): string | undefined {
   };
 
   if (basicColors[color] !== undefined) {
-    return String(basicColors[color] + offset);
+    const value = String(basicColors[color] + offset);
+    cache.set(cacheKey, value);
+    return value;
   }
 
   // Resolve semantic/theme colors to hex values
@@ -443,7 +711,9 @@ function getColorCode(color: string, background: boolean): string | undefined {
 
   // Check if resolved value is a basic color name (e.g., when primaryForeground resolves to 'white' or 'black')
   if (basicColors[resolved] !== undefined) {
-    return String(basicColors[resolved] + offset);
+    const value = String(basicColors[resolved] + offset);
+    cache.set(cacheKey, value);
+    return value;
   }
 
   // Hex color (after resolution)
@@ -456,17 +726,22 @@ function getColorCode(color: string, background: boolean): string | undefined {
     const r = parseInt(fullHex.slice(0, 2), 16);
     const g = parseInt(fullHex.slice(2, 4), 16);
     const b = parseInt(fullHex.slice(4, 6), 16);
-    return `${background ? 48 : 38};2;${r};${g};${b}`;
+    const value = `${background ? 48 : 38};2;${r};${g};${b}`;
+    cache.set(cacheKey, value);
+    return value;
   }
 
   // RGB color
   if (resolved.startsWith('rgb')) {
     const match = resolved.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (match) {
-      return `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
+      const value = `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
+      cache.set(cacheKey, value);
+      return value;
     }
   }
 
+  cache.set(cacheKey, undefined);
   return undefined;
 }
 

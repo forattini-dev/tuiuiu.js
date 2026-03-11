@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderToString } from '../../src/core/renderer.js';
+import { beginRender, clearInputHandlers, emitInput, endRender, resetHookState } from '../../src/hooks/context.js';
 import {
   createSearchInput,
   SearchInput,
@@ -19,6 +21,19 @@ import {
   type PasswordInputState,
   type NumberInputState,
 } from '../../src/molecules/devx-inputs.js';
+import { charKey, keys } from '../helpers/keyboard.js';
+
+function renderWithHooks<T>(factory: () => T): T {
+  beginRender();
+  const result = factory();
+  endRender();
+  return result;
+}
+
+beforeEach(() => {
+  resetHookState();
+  clearInputHandlers();
+});
 
 // =============================================================================
 // SearchInput Tests
@@ -159,6 +174,19 @@ describe('SearchInput', () => {
       const result = SearchInput({ borderStyle: 'single' });
 
       expect(result.props?.borderStyle).toBe('single');
+    });
+
+    it('should keep typed value across parent re-renders', () => {
+      const renderApp = () =>
+        renderWithHooks(() => SearchInput({ isActive: true }));
+
+      renderApp();
+      emitInput('r', charKey('r').key);
+
+      const rerendered = renderApp();
+      const output = renderToString(rerendered, 40);
+
+      expect(output).toContain('r');
     });
   });
 });
@@ -303,6 +331,19 @@ describe('PasswordInput', () => {
       const result = PasswordInput({ placeholder: 'Enter password...' });
 
       expect(result).toBeDefined();
+    });
+
+    it('should keep typed value across parent re-renders', () => {
+      const renderApp = () =>
+        renderWithHooks(() => PasswordInput({ isActive: true, showToggle: false }));
+
+      renderApp();
+      emitInput('s', charKey('s').key);
+
+      const rerendered = renderApp();
+      const output = renderToString(rerendered, 40);
+
+      expect(output).toContain('*');
     });
   });
 });
@@ -500,6 +541,19 @@ describe('NumberInput', () => {
       const result = NumberInput({ state });
 
       expect(result).toBeDefined();
+    });
+
+    it('should keep numeric state across parent re-renders', () => {
+      const renderApp = () =>
+        renderWithHooks(() => NumberInput({ isActive: true }));
+
+      renderApp();
+      emitInput('', keys.up().key);
+
+      const rerendered = renderApp();
+      const output = renderToString(rerendered, 40);
+
+      expect(output).toContain('1');
     });
   });
 });
