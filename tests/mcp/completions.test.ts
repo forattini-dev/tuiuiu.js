@@ -154,6 +154,7 @@ describe('MCP Completions', () => {
 
       expect(result.values).toContain('getting-started');
       expect(result.values).toContain('signals');
+      expect(result.values).toContain('common-mistakes');
       expect(result.values).toContain('layout');
     });
   });

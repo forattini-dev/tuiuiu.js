@@ -25,9 +25,11 @@ import {
   bufferToAnsi,
   type DamageRect,
 } from './buffer.js';
-import { markClean, clearChanges } from './dirty.js';
+import { cleanLayoutTree, clearChanges } from './dirty.js';
 import { hideCursor, showCursor } from '../utils/cursor.js';
 import { getTheme, resolveColor as resolveThemeColor } from './theme.js';
+import { getCapabilities } from './capabilities.js';
+import { getSynchronizedBegin, getSynchronizedEnd } from './progressive.js';
 import {
   clearImagesForProtocol,
   kittyGraphics,
@@ -41,7 +43,13 @@ import type {
   FrameSnapshot,
   ReservedRegion,
 } from './frame.js';
-import { createFrameSnapshot, recordFramePhaseMetric } from './frame.js';
+import {
+  createFrameSnapshot,
+  finalizeFrameRuntimeMetrics,
+  recordFramePhaseMetric,
+  recordFrameStructuralMetric,
+} from './frame.js';
+import { recordCommittedFrame } from './perf-inspector.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -207,6 +215,59 @@ function mergeDirtyRects(rects: DamageRect[], width: number, height: number): Da
   return merged;
 }
 
+function buildDiffRects(rects: DamageRect[], width: number, height: number): DamageRect[] {
+  const spansByRow = new Map<number, Array<{ x1: number; x2: number }>>();
+
+  for (const rect of rects) {
+    const normalized = normalizeRect(rect, width, height);
+    if (!normalized) {
+      continue;
+    }
+
+    const x1 = normalized.x;
+    const x2 = normalized.x + normalized.width;
+    const y2 = normalized.y + normalized.height;
+
+    for (let y = normalized.y; y < y2; y++) {
+      const spans = spansByRow.get(y);
+      if (spans) {
+        spans.push({ x1, x2 });
+      } else {
+        spansByRow.set(y, [{ x1, x2 }]);
+      }
+    }
+  }
+
+  const rows = [...spansByRow.keys()].sort((left, right) => left - right);
+  const diffRects: DamageRect[] = [];
+
+  for (const y of rows) {
+    const spans = spansByRow.get(y)!;
+    spans.sort((left, right) => left.x1 - right.x1);
+
+    let current = spans[0]!;
+    for (let index = 1; index < spans.length; index++) {
+      const next = spans[index]!;
+      if (next.x1 <= current.x2) {
+        current.x2 = Math.max(current.x2, next.x2);
+        continue;
+      }
+
+      diffRects.push({ x: current.x1, y, width: current.x2 - current.x1, height: 1 });
+      current = next;
+    }
+
+    diffRects.push({ x: current.x1, y, width: current.x2 - current.x1, height: 1 });
+  }
+
+  return diffRects;
+}
+
+interface DirtyRegions {
+  renderRects: DamageRect[];
+  diffRects: DamageRect[];
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -298,7 +359,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
   function renderFrame(frame: FrameSnapshot): void {
     prepareRender(frame.info.viewport.width, frame.info.viewport.height);
     commitFrame(frame);
-    markClean(frame.root);
+    cleanLayoutTree(frame.layout);
     clearChanges();
     lastNode = frame.root;
     lastFrame = frame;
@@ -376,24 +437,56 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
 
   /**
    * Commit a frame to the double buffer and emit either a full redraw or patches.
+   * Wraps all stdout writes in synchronized output (BSU/ESU) when supported.
    */
   function commitFrame(frame: FrameSnapshot): void {
     const renderStart = now();
+    let outputWriteMs = 0;
+    let outputByteCount = 0;
     const frontBuffer = doubleBuffer.getFrontBuffer();
     const backBuffer = doubleBuffer.getBackBuffer();
     totalRenders++;
     const screenArea = width * height;
     const graphicsOutput = buildProtocolGraphicsOutput(lastFrame, frame);
 
+    // Synchronized output sequences (computed lazily)
+    const caps = getCapabilities();
+    const bsu = getSynchronizedBegin(caps);
+    const esu = getSynchronizedEnd(caps);
+
+    const writeChunk = (chunk: string | Uint8Array): void => {
+      const writeStart = now();
+      stdout.write(chunk as never);
+      outputWriteMs += now() - writeStart;
+      outputByteCount += typeof chunk === 'string'
+        ? Buffer.byteLength(chunk)
+        : chunk.byteLength;
+    };
+
     if (!isFirstRender && useDelta && lastFrame) {
-      const dirtyRects = collectDirtyRects(lastFrame.drawCommands, frame.drawCommands, width, height);
+      const { renderRects: dirtyRects, diffRects } = collectDirtyRegions(
+        lastFrame.drawCommands,
+        frame.drawCommands,
+        width,
+        height,
+      );
+      recordFrameStructuralMetric(frame, 'dirtyRectCount', dirtyRects.length);
+      recordFrameStructuralMetric(frame, 'diffRectCount', diffRects.length);
 
       if (dirtyRects.length === 0) {
         if (graphicsOutput) {
-          stdout.write(graphicsOutput);
+          writeChunk(graphicsOutput);
         }
         lastPatchCount = 0;
-        recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+        recordFrameStructuralMetric(frame, 'patchCount', 0);
+        recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
+        recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
+        recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
+        finalizeFrameRuntimeMetrics(
+          frame,
+          frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
+        );
+        recordCommittedFrame(frame, { renderer: 'delta' });
         return;
       }
 
@@ -403,13 +496,15 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
         dirtyArea > (screenArea * DIRTY_AREA_FALLBACK_RATIO);
 
       if (!shouldFallbackToFull) {
+        if (bsu) writeChunk(bsu);
         clearDirtyRects(backBuffer, dirtyRects);
         renderDirtyDrawCommandsToBuffer(frame.drawCommands, dirtyRects, backBuffer, frame.reservedRegions);
 
-        const patches = frontBuffer.diffRects(backBuffer, dirtyRects);
+        const patches = frontBuffer.diffRects(backBuffer, diffRects);
         frontBuffer.applyPatches(patches);
         backBuffer.clearDamage();
         lastPatchCount = patches.length;
+        recordFrameStructuralMetric(frame, 'patchCount', patches.length);
 
         if (debug) {
           console.error(
@@ -418,25 +513,35 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
         }
 
         if (graphicsOutput) {
-          stdout.write(graphicsOutput);
+          writeChunk(graphicsOutput);
         }
 
         if (patches.length > 0) {
           const output = patchesToAnsi(patches, width, true);
-          stdout.write(output);
+          writeChunk(output);
           deltaRenders++;
         }
 
-        recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+        if (esu) writeChunk(esu);
+        recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
+        recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
+        recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
+        finalizeFrameRuntimeMetrics(
+          frame,
+          frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
+        );
+        recordCommittedFrame(frame, { renderer: 'delta' });
         return;
       }
     }
 
+    if (bsu) writeChunk(bsu);
     backBuffer.clear();
     renderDrawCommandsToBuffer(frame.drawCommands, backBuffer, frame.reservedRegions);
 
     const patches = doubleBuffer.swap();
     lastPatchCount = patches.length;
+    recordFrameStructuralMetric(frame, 'patchCount', patches.length);
 
     if (debug) {
       console.error(`[delta-render] patches: ${patches.length}, cells: ${screenArea}`);
@@ -445,28 +550,44 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
     if (isFirstRender || !useDelta || patches.length > (screenArea * 0.5)) {
       const output = bufferToAnsi(doubleBuffer.getFrontBuffer());
       if (graphicsOutput) {
-        stdout.write(graphicsOutput);
+        writeChunk(graphicsOutput);
       }
-      stdout.write('\x1b[H');
-      stdout.write(output);
+      writeChunk('\x1b[H');
+      writeChunk(output);
       fullRenders++;
       isFirstRender = false;
-      recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+      if (esu) writeChunk(esu);
+      recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
+      recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
+      recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
+      finalizeFrameRuntimeMetrics(
+        frame,
+        frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
+      );
+      recordCommittedFrame(frame, { renderer: 'delta' });
       return;
     }
 
     if (graphicsOutput) {
-      stdout.write(graphicsOutput);
+      writeChunk(graphicsOutput);
     }
 
     if (patches.length > 0) {
       const output = patchesToAnsi(patches, width, true);
-      stdout.write(output);
+      writeChunk(output);
       deltaRenders++;
     }
 
     isFirstRender = false;
-    recordFramePhaseMetric(frame, 'deltaRenderMs', now() - renderStart);
+    if (esu) writeChunk(esu);
+    recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
+    recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
+    recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
+    finalizeFrameRuntimeMetrics(
+      frame,
+      frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
+    );
+    recordCommittedFrame(frame, { renderer: 'delta' });
   }
 
   return {
@@ -559,12 +680,12 @@ function getCommandBounds(command: DrawCommand): DamageRect {
   return getTextCommandBounds(command);
 }
 
-function collectDirtyRects(
+function collectDirtyRegions(
   previous: DrawCommand[],
   next: DrawCommand[],
   width: number,
   height: number,
-): DamageRect[] {
+): DirtyRegions {
   const dirtyRects: DamageRect[] = [];
   const maxLength = Math.max(previous.length, next.length);
 
@@ -585,7 +706,10 @@ function collectDirtyRects(
     }
   }
 
-  return mergeDirtyRects(dirtyRects, width, height);
+  return {
+    renderRects: mergeDirtyRects(dirtyRects, width, height),
+    diffRects: buildDiffRects(dirtyRects, width, height),
+  };
 }
 
 function getDirtyArea(rects: DamageRect[]): number {
@@ -1118,6 +1242,7 @@ function renderTextToBuffer(
     dim: style.dim,
     italic: style.italic,
     underline: style.underline,
+    underlineColor: style.underlineColor ? parseColor(style.underlineColor) : undefined,
     inverse: style.inverse,
     strikethrough: style.strikethrough,
   };
@@ -1312,4 +1437,13 @@ export function resetDeltaRenderer(): void {
     deltaRendererInstance.cleanup();
   }
   deltaRendererInstance = null;
+}
+
+export function __collectDirtyRegionsForTesting(
+  previous: DrawCommand[],
+  next: DrawCommand[],
+  width: number,
+  height: number,
+): DirtyRegions {
+  return collectDirtyRegions(previous, next, width, height);
 }

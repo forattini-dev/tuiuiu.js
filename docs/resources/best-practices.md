@@ -2,6 +2,16 @@
 
 To build scalable, maintainable, and performant Tuiuiu applications, follow these guidelines.
 
+## Start Here
+
+Before optimizing anything else, avoid the three mistakes the runtime warns about:
+
+- `createSignal()` inside component render
+- `setTheme()` after `render()`
+- component API-pattern mismatches (`Page`/`AppShell` props pattern, `ScrollList` render-function pattern, `Tabs` data-driven pattern)
+
+Reference: [Common Mistakes](/resources/common-mistakes.md)
+
 ## Performance
 
 ### 1. Minimize Re-renders

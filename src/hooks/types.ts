@@ -112,6 +112,8 @@ export interface AppContext {
   rawModeEnabledCount: number;
   /** Whether raw mode is currently active */
   isRawModeEnabled: () => boolean;
+  /** Whether the terminal currently reports itself as focused */
+  isTerminalFocused?: () => boolean;
   /** Clear the screen and reset render state (use for splash->main transitions) */
   clearScreen?: () => void;
 }

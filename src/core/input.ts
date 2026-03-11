@@ -11,6 +11,8 @@
  * 
  */
 
+import { detectTerminalProfile } from './terminal-profile.js';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -74,6 +76,10 @@ export interface PasteEvent {
   isBracketed: boolean;
 }
 
+export interface TerminalFocusEvent {
+  focused: boolean;
+}
+
 /** Parsed input result */
 export interface ParsedInput {
   /** Raw input string */
@@ -84,6 +90,8 @@ export interface ParsedInput {
   mouse?: MouseEvent;
   /** Paste event if bracketed paste */
   paste?: PasteEvent;
+  /** Terminal focus in/out event */
+  focus?: TerminalFocusEvent;
   /** Unknown sequence */
   unknown?: string;
 }
@@ -96,36 +104,40 @@ let detectedProtocol: KeyboardProtocol | null = null;
 let manualProtocol: KeyboardProtocol | null = null;
 
 /**
- * Detect keyboard protocol support
+ * Detect keyboard protocol support.
+ * Uses terminal profile database first, then falls back to env var heuristics.
  */
 export function detectKeyboardProtocol(): KeyboardProtocol {
   if (manualProtocol) return manualProtocol;
   if (detectedProtocol) return detectedProtocol;
 
-  // Check environment
+  // Try terminal profile first (most reliable)
+  const profile = detectTerminalProfile(process.env);
+  if (profile.knownCaps.kittyKeyboard) {
+    detectedProtocol = 'kitty';
+    return detectedProtocol;
+  }
+
+  // Legacy env var detection
   const kittyWindow = process.env.KITTY_WINDOW_ID;
   const termProgram = process.env.TERM_PROGRAM?.toLowerCase();
   const term = process.env.TERM?.toLowerCase() || '';
 
-  // Kitty detection
   if (kittyWindow || termProgram === 'kitty') {
     detectedProtocol = 'kitty';
     return detectedProtocol;
   }
 
-  // WezTerm supports Kitty protocol
   if (termProgram === 'wezterm') {
     detectedProtocol = 'kitty';
     return detectedProtocol;
   }
 
-  // Foot terminal supports Kitty protocol
   if (term.includes('foot')) {
     detectedProtocol = 'kitty';
     return detectedProtocol;
   }
 
-  // Default to legacy
   detectedProtocol = 'legacy';
   return detectedProtocol;
 }
@@ -435,6 +447,8 @@ function parseX10Mouse(cb: number, x: number, y: number): MouseEvent {
 
 const PASTE_START = '\x1b[200~';
 const PASTE_END = '\x1b[201~';
+const FOCUS_IN = '\x1b[I';
+const FOCUS_OUT = '\x1b[O';
 
 /**
  * Enable bracketed paste mode
@@ -448,6 +462,42 @@ export function enableBracketedPaste(): string {
  */
 export function disableBracketedPaste(): string {
   return '\x1b[?2004l';
+}
+
+/**
+ * Enable terminal focus events (CSI I / CSI O)
+ */
+export function enableFocusEvents(): string {
+  return '\x1b[?1004h';
+}
+
+/**
+ * Disable terminal focus events
+ */
+export function disableFocusEvents(): string {
+  return '\x1b[?1004l';
+}
+
+/**
+ * Check if input starts with a terminal focus event sequence.
+ */
+export function isFocusEvent(input: string): boolean {
+  return input.startsWith(FOCUS_IN) || input.startsWith(FOCUS_OUT);
+}
+
+/**
+ * Parse a terminal focus event sequence.
+ */
+export function parseFocusEvent(input: string): TerminalFocusEvent | null {
+  if (input === FOCUS_IN) {
+    return { focused: true };
+  }
+
+  if (input === FOCUS_OUT) {
+    return { focused: false };
+  }
+
+  return null;
 }
 
 /**
@@ -772,6 +822,22 @@ export function parseInput(input: string | Buffer): ParsedInput {
         const remainingResult = parseInput(extracted.remaining);
         result.keys = remainingResult.keys;
         result.mouse = remainingResult.mouse;
+        result.focus = remainingResult.focus;
+      }
+      return result;
+    }
+  }
+
+  if (isFocusEvent(raw)) {
+    const focusEvent = parseFocusEvent(raw.slice(0, FOCUS_IN.length));
+    if (focusEvent) {
+      result.focus = focusEvent;
+      if (raw.length > FOCUS_IN.length) {
+        const remainingResult = parseInput(raw.slice(FOCUS_IN.length));
+        result.keys = remainingResult.keys;
+        result.mouse = remainingResult.mouse;
+        result.paste = remainingResult.paste;
+        result.unknown = remainingResult.unknown;
       }
       return result;
     }

@@ -13,6 +13,25 @@
 
 import { stringWidth } from '../utils/text-utils.js';
 
+const NAMED_COLORS: Record<string, number> = {
+  black: 0, red: 1, green: 2, yellow: 3,
+  blue: 4, magenta: 5, cyan: 6, white: 7,
+  gray: 8, grey: 8,
+  redBright: 9, greenBright: 10, yellowBright: 11,
+  blueBright: 12, magentaBright: 13, cyanBright: 14, whiteBright: 15,
+};
+
+const UNDERLINE_STYLE_MAP: Record<string, string> = {
+  single: '4:1',
+  double: '4:2',
+  curly: '4:3',
+  dotted: '4:4',
+  dashed: '4:5',
+};
+
+const ANSI_STYLE_CACHE_MAX = 512;
+const ansiStyleCache = new Map<string, string>();
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -22,7 +41,10 @@ export interface CellAttrs {
   bold?: boolean;
   dim?: boolean;
   italic?: boolean;
-  underline?: boolean;
+  /** Underline style: true/'single' for standard, or styled variants */
+  underline?: boolean | 'single' | 'double' | 'curly' | 'dotted' | 'dashed';
+  /** Underline color (for terminals supporting SGR 58) */
+  underlineColor?: Color;
   blink?: boolean;
   inverse?: boolean;
   hidden?: boolean;
@@ -101,11 +123,16 @@ export function colorEquals(a?: Color, b?: Color): boolean {
 
 /** Compare two cell attributes for equality */
 export function attrsEquals(a: CellAttrs, b: CellAttrs): boolean {
+  // underline can be boolean or string, so direct compare (not !!)
+  const aUnderline = a.underline || false;
+  const bUnderline = b.underline || false;
+
   return (
     !!a.bold === !!b.bold &&
     !!a.dim === !!b.dim &&
     !!a.italic === !!b.italic &&
-    !!a.underline === !!b.underline &&
+    aUnderline === bUnderline &&
+    colorEquals(a.underlineColor, b.underlineColor) &&
     !!a.blink === !!b.blink &&
     !!a.inverse === !!b.inverse &&
     !!a.hidden === !!b.hidden &&
@@ -145,6 +172,7 @@ export function cloneCell(cell: Cell): Cell {
 export class CellBuffer {
   private cells: Cell[][];
   private damageRects: DamageRect[] = [];
+  private rowSignatures: (string | null)[];
   readonly width: number;
   readonly height: number;
 
@@ -152,6 +180,7 @@ export class CellBuffer {
     this.width = width;
     this.height = height;
     this.cells = [];
+    this.rowSignatures = new Array(height).fill(null);
 
     for (let y = 0; y < height; y++) {
       const row: Cell[] = [];
@@ -174,6 +203,7 @@ export class CellBuffer {
   set(x: number, y: number, cell: Cell): void {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
       this.cells[y][x] = cell;
+      this.invalidateRow(y);
       this.addDamage(x, y, 1, 1);
     }
   }
@@ -183,6 +213,7 @@ export class CellBuffer {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
       const charWidth = stringWidth(char);
       this.cells[y][x] = { char, fg, bg, attrs };
+      this.invalidateRow(y);
       this.addDamage(x, y, charWidth, 1);
 
       // Mark next cell as wide placeholder for double-width chars
@@ -225,6 +256,7 @@ export class CellBuffer {
       this.cells[y][col] = { char, fg, bg, attrs };
     }
 
+    this.invalidateRow(y);
     this.addDamage(x1, y, x2 - x1, 1);
   }
 
@@ -235,9 +267,25 @@ export class CellBuffer {
     const x2 = Math.min(this.width, x + width);
     const y2 = Math.min(this.height, y + height);
 
-    for (let row = y1; row < y2; row++) {
-      this.fillRow(x1, row, x2 - x1, cell.char, cell.fg, cell.bg, cell.attrs);
+    if (x2 <= x1 || y2 <= y1) {
+      return;
     }
+
+    if (stringWidth(cell.char) !== 1) {
+      for (let row = y1; row < y2; row++) {
+        this.fillRow(x1, row, x2 - x1, cell.char, cell.fg, cell.bg, cell.attrs);
+      }
+      return;
+    }
+
+    for (let row = y1; row < y2; row++) {
+      for (let col = x1; col < x2; col++) {
+        this.cells[row][col] = { char: cell.char, fg: cell.fg, bg: cell.bg, attrs: cell.attrs };
+      }
+      this.invalidateRow(row);
+    }
+
+    this.addDamage(x1, y1, x2 - x1, y2 - y1);
   }
 
   /** Clear the buffer with empty cells */
@@ -246,6 +294,7 @@ export class CellBuffer {
       for (let x = 0; x < this.width; x++) {
         this.cells[y][x] = emptyCell();
       }
+      this.rowSignatures[y] = null;
     }
     this.addDamage(0, 0, this.width, this.height);
   }
@@ -340,6 +389,10 @@ export class CellBuffer {
     const maxY = Math.min(this.height, target.height);
 
     for (let y = 0; y < maxY; y++) {
+      if (this.getRowSignature(y) === target.getRowSignature(y)) {
+        continue;
+      }
+
       for (let x = 0; x < maxX; x++) {
         const current = this.cells[y][x];
         const next = target.cells[y][x];
@@ -359,21 +412,19 @@ export class CellBuffer {
    */
   diffRects(target: CellBuffer, rects: DamageRect[]): CellPatch[] {
     const patches: CellPatch[] = [];
+    const rowSpans = buildMergedRowSpans(this.width, this.height, target.width, target.height, rects);
 
-    for (const rect of rects) {
-      const x1 = Math.max(0, rect.x);
-      const y1 = Math.max(0, rect.y);
-      const x2 = Math.min(this.width, target.width, rect.x + rect.width);
-      const y2 = Math.min(this.height, target.height, rect.y + rect.height);
+    for (const span of rowSpans) {
+      if (this.getRowSignature(span.y) === target.getRowSignature(span.y)) {
+        continue;
+      }
 
-      for (let y = y1; y < y2; y++) {
-        for (let x = x1; x < x2; x++) {
-          const current = this.cells[y][x];
-          const next = target.cells[y][x];
+      for (let x = span.x1; x < span.x2; x++) {
+        const current = this.cells[span.y][x];
+        const next = target.cells[span.y][x];
 
-          if (!cellEquals(current, next)) {
-            patches.push({ x, y, cell: cloneCell(next) });
-          }
+        if (!cellEquals(current, next)) {
+          patches.push({ x, y: span.y, cell: cloneCell(next) });
         }
       }
     }
@@ -409,6 +460,92 @@ export class CellBuffer {
       yield { y, cells: this.cells[y] };
     }
   }
+
+  private invalidateRow(y: number): void {
+    if (y >= 0 && y < this.height) {
+      this.rowSignatures[y] = null;
+    }
+  }
+
+  private getRowSignature(y: number): string {
+    const cached = this.rowSignatures[y];
+    if (cached !== null && cached !== undefined) {
+      return cached;
+    }
+
+    const row = this.cells[y];
+    let signature = '';
+
+    for (let x = 0; x < row.length; x++) {
+      const cell = row[x]!;
+      signature += `${cell.char.length}:${cell.char}\u0001${cell.isWide ? 1 : 0}\u0001${getStyleCacheKey(cell.fg, cell.bg, cell.attrs)}\u0002`;
+    }
+
+    this.rowSignatures[y] = signature;
+    return signature;
+  }
+}
+
+interface RowSpan {
+  y: number;
+  x1: number;
+  x2: number;
+}
+
+function buildMergedRowSpans(
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+  rects: DamageRect[],
+): RowSpan[] {
+  const maxWidth = Math.min(sourceWidth, targetWidth);
+  const maxHeight = Math.min(sourceHeight, targetHeight);
+  const spansByRow = new Map<number, Array<{ x1: number; x2: number }>>();
+
+  for (const rect of rects) {
+    const x1 = Math.max(0, rect.x);
+    const y1 = Math.max(0, rect.y);
+    const x2 = Math.min(maxWidth, rect.x + rect.width);
+    const y2 = Math.min(maxHeight, rect.y + rect.height);
+
+    if (x2 <= x1 || y2 <= y1) {
+      continue;
+    }
+
+    for (let y = y1; y < y2; y++) {
+      const spans = spansByRow.get(y);
+      if (spans) {
+        spans.push({ x1, x2 });
+      } else {
+        spansByRow.set(y, [{ x1, x2 }]);
+      }
+    }
+  }
+
+  const merged: RowSpan[] = [];
+  const rows = [...spansByRow.keys()].sort((left, right) => left - right);
+
+  for (const y of rows) {
+    const spans = spansByRow.get(y)!;
+    spans.sort((left, right) => left.x1 - right.x1);
+
+    let current = spans[0]!;
+    for (let index = 1; index < spans.length; index++) {
+      const next = spans[index]!;
+      if (next.x1 <= current.x2) {
+        current.x2 = Math.max(current.x2, next.x2);
+        continue;
+      }
+
+      merged.push({ y, x1: current.x1, x2: current.x2 });
+      current = next;
+    }
+
+    merged.push({ y, x1: current.x1, x2: current.x2 });
+  }
+
+  return merged;
 }
 
 // =============================================================================
@@ -553,18 +690,9 @@ export function colorToAnsi(color: Color | undefined, background: boolean): stri
   const code = background ? 48 : 38;
 
   if (typeof color === 'string') {
-    // Named colors
-    const namedColors: Record<string, number> = {
-      black: 0, red: 1, green: 2, yellow: 3,
-      blue: 4, magenta: 5, cyan: 6, white: 7,
-      gray: 8, grey: 8,
-      redBright: 9, greenBright: 10, yellowBright: 11,
-      blueBright: 12, magentaBright: 13, cyanBright: 14, whiteBright: 15,
-    };
-
-    if (namedColors[color] !== undefined) {
+    if (NAMED_COLORS[color] !== undefined) {
       const base = background ? 40 : 30;
-      const n = namedColors[color];
+      const n = NAMED_COLORS[color];
       if (n < 8) return `${base + n}`;
       return `${base + n + 52}`; // Bright colors: 90-97 / 100-107
     }
@@ -598,7 +726,24 @@ export function attrsToAnsi(attrs: CellAttrs): string[] {
   if (attrs.bold) codes.push('1');
   if (attrs.dim) codes.push('2');
   if (attrs.italic) codes.push('3');
-  if (attrs.underline) codes.push('4');
+
+  // Styled underline support
+  if (attrs.underline) {
+    if (typeof attrs.underline === 'string') {
+      codes.push(UNDERLINE_STYLE_MAP[attrs.underline] || '4');
+    } else {
+      codes.push('4');
+    }
+
+    // Colored underline (SGR 58;2;R;G;B or 58;5;N)
+    if (attrs.underlineColor) {
+      const underlineColorCode = underlineColorToAnsi(attrs.underlineColor);
+      if (underlineColorCode) {
+        codes.push(underlineColorCode);
+      }
+    }
+  }
+
   if (attrs.blink) codes.push('5');
   if (attrs.inverse) codes.push('7');
   if (attrs.hidden) codes.push('8');
@@ -606,23 +751,100 @@ export function attrsToAnsi(attrs: CellAttrs): string[] {
   return codes;
 }
 
+function underlineColorToAnsi(color: Color): string {
+  const fgCode = colorToAnsi(color, false);
+  if (!fgCode) return '';
+
+  if (fgCode.startsWith('38;')) {
+    return `58;${fgCode.slice(3)}`;
+  }
+
+  const namedCode = Number.parseInt(fgCode, 10);
+  if (Number.isNaN(namedCode)) {
+    return '';
+  }
+
+  if (namedCode >= 30 && namedCode <= 37) {
+    return `58;5;${namedCode - 30}`;
+  }
+
+  if (namedCode >= 90 && namedCode <= 97) {
+    return `58;5;${namedCode - 82}`;
+  }
+
+  return '';
+}
+
+function serializeColorKey(color: Color | undefined): string {
+  if (!color) {
+    return '';
+  }
+
+  if (typeof color === 'string') {
+    return `s:${color}`;
+  }
+
+  if ('r' in color) {
+    return `r:${color.r},${color.g},${color.b}`;
+  }
+
+  return `a:${color.ansi256}`;
+}
+
+function getStyleCacheKey(fg: Color | undefined, bg: Color | undefined, attrs: CellAttrs): string {
+  return [
+    attrs.bold ? '1' : '0',
+    attrs.dim ? '1' : '0',
+    attrs.italic ? '1' : '0',
+    attrs.underline === undefined || attrs.underline === false ? '0' : String(attrs.underline),
+    serializeColorKey(attrs.underlineColor),
+    attrs.blink ? '1' : '0',
+    attrs.inverse ? '1' : '0',
+    attrs.hidden ? '1' : '0',
+    attrs.strikethrough ? '1' : '0',
+    serializeColorKey(fg),
+    serializeColorKey(bg),
+  ].join('|');
+}
+
+function getCachedStyleString(fg: Color | undefined, bg: Color | undefined, attrs: CellAttrs): string | null {
+  const key = getStyleCacheKey(fg, bg, attrs);
+  const cached = ansiStyleCache.get(key);
+  if (cached !== undefined) {
+    // Refresh insertion order for simple LRU behavior.
+    ansiStyleCache.delete(key);
+    ansiStyleCache.set(key, cached);
+    return cached === '' ? null : cached;
+  }
+
+  const codes: string[] = [];
+  codes.push(...attrsToAnsi(attrs));
+
+  const fgAnsi = colorToAnsi(fg, false);
+  const bgAnsi = colorToAnsi(bg, true);
+  if (fgAnsi) codes.push(fgAnsi);
+  if (bgAnsi) codes.push(bgAnsi);
+
+  const style = codes.length > 0 ? codes.join(';') : '';
+  if (ansiStyleCache.has(key)) {
+    ansiStyleCache.delete(key);
+  } else if (ansiStyleCache.size >= ANSI_STYLE_CACHE_MAX) {
+    const oldest = ansiStyleCache.keys().next();
+    if (!oldest.done) {
+      ansiStyleCache.delete(oldest.value);
+    }
+  }
+  ansiStyleCache.set(key, style);
+  return style === '' ? null : style;
+}
+
 /** Convert a cell to ANSI string with style */
 export function cellToAnsi(cell: Cell): string {
   if (cell.isWide) return ''; // Skip wide placeholders
 
-  const codes: string[] = [];
-
-  // Attributes
-  codes.push(...attrsToAnsi(cell.attrs));
-
-  // Colors
-  const fg = colorToAnsi(cell.fg, false);
-  const bg = colorToAnsi(cell.bg, true);
-  if (fg) codes.push(fg);
-  if (bg) codes.push(bg);
-
-  if (codes.length > 0) {
-    return `\x1b[${codes.join(';')}m${cell.char}\x1b[0m`;
+  const style = getCachedStyleString(cell.fg, cell.bg, cell.attrs);
+  if (style !== null) {
+    return `\x1b[${style}m${cell.char}\x1b[0m`;
   }
 
   return cell.char;
@@ -635,42 +857,45 @@ export function bufferToAnsi(buffer: CellBuffer): string {
   const lines: string[] = [];
 
   for (const { cells } of buffer.rows()) {
-    let line = '';
+    const lineParts: string[] = [];
+    let runText = '';
     let lastStyle: string | null = null;
+
+    const flushRun = () => {
+      if (runText.length > 0) {
+        lineParts.push(runText);
+        runText = '';
+      }
+    };
 
     for (const cell of cells) {
       if (cell.isWide) continue;
 
-      // Build style string
-      const codes: string[] = [];
-      codes.push(...attrsToAnsi(cell.attrs));
-      const fg = colorToAnsi(cell.fg, false);
-      const bg = colorToAnsi(cell.bg, true);
-      if (fg) codes.push(fg);
-      if (bg) codes.push(bg);
-
-      const style = codes.length > 0 ? codes.join(';') : null;
+      const style = getCachedStyleString(cell.fg, cell.bg, cell.attrs);
 
       // Only emit style change if different
       if (style !== lastStyle) {
+        flushRun();
         if (lastStyle !== null) {
-          line += '\x1b[0m';
+          lineParts.push('\x1b[0m');
         }
         if (style !== null) {
-          line += `\x1b[${style}m`;
+          lineParts.push(`\x1b[${style}m`);
         }
         lastStyle = style;
       }
 
-      line += cell.char;
+      runText += cell.char;
     }
+
+    flushRun();
 
     // Reset at end of line if styled
     if (lastStyle !== null) {
-      line += '\x1b[0m';
+      lineParts.push('\x1b[0m');
     }
 
-    lines.push(line.trimEnd());
+    lines.push(lineParts.join('').trimEnd());
   }
 
   // Remove trailing empty lines
@@ -697,10 +922,18 @@ export function patchesToAnsi(patches: CellPatch[], width: number, alreadySorted
     });
   }
 
-  let output = '';
+  const outputParts: string[] = [];
   let lastX = -1;
   let lastY = -1;
   let lastStyle: string | null = null;
+  let runText = '';
+
+  const flushRun = () => {
+    if (runText.length > 0) {
+      outputParts.push(runText);
+      runText = '';
+    }
+  };
 
   for (const patch of patches) {
     const { x, y, cell } = patch;
@@ -709,38 +942,34 @@ export function patchesToAnsi(patches: CellPatch[], width: number, alreadySorted
 
     // Move cursor if not at expected position
     if (y !== lastY || x !== lastX + 1) {
+      flushRun();
       // ANSI cursor position: \x1b[{row};{col}H (1-indexed)
-      output += `\x1b[${y + 1};${x + 1}H`;
+      outputParts.push(`\x1b[${y + 1};${x + 1}H`);
     }
 
-    // Build style
-    const codes: string[] = [];
-    codes.push(...attrsToAnsi(cell.attrs));
-    const fg = colorToAnsi(cell.fg, false);
-    const bg = colorToAnsi(cell.bg, true);
-    if (fg) codes.push(fg);
-    if (bg) codes.push(bg);
-
-    const style = codes.length > 0 ? codes.join(';') : null;
+    const style = getCachedStyleString(cell.fg, cell.bg, cell.attrs);
 
     if (style !== lastStyle) {
+      flushRun();
       if (lastStyle !== null) {
-        output += '\x1b[0m';
+        outputParts.push('\x1b[0m');
       }
       if (style !== null) {
-        output += `\x1b[${style}m`;
+        outputParts.push(`\x1b[${style}m`);
       }
       lastStyle = style;
     }
 
-    output += cell.char;
+    runText += cell.char;
     lastX = x + (stringWidth(cell.char) - 1);
     lastY = y;
   }
 
+  flushRun();
+
   if (lastStyle !== null) {
-    output += '\x1b[0m';
+    outputParts.push('\x1b[0m');
   }
 
-  return output;
+  return outputParts.join('');
 }

@@ -123,7 +123,10 @@ export interface TextStyle {
   bold?: boolean;
   dim?: boolean;
   italic?: boolean;
-  underline?: boolean;
+  /** Underline style: true for simple, or a named style for styled underlines */
+  underline?: boolean | 'single' | 'double' | 'curly' | 'dotted' | 'dashed';
+  /** Underline color (requires terminal support for colored underlines) */
+  underlineColor?: ColorValue;
   strikethrough?: boolean;
   inverse?: boolean;
   wrap?: 'wrap' | 'truncate' | 'truncate-start' | 'truncate-middle' | 'truncate-end';
@@ -166,6 +169,10 @@ export interface MouseEventData {
   target: VNode | null;
   /** Stop event from bubbling to parent elements */
   stopPropagation: () => void;
+  /** Pixel-precision relative X within element (only for images/pixel mouse mode) */
+  pixelRelativeX?: number;
+  /** Pixel-precision relative Y within element (only for images/pixel mouse mode) */
+  pixelRelativeY?: number;
 }
 
 /** Mouse event handler function */

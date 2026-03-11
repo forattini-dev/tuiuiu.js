@@ -20,6 +20,7 @@ import { useInput } from '../hooks/index.js';
 import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { warnIfDataDrivenPatternMisused } from '../core/dev-warnings.js';
 import { getContrastColor, getTheme } from '../core/theme.js';
 
 /** Variant type for Tabs component */
@@ -224,6 +225,20 @@ export interface TabsProps<T = string> extends TabsOptions<T> {
  * })
  */
 export function Tabs<T = string>(props: TabsProps<T>): VNode {
+  const maybeMisusedProps = props as TabsProps<T> & Record<string, unknown>;
+  warnIfDataDrivenPatternMisused(
+    'Tabs',
+    maybeMisusedProps.children !== undefined || maybeMisusedProps.content !== undefined,
+    'Tabs is data-driven. Put content inside each tab object: `Tabs({ tabs: [{ key, label, content: View() }] })`.',
+    'top-level-content',
+  );
+  warnIfDataDrivenPatternMisused(
+    'Tabs',
+    props.tabs.some((tab) => tab.content === undefined),
+    'Each tab passed to Tabs should include its own `content` field.',
+    'missing-item-content',
+  );
+
   const theme = getTheme();
   const {
     position = 'top',

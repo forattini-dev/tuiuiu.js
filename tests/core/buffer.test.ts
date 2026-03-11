@@ -13,6 +13,7 @@ import {
   cellEquals,
   colorEquals,
   attrsEquals,
+  attrsToAnsi,
   bufferToAnsi,
   patchesToAnsi,
   type Cell,
@@ -108,6 +109,31 @@ describe('Cell Utilities', () => {
 
     it('should treat undefined and false as equal', () => {
       expect(attrsEquals({ bold: undefined }, { bold: false })).toBe(true);
+    });
+
+    it('should compare underline style and underline color', () => {
+      expect(
+        attrsEquals(
+          { underline: 'curly', underlineColor: 'red' },
+          { underline: 'curly', underlineColor: 'red' },
+        ),
+      ).toBe(true);
+      expect(
+        attrsEquals(
+          { underline: 'curly', underlineColor: 'red' },
+          { underline: 'curly', underlineColor: 'blue' },
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe('attrsToAnsi', () => {
+    it('should serialize underline color for named colors', () => {
+      expect(attrsToAnsi({ underline: true, underlineColor: 'red' })).toEqual(['4', '58;5;1']);
+    });
+
+    it('should serialize underline color for styled underline', () => {
+      expect(attrsToAnsi({ underline: 'curly', underlineColor: '#ff0000' })).toEqual(['4:3', '58;2;255;0;0']);
     });
   });
 
@@ -498,6 +524,16 @@ describe('ANSI Conversion', () => {
       expect(ansi).toContain('A');
       expect(ansi).toContain('B');
     });
+
+    it('should batch adjacent cells with the same style into one ANSI run', () => {
+      const buffer = new CellBuffer(10, 1);
+      buffer.writeChar(0, 0, 'A', 'red', undefined, { bold: true });
+      buffer.writeChar(1, 0, 'B', 'red', undefined, { bold: true });
+
+      const ansi = bufferToAnsi(buffer);
+
+      expect(ansi).toBe('\x1b[1;31mAB\x1b[0m');
+    });
   });
 
   describe('patchesToAnsi', () => {
@@ -541,6 +577,17 @@ describe('ANSI Conversion', () => {
       expect(ansi).toContain('1'); // Bold
       expect(ansi).toContain('36'); // Cyan
       expect(ansi).toContain('43'); // Yellow background
+    });
+
+    it('should batch adjacent same-style patches into one styled run', () => {
+      const patches = [
+        { x: 0, y: 0, cell: createCell('A', 'red', undefined, { bold: true }) },
+        { x: 1, y: 0, cell: createCell('B', 'red', undefined, { bold: true }) },
+      ];
+
+      const ansi = patchesToAnsi(patches, 80);
+
+      expect(ansi).toBe('\x1b[1;1H\x1b[1;31mAB\x1b[0m');
     });
   });
 });

@@ -18,6 +18,7 @@ import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { warnIfDataDrivenPatternMisused } from '../core/dev-warnings.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 
@@ -419,6 +420,20 @@ export interface AccordionProps extends AccordionOptions {
  * })
  */
 export function Accordion(props: AccordionProps): VNode {
+  const maybeMisusedProps = props as AccordionProps & Record<string, unknown>;
+  warnIfDataDrivenPatternMisused(
+    'Accordion',
+    maybeMisusedProps.children !== undefined || maybeMisusedProps.content !== undefined,
+    'Accordion is data-driven. Put content inside each section object: `Accordion({ sections: [{ key, title, content: View() }] })`.',
+    'top-level-content',
+  );
+  warnIfDataDrivenPatternMisused(
+    'Accordion',
+    props.sections.some((section) => section.content === undefined),
+    'Each accordion section should include its own `content` field.',
+    'missing-item-content',
+  );
+
   const theme = getTheme();
   const {
     sections,

@@ -247,6 +247,47 @@ export interface ThemeDoc {
   colors: Record<string, string>;
 }
 
+export interface SymbolDocExample {
+  title: string;
+  code: string;
+}
+
+export interface SymbolDocGotcha {
+  code: string;
+  summary: string;
+  fix: string;
+  references?: string[];
+}
+
+export interface SymbolDoc {
+  name: string;
+  kind: 'component' | 'hook' | 'utility' | 'guide';
+  importPath: string;
+  summary: string;
+  pattern?: 'variadic' | 'props' | 'data' | 'render';
+  defaults?: Record<string, string>;
+  examples?: SymbolDocExample[];
+  gotchas?: SymbolDocGotcha[];
+  related?: string[];
+  stability?: 'stable' | 'advanced' | 'experimental';
+}
+
+export interface CodeValidationIssue {
+  code: string;
+  title: string;
+  severity: 'warning' | 'error';
+  summary: string;
+  fix: string;
+  reference: string;
+  line?: number;
+  evidence?: string;
+}
+
+export interface CodeValidationResult {
+  ok: boolean;
+  issues: CodeValidationIssue[];
+}
+
 // =============================================================================
 // Error Codes
 // =============================================================================

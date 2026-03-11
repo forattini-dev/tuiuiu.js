@@ -29,6 +29,8 @@ import {
   type EasingName,
   type AnimationControls,
 } from '../../src/core/animation.js';
+import { reportMotionFrameCost, resetMotionRuntime } from '../../src/core/motion-runtime.js';
+import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/terminal-focus.js';
 
 // =============================================================================
 // Easing Functions
@@ -160,9 +162,13 @@ describe('lerpColor', () => {
 describe('useAnimation', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -266,6 +272,33 @@ describe('useAnimation', () => {
     expect(onFrame.mock.calls.length).toBeGreaterThan(callsAtPause);
   });
 
+  it('should pause while terminal is unfocused and resume on focus regain', () => {
+    const onFrame = vi.fn();
+    const onComplete = vi.fn();
+    const animation = useAnimation({
+      duration: 100,
+      easing: 'linear',
+      onFrame,
+      onComplete,
+    });
+
+    animation.start();
+    vi.advanceTimersByTime(16);
+    const callsBeforeBlur = onFrame.mock.calls.length;
+
+    setTerminalFocusState(false);
+    vi.advanceTimersByTime(100);
+    expect(onFrame.mock.calls.length).toBe(callsBeforeBlur);
+    expect(animation.isRunning()).toBe(false);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    setTerminalFocusState(true);
+    expect(animation.isRunning()).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(onFrame.mock.calls.length).toBeGreaterThan(callsBeforeBlur);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
   it('should use custom easing function', () => {
     const customEasing = vi.fn((t: number) => t * t);
     const onFrame = vi.fn();
@@ -311,6 +344,26 @@ describe('useAnimation', () => {
     expect(animation.progress()).toBeGreaterThan(0);
     expect(animation.progress()).toBeLessThan(1);
   });
+
+  it('should snap to the final frame when motion runtime reaches skip tier', () => {
+    const onFrame = vi.fn();
+    const onComplete = vi.fn();
+    reportMotionFrameCost(40);
+    reportMotionFrameCost(40);
+
+    const animation = useAnimation({
+      duration: 300,
+      easing: 'linear',
+      onFrame,
+      onComplete,
+    });
+
+    animation.start();
+
+    expect(onFrame).toHaveBeenCalledWith(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(animation.isRunning()).toBe(false);
+  });
 });
 
 // =============================================================================
@@ -320,9 +373,11 @@ describe('useAnimation', () => {
 describe('useTransition', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
     vi.useRealTimers();
   });
 
@@ -360,9 +415,11 @@ describe('useTransition', () => {
 describe('createSpring', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
     vi.useRealTimers();
   });
 
@@ -459,9 +516,13 @@ describe('createSpring', () => {
 describe('createHarmonicaSpring', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -561,9 +622,13 @@ describe('createHarmonicaSpring', () => {
 describe('createCompositeTransition', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -699,9 +764,13 @@ describe('createCompositeTransition', () => {
 describe('createSwipeTransition', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -800,9 +869,13 @@ describe('createSwipeTransition', () => {
 describe('createSlideTransition', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -889,9 +962,13 @@ describe('requestAnimationFrame', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     cancelAllAnimationFrames();
+    resetMotionRuntime();
+    resetTerminalFocusState();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
+    resetTerminalFocusState();
     vi.useRealTimers();
   });
 
@@ -933,14 +1010,28 @@ describe('requestAnimationFrame', () => {
     expect(callback2).toHaveBeenCalledTimes(1);
     expect(callback3).toHaveBeenCalledTimes(1);
   });
+
+  it('should defer callbacks more aggressively while unfocused', () => {
+    const callback = vi.fn();
+    setTerminalFocusState(false);
+
+    requestAnimationFrame(callback);
+    vi.advanceTimersByTime(16);
+    expect(callback).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(84);
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('cancelAllAnimationFrames', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMotionRuntime();
   });
 
   afterEach(() => {
+    resetMotionRuntime();
     vi.useRealTimers();
   });
 

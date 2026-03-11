@@ -5,19 +5,26 @@
  * and cell-level diffing for efficient terminal updates.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
 import {
+  __collectDirtyRegionsForTesting,
   createDeltaRenderer,
   resetDeltaRenderer,
   type DeltaRenderer,
 } from '../../src/core/delta-render.js';
-import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
+import {
+  createFrameSnapshot,
+  resetFrameSequenceForTesting,
+  type DrawCommand,
+} from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { stringWidth } from '../../src/utils/text-utils.js';
 import type { VNode } from '../../src/utils/types.js';
+import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
+import { refreshCapabilities } from '../../src/core/capabilities.js';
 
 function normalizeAnsiSgrOrder(output: string): string {
   let normalized = output;
@@ -58,6 +65,9 @@ describe('Delta Renderer', () => {
   beforeEach(() => {
     resetDeltaRenderer();
     resetFrameSequenceForTesting();
+    // Disable synchronized output for deterministic write counts
+    configureProgressive({ overrides: { synchronizedOutput: false } });
+    refreshCapabilities();
     mockStdout = {
       columns: 40,
       rows: 10,
@@ -65,7 +75,31 @@ describe('Delta Renderer', () => {
     };
   });
 
+  afterEach(() => {
+    resetProgressive();
+    refreshCapabilities();
+  });
+
   describe('createDeltaRenderer', () => {
+    it('keeps diff rects narrower than render rects for diagonal localized changes', () => {
+      const previous: DrawCommand[] = [
+        { type: 'text', order: 0, x: 0, y: 0, maxWidth: 1, text: 'A', style: {} },
+        { type: 'text', order: 1, x: 1, y: 1, maxWidth: 1, text: 'B', style: {} },
+      ];
+      const next: DrawCommand[] = [
+        { type: 'text', order: 0, x: 0, y: 0, maxWidth: 1, text: 'a', style: {} },
+        { type: 'text', order: 1, x: 1, y: 1, maxWidth: 1, text: 'b', style: {} },
+      ];
+
+      const regions = __collectDirtyRegionsForTesting(previous, next, 10, 4);
+
+      expect(regions.renderRects).toEqual([{ x: 0, y: 0, width: 2, height: 2 }]);
+      expect(regions.diffRects).toEqual([
+        { x: 0, y: 0, width: 1, height: 1 },
+        { x: 1, y: 1, width: 1, height: 1 },
+      ]);
+    });
+
     it('should create a renderer instance', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,

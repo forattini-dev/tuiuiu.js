@@ -69,6 +69,27 @@ describe('layout reuse cache', () => {
     expect(second.width).toBeGreaterThan(first.width);
   });
 
+  it('does not invalidate the cached layout when only function props change', () => {
+    const node = Box({ padding: 1, onClick: () => 'first' } as any, Text({}, 'abc'));
+
+    const first = calculateLayout(node, 80, 24);
+    (node.props as { onClick: () => string }).onClick = () => 'second';
+    const second = calculateLayout(node, 80, 24);
+
+    expect(second).toBe(first);
+  });
+
+  it('does not invalidate the cached layout when only render-only styles change', () => {
+    const node = Text({ color: 'red', bold: true } as any, 'abc');
+
+    const first = calculateLayout(node, 80, 24);
+    (node.props as { color: string; bold: boolean }).color = 'blue';
+    (node.props as { color: string; bold: boolean }).bold = false;
+    const second = calculateLayout(node, 80, 24);
+
+    expect(second).toBe(first);
+  });
+
   it('invalidates the cached layout when width or height constraints change', () => {
     const node = Box({ width: 'fill', height: 'fill' }, Text({}, 'x'));
 

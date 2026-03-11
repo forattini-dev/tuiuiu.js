@@ -38,16 +38,19 @@ let hookState: HookState = { state: [], effects: [] };
 let hookIndex = 0;
 let isRendering = false;
 let lastMaxHookIndex = 0;
+let renderPhaseMode: 'hooks' | 'component' = 'hooks';
 
 /** Call before rendering component */
-export function beginRender(): void {
+export function beginRender(mode: 'hooks' | 'component' = 'hooks'): void {
   hookIndex = 0;
   isRendering = true;
+  renderPhaseMode = mode;
 }
 
 /** Call after rendering component */
 export function endRender(): void {
   isRendering = false;
+  renderPhaseMode = 'hooks';
 
   const currentMaxIndex = hookIndex;
 
@@ -73,6 +76,10 @@ export function endRender(): void {
 /** Whether hooks are currently executing inside a render cycle. */
 export function isRenderingHooks(): boolean {
   return isRendering;
+}
+
+export function getRenderPhaseMode(): 'hooks' | 'component' {
+  return renderPhaseMode;
 }
 
 /** Get or initialize hook state at current index */

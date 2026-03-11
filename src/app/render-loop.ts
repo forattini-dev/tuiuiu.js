@@ -15,9 +15,18 @@ import { createDeltaRenderer, type DeltaRenderer } from '../core/delta-render.js
 import {
   clearCommittedFrameSnapshot,
   createFrameSnapshot,
+  finalizeFrameRuntimeMetrics,
   getCommittedFrameSnapshot,
+  recordFramePhaseMetric,
+  recordFrameStructuralMetric,
   setCommittedFrameSnapshot,
 } from '../core/frame.js';
+import { cleanLayoutTree, clearChanges } from '../core/dirty.js';
+import { onTerminalFocusChange, readTerminalFocus } from '../core/terminal-focus.js';
+import { invalidateCellSize } from '../core/graphics.js';
+import { beginAppRenderSession, endAppRenderSession } from '../core/dev-warnings.js';
+import { recordCommittedFrame } from '../core/perf-inspector.js';
+import { configureMotionRuntime } from '../core/motion-runtime.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -128,6 +137,8 @@ export interface FixedStepOptions {
   updateFps: number;
   /** Max fixed steps to execute in one catch-up pass before dropping stale backlog (default: 5) */
   maxCatchUpUpdates?: number;
+  /** Pause logical updates while the terminal is unfocused (default: true) */
+  pauseWhenUnfocused?: boolean;
   /** Called for each fixed logical step */
   onUpdate: (update: FixedStepUpdate) => void;
 }
@@ -167,11 +178,17 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Initialize app context FIRST (before calling component functions)
   const appContext = initializeApp(stdin, stdout, { autoTabNavigation });
+  beginAppRenderSession();
 
   // Store the component function for re-evaluation
   const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
 
   let outputBackpressured = false;
+  let outputCaptureDepth = 0;
+  let capturedOutputBytes = 0;
+  let capturedOutputMs = 0;
+  let pendingVNodeEvalMs: number | undefined;
+  let pendingRuntimeStartAt: number | undefined;
 
   const handleOutputDrain = () => {
     outputBackpressured = false;
@@ -179,8 +196,43 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     schedulePendingRenderCallback();
   };
 
+  const beginOutputCapture = () => {
+    outputCaptureDepth++;
+    if (outputCaptureDepth === 1) {
+      capturedOutputBytes = 0;
+      capturedOutputMs = 0;
+    }
+  };
+
+  const endOutputCapture = (): { bytes: number; writeMs: number } => {
+    if (outputCaptureDepth === 0) {
+      return { bytes: 0, writeMs: 0 };
+    }
+
+    outputCaptureDepth--;
+    if (outputCaptureDepth === 0) {
+      return {
+        bytes: capturedOutputBytes,
+        writeMs: capturedOutputMs,
+      };
+    }
+
+    return {
+      bytes: 0,
+      writeMs: 0,
+    };
+  };
+
   const writeOutput = (chunk: string | Uint8Array): boolean => {
+    const writeStart = outputCaptureDepth > 0 ? performance.now() : 0;
     const canWrite = stdout.write(chunk as any);
+
+    if (outputCaptureDepth > 0) {
+      capturedOutputMs += performance.now() - writeStart;
+      capturedOutputBytes += typeof chunk === 'string'
+        ? Buffer.byteLength(chunk)
+        : chunk.byteLength;
+    }
 
     if (!canWrite && !outputBackpressured) {
       outputBackpressured = true;
@@ -260,6 +312,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Throttle rendering
   const minRenderInterval = maxFps > 0 ? Math.ceil(1000 / maxFps) : 0;
+  configureMotionRuntime({
+    targetFps: maxFps > 0 ? maxFps : 60,
+    reducedFps: maxFps > 0 ? Math.max(1, Math.floor(maxFps / 2)) : 30,
+    frameBudgetMs: minRenderInterval > 0 ? minRenderInterval : 16.67,
+  });
   let lastRenderTime = 0;
   let pendingRender = false;
   let scheduledRender = false;
@@ -270,6 +327,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let fixedStepLastAt = 0;
   let fixedStepCount = 0;
   let fixedStepElapsedMs = 0;
+  let cleanupFixedStepFocus: (() => void) | null = null;
 
   // Mouse tracking state
   let mouseTrackingEnabled = false;
@@ -290,9 +348,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   }
 
   const evaluateTree = () => {
-    beginRender();
+    const evalStart = performance.now();
+    pendingRuntimeStartAt = Date.now();
+    beginRender('component');
     currentNode = componentFn();
     endRender();
+    pendingVNodeEvalMs = performance.now() - evalStart;
   };
 
   const evaluateAndRender = () => {
@@ -345,6 +406,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       return;
     }
 
+    const pauseWhenUnfocused = fixedStep.pauseWhenUnfocused ?? true;
+    if (pauseWhenUnfocused && !readTerminalFocus()) {
+      return;
+    }
+
     const stepMs = 1000 / Math.max(1, fixedStep.updateFps);
     const delay = Math.max(0, Math.ceil(stepMs - fixedStepAccumulatorMs));
 
@@ -353,6 +419,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   function runFixedStepLoop(): void {
     if (!fixedStep || isUnmounted) {
+      return;
+    }
+
+    const pauseWhenUnfocused = fixedStep.pauseWhenUnfocused ?? true;
+    if (pauseWhenUnfocused && !readTerminalFocus()) {
+      fixedStepTimer = null;
+      fixedStepAccumulatorMs = 0;
+      fixedStepLastAt = Date.now();
       return;
     }
 
@@ -388,8 +462,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   }
 
   // Handle resize - need to re-evaluate component for new dimensions
+  // Also invalidate cached cell size so image render planning uses fresh dimensions
   const handleResize = () => {
     if (!isUnmounted) {
+      invalidateCellSize();
       scheduleRenderCallback(evaluateAndRender);
     }
   };
@@ -408,6 +484,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     if (isUnmounted || !currentNode) return;
 
     lastRenderTime = Date.now();
+    const runtimeStartAt = pendingRuntimeStartAt ?? Date.now();
 
     const width = stdout.columns || 80;
     const height = stdout.rows || 24;
@@ -415,6 +492,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     // Delta renderer path: optimized cell-level updates
     if (deltaRenderer && !debug) {
       const frame = createFrameSnapshot(currentNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+      frame.metrics.runtimeStartAt = runtimeStartAt;
+      if (pendingVNodeEvalMs !== undefined) {
+        recordFramePhaseMetric(frame, 'vnodeEvalMs', pendingVNodeEvalMs);
+      }
+      const commitStart = performance.now();
       setCommittedFrameSnapshot(frame);
 
       // Register elements in hit-test registry for mouse events
@@ -429,15 +511,21 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         disableMouseTracking();
         mouseTrackingEnabled = false;
       }
+      recordFramePhaseMetric(frame, 'frameCommitMs', performance.now() - commitStart);
+      recordFrameStructuralMetric(frame, 'reservedRegionCount', frame.reservedRegions.length);
 
       // Use delta renderer for optimized updates
       deltaRenderer.renderFrame(frame);
+      pendingVNodeEvalMs = undefined;
+      pendingRuntimeStartAt = undefined;
       return;
     }
 
     // Standard renderer path: string-based rendering
     // Separate static from interactive content
     const { staticNodes, interactiveNode } = separateStaticNodes(currentNode);
+    const staticRenderStart = performance.now();
+    beginOutputCapture();
 
     // Render new static content first (above interactive content)
     for (let i = 0; i < staticNodes.length; i++) {
@@ -473,6 +561,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     const previousFrame = getCommittedFrameSnapshot();
     const frame = createFrameSnapshot(interactiveNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+    frame.metrics.runtimeStartAt = runtimeStartAt;
+    if (pendingVNodeEvalMs !== undefined) {
+      recordFramePhaseMetric(frame, 'vnodeEvalMs', pendingVNodeEvalMs);
+    }
+    const staticRenderMs = performance.now() - staticRenderStart;
+    recordFramePhaseMetric(frame, 'staticRenderMs', staticRenderMs);
+    const commitStart = performance.now();
     setCommittedFrameSnapshot(frame);
 
     // Register elements in hit-test registry for mouse events
@@ -487,6 +582,8 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       disableMouseTracking();
       mouseTrackingEnabled = false;
     }
+    recordFramePhaseMetric(frame, 'frameCommitMs', performance.now() - commitStart);
+    recordFrameStructuralMetric(frame, 'reservedRegionCount', frame.reservedRegions.length);
 
     // Render interactive content
     const output = renderFrameToString(frame, {
@@ -495,6 +592,15 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     });
 
     if (output === lastOutput && !debug) {
+      const outputCapture = endOutputCapture();
+      recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
+      recordFrameStructuralMetric(frame, 'outputByteCount', outputCapture.bytes);
+      finalizeFrameRuntimeMetrics(frame, runtimeStartAt);
+      recordCommittedFrame(frame, { renderer: 'ansi' });
+      cleanLayoutTree(frame.layout);
+      clearChanges();
+      pendingVNodeEvalMs = undefined;
+      pendingRuntimeStartAt = undefined;
       return; // No changes
     }
 
@@ -505,8 +611,17 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       // Use incremental log updater for efficient rendering
       logUpdate(output);
     }
+    const outputCapture = endOutputCapture();
+    recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
+    recordFrameStructuralMetric(frame, 'outputByteCount', outputCapture.bytes);
+    finalizeFrameRuntimeMetrics(frame, runtimeStartAt);
+    recordCommittedFrame(frame, { renderer: 'ansi' });
+    cleanLayoutTree(frame.layout);
+    clearChanges();
 
     lastOutput = output;
+    pendingVNodeEvalMs = undefined;
+    pendingRuntimeStartAt = undefined;
   }
 
   /**
@@ -524,6 +639,8 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       clearTimeout(fixedStepTimer);
       fixedStepTimer = null;
     }
+    cleanupFixedStepFocus?.();
+    cleanupFixedStepFocus = null;
     outputBackpressured = false;
     scheduledRenderCallback = null;
     scheduledRender = false;
@@ -547,6 +664,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     resetHookState(); // Clear all hook state
     cleanupApp();
     clearCommittedFrameSnapshot();
+    endAppRenderSession();
   }
 
   // Create reactive render effect
@@ -564,6 +682,29 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   if (fixedStep) {
     fixedStepLastAt = Date.now();
+    if ((fixedStep.pauseWhenUnfocused ?? true)) {
+      cleanupFixedStepFocus = onTerminalFocusChange((focused) => {
+        if (isUnmounted || !fixedStep) {
+          return;
+        }
+
+        if (!focused) {
+          if (fixedStepTimer) {
+            clearTimeout(fixedStepTimer);
+            fixedStepTimer = null;
+          }
+          fixedStepAccumulatorMs = 0;
+          fixedStepLastAt = Date.now();
+          return;
+        }
+
+        fixedStepAccumulatorMs = 0;
+        fixedStepLastAt = Date.now();
+        if (!fixedStepTimer) {
+          scheduleFixedStepLoop();
+        }
+      });
+    }
     scheduleFixedStepLoop();
   }
 

@@ -22,6 +22,11 @@
 // =============================================================================
 
 export {
+  PerfOverlay,
+  type PerfOverlayProps,
+} from './perf-overlay.js';
+
+export {
   // Dev mode control
   setDevMode,
   isDevMode,

@@ -47,6 +47,7 @@ function App() {
 ### Also remember:
 - Call \`setTheme(darkTheme)\` BEFORE \`render()\`
 - Arrow keys have empty \`input\` string (check \`key.upArrow\` instead)
+- Read \`tuiuiu://guide/common-mistakes\` for the runtime guardrails behind these warnings
 `;
 
 export const signals: HookDoc[] = [

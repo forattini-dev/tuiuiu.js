@@ -4,6 +4,11 @@
  * ~100 lines of reactive state management
  */
 
+import {
+  allowInternalSignalCreationDuringRender,
+  warnIfCreateSignalDuringComponentRender,
+} from '../core/dev-warnings.js';
+
 type Listener = () => void;
 type CleanupFn = () => void;
 export type EffectScheduler = (flush: () => void) => void;
@@ -168,6 +173,7 @@ export class Effect {
  * Create a reactive signal
  */
 export function createSignal<T>(initialValue: T): [() => T, (value: T | ((prev: T) => T)) => void] {
+  warnIfCreateSignalDuringComponentRender(new Error().stack, import.meta.url);
   const signal = new Signal(initialValue);
 
   const getter = () => signal.value;
@@ -194,7 +200,7 @@ export function createEffect(fn: () => CleanupFn | void, options: EffectOptions 
  * Computed value - derives from other signals
  */
 export function createMemo<T>(fn: () => T): () => T {
-  const [value, setValue] = createSignal<T>(undefined as T);
+  const [value, setValue] = allowInternalSignalCreationDuringRender(() => createSignal<T>(undefined as T));
 
   createEffect(() => {
     setValue(fn());
@@ -301,7 +307,7 @@ export function createRef<T>(initialValue: T): { current: T } {
  * // keeping the UI responsive during rapid updates
  */
 export function createDeferred<T>(source: () => T): () => T {
-  const [deferred, setDeferred] = createSignal<T>(source());
+  const [deferred, setDeferred] = allowInternalSignalCreationDuringRender(() => createSignal<T>(source()));
 
   createEffect(() => {
     const value = source();

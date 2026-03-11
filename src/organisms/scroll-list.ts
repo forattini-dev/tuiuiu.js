@@ -23,6 +23,7 @@ import { useInput } from '../hooks/use-input.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
 import { renderToString, measureHeight } from '../core/renderer.js';
 
 // =============================================================================
@@ -387,6 +388,13 @@ export function useScrollList(options: UseScrollListOptions = {}): UseScrollList
  * })
  */
 export function ScrollList<T>(props: ScrollListProps<T>): VNode {
+  warnIfRenderFunctionPatternMisused(
+    'ScrollList',
+    'children',
+    props.children,
+    '`ScrollList({ items, height: 10, children: (item, index) => Row(item) })`',
+  );
+
   const {
     items,
     children,

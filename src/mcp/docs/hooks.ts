@@ -43,12 +43,18 @@ export const hooks: HookDoc[] = [
   },
   {
     name: 'useApp',
-    description: 'Access app context for exit control and terminal info.',
+    description: 'Access the live app context for exit control, raw mode coordination, terminal streams, and app-level toggles.',
     signature: 'useApp(): AppContext',
     params: [],
-    returns: 'AppContext with exit() method and terminal dimensions',
+    returns: `AppContext with:
+- exit(error?) - terminate the app
+- stdin / stdout - raw terminal streams
+- onExit(cb) - register cleanup
+- autoTabNavigation / setAutoTabNavigation() - manage built-in Tab navigation
+- setRawMode() / rawModeEnabledCount / isRawModeEnabled() - coordinate raw mode references
+- clearScreen?() - reset renderer state when available`,
     examples: [
-      `const app = useApp();\nuseInput((_, key) => {\n  if (key.escape) app.exit();\n});`,
+      `const app = useApp();\nconst { focused } = useTerminalFocus();\n\nuseInput((_, key) => {\n  if (key.escape) app.exit();\n});\n\nText({}, focused ? 'Focused' : 'Backgrounded')`,
     ],
   },
   {
@@ -98,11 +104,39 @@ export const hooks: HookDoc[] = [
   {
     name: 'useTerminalSize',
     description: 'Get reactive terminal dimensions that update on resize.',
-    signature: 'useTerminalSize(): { columns: Accessor<number>, rows: Accessor<number> }',
+    signature: 'useTerminalSize(): { columns: number, rows: number }',
     params: [],
-    returns: 'Object with reactive columns() and rows() accessors',
+    returns: 'Object with numeric columns and rows. Components re-render automatically when the terminal is resized.',
     examples: [
-      `const { columns, rows } = useTerminalSize();\n// columns() and rows() update automatically on terminal resize`,
+      `const { columns, rows } = useTerminalSize();\nreturn Text({}, \`Terminal: \${columns}x\${rows}\`);`,
+    ],
+  },
+  {
+    name: 'useTerminalFocus',
+    description: 'Read the current terminal focus state. Updates reactively when focus reporting is enabled for the terminal.',
+    signature: 'useTerminalFocus(): { focused: boolean }',
+    params: [],
+    returns: 'Object with a boolean focused flag.',
+    examples: [
+      `const { focused } = useTerminalFocus();\nreturn Text({}, focused ? 'Active' : 'Paused while unfocused');`,
+    ],
+  },
+  {
+    name: 'useCompositor',
+    description: 'Bind post-layout motion transforms to a component without changing its layout box.',
+    signature: 'useCompositor(): { bind(props), slide(), fade(), shimmer(), spring(), reveal(), clear() }',
+    params: [],
+    returns: `Controller with:
+- bind(props) - inject hidden compositor metadata into component props
+- slide(options) - animate x/y offset
+- fade(options) - animate opacity approximation
+- shimmer(options) - animate a moving highlight band
+- spring(options) - animate offsets with spring physics
+- reveal(options) - animate clip progress from one direction
+- clear() - remove active transforms`,
+    examples: [
+      `function AnimatedPanel() {\n  const compositor = useCompositor();\n\n  useInput((_, key) => {\n    if (key.rightArrow) compositor.slide({ toX: 4, duration: 160 });\n  });\n\n  return Box(\n    compositor.bind({ width: 20, borderStyle: 'single' }),\n    Text({}, 'Slides without relayout')\n  );\n}`,
+      `const compositor = useCompositor();\ncompositor.fade({ from: 0, to: 1, duration: 120 });\ncompositor.reveal({ direction: 'left', from: 0, to: 1, duration: 180 });`,
     ],
   },
   {
@@ -219,7 +253,7 @@ export const hooks: HookDoc[] = [
   },
   {
     name: 'useFps',
-    description: 'Track frames per second for performance monitoring. Automatically tracks frames on each render.',
+    description: 'Track frames per second for performance monitoring. Automatically tracks frames on each render and reflects focus-aware runtime throttling.',
     signature: 'useFps(): UseFpsResult',
     params: [],
     returns: 'Object with fps (number), metrics (FpsMetrics), and color (green/yellow/red)',
@@ -243,6 +277,26 @@ export const hooks: HookDoc[] = [
       `// Basic usage - animate every 100ms\nconst [frame, setFrame] = useState(0);\nuseInterval(() => setFrame(f => f + 1), 100);`,
       `// With controls\nconst { start, stop, isRunning } = useInterval(\n  () => fetchData(),\n  5000,\n  { enabled: isPolling() }\n);\n\n// Manual control\nButton({ label: isRunning() ? 'Stop' : 'Start', onClick: isRunning() ? stop : start })`,
       `// Immediate execution\nuseInterval(() => tick(), 1000, { immediate: true }); // Runs immediately, then every 1s`,
+    ],
+  },
+  {
+    name: 'useClipboard',
+    description: 'Copy text to the system clipboard through OSC 52 when the current terminal supports it.',
+    signature: 'useClipboard(): { copy: (text: string) => void, supported: boolean }',
+    params: [],
+    returns: 'Object with copy(text) and a supported boolean.',
+    examples: [
+      `const { copy, supported } = useClipboard();\nuseHotkeys('ctrl+y', () => copy(JSON.stringify(data())));\nreturn Text({}, supported ? 'Ctrl+Y copies' : 'Clipboard unavailable');`,
+    ],
+  },
+  {
+    name: 'useNotification',
+    description: 'Send terminal notifications through the best supported OSC channel. Becomes a no-op on unsupported terminals.',
+    signature: 'useNotification(): { notify: (title: string, body?: string) => void, supported: boolean }',
+    params: [],
+    returns: 'Object with notify(title, body?) and a supported boolean.',
+    examples: [
+      `const { notify, supported } = useNotification();\nButton({\n  label: supported ? 'Notify' : 'No notifications',\n  onClick: () => notify('Build complete', 'All checks passed'),\n})`,
     ],
   },
   {

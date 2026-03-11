@@ -12,6 +12,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { BoxStyle, TuiChild, TuiNode, VNode } from '../utils/types.js';
 import { VStack, HStack, Spacer, Divider } from './stack.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
+import { warnIfPropsPatternUsedVariadically } from '../core/dev-warnings.js';
 import type { SemanticVariant } from '../core/theme-types.js';
 
 /** Normalize TuiNode to TuiChild[] */
@@ -92,6 +93,12 @@ export interface PageProps {
  * ```
  */
 export function Page(props: PageProps): VNode {
+  warnIfPropsPatternUsedVariadically(
+    'Page',
+    arguments.length,
+    '`Page({ title: "Settings", children: SettingsForm() })`',
+  );
+
   const theme = getTheme();
   const {
     title,
@@ -263,6 +270,12 @@ export interface AppShellProps {
  * ```
  */
 export function AppShell(props: AppShellProps): VNode {
+  warnIfPropsPatternUsedVariadically(
+    'AppShell',
+    arguments.length,
+    '`AppShell({ header: Header(), children: MainContent() })`',
+  );
+
   const theme = getTheme();
   const tokens = theme.components.appshell;
 

@@ -89,7 +89,7 @@ function StatusBar() {
   const { fps, color } = useFps();
   const { columns } = useTerminalSize();
 
-  return Box({ width: columns(), backgroundColor: 'gray' },
+  return Box({ width: columns, backgroundColor: 'gray' },
     Spacer(),
     Text({ color }, `${fps} FPS`),
     Text({}, ' | '),
@@ -140,6 +140,7 @@ resetFps();
 - Frame tracking uses module-level state, shared across all components
 - Calling `useFps()` in multiple components won't cause double-counting issues
 - Use `resetFps()` when transitioning between views to get fresh metrics
+- when the runtime pauses animation/ticks while the terminal is unfocused, the reported FPS drops accordingly
 
 ## API Reference
 

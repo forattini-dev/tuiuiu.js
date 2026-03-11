@@ -3,6 +3,8 @@
  */
 
 import { batch } from '../primitives/signal.js';
+import { getCapabilities } from '../core/capabilities.js';
+import { enableFocusEvents, disableFocusEvents, parseFocusEvent } from '../core/input.js';
 import {
   getAppContext,
   setAppContext,
@@ -14,6 +16,7 @@ import {
 import { parseKeypress } from './use-input.js';
 import { parseMouseEvent, isMouseEvent, enableMouseTracking, disableMouseTracking } from './use-mouse.js';
 import { getHitTestRegistry } from '../core/hit-test.js';
+import { readTerminalFocus, resetTerminalFocusState, setTerminalFocusState } from '../core/terminal-focus.js';
 import { FocusZoneManagerAdapter } from './use-focus.js';
 import type { AppContext } from './types.js';
 
@@ -49,10 +52,12 @@ export function initializeApp(
   options: InitAppOptions = {}
 ): AppContext {
   const { autoTabNavigation: initialAutoTab = true } = options;
+  const outputIsTTY = 'isTTY' in stdout ? !!(stdout as NodeJS.WriteStream & { isTTY?: boolean }).isTTY : true;
 
   const exitCallbacks: (() => void)[] = [];
   let isExiting = false;
   let autoTabNavigation = initialAutoTab;
+  const focusTrackingEnabled = Boolean(stdin.isTTY && outputIsTTY && getCapabilities().focusEvents);
 
   // Raw mode reference counting
   let rawModeEnabledCount = 0;
@@ -88,6 +93,11 @@ export function initializeApp(
   // Setup initial raw mode for input (count as 1 reference)
   setRawMode(true);
   stdin.resume();
+  resetTerminalFocusState();
+
+  if (focusTrackingEnabled && typeof stdout.write === 'function') {
+    stdout.write(enableFocusEvents());
+  }
 
   // Initialize focus manager (using modern FocusZoneManagerAdapter)
   const focusManager = new FocusZoneManagerAdapter();
@@ -99,6 +109,15 @@ export function initializeApp(
 
     // Loop through input to handle batched events (mouse + keys)
     while (rawInput.length > 0) {
+      const focusEvent = parseFocusEvent(rawInput.slice(0, 3));
+      if (focusEvent) {
+        batch(() => {
+          setTerminalFocusState(focusEvent.focused);
+        });
+        rawInput = rawInput.slice(3);
+        continue;
+      }
+
       // Check for mouse events FIRST
       if (isMouseEvent(rawInput)) {
         const mouseResult = parseMouseEvent(rawInput);
@@ -179,6 +198,10 @@ export function initializeApp(
     if (stdin.isTTY && stdin.setRawMode) {
       stdin.setRawMode(false);
     }
+    if (focusTrackingEnabled && typeof stdout.write === 'function') {
+      stdout.write(disableFocusEvents());
+    }
+    resetTerminalFocusState();
 
     // Call exit callbacks
     for (const callback of exitCallbacks) {
@@ -209,6 +232,7 @@ export function initializeApp(
       return rawModeEnabledCount;
     },
     isRawModeEnabled,
+    isTerminalFocused: () => readTerminalFocus(),
   };
 
   setAppContext(appContext);
@@ -223,6 +247,7 @@ export function cleanupApp(): void {
   clearInputHandlers();
   setFocusManager(null);
   setAppContext(null);
+  resetTerminalFocusState();
 }
 
 /**

@@ -8,8 +8,11 @@
  * - Braille fallback (universal)
  * - Auto-detection with manual override
  *
- * 
+ *
  */
+
+import { deflateSync } from 'node:zlib';
+import { detectTerminalProfile } from './terminal-profile.js';
 
 // =============================================================================
 // Types
@@ -60,7 +63,7 @@ export interface ProtocolCapabilities {
 
 export interface TerminalImageCapabilities extends ProtocolCapabilities {
   cellSize: CellSize;
-  detectedBy: 'manual' | 'query' | 'env' | 'fallback';
+  detectedBy: 'manual' | 'query' | 'env' | 'profile' | 'fallback';
   supportsQueries: boolean;
   supportsPlacement: boolean;
   supportsClear: boolean;
@@ -164,6 +167,7 @@ let negotiatedCapabilities: TerminalImageCapabilities | null = null;
 let activeDetectionPromise: Promise<TerminalImageCapabilities> | null = null;
 let nextTerminalImageProtocolStateId = 1;
 let nextKittyImageId = 1;
+const cellSizeChangeListeners = new Set<(cellSize: CellSize) => void>();
 
 const DEFAULT_CELL_SIZE: CellSize = {
   width: 10,
@@ -230,6 +234,15 @@ export function resolveRenderableGraphicsProtocol(protocol: GraphicsProtocol): G
 export function isCellGraphicsProtocol(protocol: GraphicsProtocol): boolean {
   const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
   return resolvedProtocol === 'halfblock' || resolvedProtocol === 'braille';
+}
+
+/**
+ * Returns true for protocols that use escape sequences (kitty, iterm2, sixel),
+ * as opposed to cell-rendered text (halfblock, braille).
+ */
+export function isProtocolGraphics(protocol: GraphicsProtocol): boolean {
+  const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
+  return resolvedProtocol === 'kitty' || resolvedProtocol === 'iterm2' || resolvedProtocol === 'sixel';
 }
 
 function buildProtocolCapabilities(
@@ -309,16 +322,18 @@ function buildProtocolCapabilities(
   }
 }
 
-function detectProtocolFromEnvironment(): GraphicsProtocol | null {
+function detectGraphicsProtocolFromOverride(): GraphicsProtocol | null {
   const envProtocol = process.env.TUIUIU_GRAPHICS?.toLowerCase();
   if (envProtocol && isValidProtocol(envProtocol)) {
     return envProtocol as GraphicsProtocol;
   }
 
+  return null;
+}
+
+function detectGraphicsProtocolFromSession(): GraphicsProtocol | null {
   const termProgram = process.env.TERM_PROGRAM?.toLowerCase() || '';
-  const term = process.env.TERM?.toLowerCase() || '';
   const kittyWindowId = process.env.KITTY_WINDOW_ID;
-  const wtSession = process.env.WT_SESSION;
   const iterm2Session = process.env.ITERM_SESSION_ID;
 
   if (kittyWindowId || termProgram === 'kitty') {
@@ -329,14 +344,16 @@ function detectProtocolFromEnvironment(): GraphicsProtocol | null {
     return 'iterm2';
   }
 
-  if (termProgram === 'wezterm') {
-    return 'kitty';
-  }
+  return null;
+}
 
-  if (wtSession) {
-    return 'iterm2';
-  }
+function detectGraphicsProtocolFromProfile(): GraphicsProtocol | null {
+  const preferred = detectTerminalProfile(process.env).knownCaps.preferredGraphics;
+  return preferred || null;
+}
 
+function detectGraphicsProtocolFromTermHint(): GraphicsProtocol | null {
+  const term = process.env.TERM?.toLowerCase() || '';
   if (term.includes('sixel')) {
     return 'sixel';
   }
@@ -344,8 +361,43 @@ function detectProtocolFromEnvironment(): GraphicsProtocol | null {
   return null;
 }
 
+function detectProtocolFromEnvironment(): GraphicsProtocol | null {
+  const overrideProtocol = detectGraphicsProtocolFromOverride();
+  if (overrideProtocol) {
+    return overrideProtocol;
+  }
+
+  const sessionProtocol = detectGraphicsProtocolFromSession();
+  if (sessionProtocol) {
+    return sessionProtocol;
+  }
+
+  const profileProtocol = detectGraphicsProtocolFromProfile();
+  if (profileProtocol) {
+    return profileProtocol;
+  }
+
+  return detectGraphicsProtocolFromTermHint();
+}
+
 function getDetectedBy(protocol: GraphicsProtocol): TerminalImageCapabilities['detectedBy'] {
-  return detectProtocolFromEnvironment() === protocol ? 'env' : 'fallback';
+  if (detectGraphicsProtocolFromOverride() === protocol) {
+    return 'env';
+  }
+
+  if (detectGraphicsProtocolFromSession() === protocol) {
+    return 'env';
+  }
+
+  if (detectGraphicsProtocolFromProfile() === protocol) {
+    return 'profile';
+  }
+
+  if (detectGraphicsProtocolFromTermHint() === protocol) {
+    return 'env';
+  }
+
+  return 'fallback';
 }
 
 function buildGraphicsCapabilityQuery(): string {
@@ -525,7 +577,7 @@ export async function queryGraphicsCapabilities(
     const detectedBy: TerminalImageCapabilities['detectedBy'] = parsed.protocol
       ? 'query'
       : envProtocol
-      ? 'env'
+      ? getDetectedBy(envProtocol)
       : 'fallback';
 
     return buildProtocolCapabilities(
@@ -618,6 +670,49 @@ function isValidProtocol(protocol: string): protocol is GraphicsProtocol {
 }
 
 /**
+ * Invalidate the cached cell size so the next access re-detects it.
+ * Call this when the terminal is resized (SIGWINCH) since cell pixel
+ * dimensions change when the window geometry changes.
+ */
+export function invalidateCellSize(): void {
+  if (negotiatedCapabilities) {
+    const termSize = getTerminalSize();
+    const newCellSize = normalizeCellSize({
+      width: Math.round((negotiatedCapabilities.cellSize.width * (process.stdout.columns || 80)) / termSize.columns),
+      height: Math.round((negotiatedCapabilities.cellSize.height * (process.stdout.rows || 24)) / termSize.rows),
+    });
+
+    // If we had queried cell size, null out the cached capabilities so
+    // getGraphicsCapabilities() falls back to env/profile detection with
+    // fresh terminal dimensions.  Keep the protocol detection intact.
+    const oldCellSize = negotiatedCapabilities.cellSize;
+    negotiatedCapabilities = {
+      ...negotiatedCapabilities,
+      cellSize: normalizeCellSize(undefined),
+    };
+
+    // Notify listeners
+    const freshCellSize = negotiatedCapabilities.cellSize;
+    if (oldCellSize.width !== freshCellSize.width || oldCellSize.height !== freshCellSize.height) {
+      for (const listener of cellSizeChangeListeners) {
+        listener(freshCellSize);
+      }
+    }
+  }
+}
+
+/**
+ * Register a callback that fires when the cell size changes (after invalidation).
+ * Returns a cleanup function to unsubscribe.
+ */
+export function onCellSizeChange(callback: (cellSize: CellSize) => void): () => void {
+  cellSizeChangeListeners.add(callback);
+  return () => {
+    cellSizeChangeListeners.delete(callback);
+  };
+}
+
+/**
  * Reset cached detection (for testing)
  */
 export function resetGraphicsDetection(): void {
@@ -625,6 +720,7 @@ export function resetGraphicsDetection(): void {
   manualOverride = null;
   negotiatedCapabilities = null;
   activeDetectionPromise = null;
+  cellSizeChangeListeners.clear();
 }
 
 // =============================================================================
@@ -947,7 +1043,6 @@ export const kittyGraphics = {
    */
   transmit(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
     const source = toTerminalImageSource(imageData);
-    const { width, height, pixels } = source;
     const plan = planImageRender(source, options);
     const cols = options.width ?? plan.renderColumns;
     const rows = options.height ?? plan.renderRows;
@@ -955,8 +1050,9 @@ export const kittyGraphics = {
       ? `,i=${options.imageId}`
       : '';
 
-    // Base64 encode PNG data (simplified - real implementation would encode PNG)
-    const base64Data = base64Encode(pixels);
+    // Encode as PNG (f=100) — much smaller than raw RGBA (f=32)
+    const pngData = encodePng(source);
+    const base64Data = base64Encode(pngData);
 
     // Chunk size (4096 bytes is safe)
     const CHUNK_SIZE = 4096;
@@ -968,9 +1064,9 @@ export const kittyGraphics = {
       const more = isLast ? 0 : 1;
 
       if (i === 0) {
-        // First chunk includes format info
+        // First chunk includes format info — PNG carries its own dimensions
         chunks.push(
-          `\x1b_Ga=T,f=32,s=${width},v=${height},c=${cols},r=${rows}${imageId},m=${more};${chunk}\x1b\\`
+          `\x1b_Ga=T,f=100,c=${cols},r=${rows}${imageId},m=${more};${chunk}\x1b\\`
         );
       } else {
         // Continuation chunks
@@ -1389,6 +1485,120 @@ export function clearImagesForProtocol(protocol: GraphicsProtocol): string {
  */
 export function clearImages(): string {
   return clearImagesForProtocol(getGraphicsProtocol());
+}
+
+// =============================================================================
+// CRC32 & PNG Encoder (zero-dependency, Node.js built-ins only)
+// =============================================================================
+
+/** CRC32 lookup table, lazily initialised */
+let _crc32Table: Uint32Array | null = null;
+
+function crc32Table(): Uint32Array {
+  if (_crc32Table) return _crc32Table;
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[n] = c >>> 0;
+  }
+  _crc32Table = table;
+  return table;
+}
+
+function crc32(data: Uint8Array): number {
+  const table = crc32Table();
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) {
+    crc = table[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Write a 4-byte big-endian unsigned integer into a buffer at the given offset.
+ */
+function writeU32BE(buf: Uint8Array, value: number, offset: number): void {
+  buf[offset] = (value >>> 24) & 0xff;
+  buf[offset + 1] = (value >>> 16) & 0xff;
+  buf[offset + 2] = (value >>> 8) & 0xff;
+  buf[offset + 3] = value & 0xff;
+}
+
+/**
+ * Build a single PNG chunk: 4-byte length + 4-byte type + data + 4-byte CRC.
+ */
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const chunk = new Uint8Array(4 + 4 + data.length + 4);
+  // Length (of data only)
+  writeU32BE(chunk, data.length, 0);
+  // Type
+  chunk[4] = type.charCodeAt(0);
+  chunk[5] = type.charCodeAt(1);
+  chunk[6] = type.charCodeAt(2);
+  chunk[7] = type.charCodeAt(3);
+  // Data
+  chunk.set(data, 8);
+  // CRC over type + data
+  const crcInput = chunk.subarray(4, 8 + data.length);
+  writeU32BE(chunk, crc32(crcInput), 8 + data.length);
+  return chunk;
+}
+
+/**
+ * Encode RGBA ImageData as a PNG file (Uint8Array).
+ *
+ * Uses filter byte 1 (Sub) per row for better compression and
+ * Node.js built-in `zlib.deflateSync` for the IDAT payload.
+ * Fully zero-dependency — only Node.js built-ins.
+ */
+export function encodePng(imageData: ImageData): Uint8Array {
+  const { width, height, pixels } = imageData;
+
+  // --- PNG Signature ---
+  const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+
+  // --- IHDR ---
+  const ihdrData = new Uint8Array(13);
+  writeU32BE(ihdrData, width, 0);
+  writeU32BE(ihdrData, height, 4);
+  ihdrData[8] = 8;   // bit depth
+  ihdrData[9] = 6;   // color type: RGBA
+  ihdrData[10] = 0;  // compression method
+  ihdrData[11] = 0;  // filter method
+  ihdrData[12] = 0;  // interlace method
+  const ihdr = pngChunk('IHDR', ihdrData);
+
+  // --- IDAT: filter each row with Sub (type 1) then deflate ---
+  const rowBytes = width * 4;
+  const filtered = new Uint8Array((1 + rowBytes) * height);
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * rowBytes;
+    const outStart = y * (1 + rowBytes);
+    filtered[outStart] = 1; // Sub filter
+    for (let x = 0; x < rowBytes; x++) {
+      const raw = pixels[rowStart + x];
+      const left = x >= 4 ? pixels[rowStart + x - 4] : 0;
+      filtered[outStart + 1 + x] = (raw - left) & 0xff;
+    }
+  }
+  const compressed = deflateSync(Buffer.from(filtered));
+  const idat = pngChunk('IDAT', new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength));
+
+  // --- IEND ---
+  const iend = pngChunk('IEND', new Uint8Array(0));
+
+  // Concatenate all parts
+  const png = new Uint8Array(signature.length + ihdr.length + idat.length + iend.length);
+  let offset = 0;
+  png.set(signature, offset); offset += signature.length;
+  png.set(ihdr, offset); offset += ihdr.length;
+  png.set(idat, offset); offset += idat.length;
+  png.set(iend, offset);
+
+  return png;
 }
 
 // =============================================================================

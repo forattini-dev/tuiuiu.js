@@ -6,6 +6,9 @@
  */
 
 import { createSignal, untrack } from '../primitives/signal.js';
+import type { TerminalProfile, MultiplexerInfo, NotificationProtocol } from './terminal-profile.js';
+import { detectTerminalProfile, detectMultiplexer } from './terminal-profile.js';
+import { getProgressiveOverrides, getProgressiveVersion, hasNerdFonts } from './progressive.js';
 
 // =============================================================================
 // Types
@@ -37,6 +40,35 @@ export interface TerminalCapabilities {
   columns: number;
   /** Terminal height */
   rows: number;
+
+  // === Extended capabilities (Phase 1+) ===
+
+  /** Detected terminal profile with known capabilities */
+  profile?: TerminalProfile;
+  /** Terminal supports synchronized output (DEC mode 2026) */
+  synchronizedOutput?: boolean;
+  /** Terminal supports styled underlines (curly, dotted, dashed) */
+  styledUnderlines?: boolean;
+  /** Terminal supports colored underlines (SGR 58) */
+  coloredUnderlines?: boolean;
+  /** Terminal supports clipboard via OSC 52 */
+  clipboard?: boolean;
+  /** Terminal notification protocol (OSC 9/99/777) or false */
+  notifications?: NotificationProtocol | false;
+  /** Multiplexer info if running inside tmux/screen/zellij */
+  multiplexer?: MultiplexerInfo | null;
+  /** Terminal supports cursor style control (DECSCUSR) */
+  cursorStyleControl?: boolean;
+  /** Terminal supports setting window title (OSC 0/2) */
+  windowTitle?: boolean;
+  /** Terminal is GPU-accelerated */
+  gpuAccelerated?: boolean;
+  /** Terminal supports Kitty keyboard protocol */
+  kittyKeyboard?: boolean;
+  /** Terminal supports focus in/out reporting */
+  focusEvents?: boolean;
+  /** Nerd Fonts available */
+  nerdFonts?: boolean;
 }
 
 // =============================================================================
@@ -372,6 +404,11 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
   const termProgram = env.TERM_PROGRAM || '';
   const termProgramVersion = env.TERM_PROGRAM_VERSION || '';
 
+  // Detect terminal profile and multiplexer
+  const profile = detectTerminalProfile(env);
+  const multiplexer = detectMultiplexer(env);
+  const caps = profile.knownCaps;
+
   // Detect CI environment
   const isCI = !!(
     env.CI ||
@@ -384,16 +421,14 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     env.BUILDKITE
   );
 
-  // Detect terminal name
-  let terminalName = termProgram || term;
-  if (termProgram === 'iTerm.app') {
-    terminalName = `iTerm2 ${termProgramVersion}`;
-  } else if (termProgram === 'Apple_Terminal') {
-    terminalName = 'Terminal.app';
-  } else if (env.WT_SESSION) {
-    terminalName = 'Windows Terminal';
-  } else if (env.KONSOLE_VERSION) {
-    terminalName = 'Konsole';
+  // Detect terminal name (use profile name, with version if available)
+  let terminalName = profile.name;
+  if (profile.version) {
+    terminalName = `${profile.name} ${profile.version}`;
+  }
+  // Fallback for unknown terminals
+  if (profile.id === 'unknown') {
+    terminalName = termProgram || term || 'Unknown';
   }
 
   // Detect Unicode support
@@ -404,9 +439,9 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     isCI
   );
 
-  // Detect color support
+  // Detect color support — use profile hint, then env var heuristics
   let colors: ColorSupport = 16;
-  if (colorTerm === 'truecolor' || colorTerm === '24bit') {
+  if (caps.trueColor || colorTerm === 'truecolor' || colorTerm === '24bit') {
     colors = 'truecolor';
   } else if (
     term.includes('256color') ||
@@ -423,8 +458,9 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     colors = 'truecolor';
   }
 
-  // Detect mouse support
+  // Detect mouse support — profile-aware + legacy heuristics
   const mouse =
+    caps.mouse ||
     term.includes('xterm') ||
     term.includes('screen') ||
     term.includes('tmux') ||
@@ -438,8 +474,9 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
   // Detect true color
   const trueColor = colors === 'truecolor';
 
-  // Detect italic support (most modern terminals)
+  // Detect italic support — profile-aware + legacy heuristics
   const italic =
+    caps.italic ||
     term.includes('xterm') ||
     term.includes('kitty') ||
     term.includes('alacritty') ||
@@ -447,10 +484,11 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     termProgram === 'Hyper';
 
   // Detect strikethrough support
-  const strikethrough = italic; // Generally same terminals
+  const strikethrough = caps.strikethrough || italic;
 
-  // Detect hyperlink support (OSC 8)
+  // Detect hyperlink support (OSC 8) — profile-aware + legacy
   const hyperlinks =
+    caps.hyperlinks ||
     termProgram === 'iTerm.app' ||
     term.includes('kitty') ||
     !!env.WT_SESSION ||
@@ -460,7 +498,11 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
   const columns = process.stdout.columns || 80;
   const rows = process.stdout.rows || 24;
 
-  return {
+  // Nerd Fonts detection
+  const nerdFonts = hasNerdFonts();
+
+  // Build extended capabilities from profile
+  const result: TerminalCapabilities = {
     unicode,
     colors,
     mouse,
@@ -472,7 +514,29 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     isCI,
     columns,
     rows,
+    // Extended capabilities
+    profile,
+    synchronizedOutput: caps.synchronizedOutput,
+    styledUnderlines: caps.styledUnderlines,
+    coloredUnderlines: caps.coloredUnderlines,
+    clipboard: caps.clipboard,
+    notifications: caps.notifications,
+    multiplexer,
+    cursorStyleControl: caps.cursorStyleControl,
+    windowTitle: caps.windowTitle,
+    gpuAccelerated: profile.gpuAccelerated,
+    kittyKeyboard: caps.kittyKeyboard,
+    focusEvents: caps.focusEvents,
+    nerdFonts,
   };
+
+  // Apply progressive overrides if configured
+  const overrides = getProgressiveOverrides();
+  if (overrides) {
+    Object.assign(result, overrides);
+  }
+
+  return result;
 }
 
 // =============================================================================
@@ -481,6 +545,7 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
 
 const [renderModeSignal, setRenderModeSignal] = createSignal<RenderMode>('auto');
 let cachedCapabilities: TerminalCapabilities | null = null;
+let cachedProgressiveVersion = -1;
 
 /**
  * Set the render mode
@@ -511,8 +576,10 @@ export function getRenderMode(): 'unicode' | 'ascii' {
  * Get cached terminal capabilities
  */
 export function getCapabilities(): TerminalCapabilities {
-  if (!cachedCapabilities) {
+  const currentProgressiveVersion = getProgressiveVersion();
+  if (!cachedCapabilities || cachedProgressiveVersion !== currentProgressiveVersion) {
     cachedCapabilities = detectTerminalCapabilities();
+    cachedProgressiveVersion = currentProgressiveVersion;
   }
   return cachedCapabilities;
 }
@@ -522,6 +589,7 @@ export function getCapabilities(): TerminalCapabilities {
  */
 export function refreshCapabilities(): TerminalCapabilities {
   cachedCapabilities = detectTerminalCapabilities();
+  cachedProgressiveVersion = getProgressiveVersion();
   return cachedCapabilities;
 }
 

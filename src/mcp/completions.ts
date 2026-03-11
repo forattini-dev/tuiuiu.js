@@ -198,7 +198,7 @@ export function getResourceCompletions(
   if (uriTemplate.includes('{topic}')) {
     return filterCompletions([
       'getting-started', 'custom-themes', 'migration-ink',
-      'migration-blessed', 'signals', 'layout',
+      'migration-blessed', 'signals', 'common-mistakes', 'layout',
       'input-handling', 'animations',
     ], lowerValue);
   }

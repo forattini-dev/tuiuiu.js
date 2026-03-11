@@ -10,6 +10,7 @@
 
 import { createSignal, untrack } from '../primitives/signal.js';
 import { colors, type ColorPalette, type ColorShade } from './colors.js';
+import { warnIfThemeSetAfterRenderStarted } from './dev-warnings.js';
 import type {
   Theme,
   ThemeMode,
@@ -164,6 +165,7 @@ export function useComponentTokens<K extends ComponentName>(
  * Set the global theme.
  */
 export function setTheme(theme: Theme): void {
+  warnIfThemeSetAfterRenderStarted();
   setCurrentTheme(theme);
 }
 

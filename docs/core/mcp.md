@@ -110,7 +110,7 @@ Now Claude has full access to Tuiuiu documentation and can help you build termin
 
 | Feature | Description |
 |:--------|:------------|
-| **11 Tools** | Query docs, search, get quickstart recipes, create themes, API patterns, prompts API |
+| **12 Tools** | Query docs, search, validate snippets, get quickstart recipes, create themes, API patterns, prompts API |
 | **8 Resource Templates** | Dynamic URIs for components, hooks, themes, guides |
 | **15 Prompts** | Pre-built templates for dashboards, forms, games, migrations |
 | **Completions** | Smart argument suggestions for tools and prompts |
@@ -120,7 +120,7 @@ Now Claude has full access to Tuiuiu documentation and can help you build termin
 
 ## Tools
 
-The MCP server exposes 11 tools to AI assistants:
+The MCP server exposes 12 tools to AI assistants:
 
 ### Core Tools
 
@@ -146,6 +146,7 @@ tuiuiu_get_component({ name: 'Button' })
 
 **Returns**:
 - Component description and category
+- Structured metadata for high-value exports: import path, API pattern, stability, gotchas, related symbols
 - Full props table with types and defaults
 - Import statement
 - Usage examples (basic and advanced)
@@ -159,6 +160,8 @@ Get documentation for a hook.
 tuiuiu_get_hook({ name: 'useInput' })
 // → Signature, parameters, return type, examples
 ```
+
+For high-value symbols such as `useState` and `createSignal`, the response also includes structured metadata like import path, stability, and common gotchas.
 
 #### `tuiuiu_search`
 
@@ -294,6 +297,27 @@ tuiuiu_prompts_api({ prompt: 'checkbox' })
 - `prompt.number()` — Numeric input with constraints
 - `prompt.password()` — Masked input for secrets
 
+#### `tuiuiu_validate_code`
+
+Validate a Tuiuiu snippet against the runtime mistakes the library actively warns about.
+
+```typescript
+tuiuiu_validate_code({
+  code: `
+    function App() {
+      const [count, setCount] = createSignal(0);
+      return Text({}, String(count()));
+    }
+  `
+})
+// → Flags createSignal() inside component render and links to the canonical fix
+```
+
+**Detects:**
+- `createSignal()` inside component render
+- `setTheme()` after top-level `render()`
+- props/data/render API-pattern mismatches for `Page`, `AppShell`, `Modal`, `ScrollList`, `Static`, `Tabs`, and `Accordion`
+
 ---
 
 ## Resources
@@ -328,6 +352,9 @@ tuiuiu://category/atoms
 # Get the signals guide
 tuiuiu://guide/signals
 
+# Get the runtime common-mistakes guide
+tuiuiu://guide/common-mistakes
+
 # Get complete dashboard example
 tuiuiu://example/dashboard
 ```
@@ -341,6 +368,7 @@ tuiuiu://example/dashboard
 | `migration-ink` | Migrating from Ink to Tuiuiu |
 | `migration-blessed` | Migrating from blessed to Tuiuiu |
 | `signals` | Signals and reactive programming |
+| `common-mistakes` | Runtime guardrails and frequent integration mistakes |
 | `layout` | Flexbox layout system |
 | `input-handling` | Keyboard and mouse input |
 | `animations` | Animation system and spring physics |

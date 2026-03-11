@@ -68,6 +68,7 @@ render(Game, {
 interface FixedStepOptions {
   updateFps: number;
   maxCatchUpUpdates?: number; // default: 5
+  pauseWhenUnfocused?: boolean; // default: true
   onUpdate: (update: FixedStepUpdate) => void;
 }
 
@@ -85,8 +86,41 @@ What the runtime guarantees:
 - presentation still follows the render scheduler and `maxFps`
 - catch-up work is bounded by `maxCatchUpUpdates`
 - stale catch-up backlog is dropped once that limit is exceeded to avoid a spiral of death
+- fixed-step updates pause while the terminal is unfocused unless `pauseWhenUnfocused: false` is set
 
 This means you can run `60 Hz` simulation with `30 Hz` presentation without forcing the terminal to paint every logical tick.
+
+### Focus-aware fixed-step
+
+By default, the runtime treats terminal focus as a scheduling hint:
+
+```typescript
+render(Game, {
+  fixedStep: {
+    updateFps: 30,
+    pauseWhenUnfocused: true,
+    onUpdate: stepSimulation,
+  },
+});
+```
+
+Behavior:
+
+- when the terminal loses focus, pending fixed-step timers are cleared
+- logical backlog is discarded instead of replayed later
+- when focus returns, updates resume from “now” rather than performing a catch-up burst
+
+If you are building something that must continue simulation in the background, opt out:
+
+```typescript
+render(Game, {
+  fixedStep: {
+    updateFps: 30,
+    pauseWhenUnfocused: false,
+    onUpdate: stepSimulation,
+  },
+});
+```
 
 ## Backpressure Handling
 

@@ -74,7 +74,17 @@ export {
   getCommittedFrameSnapshot,
   getCommittedFrameQueries,
   clearCommittedFrameSnapshot,
+  recordFramePhaseMetric,
+  recordFrameStructuralMetric,
+  finalizeFrameRuntimeMetrics,
   resetFrameSequenceForTesting,
+  configurePerfInspector,
+  getPerfInspectorConfig,
+  recordCommittedFrame,
+  getPerfFrames,
+  getPerfInspectorSummary,
+  onSlowFrame,
+  resetPerfInspector,
   // App
   render,
   renderOnce,
@@ -107,6 +117,12 @@ export type {
   DrawBoxCommand,
   DrawTextCommand,
   DrawCommand,
+  PerfRendererKind,
+  PerfFrameRecord,
+  PerfBudgetConfig,
+  PerfInspectorConfig,
+  PerfInspectorSummary,
+  RecordPerfFrameOptions,
 } from './core/index.js';
 
 // =============================================================================
@@ -121,8 +137,10 @@ export {
   useApp,
   useFocus,
   useFocusManager,
+  useCompositor,
   parseKeypress,
   useTerminalSize,
+  useTerminalFocus,
   createLayoutRef,
   useLayoutRef,
   useMouse,
@@ -167,9 +185,17 @@ export type {
   AppContext,
   FocusOptions,
   FocusResult,
+  TerminalFocusState,
   HotkeyBinding,
   HotkeyOptions,
   HotkeyHandler,
+  UseCompositorResult,
+  SlideOptions,
+  FadeOptions,
+  ShimmerOptions,
+  SpringMotionOptions,
+  RevealOptions,
+  CompositorBindProps,
   UseFpsResult,
   // Timing types
   UseIntervalOptions,
@@ -480,6 +506,7 @@ export {
   refreshCapabilities,
   getChars,
   char,
+  formatHyperlink,
   supports,
   supportsTrueColor,
   supports256Colors,
@@ -487,6 +514,55 @@ export {
   onResize,
   unicodeChars,
   asciiChars,
+  setHyperlinksEnabled,
+  areHyperlinksEnabled,
+  // Progressive enhancement
+  passthroughWrap,
+  wrapSynchronized,
+  getSynchronizedBegin,
+  getSynchronizedEnd,
+  setCursorStyle,
+  resetCursorStyle,
+  setWindowTitle,
+  getClipboardWriteSequence,
+  getClipboardQuerySequence,
+  getNotificationSequence,
+  getUnderlineCode,
+  getUnderlineColorCode,
+  getUnderlineColorResetCode,
+  setNerdFonts,
+  hasNerdFonts,
+  configureProgressive,
+  resetProgressive,
+  getProgressiveVersion,
+  getProgressiveOverrides,
+  BSU,
+  ESU,
+  // Adaptive rendering utilities
+  adaptive,
+  adaptiveUnderline,
+  adaptiveColor,
+  canSyncOutput,
+  canStyleUnderlines,
+  canColorUnderlines,
+  canClipboard,
+  canNotify,
+  canHyperlink,
+  hasGpuAcceleration,
+  getTerminalName,
+  // Image animation
+  createAnimatedImageSource,
+  createAnimatedImage,
+  framesFromSpriteSheet,
+  // Terminal detection
+  detectTerminalId,
+  detectMultiplexer,
+  detectTerminalProfile,
+  getTerminalProfileById,
+  listTerminalIds,
+  // Graphics cell size
+  invalidateCellSize,
+  onCellSizeChange,
 } from './core/index.js';
 
 export type {
@@ -528,6 +604,20 @@ export type {
   RenderMode,
   ColorSupport,
   CharacterSet,
+  // Terminal detection types
+  TerminalId,
+  MultiplexerInfo,
+  MultiplexerType,
+  NotificationProtocol,
+  GraphicsProtocolId,
+  UnderlineStyle,
+  CursorStyle,
+  KnownTerminalCaps,
+  TerminalProfile,
+  // Image animation types
+  AnimatedImageFrame,
+  AnimatedImageSource,
+  AnimatedImageState,
 } from './core/index.js';
 
 // =============================================================================
@@ -770,6 +860,7 @@ export {
   createSolidImage,
   createGradientImage,
   scaleImage,
+  encodePng,
 } from './core/index.js';
 
 export type {
@@ -1082,6 +1173,7 @@ export {
   getPerformanceMetrics,
   resetPerformanceMetrics,
   formatPerformanceMetrics,
+  PerfOverlay,
   // Component tree
   buildComponentTree,
   formatComponentTree,
@@ -1125,6 +1217,7 @@ export type {
   SignalNode,
   SignalGraph,
   DebugPanelData,
+  PerfOverlayProps,
   // Testing types
   TerminalSize,
   CursorPosition,

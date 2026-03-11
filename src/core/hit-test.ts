@@ -14,6 +14,7 @@
 
 import type { VNode, LayoutNode, MouseEventData, MouseEventHandler, MouseButton } from '../utils/types.js';
 import { parseMouseEvent, enableMouseTracking, disableMouseTracking, type MouseEvent as RawMouseEvent } from '../hooks/use-mouse.js';
+import { getGraphicsCapabilities, type CellSize } from './graphics.js';
 
 // =============================================================================
 // Types
@@ -47,6 +48,10 @@ export interface HitTestResult {
   absoluteX: number;
   /** Absolute screen position */
   absoluteY: number;
+  /** Pixel-precision relative X (only for images/pixel mouse mode) */
+  pixelRelativeX?: number;
+  /** Pixel-precision relative Y (only for images/pixel mouse mode) */
+  pixelRelativeY?: number;
 }
 
 function hasMouseHandlers(node: VNode): boolean {
@@ -193,26 +198,61 @@ class HitTestRegistry {
   }
 
   /**
+   * Find element at pixel position with sub-cell precision
+   *
+   * Converts pixel coordinates to cell coordinates for the standard hit test,
+   * then computes pixel-relative offsets within the hit element.
+   */
+  pixelHitTest(pixelX: number, pixelY: number, cellSize: CellSize): HitTestResult | null {
+    const cellX = Math.floor(pixelX / cellSize.width);
+    const cellY = Math.floor(pixelY / cellSize.height);
+
+    const result = this.hitTest(cellX, cellY);
+    if (!result) return null;
+
+    // Find the element bounds so we can compute pixel-relative offsets
+    const bounds = this.elements.find(b => b.node === result.node);
+    if (!bounds) return result;
+
+    result.pixelRelativeX = pixelX - (bounds.x * cellSize.width);
+    result.pixelRelativeY = pixelY - (bounds.y * cellSize.height);
+
+    return result;
+  }
+
+  /**
    * Handle raw mouse event from terminal
    */
   handleMouseEvent(rawEvent: RawMouseEvent): void {
-    const hit = this.hitTest(rawEvent.x, rawEvent.y);
+    let hit: HitTestResult | null;
+
+    if (rawEvent.pixelX != null && rawEvent.pixelY != null) {
+      const cellSize = getGraphicsCapabilities().cellSize;
+      hit = this.pixelHitTest(rawEvent.pixelX, rawEvent.pixelY, cellSize);
+    } else {
+      hit = this.hitTest(rawEvent.x, rawEvent.y);
+    }
     const now = Date.now();
 
     // Create event data
     let propagationStopped = false;
-    const createEventData = (target: VNode | null): MouseEventData => ({
-      x: hit?.relativeX ?? 0,
-      y: hit?.relativeY ?? 0,
-      absoluteX: rawEvent.x,
-      absoluteY: rawEvent.y,
-      button: rawEvent.button,
-      modifiers: rawEvent.modifiers,
-      target,
-      stopPropagation: () => {
-        propagationStopped = true;
-      },
-    });
+    const createEventData = (target: VNode | null): MouseEventData => {
+      const data: MouseEventData = {
+        x: hit?.relativeX ?? 0,
+        y: hit?.relativeY ?? 0,
+        absoluteX: rawEvent.x,
+        absoluteY: rawEvent.y,
+        button: rawEvent.button,
+        modifiers: rawEvent.modifiers,
+        target,
+        stopPropagation: () => {
+          propagationStopped = true;
+        },
+      };
+      if (hit?.pixelRelativeX != null) data.pixelRelativeX = hit.pixelRelativeX;
+      if (hit?.pixelRelativeY != null) data.pixelRelativeY = hit.pixelRelativeY;
+      return data;
+    };
 
     // Handle mouse enter/leave
     const currentHovered = hit?.node ?? null;

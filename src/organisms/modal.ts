@@ -36,6 +36,7 @@ import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { warnIfUnexpectedPropProvided } from '../core/dev-warnings.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 
@@ -309,6 +310,14 @@ function renderBorder(
  * ```
  */
 export function Modal(props: ModalProps): VNode {
+  const maybeMisusedProps = props as ModalProps & Record<string, unknown>;
+  warnIfUnexpectedPropProvided(
+    'Modal',
+    'children',
+    maybeMisusedProps.children,
+    'Modal expects `content`, not `children`. Use `Modal({ title: "X", content: View() })`.',
+  );
+
   const theme = getTheme();
   const {
     title,

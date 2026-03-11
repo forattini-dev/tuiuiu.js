@@ -1,10 +1,76 @@
 # Media Components
 
-Components for displaying images, pixel art, and ASCII graphics.
+Tuiuiu supports two classes of “media”:
+
+- **character-rendered media** such as `Picture`, `ColoredPicture`, and `AnimatedPicture`
+- **protocol-backed terminal images** via `TerminalImage`
+
+Use the character-rendered path when you want portable output everywhere. Use `TerminalImage` when you want the runtime to negotiate Kitty, iTerm2, Sixel, or a high-quality fallback automatically.
+
+## TerminalImage
+
+`TerminalImage` renders decoded RGBA image data directly in the terminal when a graphics protocol is available, and falls back to `halfblock` or `braille` when it is not.
+
+```typescript
+import { Panel, TerminalImage, loadImageFile } from 'tuiuiu.js';
+
+const image = await loadImageFile('./tests/tuiuiu.png');
+
+Panel({ title: 'Preview', width: 40, height: 14 },
+  TerminalImage({
+    source: image,
+    width: 'fill',
+    height: 'fill',
+    fit: 'contain',
+  })
+);
+```
+
+### Supported backends
+
+- `kitty`
+- `iterm2`
+- `sixel`
+- `halfblock`
+- `braille`
+
+### Important details
+
+- the core runtime accepts decoded RGBA, not raw PNG/JPEG/WebP bytes
+- `loadImageFile()` is the convenience bridge for file input and relies on `ffprobe` + `ffmpeg`
+- `TerminalImage` participates in layout and reserves its covered cell region so text does not paint over the image
+
+### Stateful rendering
+
+For resize-heavy layouts, use `createTerminalImage()` to hold protocol cache/state across renders:
+
+```typescript
+import { createTerminalImage, TerminalImage } from 'tuiuiu.js';
+
+const imageState = createTerminalImage({
+  source: rgbaImage,
+  fit: 'contain',
+});
+
+TerminalImage({
+  state: imageState,
+  width: 'fill',
+  height: 'fill',
+});
+```
+
+### Capability inspection
+
+```typescript
+import { getGraphicsCapabilities, queryGraphicsCapabilities } from 'tuiuiu.js';
+
+const cached = getGraphicsCapabilities();
+const negotiated = await queryGraphicsCapabilities();
+```
 
 ## Picture
 
-The main component for displaying ASCII art or pixel grids. It handles scaling, cropping, and alignment.
+The main component for ASCII art and character-grid images. It handles scaling, cropping, and alignment.
 
 ### Usage
 
@@ -103,6 +169,4 @@ Colorizes text with a rainbow pattern.
 
 ```typescript
 Text({}, rainbowText('Hello World'));
-```
-
 ```

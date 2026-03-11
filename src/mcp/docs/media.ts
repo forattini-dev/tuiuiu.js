@@ -10,11 +10,11 @@ export const media: ComponentDoc[] = [
   {
     name: 'TerminalImage',
     category: 'media',
-    description: 'Display protocol-backed terminal images with automatic fallback to half-block or braille rendering. Accepts decoded RGBA data or a precomputed TerminalImageSource.',
+    description: 'Display protocol-backed terminal images with automatic fallback to half-block or braille rendering. Accepts decoded RGBA data or a precomputed TerminalImageSource and reserves the covered cells so text does not overwrite the image.',
     props: [
       { name: 'source', type: 'ImageData | TerminalImageSource', required: true, description: 'Decoded RGBA pixels or a precomputed terminal image source' },
       { name: 'fit', type: "'contain' | 'cover' | 'fill' | 'crop' | 'none'", required: false, default: "'contain'", description: 'How to fit the image inside its layout bounds' },
-      { name: 'protocol', type: "GraphicsProtocol", required: false, description: 'Force a specific backend such as kitty, iterm2, sixel, halfblock, or braille' },
+      { name: 'protocol', type: "GraphicsProtocol", required: false, description: 'Force a specific backend such as kitty, iterm2, sixel, halfblock, or braille. When omitted the runtime uses negotiated capabilities.' },
       { name: 'imageWidth', type: 'number', required: false, description: 'Override image render width in terminal cells' },
       { name: 'imageHeight', type: 'number', required: false, description: 'Override image render height in terminal cells' },
       { name: 'state', type: 'TerminalImageState', required: false, description: 'Stable controller from createTerminalImage() for resize-aware caching' },
@@ -25,7 +25,55 @@ export const media: ComponentDoc[] = [
       `const image = await loadImageFile('./tests/tuiuiu.png');\n\nPanel({ title: 'Preview', width: 40, height: 14 },\n  TerminalImage({\n    source: image,\n    width: 'fill',\n    height: 'fill',\n    fit: 'contain',\n  })\n)`,
       `const imageState = createTerminalImage({\n  source: rgbaImage,\n  fit: 'contain',\n});\n\nTerminalImage({\n  state: imageState,\n  protocol: 'kitty',\n  width: 'fill',\n  height: 'fill',\n})`,
     ],
-    relatedComponents: ['Picture', 'ColoredPicture', 'loadImageFile', 'createTerminalImage'],
+    relatedComponents: ['Picture', 'ColoredPicture', 'loadImageFile', 'createTerminalImage', 'queryGraphicsCapabilities'],
+  },
+  {
+    name: 'createTerminalImage',
+    category: 'media',
+    description: 'Create a stable controller for a terminal image. Use this when the same image re-renders into different layouts and you want protocol cache reuse and manual invalidation.',
+    props: [
+      { name: 'source', type: 'ImageData | TerminalImageSource', required: true, description: 'Decoded RGBA pixels or a precomputed source' },
+      { name: 'fit', type: "'contain' | 'cover' | 'fill' | 'crop' | 'none'", required: false, default: "'contain'", description: 'Default fit mode for renders driven by this state' },
+      { name: 'protocol', type: 'GraphicsProtocol', required: false, description: 'Optional default protocol override' },
+      { name: 'imageWidth', type: 'number', required: false, description: 'Optional width in cells' },
+      { name: 'imageHeight', type: 'number', required: false, description: 'Optional height in cells' },
+    ],
+    examples: [
+      `const imageState = createTerminalImage({ source: image, fit: 'contain' });\n\nimageState.setProtocol('halfblock');\nimageState.invalidateRenderCache();\n\nreturn TerminalImage({ state: imageState, width: 'fill', height: 'fill' });`,
+    ],
+    relatedComponents: ['TerminalImage'],
+  },
+  {
+    name: 'loadImageFile',
+    category: 'media',
+    description: 'Load a PNG, JPEG, WebP, or other ffmpeg-readable image file into decoded RGBA ImageData. This helper lives outside the zero-dependency core pipeline and relies on ffprobe + ffmpeg being installed.',
+    props: [
+      { name: 'imagePath', type: 'string', required: true, description: 'Path to the source image file' },
+      { name: 'options.cwd', type: 'string', required: false, description: 'Base directory used to resolve relative image paths' },
+      { name: 'options.ffprobePath', type: 'string', required: false, description: 'Override ffprobe executable path' },
+      { name: 'options.ffmpegPath', type: 'string', required: false, description: 'Override ffmpeg executable path' },
+      { name: 'options.maxBuffer', type: 'number', required: false, description: 'Maximum child-process buffer size' },
+    ],
+    examples: [
+      `const image = await loadImageFile('./tests/tuiuiu.png');\nreturn TerminalImage({ source: image, width: 'fill', height: 'fill' });`,
+    ],
+    relatedComponents: ['TerminalImage'],
+  },
+  {
+    name: 'queryGraphicsCapabilities',
+    category: 'media',
+    description: 'Actively negotiate terminal image support and cell pixel metrics. Uses protocol-specific queries when possible, falls back to profile and environment hints, and caches the result for reuse.',
+    props: [
+      { name: 'options.transport', type: 'TerminalGraphicsQueryTransport', required: false, description: 'Custom transport for active terminal queries' },
+      { name: 'options.timeoutMs', type: 'number', required: false, description: 'Timeout for active queries' },
+      { name: 'options.force', type: 'boolean', required: false, default: 'false', description: 'Bypass the cached negotiation and probe again' },
+      { name: 'options.skipActiveQuery', type: 'boolean', required: false, default: 'false', description: 'Use profile/env detection only' },
+    ],
+    examples: [
+      `const caps = await queryGraphicsCapabilities();\nconsole.log(caps.protocol, caps.cellSize, caps.detectedBy);`,
+      `const caps = await queryGraphicsCapabilities({ force: true, timeoutMs: 80 });\nconst protocol = caps.protocol === 'none' ? 'halfblock' : caps.protocol;`,
+    ],
+    relatedComponents: ['TerminalImage', 'loadImageFile'],
   },
   {
     name: 'Picture',
@@ -324,6 +372,112 @@ export const media: ComponentDoc[] = [
       `// Rainbow at 50% progress\nconst rainbow = applyRainbowToGrid(grid, 0.5);\n\nColoredPicture({ pixels: rainbow })`,
     ],
     relatedComponents: ['applyBrightnessToGrid', 'applyShimmerToGrid'],
+  },
+  {
+    name: 'createAnimatedImageSource',
+    category: 'media',
+    description: 'Create an AnimatedImageSource from an array of ImageData frames. All frames must share the same dimensions. The width and height are taken from the first frame.',
+    props: [
+      { name: 'frames', type: 'ImageData[]', required: true, description: 'Array of RGBA ImageData frames (must all have the same dimensions)' },
+      { name: 'options.defaultDuration', type: 'number', required: false, default: '100', description: 'Default frame duration in ms' },
+      { name: 'options.loopCount', type: 'number', required: false, default: '0', description: 'Number of loops (0 = infinite)' },
+    ],
+    examples: [
+      `const frames = [frame1, frame2, frame3]; // ImageData[]\nconst source = createAnimatedImageSource(frames, { defaultDuration: 200 });\nconst anim = createAnimatedImage(source);\nanim.play();`,
+      `// Single-loop animation\nconst source = createAnimatedImageSource(frames, {\n  defaultDuration: 150,\n  loopCount: 1,\n});`,
+    ],
+    relatedComponents: ['createAnimatedImage', 'framesFromSpriteSheet', 'AnimatedImageState'],
+  },
+  {
+    name: 'createAnimatedImage',
+    category: 'media',
+    description: 'Create an AnimatedImageState controller from an AnimatedImageSource. Uses the global tick system for timing and pauses automatically when the terminal loses focus. Provides reactive signals for the current frame and image data.',
+    props: [
+      { name: 'source', type: 'AnimatedImageSource', required: true, description: 'Animated image source created by createAnimatedImageSource' },
+    ],
+    examples: [
+      `const source = createAnimatedImageSource(frames, { defaultDuration: 100 });\nconst anim = createAnimatedImage(source);\n\nanim.play();\n\n// Reactive accessors\nanim.currentFrame();     // current frame index\nanim.currentImageData(); // current ImageData for rendering\nanim.isPlaying();        // boolean\n\n// Pass to TerminalImage\nTerminalImage({ source: anim.currentImageData(), width: 'fill', height: 'fill' })`,
+      `// Controls\nanim.play();          // Start/resume\nanim.pause();         // Pause\nanim.stop();          // Stop and reset to frame 0\nanim.goToFrame(3);    // Jump to specific frame\nanim.dispose();       // Cleanup when done`,
+    ],
+    relatedComponents: ['createAnimatedImageSource', 'TerminalImage', 'AnimatedImageState'],
+  },
+  {
+    name: 'framesFromSpriteSheet',
+    category: 'media',
+    description: 'Extract individual frames from a horizontal sprite sheet. Frames are extracted left to right, each with the given width and optionally a custom height (defaults to the full image height).',
+    props: [
+      { name: 'spriteSheet', type: 'ImageData', required: true, description: 'Sprite sheet image data (RGBA)' },
+      { name: 'frameWidth', type: 'number', required: true, description: 'Width of each frame in pixels' },
+      { name: 'frameHeight', type: 'number', required: false, description: 'Height of each frame (defaults to full image height)' },
+    ],
+    examples: [
+      `const sheet = await loadImageFile('./explosion-strip.png');\nconst frames = framesFromSpriteSheet(sheet, 64); // 64px wide frames\nconst source = createAnimatedImageSource(frames, { defaultDuration: 80 });\nconst anim = createAnimatedImage(source);\nanim.play();`,
+      `// Custom frame height (sub-region of sprite sheet)\nconst frames = framesFromSpriteSheet(sheet, 32, 32);`,
+    ],
+    relatedComponents: ['createAnimatedImageSource', 'loadImageFile'],
+  },
+  {
+    name: 'AnimatedImageState',
+    category: 'media',
+    description: 'Controller interface returned by createAnimatedImage(). Provides reactive accessors and playback controls for frame-based terminal image animation.',
+    props: [
+      { name: 'currentFrame', type: '() => number', required: false, description: 'Reactive accessor for the current frame index' },
+      { name: 'currentImageData', type: '() => ImageData', required: false, description: 'Reactive accessor for the current frame ImageData' },
+      { name: 'isPlaying', type: '() => boolean', required: false, description: 'Whether the animation is currently playing' },
+      { name: 'play', type: '() => void', required: false, description: 'Start or resume animation' },
+      { name: 'pause', type: '() => void', required: false, description: 'Pause animation at current frame' },
+      { name: 'stop', type: '() => void', required: false, description: 'Stop animation and reset to frame 0' },
+      { name: 'goToFrame', type: '(index: number) => void', required: false, description: 'Jump to a specific frame by index' },
+      { name: 'frameCount', type: 'number', required: false, description: 'Total number of frames' },
+      { name: 'dispose', type: '() => void', required: false, description: 'Cleanup resources (tick subscription and focus listener)' },
+    ],
+    examples: [
+      `const anim: AnimatedImageState = createAnimatedImage(source);\n\n// Playback controls\nanim.play();\nanim.pause();\nanim.stop();\nanim.goToFrame(5);\n\n// Reactive state\nText({}, \`Frame \${anim.currentFrame()} / \${anim.frameCount}\`)\n\n// Cleanup\nanim.dispose();`,
+    ],
+    relatedComponents: ['createAnimatedImage', 'createAnimatedImageSource', 'TerminalImage'],
+  },
+  {
+    name: 'adaptive',
+    category: 'media',
+    description: 'Pick the best rendering variant based on detected terminal capabilities. Checks Nerd Font support first, then Unicode, and falls back to ASCII. First match wins.',
+    props: [
+      { name: 'variants.nerdFont', type: 'T', required: false, description: 'Value to use when Nerd Fonts are available' },
+      { name: 'variants.unicode', type: 'T', required: false, description: 'Value to use when Unicode is supported' },
+      { name: 'variants.ascii', type: 'T', required: true, description: 'Fallback value for basic terminals' },
+    ],
+    examples: [
+      `const bullet = adaptive({\n  nerdFont: '\\uf054',   // Nerd Font chevron\n  unicode: '\\u25b6',    // Unicode triangle\n  ascii: '>',           // ASCII fallback\n});`,
+      `const checkbox = adaptive({\n  nerdFont: '\\uf00c',\n  unicode: '\\u2714',\n  ascii: '[x]',\n});\n\nText({}, \`Done: \${checkbox}\`)`,
+    ],
+    relatedComponents: ['adaptiveUnderline', 'adaptiveColor'],
+  },
+  {
+    name: 'adaptiveUnderline',
+    category: 'media',
+    description: 'Get the best underline style for the current terminal. Returns the preferred styled variant when the terminal supports styled underlines, otherwise falls back to a simple boolean true (plain underline).',
+    props: [
+      { name: 'preferred', type: "'curly' | 'dotted' | 'dashed' | 'double' | 'single' | true", required: true, description: 'Desired underline style' },
+    ],
+    examples: [
+      `const underline = adaptiveUnderline('curly');\n// Returns 'curly' on kitty/wezterm, true on basic terminals\n\nText({ underline }, 'Error here')`,
+      `// Dashed underline with graceful degradation\nText({ underline: adaptiveUnderline('dashed') }, 'Warning')`,
+    ],
+    relatedComponents: ['adaptive', 'adaptiveColor'],
+  },
+  {
+    name: 'adaptiveColor',
+    category: 'media',
+    description: 'Get a color value that degrades gracefully based on terminal color support. Returns the hex color on truecolor terminals, an ANSI-256 fallback when available, or a basic color fallback.',
+    props: [
+      { name: 'truecolor', type: 'string', required: true, description: 'Preferred hex color for truecolor terminals (e.g. "#ff6b6b")' },
+      { name: 'ansi256Fallback', type: 'string', required: false, description: 'Fallback color for 256-color terminals' },
+      { name: 'basicFallback', type: 'string', required: false, description: 'Fallback for basic 16-color terminals' },
+    ],
+    examples: [
+      `const accent = adaptiveColor('#ff6b6b', '203', 'red');\nText({ color: accent }, 'Important')`,
+      `// Without fallbacks (uses truecolor value everywhere)\nconst color = adaptiveColor('#4ecdc4');`,
+    ],
+    relatedComponents: ['adaptive', 'adaptiveUnderline'],
   },
   {
     name: 'applyGlitchToGrid',

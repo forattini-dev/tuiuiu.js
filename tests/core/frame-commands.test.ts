@@ -148,4 +148,21 @@ describe('DrawCommand contract', () => {
     expect(second.drawCommands).toBe(first.drawCommands);
     expect(second.reservedRegions).toEqual(first.reservedRegions);
   });
+
+  it('invalidates draw-command cache when render-only text styles change on a stable node', () => {
+    const node = Text({ id: 'styled-label', color: 'red' } as any, 'stable');
+
+    const first = createFrameSnapshot(node, { width: 20, height: 4 });
+    (node.props as { color: string }).color = 'blue';
+    const second = createFrameSnapshot(node, { width: 20, height: 4 });
+
+    expect(second.layout).toBe(first.layout);
+    expect(second.drawCommands).not.toBe(first.drawCommands);
+    expect(second.drawCommands[0]).toMatchObject({
+      type: 'text',
+      style: expect.objectContaining({
+        color: 'blue',
+      }),
+    });
+  });
 });

@@ -20,6 +20,24 @@ import {
   unicodeChars,
   asciiChars,
 } from '../../src/core/capabilities.js';
+import { configureProgressive, resetProgressive, setNerdFonts } from '../../src/core/progressive.js';
+
+// Terminal-detection env vars that need to be cleared for isolated tests
+const TERMINAL_ENV_VARS = [
+  'KITTY_WINDOW_ID', 'ALACRITTY_WINDOW_ID', 'ALACRITTY_LOG',
+  'GHOSTTY_RESOURCES_DIR', 'WEZTERM_PANE', 'WARP_IS_LOCAL_SHELL_SESSION',
+  'CONTOUR_TERMINAL_ID', 'VSCODE_PID', 'WT_SESSION', 'KONSOLE_VERSION',
+  'VTE_VERSION', 'TILIX_ID', 'TERMINOLOGY', 'TMUX', 'STY', 'ZELLIJ',
+];
+
+function clearTerminalEnv(): void {
+  for (const key of TERMINAL_ENV_VARS) {
+    delete process.env[key];
+  }
+  // Reset TERM_PROGRAM to avoid conflicts
+  delete process.env.TERM_PROGRAM;
+  delete process.env.TERM_PROGRAM_VERSION;
+}
 
 describe('Terminal Capabilities', () => {
   const originalEnv = { ...process.env };
@@ -27,8 +45,9 @@ describe('Terminal Capabilities', () => {
   const originalRows = process.stdout.rows;
 
   beforeEach(() => {
-    // Reset environment
+    // Reset environment and clear terminal-specific vars for isolation
     process.env = { ...originalEnv };
+    clearTerminalEnv();
   });
 
   afterEach(() => {
@@ -37,6 +56,7 @@ describe('Terminal Capabilities', () => {
     Object.defineProperty(process.stdout, 'rows', { value: originalRows, writable: true });
     // Reset render mode to auto
     setRenderMode('auto');
+    resetProgressive();
   });
 
   // ===========================================================================
@@ -153,11 +173,12 @@ describe('Terminal Capabilities', () => {
       expect(caps.colors).toBe(256);
     });
 
-    it('should detect 256 colors from iTerm', () => {
+    it('should detect truecolor from iTerm (profile-aware)', () => {
       delete process.env.COLORTERM;
       process.env.TERM_PROGRAM = 'iTerm.app';
       const caps = detectTerminalCapabilities();
-      expect(caps.colors).toBe(256);
+      // iTerm2 profile reports trueColor capability
+      expect(caps.colors).toBe('truecolor');
     });
 
     it('should detect Windows Terminal', () => {
@@ -165,13 +186,20 @@ describe('Terminal Capabilities', () => {
       process.env.WT_SESSION = 'some-session-id';
       const caps = detectTerminalCapabilities();
       expect(caps.terminalName).toBe('Windows Terminal');
-      expect(caps.colors).toBe(256);
+      // Windows Terminal profile reports trueColor capability
+      expect(caps.colors).toBe('truecolor');
     });
 
     it('should detect Konsole', () => {
       process.env.KONSOLE_VERSION = '210401';
       const caps = detectTerminalCapabilities();
-      expect(caps.terminalName).toBe('Konsole');
+      expect(caps.terminalName).toBe('Konsole 210401');
+    });
+
+    it('should include focus events from the terminal profile', () => {
+      process.env.KITTY_WINDOW_ID = '1';
+      const caps = detectTerminalCapabilities();
+      expect(caps.focusEvents).toBe(true);
     });
 
     it('should respect FORCE_COLOR=0', () => {
@@ -191,6 +219,16 @@ describe('Terminal Capabilities', () => {
       process.env.TERM = 'dumb';
       const caps = detectTerminalCapabilities();
       expect(caps.unicode).toBe(false);
+    });
+
+    it('should keep dumb terminal capabilities conservative', () => {
+      process.env.TERM = 'dumb';
+      delete process.env.COLORTERM;
+      const caps = detectTerminalCapabilities();
+      expect(caps.mouse).toBe(false);
+      expect(caps.italic).toBe(false);
+      expect(caps.strikethrough).toBe(false);
+      expect(caps.focusEvents).toBe(false);
     });
 
     it('should disable unicode for linux console', () => {
@@ -296,6 +334,32 @@ describe('Terminal Capabilities', () => {
       // After refresh, should have fresh object
       expect(caps2.columns).toBeGreaterThan(0);
     });
+
+    it('should invalidate cached capabilities when progressive overrides change', () => {
+      const caps1 = getCapabilities();
+      expect(caps1.synchronizedOutput).toBe(false);
+
+      configureProgressive({ overrides: { synchronizedOutput: true } });
+      const caps2 = getCapabilities();
+      expect(caps2.synchronizedOutput).toBe(true);
+      expect(caps2).not.toBe(caps1);
+
+      resetProgressive();
+      const caps3 = getCapabilities();
+      expect(caps3.synchronizedOutput).toBe(false);
+      expect(caps3).not.toBe(caps2);
+    });
+
+    it('should reflect setNerdFonts() in cached capabilities without manual refresh', () => {
+      setNerdFonts(false);
+      const caps1 = getCapabilities();
+      expect(caps1.nerdFonts).toBe(false);
+
+      setNerdFonts(true);
+      const caps2 = getCapabilities();
+      expect(caps2.nerdFonts).toBe(true);
+      expect(caps2).not.toBe(caps1);
+    });
   });
 
   // ===========================================================================
@@ -346,6 +410,12 @@ describe('Terminal Capabilities', () => {
       expect(supports('unicode')).toBe(caps.unicode);
       expect(supports('mouse')).toBe(caps.mouse);
       expect(supports('hyperlinks')).toBe(caps.hyperlinks);
+    });
+
+    it('should report profile-derived focus events support', () => {
+      process.env.KITTY_WINDOW_ID = '1';
+      refreshCapabilities();
+      expect(supports('focusEvents')).toBe(true);
     });
 
     it('should check non-boolean capabilities', () => {

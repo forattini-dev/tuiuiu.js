@@ -1,595 +1,195 @@
 # Animation & Transitions
 
-Tuiuiu includes a robust animation system for creating smooth transitions, scene changes, and effects in the terminal.
+Tuiuiu includes a runtime animation system for transitions, spring motion, and tick-driven effects.
+
+The current runtime is also **terminal-focus aware**:
+
+- `useAnimation()` pauses by default when the terminal loses focus
+- the global tick pauses while unfocused
+- `requestAnimationFrame()` backs off when the terminal is blurred
+- spring animations stop burning CPU in background terminals
 
 ## Overview
 
-The animation system provides:
-
 | Feature | Description |
 |---------|-------------|
-| `useAnimation` | Frame-based animation with controls (start, stop, pause, resume) |
-| `useTransition` | Show/hide animations with enter/exit states |
-| `createSpring` | Physics-based spring animations |
-| `createHarmonicaSpring` | Intuitive frequency/damping spring model |
+| `useAnimation` | Frame-based animation with controls |
+| `useTransition` | Show/hide transitions with enter/exit states |
+| `createSpring` | Physics-style spring animation |
+| `createHarmonicaSpring` | Frequency/damping spring model |
 | `createCompositeTransition` | Scene transitions with both contents visible |
-| `createSwipeTransition` | Horizontal swipe (left/right) |
-| `createSlideTransition` | Vertical slide (up/down) |
-
----
+| `createSwipeTransition` | Horizontal swipe transition |
+| `createSlideTransition` | Vertical slide transition |
+| `startTick` / `onTick` | Shared global animation clock |
 
 ## useAnimation
-
-The core animation primitive. Runs a frame-based animation at ~60fps.
 
 ```typescript
 import { useAnimation } from 'tuiuiu.js';
 
 const anim = useAnimation({
-  duration: 500,        // milliseconds
-  easing: 'ease-out',   // easing function
+  duration: 500,
+  easing: 'ease-out',
+  pauseWhenUnfocused: true,
   onFrame: (progress) => {
-    // progress: 0 → 1
     setX(Math.floor(progress * 100));
   },
   onComplete: () => {
-    console.log('Animation done!');
+    console.log('done');
   },
-  onCancel: () => {
-    console.log('Animation cancelled');
-  }
 });
 
-// Controls
-anim.start();           // Start animation
-anim.stop();            // Stop/cancel
-anim.pause();           // Pause at current progress
-anim.resume();          // Resume from paused state
-
-// State queries
-anim.isRunning();       // boolean
-anim.progress();        // current progress (0-1)
+anim.start();
+anim.pause();
+anim.resume();
+anim.stop();
 ```
 
-### Easing Functions
+### Options
 
-| Name | Description |
-|------|-------------|
-| `linear` | Constant speed |
-| `ease-in` | Start slow, end fast |
-| `ease-out` | Start fast, end slow |
-| `ease-in-out` | Slow at both ends |
-| `bounce` | Bouncy ending |
-| `elastic` | Springy overshoot |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `duration` | `number` | required | Duration in milliseconds |
+| `easing` | `EasingName \| EasingFunction` | `'linear'` | Easing curve |
+| `pauseWhenUnfocused` | `boolean` | `true` | Pause while terminal focus is lost |
+| `onFrame` | `(progress: number) => void` | required | Called on every frame |
+| `onComplete` | `() => void` | - | Called when animation finishes |
+| `onCancel` | `() => void` | - | Called when animation is stopped |
 
-You can also pass a custom function:
+### Focus-aware behavior
+
+By default, losing terminal focus pauses progress and regaining focus resumes from the paused position.
+
+If you want an animation to keep running even in the background:
 
 ```typescript
 useAnimation({
-  duration: 300,
-  easing: (t) => t * t * t,  // cubic ease-in
-  onFrame: (p) => setValue(p)
+  duration: 1000,
+  pauseWhenUnfocused: false,
+  onFrame: setOpacity,
 });
 ```
 
----
-
 ## useTransition
 
-Manages enter/exit animations for showing and hiding components.
-
 ```typescript
-import { useTransition, Box, Text, When } from 'tuiuiu.js';
-
-function Modal({ visible }) {
-  const { state, progress, shouldRender } = useTransition({
-    show: visible,
-    enter: 'fade',      // effect when showing
-    exit: 'fade',       // effect when hiding
-    duration: 300,
-    easing: 'ease-out',
-    onEnterComplete: () => console.log('Modal visible'),
-    onExitComplete: () => console.log('Modal hidden')
-  });
-
-  // Don't render if fully exited
-  if (!shouldRender()) return null;
-
-  return Box(
-    { opacity: progress() },
-    Text({}, `State: ${state()}`)
-  );
-}
+const { state, progress, shouldRender } = useTransition({
+  show: visible,
+  enter: 'fade',
+  exit: 'fade',
+  duration: 300,
+  easing: 'ease-out',
+});
 ```
 
-### Transition State
+States:
 
-The `state()` signal returns one of:
+- `entering`
+- `entered`
+- `exiting`
+- `exited`
 
-| State | Description |
-|-------|-------------|
-| `entering` | Enter animation in progress |
-| `entered` | Fully visible, animation complete |
-| `exiting` | Exit animation in progress |
-| `exited` | Fully hidden, not rendered |
+Effects:
 
-### Transition Effects
+- `fade`
+- `slide-up`
+- `slide-down`
+- `slide-left`
+- `slide-right`
+- `scale`
+- `none`
 
-| Effect | Description |
-|--------|-------------|
-| `fade` | Opacity transition |
-| `slide-up` | Slide from bottom |
-| `slide-down` | Slide from top |
-| `slide-left` | Slide from right |
-| `slide-right` | Slide from left |
-| `scale` | Scale from center |
-| `none` | Instant (no animation) |
+`useTransition()` is built on top of `useAnimation()`, so it inherits the same focus-aware pause behavior.
 
----
-
-## Spring Physics
-
-For natural, physics-based motion instead of duration-based easing.
+## Springs
 
 ### createSpring
-
-Traditional stiffness/damping/mass model:
 
 ```typescript
 import { createSpring } from 'tuiuiu.js';
 
 const spring = createSpring({
-  stiffness: 180,   // Higher = faster oscillation
-  damping: 12,      // Higher = less bouncy
-  mass: 1,          // Higher = more inertia
-  threshold: 0.01   // Velocity threshold to stop
+  stiffness: 180,
+  damping: 12,
+  mass: 1,
+  threshold: 0.01,
 });
 
-spring.start(
-  0,                        // from value
-  100,                      // to value
-  (value) => setX(value),   // on each frame
-  () => console.log('done') // on complete
-);
-
-spring.stop();              // Cancel animation
-spring.setTarget(150);      // Change target mid-animation
+spring.start(0, 100, setX);
 ```
 
 ### createHarmonicaSpring
-
-More intuitive frequency/damping model (inspired by Charm's Harmonica):
 
 ```typescript
 import { createHarmonicaSpring } from 'tuiuiu.js';
 
 const spring = createHarmonicaSpring({
-  fps: 60,          // Target frame rate
-  frequency: 7.0,   // Higher = snappier (7-15 for UI)
-  damping: 0.75     // 0=bouncy, 1=critical, >1=overdamped
+  fps: 60,
+  frequency: 7,
+  damping: 0.75,
 });
 
-spring.start(0, 100, (value) => setOffset(value));
-
-// Extra control
-spring.impulse(50);  // Add velocity impulse
-spring.setTarget(200);
+spring.start(0, 100, setOffset);
 ```
 
-**Frequency/Damping Guidelines:**
+Both spring implementations now pause while the terminal is unfocused and resume cleanly on focus return.
 
-| Use Case | Frequency | Damping |
-|----------|-----------|---------|
-| Subtle UI | 7 | 0.75 |
-| Snappy buttons | 10 | 0.85 |
-| Bouncy elements | 8 | 0.5 |
-| Smooth scroll | 5 | 0.9 |
+## Frame Scheduler
 
----
-
-## Scene Transitions (Composite)
-
-For wizard-style navigation where **both previous and next content are visible** during the transition.
-
-### createCompositeTransition
-
-The base primitive for composite transitions:
+`requestAnimationFrame()` is a lightweight shared scheduler for one-shot visual work.
 
 ```typescript
-import { createCompositeTransition } from 'tuiuiu.js';
+import { requestAnimationFrame } from 'tuiuiu.js';
 
-const transition = createCompositeTransition({
-  duration: 300,
-  useSpring: true,  // Use spring physics (default)
-  springOptions: { frequency: 7, damping: 0.75 },
-  easing: 'ease-out',  // Only used if useSpring=false
-  onFrame: (state) => {
-    const { progress, direction, prevContent, nextContent } = state;
-    // Render composite frame
-  },
-  onComplete: () => console.log('Transition done')
-});
-
-// Start transition
-transition.start(
-  'Previous content',  // What's currently visible
-  'Next content',      // What we're transitioning to
-  'left'               // Direction: 'left' | 'right' | 'up' | 'down'
-);
-
-transition.stop();     // Cancel
-transition.reverse();  // Go back
-transition.getState(); // Get current state
-```
-
-### createSwipeTransition
-
-Pre-built horizontal swipe (like mobile apps):
-
-```typescript
-import { createSwipeTransition } from 'tuiuiu.js';
-
-const swipe = createSwipeTransition({
-  width: 80,   // Terminal width
-  height: 24,  // Terminal height
-  gap: 1,      // Gap between contents
-  animation: {
-    useSpring: true,
-    springOptions: { frequency: 7, damping: 0.75 }
-  }
-});
-
-// Swipe left (next content enters from right)
-swipe.swipeLeft('Current Page', 'Next Page');
-
-// Swipe right (previous content enters from left)
-swipe.swipeRight('Current Page', 'Previous Page');
-
-// In render loop
-const output = swipe.render();
-
-// State
-swipe.isAnimating();  // boolean
-swipe.stop();         // Cancel
-swipe.reverse();      // Reverse direction
-```
-
-### createSlideTransition
-
-Pre-built vertical slide:
-
-```typescript
-import { createSlideTransition } from 'tuiuiu.js';
-
-const slide = createSlideTransition({
-  width: 80,
-  height: 24,
-  gap: 0,
-  animation: { useSpring: true }
-});
-
-// Slide up (next enters from bottom)
-slide.slideUp('Current View', 'Next View');
-
-// Slide down (previous enters from top)
-slide.slideDown('Current View', 'Previous View');
-
-const output = slide.render();
-```
-
----
-
-## Helpers
-
-### lerp (Linear Interpolation)
-
-```typescript
-import { lerp } from 'tuiuiu.js';
-
-// Interpolate between two numbers
-const value = lerp(0, 100, 0.5);  // 50
-```
-
-### lerpColor
-
-```typescript
-import { lerpColor } from 'tuiuiu.js';
-
-// Interpolate between two hex colors
-const color = lerpColor('#ff0000', '#0000ff', 0.5);  // '#800080'
-```
-
-### requestAnimationFrame
-
-Terminal-compatible requestAnimationFrame (~60fps):
-
-```typescript
-import { requestAnimationFrame, cancelAllAnimationFrames } from 'tuiuiu.js';
-
-const cancel = requestAnimationFrame(() => {
-  console.log('Next frame');
-});
-
-cancel();  // Cancel this callback
-cancelAllAnimationFrames();  // Cancel all pending
-```
-
----
-
-## Practical Examples
-
-### Animated Counter
-
-```typescript
-function AnimatedCounter({ target }) {
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    const anim = useAnimation({
-      duration: 800,
-      easing: 'ease-out',
-      onFrame: (p) => setValue(Math.round(p * target))
-    });
-    anim.start();
-    return () => anim.stop();
-  }, [target]);
-
-  return Text({ bold: true }, `Count: ${value()}`);
-}
-```
-
-### Fade-In Toast
-
-```typescript
-function Toast({ message, visible }) {
-  const { progress, shouldRender } = useTransition({
-    show: visible,
-    enter: 'fade',
-    exit: 'fade',
-    duration: 200
-  });
-
-  if (!shouldRender()) return null;
-
-  return Box(
-    {
-      backgroundColor: 'green',
-      padding: 1,
-      opacity: progress()
-    },
-    Text({ color: 'white' }, message)
-  );
-}
-```
-
-### Page Wizard with Swipe
-
-```typescript
-function Wizard() {
-  const [step, setStep] = useState(0);
-  const swipe = createSwipeTransition({
-    width: 60,
-    height: 20,
-    animation: { useSpring: true }
-  });
-
-  const pages = ['Welcome', 'Setup', 'Done'];
-
-  const goNext = () => {
-    if (step() < pages.length - 1) {
-      swipe.swipeLeft(
-        renderPage(step()),
-        renderPage(step() + 1)
-      );
-      // Update step after animation
-      setTimeout(() => setStep(s => s + 1), 300);
-    }
-  };
-
-  const goPrev = () => {
-    if (step() > 0) {
-      swipe.swipeRight(
-        renderPage(step()),
-        renderPage(step() - 1)
-      );
-      setTimeout(() => setStep(s => s - 1), 300);
-    }
-  };
-
-  useInput((_, key) => {
-    if (key.rightArrow) goNext();
-    if (key.leftArrow) goPrev();
-  });
-
-  const renderPage = (i) => {
-    return Box(
-      { width: 60, height: 20, borderStyle: 'round' },
-      Text({ bold: true }, `Step ${i + 1}: ${pages[i]}`)
-    );
-  };
-
-  // Show animated or static content
-  return swipe.isAnimating()
-    ? Text({}, swipe.render())
-    : renderPage(step());
-}
-```
-
-### Bouncy Button
-
-```typescript
-function BouncyButton({ label, onPress }) {
-  const [scale, setScale] = useState(1);
-
-  const spring = createHarmonicaSpring({
-    frequency: 12,
-    damping: 0.5
-  });
-
-  const bounce = () => {
-    spring.start(0.8, 1, setScale, onPress);
-  };
-
-  useInput((_, key) => {
-    if (key.return) bounce();
-  });
-
-  return Box(
-    {
-      borderStyle: 'round',
-      width: Math.round(label.length * scale()),
-      padding: 1
-    },
-    Text({ bold: true }, label)
-  );
-}
-```
-
----
-
-## Pixel Art Animation
-
-For animating colored pixel art and ASCII graphics, use `AnimatedPicture` or `createAnimatedPicture`.
-
-![AnimatedPicture Demo](../recordings/components/animated-picture.gif)
-
-### Available Animation Types
-
-| Animation | Demo | Description | Use Case |
-|-----------|------|-------------|----------|
-| `pulse` | ![pulse](../recordings/animations/pulse.gif) | Fast sine wave oscillation | Attention-grabbing alerts |
-| `breathe` | ![breathe](../recordings/animations/breathe.gif) | Slow, smooth breathing | Ambient, idle states |
-| `blink` | ![blink](../recordings/animations/blink.gif) | Hard on/off toggle | Warnings, critical |
-| `fadeIn` | ![fadeIn](../recordings/animations/fadeIn.gif) | Gradual appearance | Entry animations, splash screens |
-| `fadeOut` | ![fadeOut](../recordings/animations/fadeOut.gif) | Gradual disappearance | Exit animations |
-| `glow` | ![glow](../recordings/animations/glow.gif) | Subtle brightness variation | Ambient highlights |
-| `shimmer` | ![shimmer](../recordings/animations/shimmer.gif) | Wave of brightness across image | Loading, progress |
-| `rainbow` | ![rainbow](../recordings/animations/rainbow.gif) | Cycle through spectrum colors | Celebration, fun |
-| `glitch` | ![glitch](../recordings/animations/glitch.gif) | Random distortion/scrambling | Error states, retro |
-
-### Basic Usage
-
-```typescript
-import { createAnimatedPicture, createPixelGridFromColors, ColoredPicture } from 'tuiuiu.js';
-
-// Create pixel art
-const logo = createPixelGridFromColors([
-  ['cyan', 'cyan', 'cyan'],
-  ['cyan', null, 'cyan'],
-  ['cyan', 'cyan', 'cyan'],
-]);
-
-// Create animation controller
-const anim = createAnimatedPicture({
-  pixels: logo,
-  animation: 'pulse',
-  duration: 1500,
-  minBrightness: 0.3,
-  maxBrightness: 1.0,
-});
-
-// Render (call in render loop)
-ColoredPicture({ pixels: anim.pixels() })
-```
-
-### Splash Screen with Fade-In
-
-```typescript
-import { createAnimatedPicture, ImpactSplashScreen } from 'tuiuiu.js';
-
-// The splash screen has built-in fade-in support
-ImpactSplashScreen({
-  birdArt: TUIUIU_BIRD_COLORED,
-  fadeInDuration: 800,          // Duration in ms
-  fadeInStartBrightness: 0.3,   // Start at 30% brightness
-  animateFadeIn: true,          // Enable animation
-})
-
-// Or manually with createAnimatedPicture
-const splash = createAnimatedPicture({
-  pixels: myLogo,
-  animation: 'fadeIn',
-  duration: 800,
-  minBrightness: 0.3,
-  maxBrightness: 1.0,
-  loop: false,
-  autoPlay: true,
-  easing: 'ease-out',
-  onCycleComplete: () => showMainApp(),
+requestAnimationFrame(() => {
+  redrawSomething();
 });
 ```
 
-### Programmatic Control
+Runtime behavior:
+
+- focused terminal: schedules around `16ms`
+- unfocused terminal: backs off more aggressively instead of trying to hit full visual cadence
+
+## Global Tick
+
+Use the shared tick for low-cost repeated animations such as spinners, shimmer states, or dashboards.
 
 ```typescript
-const anim = createAnimatedPicture({
-  pixels: myGrid,
-  animation: 'breathe',
-  autoPlay: false,  // Don't start automatically
+import { startTick, getTick, onTick } from 'tuiuiu.js';
+
+startTick(100);
+
+const stop = onTick((tick) => {
+  console.log('tick', tick);
 });
-
-// Control methods
-anim.play();              // Start animation
-anim.pause();             // Pause
-anim.stop();              // Stop and reset
-
-// Change animation type on the fly
-anim.setAnimation('shimmer');
-
-// Manual brightness control (0-1)
-anim.setBrightness(0.5);
-
-// State queries
-anim.isPlaying();         // boolean
-anim.progress();          // 0-1
-anim.brightness();        // current brightness
-anim.pixels();            // current processed PixelGrid
 ```
 
-### Animation Timing Guidelines
+Relevant APIs:
 
-| Effect | Recommended Duration | Min Brightness |
-|--------|---------------------|----------------|
-| `pulse` | 1000-2000ms | 0.3-0.5 |
-| `breathe` | 3000-5000ms | 0.5-0.7 |
-| `blink` | 500-1000ms | 0.1 |
-| `fadeIn/fadeOut` | 500-1000ms | 0.2-0.4 |
-| `shimmer` | 1000-2000ms | 0.3 |
-| `rainbow` | 2000-4000ms | N/A |
-| `glitch` | 300-800ms | N/A |
+- `startTick(rate?)`
+- `stopTick()`
+- `pauseTick()`
+- `resumeTick()`
+- `getTick()`
+- `onTick()`
 
-### Color Utilities
+The tick now pauses when terminal focus is lost and resumes on focus regain. It does not try to replay background time on restore.
 
-```typescript
-import { adjustBrightness, interpolateColor, applyBrightnessToGrid } from 'tuiuiu.js';
+## When to Use What
 
-// Dim a color
-adjustBrightness('#ff0000', 0.5);  // '#800000'
+- `useAnimation()` for component-local time-based motion
+- `useTransition()` for enter/exit visibility
+- `createSpring()` / `createHarmonicaSpring()` for natural motion
+- `startTick()` / `onTick()` for shared repeated animation phases
+- `requestAnimationFrame()` for one-off deferred visual work
 
-// Blend colors
-interpolateColor('red', 'blue', 0.5);  // purple
+## Related APIs
 
-// Apply to entire grid
-const dimmed = applyBrightnessToGrid(grid, 0.5);
-```
-
-See [AnimatedPicture](/components/media/animated-picture.md) for full documentation.
-
----
-
-## Performance Tips
-
-1. **Use springs for interactions** - They feel more natural than easing
-2. **Keep durations short** - 150-400ms for most UI animations
-3. **Avoid animating many elements** - Terminals have limited refresh rates
-4. **Use `none` effect for instant** - When animation isn't needed
-5. **Stop animations on cleanup** - Prevent memory leaks
-6. **AnimatedPicture runs at ~60fps** - Use `autoPlay: false` and call `play()` when visible
-
-```typescript
-useEffect(() => {
-  const anim = useAnimation({ ... });
-  anim.start();
-  return () => anim.stop();  // Cleanup!
-}, []);
-```
+- `useAnimation()`
+- `useTransition()`
+- `createSpring()`
+- `createHarmonicaSpring()`
+- `requestAnimationFrame()`
+- `startTick()`
+- `useTerminalFocus()`

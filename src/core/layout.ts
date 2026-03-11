@@ -6,6 +6,17 @@
 
 import type { VNode, BoxStyle, LayoutNode, RenderContext } from '../utils/types.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { fingerprintValue } from './structural-fingerprint.js';
+import {
+  DirtyFlags,
+  beginDirtyFrame,
+  canReuseSubtree,
+  markLayoutClean,
+  markDirty,
+  noteDirtyFresh,
+  noteDirtyReuse,
+  registerDirtyNode,
+} from './dirty.js';
 
 /**
  * Text measurement cache
@@ -27,6 +38,59 @@ const resolveMarginValue = (value: number | 'auto' | undefined): number =>
   value === 'auto' ? 0 : (value ?? 0);
 
 const LAYOUT_REF_KEYS = new Set(['layoutRef', '__scrollQuery']);
+const BOX_LAYOUT_KEYS = new Set([
+  'display',
+  'position',
+  'flexDirection',
+  'flexWrap',
+  'flexGrow',
+  'flexShrink',
+  'flexBasis',
+  'flex',
+  'justifyContent',
+  'alignItems',
+  'alignSelf',
+  'alignContent',
+  'padding',
+  'paddingX',
+  'paddingY',
+  'paddingTop',
+  'paddingBottom',
+  'paddingLeft',
+  'paddingRight',
+  'margin',
+  'marginX',
+  'marginY',
+  'marginTop',
+  'marginBottom',
+  'marginLeft',
+  'marginRight',
+  'gap',
+  'columnGap',
+  'rowGap',
+  'width',
+  'height',
+  'minWidth',
+  'minHeight',
+  'maxWidth',
+  'maxHeight',
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'borderStyle',
+  'borderTop',
+  'borderBottom',
+  'borderLeft',
+  'borderRight',
+  'overflow',
+  'overflowX',
+  'overflowY',
+]);
+const TEXT_LAYOUT_KEYS = new Set([
+  'children',
+  'wrap',
+]);
 
 function clearLayoutReuseCache(): void {
   layoutReuseCache = new WeakMap<VNode, LayoutCacheEntry>();
@@ -36,38 +100,20 @@ function createContextKey(ctx: RenderContext): string {
   return `${ctx.x}:${ctx.y}:${ctx.width}:${ctx.height}`;
 }
 
-function stableSerializeLayoutProp(value: unknown): unknown {
-  if (value === undefined || typeof value === 'function') {
-    return undefined;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(entry => stableSerializeLayoutProp(entry));
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.keys(value as Record<string, unknown>)
-      .sort()
-      .reduce<Record<string, unknown>>((result, key) => {
-        const nextValue = stableSerializeLayoutProp((value as Record<string, unknown>)[key]);
-        if (nextValue !== undefined) {
-          result[key] = nextValue;
-        }
-        return result;
-      }, {});
-  }
-
-  return value;
-}
-
 function createLayoutPropsKey(node: VNode): string {
   const props = node.props ?? {};
-  const entries = Object.keys(props)
-    .filter(key => !LAYOUT_REF_KEYS.has(key) && typeof props[key] !== 'function')
-    .sort()
-    .map(key => [key, stableSerializeLayoutProp(props[key])] as const);
+  const sourceKeys = node.type === 'text' ? TEXT_LAYOUT_KEYS : BOX_LAYOUT_KEYS;
+  const filtered: Record<string, unknown> = {};
 
-  return JSON.stringify(entries);
+  for (const key of sourceKeys) {
+    if (key in props) {
+      filtered[key] = (props as Record<string, unknown>)[key];
+    }
+  }
+
+  return fingerprintValue(filtered, {
+    ignoreKeys: LAYOUT_REF_KEYS,
+  });
 }
 
 function hasSameChildRefs(node: VNode, childRefs: readonly VNode[]): boolean {
@@ -85,12 +131,20 @@ function hasSameChildRefs(node: VNode, childRefs: readonly VNode[]): boolean {
 }
 
 function getCachedLayout(node: VNode, ctxKey: string): LayoutNode | undefined {
+  if (!canReuseSubtree(node)) {
+    noteDirtyFresh('layout');
+    return undefined;
+  }
+
   const cached = layoutReuseCache.get(node);
   if (!cached) {
+    noteDirtyFresh('layout');
     return undefined;
   }
 
   if (cached.ctxKey !== ctxKey) {
+    markDirty(node, DirtyFlags.LAYOUT);
+    noteDirtyFresh('layout');
     return undefined;
   }
 
@@ -99,9 +153,15 @@ function getCachedLayout(node: VNode, ctxKey: string): LayoutNode | undefined {
     cached.propsKey !== propsKey ||
     !hasSameChildRefs(node, cached.childRefs)
   ) {
+    markDirty(
+      node,
+      cached.propsKey !== propsKey ? DirtyFlags.LAYOUT : DirtyFlags.CHILDREN,
+    );
+    noteDirtyFresh('layout');
     return undefined;
   }
 
+  noteDirtyReuse('layout');
   return cached.layout;
 }
 
@@ -117,6 +177,7 @@ function setCachedLayout(
     childRefs: [...node.children],
     layout,
   });
+  markLayoutClean(node);
 }
 
 function cloneLayoutWith(
@@ -173,7 +234,8 @@ export function calculateLayout(
   availableWidth: number,
   availableHeight: number = Infinity
 ): LayoutNode {
-  return layoutNode(node, { x: 0, y: 0, width: availableWidth, height: availableHeight });
+  beginDirtyFrame(node);
+  return layoutNode(node, { x: 0, y: 0, width: availableWidth, height: availableHeight }, null);
 }
 
 function layoutTextNode(node: VNode, ctx: RenderContext): LayoutNode {
@@ -214,7 +276,8 @@ function layoutNewlineNode(node: VNode, ctx: RenderContext): LayoutNode {
 /**
  * Layout a single node and its children
  */
-function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
+function layoutNode(node: VNode, ctx: RenderContext, parentNode: VNode | null): LayoutNode {
+  registerDirtyNode(node, parentNode);
   const ctxKey = createContextKey(ctx);
   const cached = getCachedLayout(node, ctxKey);
 
@@ -315,9 +378,9 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
     const hasExplicitHeight = style.height !== undefined && style.height !== 'auto';
 
     if (isRow) {
-      childLayouts.push(...layoutRow(orderedChildren, contentWidth, contentHeight, currentGap, style, hasExplicitHeight));
+      childLayouts.push(...layoutRow(orderedChildren, contentWidth, contentHeight, currentGap, style, hasExplicitHeight, node));
     } else {
-      childLayouts.push(...layoutColumn(orderedChildren, contentWidth, contentHeight, currentGap, style));
+      childLayouts.push(...layoutColumn(orderedChildren, contentWidth, contentHeight, currentGap, style, node));
     }
   }
 
@@ -373,7 +436,7 @@ function layoutNode(node: VNode, ctx: RenderContext): LayoutNode {
       y: 0,
       width: contentWidth,
       height: contentHeight,
-    });
+    }, node);
 
     // Calculate position based on top/left/right/bottom
     let absX = layoutX + paddingLeft + borderSize;
@@ -421,7 +484,8 @@ function layoutRow(
   height: number,
   gap: number,
   parentStyle: BoxStyle,
-  hasExplicitHeight: boolean
+  hasExplicitHeight: boolean,
+  parentNode: VNode,
 ): LayoutNode[] {
   const results: LayoutNode[] = [];
 
@@ -446,7 +510,7 @@ function layoutRow(
       childInfos.push({ node: child, flex, minWidth, marginLeft, marginRight });
     } else {
       // Fixed width child - layout to get its natural size
-      const layout = layoutNode(child, { x: 0, y: 0, width, height });
+      const layout = layoutNode(child, { x: 0, y: 0, width, height }, parentNode);
       fixedWidth += layout.width + marginLeft + marginRight;
       childInfos.push({ node: child, flex: 0, minWidth: layout.width, marginLeft, marginRight });
     }
@@ -492,7 +556,7 @@ function layoutRow(
     const info = childInfos[i];
     const childWidth = info.flex > 0 ? Math.floor(flexUnit * info.flex) : info.minWidth;
     const allocatedWidth = childWidth + info.marginLeft + info.marginRight;
-    const layout = layoutNode(info.node, { x, y: 0, width: allocatedWidth, height });
+    const layout = layoutNode(info.node, { x, y: 0, width: allocatedWidth, height }, parentNode);
 
     const childStyle = info.node.props as BoxStyle;
     rowHeight = Math.max(rowHeight, layout.height);
@@ -550,7 +614,8 @@ function layoutColumn(
   width: number,
   height: number,
   gap: number,
-  parentStyle: BoxStyle
+  parentStyle: BoxStyle,
+  parentNode: VNode,
 ): LayoutNode[] {
   const results: LayoutNode[] = [];
   const hasExplicitHeight = parentStyle.height !== undefined && parentStyle.height !== 'auto';
@@ -584,7 +649,7 @@ function layoutColumn(
         fixedHeight += marginTop + marginBottom;
         childInfos.push({ node: child, flex, minHeight, maxHeight, marginTop, marginBottom });
       } else {
-        const layout = layoutNode(child, { x: 0, y: 0, width, height });
+        const layout = layoutNode(child, { x: 0, y: 0, width, height }, parentNode);
         fixedHeight += layout.height + marginTop + marginBottom;
         childInfos.push({ node: child, flex: 0, minHeight, maxHeight, marginTop, marginBottom, layout });
       }
@@ -611,12 +676,12 @@ function layoutColumn(
             allocatedHeight = Math.min(info.maxHeight, allocatedHeight);
           }
 
-          layout = layoutNode(info.node, { x: 0, y, width, height: allocatedHeight });
+          layout = layoutNode(info.node, { x: 0, y, width, height: allocatedHeight }, parentNode);
           layout = cloneLayoutWith(layout, { height: allocatedHeight });
         }
 
         if (!layout) {
-          layout = layoutNode(info.node, { x: 0, y, width, height });
+          layout = layoutNode(info.node, { x: 0, y, width, height }, parentNode);
         }
 
         // Fix: Update y position for non-flex children (they were pre-calculated with y=0)
@@ -652,7 +717,7 @@ function layoutColumn(
     const childStyle = child.props as BoxStyle;
     const marginTop = resolveMarginValue(childStyle.marginTop ?? childStyle.marginY ?? childStyle.margin);
     const marginBottom = resolveMarginValue(childStyle.marginBottom ?? childStyle.marginY ?? childStyle.margin);
-    const layout = layoutNode(child, { x: 0, y, width, height: height - y });
+    const layout = layoutNode(child, { x: 0, y, width, height: height - y }, parentNode);
 
     // Adjust x based on alignItems (or alignSelf if set on child)
     const alignSelf = childStyle.alignSelf;

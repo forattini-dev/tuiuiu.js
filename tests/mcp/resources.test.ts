@@ -60,6 +60,11 @@ describe('MCP Resources', () => {
         r.uri === 'tuiuiu://guide/getting-started'
       );
       expect(gettingStarted).toBeDefined();
+
+      const commonMistakes = guideResources.find(r =>
+        r.uri === 'tuiuiu://guide/common-mistakes'
+      );
+      expect(commonMistakes).toBeDefined();
     });
 
     it('should include category resources', () => {
@@ -161,6 +166,15 @@ describe('MCP Resources', () => {
       expect(result).not.toBeNull();
       expect(result!.text).toContain('Getting Started');
       expect(result!.text).toContain('Installation');
+    });
+
+    it('should read common-mistakes guide resource', () => {
+      const result = readResource('tuiuiu://guide/common-mistakes');
+
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain('Common Mistakes');
+      expect(result!.text).toContain('Signals Inside Component Render');
+      expect(result!.text).toContain('Component API Pattern Mismatch');
     });
 
     it('should read example resource', () => {

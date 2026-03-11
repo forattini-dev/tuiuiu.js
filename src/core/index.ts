@@ -45,6 +45,9 @@ export {
   getCommittedFrameSnapshot,
   getCommittedFrameQueries,
   clearCommittedFrameSnapshot,
+  recordFramePhaseMetric,
+  recordFrameStructuralMetric,
+  finalizeFrameRuntimeMetrics,
   resetFrameSequenceForTesting,
 } from './frame.js';
 
@@ -71,6 +74,27 @@ export type {
   DrawCommand,
 } from './frame.js';
 
+// Performance inspector
+export {
+  configurePerfInspector,
+  getPerfInspectorConfig,
+  recordCommittedFrame,
+  getPerfFrames,
+  getPerfInspectorSummary,
+  onSlowFrame,
+  resetPerfInspector,
+} from './perf-inspector.js';
+
+export type {
+  PerfRendererKind,
+  PerfFrameRecord,
+  PerfBudgetConfig,
+  PerfInspectorConfig,
+  PerfInspectorSummary,
+  RecordPerfFrameOptions,
+} from './perf-inspector.js';
+
+// Motion runtime
 // Hit Testing (mouse event dispatch)
 export {
   getHitTestRegistry,
@@ -273,6 +297,75 @@ export type {
   CharacterSet,
 } from './capabilities.js';
 
+// Terminal Profile Database
+export {
+  detectTerminalId,
+  detectMultiplexer,
+  detectTerminalProfile,
+  getTerminalProfileById,
+  listTerminalIds,
+} from './terminal-profile.js';
+
+export type {
+  TerminalId,
+  MultiplexerType,
+  MultiplexerInfo,
+  NotificationProtocol,
+  UnderlineStyle,
+  CursorStyle,
+  KnownTerminalCaps,
+  TerminalProfile,
+  GraphicsProtocolId,
+} from './terminal-profile.js';
+
+// Progressive Enhancement
+export {
+  passthroughWrap,
+  wrapSynchronized,
+  getSynchronizedBegin,
+  getSynchronizedEnd,
+  setCursorStyle,
+  resetCursorStyle,
+  setWindowTitle,
+  getClipboardWriteSequence,
+  getClipboardQuerySequence,
+  formatHyperlink,
+  getNotificationSequence,
+  getUnderlineCode,
+  getUnderlineColorCode,
+  getUnderlineColorResetCode,
+  setHyperlinksEnabled,
+  areHyperlinksEnabled,
+  setNerdFonts,
+  hasNerdFonts,
+  configureProgressive,
+  resetProgressive,
+  getProgressiveVersion,
+  getProgressiveOverrides,
+  BSU,
+  ESU,
+} from './progressive.js';
+
+// Adaptive Rendering Utilities
+export {
+  adaptive,
+  adaptiveUnderline,
+  adaptiveColor,
+  canSyncOutput,
+  canStyleUnderlines,
+  canColorUnderlines,
+  canClipboard,
+  canNotify,
+  canHyperlink,
+  hasGpuAcceleration,
+  getTerminalName,
+} from './adaptive.js';
+
+export {
+  readTerminalFocus,
+  onTerminalFocusChange,
+} from './terminal-focus.js';
+
 // Advanced buffer system (delta rendering)
 export {
   // Cell types and utilities
@@ -346,6 +439,9 @@ export {
   queryGraphicsCapabilities,
   parseGraphicsCapabilityResponse,
   resetGraphicsDetection,
+  // Cell size invalidation
+  invalidateCellSize,
+  onCellSizeChange,
   // Protocol implementations
   kittyGraphics,
   iterm2Graphics,
@@ -364,6 +460,7 @@ export {
   createSolidImage,
   createGradientImage,
   scaleImage,
+  encodePng,
 } from './graphics.js';
 
 export {
@@ -443,6 +540,10 @@ export {
   // Bracketed paste
   enableBracketedPaste,
   disableBracketedPaste,
+  enableFocusEvents,
+  disableFocusEvents,
+  isFocusEvent,
+  parseFocusEvent,
   hasBracketedPaste,
   extractBracketedPaste,
   // Input state machine
@@ -469,6 +570,7 @@ export type {
   KittyKeyEvent,
   KeyModifiers,
   PasteEvent,
+  TerminalFocusEvent,
   ParsedInput,
   InputState,
   InputAction,
@@ -899,12 +1001,20 @@ export {
   // Registry
   getDirtyRegistry,
   resetDirtyRegistry,
+  beginDirtyFrame,
+  registerDirtyNode,
+  DirtyFlags,
   // Convenience functions
   markDirty,
   markClean,
+  markLayoutClean,
+  canReuseSubtree,
   needsRender,
   hasChanges,
   clearChanges,
+  getDirtyDiagnostics,
+  noteDirtyReuse,
+  noteDirtyFresh,
   // Cache functions
   getCachedRender,
   setCachedRender,
@@ -920,6 +1030,7 @@ export {
 export type {
   RenderCacheEntry,
   DirtyState,
+  DirtyDiagnostics,
 } from './dirty.js';
 
 // Delta Renderer (blessed-style diff rendering)
@@ -998,3 +1109,16 @@ export {
 } from './fps.js';
 
 export type { FpsMetrics } from './fps.js';
+
+// Image Animation
+export {
+  createAnimatedImageSource,
+  createAnimatedImage,
+  framesFromSpriteSheet,
+} from './image-animation.js';
+
+export type {
+  AnimatedImageFrame,
+  AnimatedImageSource,
+  AnimatedImageState,
+} from './image-animation.js';

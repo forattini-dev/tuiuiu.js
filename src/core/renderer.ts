@@ -19,7 +19,10 @@ import {
 } from './frame.js';
 import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
 import { getTheme, resolveColor } from './theme.js';
-import { clearImagesForProtocol, kittyGraphics, renderImageWithProtocol } from './graphics.js';
+import { clearImagesForProtocol, kittyGraphics, renderImageWithProtocol, isProtocolGraphics } from './graphics.js';
+import type { GraphicsProtocol } from './graphics.js';
+import { passthroughWrap } from './progressive.js';
+import { getCapabilities } from './capabilities.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -85,7 +88,10 @@ export class OutputBuffer {
       return;
     }
 
-    const cell = this.cells[y][x]!;
+    const cell = this.cells[y]?.[x];
+    if (!cell) {
+      return;
+    }
 
     if (cell.isPlaceholder) {
       this.cells[y][x] = { char: ' ' };
@@ -609,6 +615,23 @@ function collectProtocolImageCommands(frame: FrameSnapshot | null): DrawTerminal
   );
 }
 
+/**
+ * Wrap a graphics payload through multiplexer passthrough when needed.
+ * Protocol graphics (kitty, iterm2, sixel) contain escape sequences that
+ * must be wrapped for tmux/screen. Cell-rendered protocols (halfblock, braille)
+ * never reach this code path.
+ */
+function wrapGraphicsPayload(payload: string, protocol: GraphicsProtocol): string {
+  if (!isProtocolGraphics(protocol)) {
+    return payload;
+  }
+  const caps = getCapabilities();
+  if (!caps.multiplexer) {
+    return payload;
+  }
+  return passthroughWrap(payload, caps.multiplexer);
+}
+
 function buildKittyCleanupOutput(
   previousCommands: readonly DrawTerminalImageCommand[],
   nextCommands: readonly DrawTerminalImageCommand[],
@@ -639,11 +662,17 @@ function buildKittyCleanupOutput(
       }
 
       deletedImageIds.add(previousCommand.kittyImageId);
-      output += `\x1b7\x1b[H${kittyGraphics.delete(previousCommand.kittyImageId)}\x1b8`;
+      output += wrapGraphicsPayload(
+        `\x1b7\x1b[H${kittyGraphics.delete(previousCommand.kittyImageId)}\x1b8`,
+        'kitty',
+      );
       continue;
     }
 
-    return `\x1b7\x1b[H${clearImagesForProtocol('kitty')}\x1b8`;
+    return wrapGraphicsPayload(
+      `\x1b7\x1b[H${clearImagesForProtocol('kitty')}\x1b8`,
+      'kitty',
+    );
   }
 
   return output;
@@ -673,7 +702,10 @@ function renderProtocolGraphics(frame: FrameSnapshot, previousFrame: FrameSnapsh
     }
 
     const payload = getTerminalImagePayload(command);
-    output += `\x1b7\x1b[${command.y + 1};${command.x + 1}H${payload}\x1b8`;
+    output += wrapGraphicsPayload(
+      `\x1b7\x1b[${command.y + 1};${command.x + 1}H${payload}\x1b8`,
+      command.protocol,
+    );
   }
 
   return output;

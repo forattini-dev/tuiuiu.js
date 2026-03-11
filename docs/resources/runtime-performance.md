@@ -2,6 +2,8 @@
 
 This page tracks the representative frame budgets used to keep the core runtime fast for large interactive apps.
 
+If you need live metrics inside an app instead of offline benchmarks, use the [Perf Inspector](/core/perf-inspector.md).
+
 ## Representative Workloads
 
 The local benchmark suite exercises three synthetic dashboard workloads:
@@ -73,6 +75,14 @@ That means the delta path now has a materially cheaper steady-state story for bo
 
 The benchmark suite now includes an explicit localized-update workload and asserts that delta stays cheaper than ANSI for that case.
 
+There is now a complementary microbenchmark pass for buffer hot paths as well:
+
+- unchanged full-buffer `CellBuffer.diff(...)`
+- localized `diffRects(...)` with overlapping dirty rects
+- styled `patchesToAnsi(...)` serialization with adjacent same-style runs
+
+Those microbenchmarks are local-only, just like the broader runtime suite, and exist to catch regressions in the cell-buffer hot path before they show up as frame-budget failures.
+
 After the conservative subtree-layout reuse pass, a repeated large frame on the same committed tree dropped again to roughly:
 
 - stable large frame with reusable subtree identities:
@@ -92,6 +102,19 @@ That split is important:
 - if your app rebuilds most of the tree every frame, layout is still the dominant cost and the scheduler/delta optimizations mainly protect painting and output pressure
 
 The practical tuning rule is straightforward: hoist static branches, reuse stable widget trees when possible, and let the runtime spend layout time only where geometry actually changed.
+
+The runtime now also records subtree invalidation diagnostics on committed frames:
+
+- `layoutReuseCount` / `layoutFreshCount`
+- `drawReuseCount` / `drawFreshCount`
+- `invalidationEscalationCount`
+- `absorbedLayoutDirtyCount`
+
+If you see reuse counts staying near zero in a supposedly stable app, the most common causes are:
+
+- rebuilding large subtrees unnecessarily
+- mutating layout-affecting props in place
+- triggering broad invalidation due to unstable subtree ownership
 
 After the next pass, which added conservative draw-command subtree reuse on top of layout reuse, the same machine now measures roughly:
 
@@ -137,4 +160,10 @@ The benchmark suite is local-only and intentionally skipped in CI because termin
 
 ```bash
 pnpm test:performance
+```
+
+If you only want the cell-buffer hot paths:
+
+```bash
+pnpm vitest run tests/core/buffer-perf.test.ts
 ```

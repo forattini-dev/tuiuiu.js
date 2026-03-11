@@ -37,6 +37,10 @@ export interface MouseEvent {
     shift: boolean;
     alt: boolean;
   };
+  /** Pixel X coordinate (only available in pixel mouse mode) */
+  pixelX?: number;
+  /** Pixel Y coordinate (only available in pixel mouse mode) */
+  pixelY?: number;
 }
 
 export type MouseHandler = (event: MouseEvent) => void;

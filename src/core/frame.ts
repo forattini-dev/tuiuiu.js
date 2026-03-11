@@ -1,4 +1,4 @@
-import { calculateLayout } from './layout.js';
+import { calculateLayout, clearTextMeasureCache } from './layout.js';
 import { collectHitTestTargetsFromLayout, type ElementBounds } from './hit-test.js';
 import {
   createTerminalImageSource,
@@ -12,6 +12,23 @@ import {
   type TerminalImageProtocolState,
   type TerminalImageSource,
 } from './graphics.js';
+import {
+  applyCompositor,
+  fingerprintCompositorBinding,
+  isCompositorBindingMetadata,
+  type BoundCompositorMetadata,
+  type CompositorBindingMetadata,
+} from './compositor.js';
+import {
+  canReuseSubtree,
+  getDirtyDiagnostics,
+  markDirty,
+  noteDirtyFresh,
+  noteDirtyReuse,
+  resetDirtyRegistry,
+  DirtyFlags,
+} from './dirty.js';
+import { fingerprintValue } from './structural-fingerprint.js';
 import type { BorderStyleName, BoxStyle, LayoutNode, TextStyle, VNode } from '../utils/types.js';
 
 export interface FrameInput {
@@ -76,20 +93,37 @@ export interface FramePhaseMetrics {
   layoutMs?: number;
   hitTargetRegistrationMs?: number;
   drawCommandMs?: number;
+  frameCommitMs?: number;
+  staticRenderMs?: number;
   ansiRenderMs?: number;
   deltaRenderMs?: number;
+  outputWriteMs?: number;
 }
 
 export interface FrameStructuralMetrics {
   drawCommandCount: number;
   hitTargetCount: number;
   warningCount: number;
+  reservedRegionCount: number;
+  patchCount: number;
+  dirtyRectCount: number;
+  diffRectCount: number;
+  outputByteCount: number;
+  layoutReuseCount: number;
+  layoutFreshCount: number;
+  drawReuseCount: number;
+  drawFreshCount: number;
+  invalidationEscalationCount: number;
+  absorbedLayoutDirtyCount: number;
 }
 
 export interface FrameMetrics {
   frameStartAt: number;
   frameEndAt: number;
   totalFrameMs: number;
+  runtimeStartAt?: number;
+  runtimeEndAt?: number;
+  runtimeTotalMs?: number;
   phases: FramePhaseMetrics;
   structural: FrameStructuralMetrics;
 }
@@ -100,6 +134,7 @@ export interface DrawCommandBase {
   zIndex?: number;
   id?: string;
   nodeType?: string;
+  compositorKeys?: string[];
 }
 
 export interface DrawBoxCommand extends DrawCommandBase {
@@ -249,8 +284,11 @@ type ScrollQueryIndex = Map<string, IndexedScrollContainer[]>;
 
 interface DrawCommandCacheEntry {
   cacheKey: string;
+  fingerprint: string;
+  childRefs: VNode[];
   commands: CachedDrawCommand[];
   materialized?: DrawCommand[];
+  materializedFingerprint?: string;
 }
 
 interface TerminalImageNodeMetadata {
@@ -258,6 +296,8 @@ interface TerminalImageNodeMetadata {
   protocolState?: TerminalImageProtocolState;
   options?: (ImageOptions & { protocol?: GraphicsProtocol }) | undefined;
 }
+
+interface CompositorNodeMetadata extends CompositorBindingMetadata {}
 
 let drawCommandCache = new WeakMap<LayoutNode, DrawCommandCacheEntry>();
 
@@ -601,24 +641,132 @@ function createDrawCommandCacheKey(
   return `${offsetX}:${offsetY}:${parentBackgroundColor ?? ''}`;
 }
 
+function createDrawCommandFingerprint(
+  node: VNode,
+  imageCommand: CachedDrawTerminalImageCommand | null,
+): string {
+  const rawProps = node.props as Record<string, unknown> | undefined;
+  const props = rawProps ? { ...rawProps } : undefined;
+  if (props && '__terminalImage' in props) {
+    delete props.__terminalImage;
+  }
+  if (props && '__compositor' in props) {
+    delete props.__compositor;
+  }
+  const childRefs = node.children.map((child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      return child;
+    }
+    if (child && typeof child === 'object' && 'type' in child) {
+      return {
+        type: (child as VNode).type,
+        key: (child as VNode).props?.key,
+      };
+    }
+    return null;
+  });
+
+  return fingerprintValue({
+    type: node.type,
+    props,
+    childRefs,
+    image: imageCommand
+      ? {
+          protocol: imageCommand.protocol,
+          hash: imageCommand.source.hash,
+          width: imageCommand.width,
+          height: imageCommand.height,
+          fit: imageCommand.fit,
+          threshold: imageCommand.threshold,
+          dither: imageCommand.dither,
+          preserveAspectRatio: imageCommand.preserveAspectRatio,
+        }
+      : null,
+  });
+}
+
+function getCurrentDrawCommandFingerprint(layout: LayoutNode): string {
+  const props = (layout.node.props ?? {}) as BoxStyle &
+    TextStyle & { children?: string; id?: string; __terminalImage?: unknown };
+  const imageCommand = createTerminalImageCommand(
+    layout,
+    layout.x,
+    layout.y,
+    layout.width,
+    layout.height,
+    props,
+  );
+
+  return createDrawCommandFingerprint(layout.node, imageCommand);
+}
+
+function createMaterializedDrawFingerprint(layout: LayoutNode): string {
+  const baseFingerprint = getCurrentDrawCommandFingerprint(layout);
+  const compositor = getCompositorNodeMetadata(layout.node);
+
+  return fingerprintValue({
+    baseFingerprint,
+    compositor: fingerprintCompositorBinding(compositor),
+    children: layout.children.map((child) => createMaterializedDrawFingerprint(child)),
+  });
+}
+
 function getCachedDrawCommandEntry(
   layout: LayoutNode,
   cacheKey: string,
+  fingerprint: string,
 ): DrawCommandCacheEntry | undefined {
-  const cached = drawCommandCache.get(layout);
-  if (!cached || cached.cacheKey !== cacheKey) {
+  if (!canReuseSubtree(layout.node)) {
+    noteDirtyFresh('draw');
     return undefined;
   }
+
+  const cached = drawCommandCache.get(layout);
+  if (!cached) {
+    noteDirtyFresh('draw');
+    return undefined;
+  }
+
+  if (cached.cacheKey !== cacheKey) {
+    markDirty(layout.node, DirtyFlags.LAYOUT);
+    noteDirtyFresh('draw');
+    return undefined;
+  }
+
+  if (cached.fingerprint !== fingerprint) {
+    markDirty(layout.node, DirtyFlags.CONTENT | DirtyFlags.STYLE);
+    noteDirtyFresh('draw');
+    return undefined;
+  }
+
+  if (cached.childRefs.length !== layout.node.children.length) {
+    markDirty(layout.node, DirtyFlags.CHILDREN);
+    noteDirtyFresh('draw');
+    return undefined;
+  }
+
+  for (let index = 0; index < cached.childRefs.length; index++) {
+    if (cached.childRefs[index] !== layout.node.children[index]) {
+      markDirty(layout.node, DirtyFlags.CHILDREN);
+      noteDirtyFresh('draw');
+      return undefined;
+    }
+  }
+
+  noteDirtyReuse('draw');
   return cached;
 }
 
 function setCachedDrawCommandEntry(
   layout: LayoutNode,
   cacheKey: string,
+  fingerprint: string,
   commands: CachedDrawCommand[],
 ): DrawCommandCacheEntry {
   const entry: DrawCommandCacheEntry = {
     cacheKey,
+    fingerprint,
+    childRefs: [...layout.node.children],
     commands,
   };
   drawCommandCache.set(layout, entry);
@@ -650,6 +798,35 @@ function isTerminalImageNodeMetadata(value: unknown): value is TerminalImageNode
     value.source &&
     typeof (value as TerminalImageNodeMetadata).source === 'object'
   );
+}
+
+function getCompositorNodeMetadata(node: VNode): CompositorNodeMetadata | null {
+  const props = node.props as { __compositor?: unknown } | undefined;
+  return isCompositorBindingMetadata(props?.__compositor) ? props.__compositor : null;
+}
+
+function collectCompositorBindings(
+  layout: LayoutNode,
+  bindings: Map<string, BoundCompositorMetadata> = new Map(),
+): Map<string, BoundCompositorMetadata> {
+  const binding = getCompositorNodeMetadata(layout.node);
+  if (binding) {
+    bindings.set(binding.key, {
+      ...binding,
+      bounds: {
+        x: layout.x,
+        y: layout.y,
+        width: layout.width,
+        height: layout.height,
+      },
+    });
+  }
+
+  for (const child of layout.children) {
+    collectCompositorBindings(child, bindings);
+  }
+
+  return bindings;
 }
 
 function createTerminalImageCommand(
@@ -741,6 +918,7 @@ function buildCachedDrawCommands(
   offsetX = 0,
   offsetY = 0,
   parentBackgroundColor?: string,
+  activeCompositorKeys: readonly string[] = [],
 ): CachedDrawCommand[] {
   const { node, x, y, width, height, children } = current;
   const absX = offsetX + x;
@@ -750,13 +928,18 @@ function buildCachedDrawCommands(
     id?: string;
     __terminalImage?: unknown;
   };
+  const compositor = getCompositorNodeMetadata(node);
+  const compositorKeys = compositor
+    ? [...activeCompositorKeys, compositor.key]
+    : [...activeCompositorKeys];
   const imageCommand = createTerminalImageCommand(current, absX, absY, width, height, props);
   const imageCacheKey =
     imageCommand
       ? `:${imageCommand.protocol}:${imageCommand.source.hash}:${imageCommand.width}x${imageCommand.height}:${imageCommand.fit}:${imageCommand.threshold ?? ''}:${imageCommand.dither ? 1 : 0}:${imageCommand.preserveAspectRatio ? 1 : 0}`
       : '';
   const cacheKey = createDrawCommandCacheKey(offsetX, offsetY, parentBackgroundColor) + imageCacheKey;
-  const cached = getCachedDrawCommandEntry(current, cacheKey);
+  const fingerprint = createDrawCommandFingerprint(node, imageCommand);
+  const cached = getCachedDrawCommandEntry(current, cacheKey, fingerprint);
   if (cached) {
     return cached.commands;
   }
@@ -771,6 +954,7 @@ function buildCachedDrawCommands(
       type: 'box',
       id,
       nodeType: node.type,
+      compositorKeys: compositorKeys.length > 0 ? [...compositorKeys] : undefined,
       x: absX,
       y: absY,
       width,
@@ -784,6 +968,7 @@ function buildCachedDrawCommands(
       type: 'text',
       id,
       nodeType: node.type,
+      compositorKeys: compositorKeys.length > 0 ? [...compositorKeys] : undefined,
       x: absX,
       y: absY,
       maxWidth: width,
@@ -804,7 +989,10 @@ function buildCachedDrawCommands(
   }
 
   if (imageCommand) {
-    commands.push(imageCommand);
+    commands.push({
+      ...imageCommand,
+      compositorKeys: compositorKeys.length > 0 ? [...compositorKeys] : undefined,
+    });
   }
 
   const paddingTop = props.paddingTop ?? props.paddingY ?? props.padding ?? 0;
@@ -817,26 +1005,35 @@ function buildCachedDrawCommands(
   for (const child of children) {
     appendCachedDrawCommands(
       commands,
-      buildCachedDrawCommands(child, contentOffsetX, contentOffsetY, nextBackgroundColor),
+      buildCachedDrawCommands(child, contentOffsetX, contentOffsetY, nextBackgroundColor, compositorKeys),
     );
   }
 
-  return setCachedDrawCommandEntry(current, cacheKey, commands).commands;
+  return setCachedDrawCommandEntry(current, cacheKey, fingerprint, commands).commands;
 }
 
 function buildDrawCommands(layout: LayoutNode): DrawCommand[] {
   const cached = drawCommandCache.get(layout);
+  const materializedFingerprint = createMaterializedDrawFingerprint(layout);
 
   if (cached?.materialized) {
-    return cached.materialized;
+    if (materializedFingerprint === cached.materializedFingerprint) {
+      return cached.materialized;
+    }
+    cached.materialized = undefined;
+    cached.materializedFingerprint = undefined;
   }
 
   const cachedCommands = buildCachedDrawCommands(layout);
-  const materialized = materializeDrawCommands(cachedCommands);
+  const materialized = applyCompositor(
+    materializeDrawCommands(cachedCommands),
+    collectCompositorBindings(layout),
+  );
   const entry = drawCommandCache.get(layout);
 
   if (entry) {
     entry.materialized = materialized;
+    entry.materializedFingerprint = materializedFingerprint;
   }
 
   return materialized;
@@ -873,8 +1070,26 @@ export function createFrameSnapshot(
       drawCommandCount: drawCommands.length,
       hitTargetCount: 0,
       warningCount: 0,
+      reservedRegionCount: reservedRegions.length,
+      patchCount: 0,
+      dirtyRectCount: 0,
+      diffRectCount: 0,
+      outputByteCount: 0,
+      layoutReuseCount: 0,
+      layoutFreshCount: 0,
+      drawReuseCount: 0,
+      drawFreshCount: 0,
+      invalidationEscalationCount: 0,
+      absorbedLayoutDirtyCount: 0,
     },
   };
+  const dirtyDiagnostics = getDirtyDiagnostics();
+  metrics.structural.layoutReuseCount = dirtyDiagnostics.layoutReuseCount;
+  metrics.structural.layoutFreshCount = dirtyDiagnostics.layoutFreshCount;
+  metrics.structural.drawReuseCount = dirtyDiagnostics.drawReuseCount;
+  metrics.structural.drawFreshCount = dirtyDiagnostics.drawFreshCount;
+  metrics.structural.invalidationEscalationCount = dirtyDiagnostics.invalidationEscalationCount;
+  metrics.structural.absorbedLayoutDirtyCount = dirtyDiagnostics.absorbedLayoutDirtyCount;
   let elementIndex: ElementQueryIndex | undefined;
   let scrollIndex: ScrollQueryIndex | undefined;
   let hitTargets: ElementBounds[] | undefined;
@@ -992,8 +1207,29 @@ export function recordFramePhaseMetric(
   frame.metrics.totalFrameMs = Math.max(0, frame.metrics.frameEndAt - frame.metrics.frameStartAt);
 }
 
+export function recordFrameStructuralMetric(
+  frame: FrameSnapshot,
+  metric: keyof FrameStructuralMetrics,
+  value: number,
+): void {
+  frame.metrics.structural[metric] = value;
+}
+
+export function finalizeFrameRuntimeMetrics(
+  frame: FrameSnapshot,
+  runtimeStartAt: number,
+  runtimeEndAt = Date.now(),
+): void {
+  frame.metrics.runtimeStartAt = runtimeStartAt;
+  frame.metrics.runtimeEndAt = runtimeEndAt;
+  frame.metrics.runtimeTotalMs = Math.max(0, runtimeEndAt - runtimeStartAt);
+  frame.metrics.frameEndAt = runtimeEndAt;
+}
+
 export function resetFrameSequenceForTesting(): void {
   nextFrameId = 1;
   clearCommittedFrameSnapshot();
   clearDrawCommandCache();
+  resetDirtyRegistry();
+  clearTextMeasureCache();
 }

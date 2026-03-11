@@ -27,14 +27,59 @@
  */
 
 import { createSignal } from '../primitives/signal.js';
+import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
+import { subscribeMotionInterval } from './motion-runtime.js';
 
 // Global tick state
 const [tick, setTick] = createSignal(0);
 const [isRunning, setIsRunning] = createSignal(false);
 
-let tickInterval: ReturnType<typeof setInterval> | null = null;
 let tickRate = 100; // ms between ticks
 const tickListeners: Set<(tick: number) => void> = new Set();
+let tickRequested = false;
+let tickPausedByFocus = false;
+let cleanupFocusSubscription: (() => void) | null = null;
+let unsubscribeTickInterval: (() => void) | null = null;
+
+function createTickInterval(): void {
+  if (unsubscribeTickInterval) {
+    return;
+  }
+
+  setIsRunning(true);
+  tickPausedByFocus = false;
+  unsubscribeTickInterval = subscribeMotionInterval(tickRate, () => {
+    const newTick = tick() + 1;
+    setTick(newTick);
+
+    // Notify listeners
+    tickListeners.forEach(fn => fn(newTick));
+  }, {
+    pauseWhenUnfocused: true,
+  });
+}
+
+function ensureFocusSubscription(): void {
+  if (cleanupFocusSubscription) {
+    return;
+  }
+
+  cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+    if (!focused) {
+      if (unsubscribeTickInterval) {
+        tickPausedByFocus = tickRequested;
+        setIsRunning(false);
+      }
+      return;
+    }
+
+    if (tickRequested && tickPausedByFocus) {
+      createTickInterval();
+      tickPausedByFocus = false;
+      setIsRunning(true);
+    }
+  });
+}
 
 /**
  * Get current tick value (reactive)
@@ -60,28 +105,29 @@ export function isTickRunning(): boolean {
  * @param rate - Tick interval in ms (default: 100)
  */
 export function startTick(rate: number = 100): void {
-  if (tickInterval) return; // Already running
-
   tickRate = rate;
-  setIsRunning(true);
+  tickRequested = true;
+  ensureFocusSubscription();
 
-  tickInterval = setInterval(() => {
-    const newTick = tick() + 1;
-    setTick(newTick);
+  if (unsubscribeTickInterval) return; // Already running
+  if (!readTerminalFocus()) {
+    createTickInterval();
+    tickPausedByFocus = true;
+    setIsRunning(false);
+    return;
+  }
 
-    // Notify listeners
-    tickListeners.forEach(fn => fn(newTick));
-  }, tickRate);
+  createTickInterval();
 }
 
 /**
  * Stop the global tick
  */
 export function stopTick(): void {
-  if (tickInterval) {
-    clearInterval(tickInterval);
-    tickInterval = null;
-  }
+  tickRequested = false;
+  tickPausedByFocus = false;
+  unsubscribeTickInterval?.();
+  unsubscribeTickInterval = null;
   setIsRunning(false);
 }
 
@@ -96,8 +142,15 @@ export function pauseTick(): void {
  * Resume the tick from current value
  */
 export function resumeTick(): void {
+  tickRequested = true;
+  ensureFocusSubscription();
+
   if (!isRunning()) {
-    startTick(tickRate);
+    if (!readTerminalFocus()) {
+      tickPausedByFocus = true;
+      return;
+    }
+    createTickInterval();
   }
 }
 
@@ -115,7 +168,7 @@ export function setTickRate(rate: number): void {
   const wasRunning = isRunning();
   stopTick();
   tickRate = rate;
-  if (wasRunning) {
+  if (wasRunning || tickRequested) {
     startTick(rate);
   }
 }

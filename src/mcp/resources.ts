@@ -12,6 +12,8 @@ import {
   categories,
   customThemeGuide,
 } from './docs-data.js';
+import { getCommonMistakesGuideMarkdown } from '../core/common-mistakes.js';
+import { formatSymbolDocSections, getSymbolDoc } from './symbol-docs.js';
 import type { ComponentDoc, HookDoc, ThemeDoc, MCPResource } from './types.js';
 
 // =============================================================================
@@ -133,6 +135,13 @@ export function getStaticResources(): MCPResource[] {
     uri: 'tuiuiu://guide/animations',
     name: 'Animations',
     description: 'Animation system and spring physics in Tuiuiu',
+    mimeType: 'text/markdown',
+  });
+
+  resources.push({
+    uri: 'tuiuiu://guide/common-mistakes',
+    name: 'Common Mistakes',
+    description: 'Runtime guardrails and the mistakes they are trying to prevent',
     mimeType: 'text/markdown',
   });
 
@@ -342,6 +351,7 @@ function readGuideResource(topic: string): MCPResourceContents | null {
     'layout': getLayoutGuide(),
     'input-handling': getInputHandlingGuide(),
     'animations': getAnimationsGuide(),
+    'common-mistakes': getCommonMistakesGuideMarkdown(),
   };
 
   const content = guides[topic];
@@ -446,6 +456,11 @@ function formatComponentDoc(comp: ComponentDoc): string {
   output += `**Category:** ${comp.category}\n\n`;
   output += `${comp.description}\n\n`;
 
+  const symbol = getSymbolDoc(comp.name);
+  if (symbol) {
+    output += formatSymbolDocSections(symbol) + '\n\n';
+  }
+
   if (comp.props.length > 0) {
     output += '## Props\n\n';
     output += '| Name | Type | Required | Default | Description |\n';
@@ -474,6 +489,10 @@ function formatComponentDoc(comp: ComponentDoc): string {
 function formatHookDoc(hook: HookDoc): string {
   let output = `# ${hook.name}\n\n`;
   output += `${hook.description}\n\n`;
+  const symbol = getSymbolDoc(hook.name);
+  if (symbol) {
+    output += formatSymbolDocSections(symbol) + '\n\n';
+  }
   output += `## Signature\n\n\`\`\`typescript\n${hook.signature}\n\`\`\`\n\n`;
 
   if (hook.params.length > 0) {

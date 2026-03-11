@@ -6,6 +6,13 @@
  */
 
 import { createSignal, createEffect, untrack } from '../primitives/signal.js';
+import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
+import {
+  cancelAllMotionFrames,
+  getMotionRuntimeState,
+  requestMotionFrame,
+  type MotionFrame,
+} from './motion-runtime.js';
 
 // =============================================================================
 // Types
@@ -19,6 +26,8 @@ export interface AnimationOptions {
   duration: number;
   /** Easing function name or custom function */
   easing?: EasingName | EasingFunction;
+  /** Pause the animation while the terminal is unfocused */
+  pauseWhenUnfocused?: boolean;
   /** Callback on each frame with progress (0-1) */
   onFrame: (progress: number) => void;
   /** Callback when animation completes */
@@ -132,20 +141,70 @@ function getEasingFunction(easing: EasingName | EasingFunction | undefined): Eas
  * animation.stop();
  */
 export function useAnimation(options: AnimationOptions): AnimationControls {
-  const { duration, easing, onFrame, onComplete, onCancel } = options;
+  const { duration, easing, pauseWhenUnfocused = true, onFrame, onComplete, onCancel } = options;
   const easingFn = getEasingFunction(easing);
 
-  let frameId: NodeJS.Timeout | null = null;
+  let cancelFrame: (() => void) | null = null;
   let startTime = 0;
   let pausedTime = 0;
   let running = false;
   let paused = false;
+  let pausedByFocus = false;
   let currentProgress = 0;
+  let cleanupFocusSubscription: (() => void) | null = null;
 
-  const tick = () => {
+  const clearFocusSubscription = () => {
+    cleanupFocusSubscription?.();
+    cleanupFocusSubscription = null;
+  };
+
+  const clearScheduledFrame = () => {
+    cancelFrame?.();
+    cancelFrame = null;
+  };
+
+  const ensureFocusSubscription = () => {
+    if (!pauseWhenUnfocused || cleanupFocusSubscription) {
+      return;
+    }
+
+    cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+      if (!focused) {
+        if (running && !paused) {
+          pausedByFocus = true;
+          pause();
+        }
+        return;
+      }
+
+      if (pausedByFocus) {
+        pausedByFocus = false;
+        resume();
+      }
+    });
+  };
+
+  const scheduleFrame = () => {
+    clearScheduledFrame();
+    cancelFrame = requestMotionFrame(tick);
+  };
+
+  const tick = (frame?: MotionFrame) => {
+    cancelFrame = null;
     if (!running || paused) return;
 
-    const now = Date.now();
+    const tier = frame?.tier ?? getMotionRuntimeState().qualityTier;
+    if (tier === 'skip') {
+      currentProgress = easingFn(1);
+      onFrame(currentProgress);
+      running = false;
+      paused = false;
+      clearFocusSubscription();
+      onComplete?.();
+      return;
+    }
+
+    const now = frame?.now ?? Date.now();
     const elapsed = now - startTime;
     const rawProgress = Math.min(elapsed / duration, 1);
     currentProgress = easingFn(rawProgress);
@@ -153,10 +212,11 @@ export function useAnimation(options: AnimationOptions): AnimationControls {
     onFrame(currentProgress);
 
     if (rawProgress < 1) {
-      // ~60fps timing
-      frameId = setTimeout(tick, 16);
+      scheduleFrame();
     } else {
       running = false;
+      paused = false;
+      clearFocusSubscription();
       onComplete?.();
     }
   };
@@ -175,17 +235,23 @@ export function useAnimation(options: AnimationOptions): AnimationControls {
     }
 
     running = true;
+    ensureFocusSubscription();
+    if (pauseWhenUnfocused && !readTerminalFocus()) {
+      paused = true;
+      pausedByFocus = true;
+      pausedTime = pausedTime || 0;
+      return;
+    }
     tick();
   };
 
   const stop = () => {
-    if (frameId) {
-      clearTimeout(frameId);
-      frameId = null;
-    }
+    clearScheduledFrame();
     if (running) {
       running = false;
       paused = false;
+      pausedByFocus = false;
+      clearFocusSubscription();
       onCancel?.();
     }
   };
@@ -194,10 +260,7 @@ export function useAnimation(options: AnimationOptions): AnimationControls {
     if (!running || paused) return;
     paused = true;
     pausedTime = Date.now() - startTime;
-    if (frameId) {
-      clearTimeout(frameId);
-      frameId = null;
-    }
+    clearScheduledFrame();
   };
 
   const resume = () => {
@@ -363,40 +426,20 @@ function rgbToHex(r: number, g: number, b: number): string {
 
 type FrameCallback = () => void;
 
-const frameCallbacks: Set<FrameCallback> = new Set();
-let schedulerId: NodeJS.Timeout | null = null;
-
 /**
  * Schedule a callback to run on the next frame
  */
 export function requestAnimationFrame(callback: FrameCallback): () => void {
-  frameCallbacks.add(callback);
-
-  if (!schedulerId) {
-    schedulerId = setTimeout(() => {
-      schedulerId = null;
-      const callbacks = [...frameCallbacks];
-      frameCallbacks.clear();
-      for (const cb of callbacks) {
-        cb();
-      }
-    }, 16); // ~60fps
-  }
-
-  return () => {
-    frameCallbacks.delete(callback);
-  };
+  return requestMotionFrame(() => {
+    callback();
+  });
 }
 
 /**
  * Cancel all pending frame callbacks
  */
 export function cancelAllAnimationFrames(): void {
-  if (schedulerId) {
-    clearTimeout(schedulerId);
-    schedulerId = null;
-  }
-  frameCallbacks.clear();
+  cancelAllMotionFrames();
 }
 
 // =============================================================================
@@ -429,22 +472,47 @@ export function createSpring(options: SpringOptions = {}) {
     threshold = 0.01,
   } = options;
 
-  let frameId: NodeJS.Timeout | null = null;
+  let cancelFrame: (() => void) | null = null;
   let currentValue = 0;
   let velocity = 0;
   let targetValue = 0;
   let onUpdate: ((value: number) => void) | null = null;
   let onComplete: (() => void) | null = null;
+  let pausedByFocus = false;
+  let cleanupFocusSubscription: (() => void) | null = null;
 
-  const tick = () => {
+  const clearFocusSubscription = () => {
+    cleanupFocusSubscription?.();
+    cleanupFocusSubscription = null;
+  };
+
+  const scheduleTick = () => {
+    cancelFrame?.();
+    cancelFrame = requestMotionFrame(tick);
+  };
+
+  const tick = (frame?: MotionFrame) => {
+    cancelFrame = null;
+    const tier = frame?.tier ?? getMotionRuntimeState().qualityTier;
+    if (tier === 'skip') {
+      currentValue = targetValue;
+      velocity = 0;
+      onUpdate?.(currentValue);
+      clearFocusSubscription();
+      onComplete?.();
+      return;
+    }
+
+    const dt = Math.max(0.001, Math.min(frame?.deltaMs ?? 16, 64) / 1000);
+
     // Spring physics
     const displacement = currentValue - targetValue;
     const springForce = -stiffness * displacement;
     const dampingForce = -damping * velocity;
     const acceleration = (springForce + dampingForce) / mass;
 
-    velocity += acceleration * 0.016; // dt = 16ms
-    currentValue += velocity * 0.016;
+    velocity += acceleration * dt;
+    currentValue += velocity * dt;
 
     onUpdate?.(currentValue);
 
@@ -452,30 +520,57 @@ export function createSpring(options: SpringOptions = {}) {
     if (Math.abs(velocity) < threshold && Math.abs(currentValue - targetValue) < threshold) {
       currentValue = targetValue;
       onUpdate?.(currentValue);
+      clearFocusSubscription();
       onComplete?.();
       return;
     }
 
-    frameId = setTimeout(tick, 16);
+    if (!readTerminalFocus()) {
+      pausedByFocus = true;
+      return;
+    }
+
+    scheduleTick();
   };
 
   const start = (from: number, to: number, update: (value: number) => void, complete?: () => void) => {
-    if (frameId) clearTimeout(frameId);
+    cancelFrame?.();
+    cancelFrame = null;
 
     currentValue = from;
     targetValue = to;
     velocity = 0;
     onUpdate = update;
     onComplete = complete || null;
+    pausedByFocus = false;
 
-    tick();
+    clearFocusSubscription();
+    cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+      if (!focused) {
+        cancelFrame?.();
+        cancelFrame = null;
+        pausedByFocus = true;
+        return;
+      }
+
+      if (pausedByFocus && !cancelFrame) {
+        pausedByFocus = false;
+        scheduleTick();
+      }
+    });
+
+    if (readTerminalFocus()) {
+      tick();
+    } else {
+      pausedByFocus = true;
+    }
   };
 
   const stop = () => {
-    if (frameId) {
-      clearTimeout(frameId);
-      frameId = null;
-    }
+    cancelFrame?.();
+    cancelFrame = null;
+    pausedByFocus = false;
+    clearFocusSubscription();
   };
 
   const setTarget = (to: number) => {
@@ -518,17 +613,41 @@ export function createHarmonicaSpring(options: HarmonicaSpringOptions = {}) {
     damping = 0.75,
   } = options;
 
-  const dt = 1 / fps;
   const angularFreq = frequency * 2 * Math.PI;
 
-  let frameId: NodeJS.Timeout | null = null;
+  let cancelFrame: (() => void) | null = null;
   let position = 0;
   let velocity = 0;
   let target = 0;
   let onUpdate: ((value: number) => void) | null = null;
   let onComplete: (() => void) | null = null;
+  let pausedByFocus = false;
+  let cleanupFocusSubscription: (() => void) | null = null;
 
-  const tick = () => {
+  const clearFocusSubscription = () => {
+    cleanupFocusSubscription?.();
+    cleanupFocusSubscription = null;
+  };
+
+  const scheduleTick = () => {
+    cancelFrame?.();
+    cancelFrame = requestMotionFrame(tick);
+  };
+
+  const tick = (frame?: MotionFrame) => {
+    cancelFrame = null;
+    const tier = frame?.tier ?? getMotionRuntimeState().qualityTier;
+    if (tier === 'skip') {
+      position = target;
+      velocity = 0;
+      onUpdate?.(position);
+      clearFocusSubscription();
+      onComplete?.();
+      return;
+    }
+
+    const dt = Math.max(0.001, Math.min(frame?.deltaMs ?? (1000 / fps), 64) / 1000);
+
     // Damped harmonic oscillator physics
     const displacement = position - target;
     const dampingForce = 2 * damping * angularFreq * velocity;
@@ -545,30 +664,57 @@ export function createHarmonicaSpring(options: HarmonicaSpringOptions = {}) {
     if (Math.abs(velocity) < threshold && Math.abs(position - target) < threshold) {
       position = target;
       onUpdate?.(position);
+      clearFocusSubscription();
       onComplete?.();
       return;
     }
 
-    frameId = setTimeout(tick, 1000 / fps);
+    if (!readTerminalFocus()) {
+      pausedByFocus = true;
+      return;
+    }
+
+    scheduleTick();
   };
 
   const start = (from: number, to: number, update: (value: number) => void, complete?: () => void) => {
-    if (frameId) clearTimeout(frameId);
+    cancelFrame?.();
+    cancelFrame = null;
 
     position = from;
     target = to;
     velocity = 0;
     onUpdate = update;
     onComplete = complete || null;
+    pausedByFocus = false;
 
-    tick();
+    clearFocusSubscription();
+    cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+      if (!focused) {
+        cancelFrame?.();
+        cancelFrame = null;
+        pausedByFocus = true;
+        return;
+      }
+
+      if (pausedByFocus && !cancelFrame) {
+        pausedByFocus = false;
+        scheduleTick();
+      }
+    });
+
+    if (readTerminalFocus()) {
+      tick();
+    } else {
+      pausedByFocus = true;
+    }
   };
 
   const stop = () => {
-    if (frameId) {
-      clearTimeout(frameId);
-      frameId = null;
-    }
+    cancelFrame?.();
+    cancelFrame = null;
+    pausedByFocus = false;
+    clearFocusSubscription();
   };
 
   const setTarget = (to: number) => {

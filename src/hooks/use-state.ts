@@ -3,6 +3,7 @@
  */
 
 import { createSignal, Signal } from '../primitives/signal.js';
+import { allowInternalSignalCreationDuringRender } from '../core/dev-warnings.js';
 import { getHookState, getCurrentHookIndex, setHookState } from './context.js';
 
 /**
@@ -21,7 +22,7 @@ export function useState<T>(initialValue: T): [() => T, (value: T | ((prev: T) =
 
   if (isNew || signal === null) {
     // First render - create new signal and store it
-    const newSignal = createSignal(initialValue);
+    const newSignal = allowInternalSignalCreationDuringRender(() => createSignal(initialValue));
     const hookIndex = getCurrentHookIndex();
     setHookState(hookIndex, newSignal);
     return newSignal;

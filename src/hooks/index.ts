@@ -106,6 +106,17 @@ export type {
 
 // Terminal hook
 export { useTerminalSize, type TerminalSize } from './use-terminal-size.js';
+export { useTerminalFocus, type TerminalFocusState } from './use-terminal-focus.js';
+export { useCompositor } from './use-compositor.js';
+export type {
+  UseCompositorResult,
+  SlideOptions,
+  FadeOptions,
+  ShimmerOptions,
+  SpringMotionOptions,
+  RevealOptions,
+  CompositorBindProps,
+} from './use-compositor.js';
 
 // Layout measurement hook
 export { createLayoutRef, useLayoutRef } from './use-layout-ref.js';
@@ -199,6 +210,14 @@ export type {
   ThresholdConfig,
   ExtendedThresholdConfig,
 } from './use-threshold-color.js';
+
+// Clipboard hook
+export { useClipboard } from './use-clipboard.js';
+export type { UseClipboardResult } from './use-clipboard.js';
+
+// Notification hook
+export { useNotification } from './use-notification.js';
+export type { UseNotificationResult } from './use-notification.js';
 
 // Reactive format hooks
 export {

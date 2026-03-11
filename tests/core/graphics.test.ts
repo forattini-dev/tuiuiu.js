@@ -43,6 +43,8 @@ describe('Graphics Protocol Detection', () => {
     delete process.env.KITTY_WINDOW_ID;
     delete process.env.WT_SESSION;
     delete process.env.ITERM_SESSION_ID;
+    delete process.env.GHOSTTY_RESOURCES_DIR;
+    delete process.env.WEZTERM_PANE;
   });
 
   afterEach(() => {
@@ -72,14 +74,24 @@ describe('Graphics Protocol Detection', () => {
       expect(detectGraphicsProtocol()).toBe('iterm2');
     });
 
-    it('should detect WezTerm as kitty-compatible', () => {
+    it('should detect WezTerm using the profile preferred iTerm2 protocol', () => {
       process.env.TERM_PROGRAM = 'WezTerm';
+      expect(detectGraphicsProtocol()).toBe('iterm2');
+    });
+
+    it('should detect Ghostty using the profile preferred Kitty protocol', () => {
+      process.env.GHOSTTY_RESOURCES_DIR = '/usr/share/ghostty';
       expect(detectGraphicsProtocol()).toBe('kitty');
     });
 
-    it('should detect Windows Terminal as iterm2-compatible', () => {
+    it('should detect Foot using the profile preferred Sixel protocol', () => {
+      process.env.TERM = 'foot';
+      expect(detectGraphicsProtocol()).toBe('sixel');
+    });
+
+    it('should fall back for Windows Terminal when no profile graphics protocol is preferred', () => {
       process.env.WT_SESSION = 'session123';
-      expect(detectGraphicsProtocol()).toBe('iterm2');
+      expect(detectGraphicsProtocol()).toBe('halfblock');
     });
 
     it('should fall back to halfblock for rich-color terminals without protocol graphics', () => {
@@ -122,6 +134,13 @@ describe('Graphics Protocol Detection', () => {
   });
 
   describe('getProtocolCapabilities', () => {
+    it('should report profile-based detection when preferred graphics comes from terminal profile', () => {
+      process.env.TERM_PROGRAM = 'WezTerm';
+      const caps = getGraphicsCapabilities();
+      expect(caps.protocol).toBe('iterm2');
+      expect(caps.detectedBy).toBe('profile');
+    });
+
     it('should return kitty capabilities', () => {
       setGraphicsProtocol('kitty');
       const caps = getProtocolCapabilities();
@@ -545,13 +564,14 @@ describe('Kitty Graphics Protocol', () => {
       expect(output.endsWith('\x1b\\')).toBe(true);
     });
 
-    it('should include dimension information', () => {
+    it('should use PNG format without explicit pixel dimensions', () => {
       const img = createSolidImage(20, 15, 0, 255, 0);
       const output = kittyGraphics.transmit(img);
 
-      // Should include source dimensions
-      expect(output.includes('s=20')).toBe(true);
-      expect(output.includes('v=15')).toBe(true);
+      // PNG format (f=100) carries its own dimensions; s= and v= are not needed
+      expect(output.includes('f=100')).toBe(true);
+      expect(output.includes('s=')).toBe(false);
+      expect(output.includes('v=')).toBe(false);
     });
 
     it('should respect custom dimensions', () => {

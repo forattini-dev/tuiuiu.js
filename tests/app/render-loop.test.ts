@@ -15,6 +15,9 @@ import {
 } from '../../src/hooks/context.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
 import { clearCommittedFrameSnapshot, getCommittedFrameSnapshot } from '../../src/core/frame.js';
+import { getMotionRuntimeState, resetMotionRuntime } from '../../src/core/motion-runtime.js';
+import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/terminal-focus.js';
+import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 
 // Create mock stdin
 function createMockStdin(): NodeJS.ReadStream {
@@ -66,6 +69,10 @@ describe('render-loop', () => {
     resetHookState();
     clearInputHandlers();
     setAppContext(null);
+    resetProgressive();
+    configureProgressive({ overrides: { focusEvents: false } });
+    resetMotionRuntime();
+    resetTerminalFocusState();
     stdin = createMockStdin();
     stdout = createMockStdout();
     mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
@@ -78,6 +85,9 @@ describe('render-loop', () => {
     resetHookState();
     clearInputHandlers();
     clearCommittedFrameSnapshot();
+    resetMotionRuntime();
+    resetProgressive();
+    resetTerminalFocusState();
   });
 
   describe('render', () => {
@@ -221,6 +231,9 @@ describe('render-loop', () => {
         },
         { stdin, stdout, maxFps: 10 } // 100ms between frames
       );
+
+      expect(getMotionRuntimeState().config.targetFps).toBe(10);
+      expect(getMotionRuntimeState().config.frameBudgetMs).toBe(100);
 
       // Initial render
       expect(renderCount).toBe(1);
@@ -385,6 +398,77 @@ describe('render-loop', () => {
       expect(deltas).toEqual([50, 50, 50, 50, 50]);
       expect(count()).toBe(5);
       expect(renderCount).toBe(2);
+
+      instance.unmount();
+    });
+
+    it('pauses fixed-step updates while the terminal is unfocused and resumes without catch-up', () => {
+      const [count, setCount] = createSignal(0);
+      let updateCount = 0;
+
+      const instance = render(
+        () => Text({}, `Count: ${count()}`),
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+          fixedStep: {
+            updateFps: 20,
+            onUpdate: () => {
+              updateCount++;
+              setCount((value) => value + 1);
+            },
+          },
+        }
+      );
+
+      vi.advanceTimersByTime(100);
+      expect(updateCount).toBe(2);
+
+      setTerminalFocusState(false);
+      vi.advanceTimersByTime(300);
+      expect(updateCount).toBe(2);
+      expect(count()).toBe(2);
+
+      setTerminalFocusState(true);
+      vi.advanceTimersByTime(49);
+      expect(updateCount).toBe(2);
+
+      vi.advanceTimersByTime(1);
+      expect(updateCount).toBe(3);
+      expect(count()).toBe(3);
+
+      instance.unmount();
+    });
+
+    it('can keep fixed-step updates running while unfocused when pauseWhenUnfocused is false', () => {
+      let updateCount = 0;
+
+      const instance = render(
+        () => Text({}, `Updates: ${updateCount}`),
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+          fixedStep: {
+            updateFps: 20,
+            pauseWhenUnfocused: false,
+            onUpdate: () => {
+              updateCount++;
+            },
+          },
+        }
+      );
+
+      setTerminalFocusState(false);
+      vi.advanceTimersByTime(100);
+      expect(updateCount).toBe(2);
 
       instance.unmount();
     });

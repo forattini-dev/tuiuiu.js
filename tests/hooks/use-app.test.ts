@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useApp, initializeApp, cleanupApp } from '../../src/hooks/use-app.js';
+import { useTerminalFocus } from '../../src/hooks/use-terminal-focus.js';
 import {
   getAppContext,
   setAppContext,
@@ -12,6 +13,7 @@ import {
   getInputHandlerCount,
   addInputHandler,
 } from '../../src/hooks/context.js';
+import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { EventEmitter } from 'node:events';
 import { Writable, Readable } from 'node:stream';
 
@@ -39,7 +41,13 @@ function createMockStdout(): NodeJS.WriteStream {
       callback();
     },
   });
-  (stream as any).output = output;
+  Object.assign(stream, {
+    isTTY: true,
+    getOutput: () => output,
+    clearOutput: () => {
+      output = '';
+    },
+  });
   return stream as unknown as NodeJS.WriteStream;
 }
 
@@ -48,6 +56,7 @@ describe('useApp', () => {
     resetHookState();
     clearInputHandlers();
     setAppContext(null);
+    resetProgressive();
   });
 
   afterEach(() => {
@@ -83,6 +92,7 @@ describe('initializeApp', () => {
     resetHookState();
     clearInputHandlers();
     setAppContext(null);
+    resetProgressive();
     stdin = createMockStdin();
     stdout = createMockStdout();
     mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
@@ -90,6 +100,7 @@ describe('initializeApp', () => {
 
   afterEach(() => {
     cleanupApp();
+    resetProgressive();
     mockExit.mockRestore();
   });
 
@@ -137,6 +148,19 @@ describe('initializeApp', () => {
 
       expect(mockExit).toHaveBeenCalledWith(0);
     });
+
+    it('tracks terminal focus reactively when supported', () => {
+      configureProgressive({ overrides: { focusEvents: true } });
+      initializeApp(stdin, stdout);
+
+      expect(useTerminalFocus().focused).toBe(true);
+
+      stdin.emit('data', Buffer.from('\x1b[O'));
+      expect(useTerminalFocus().focused).toBe(false);
+
+      stdin.emit('data', Buffer.from('\x1b[I'));
+      expect(useTerminalFocus().focused).toBe(true);
+    });
   });
 
   describe('exit', () => {
@@ -155,6 +179,16 @@ describe('initializeApp', () => {
       ctx.exit();
 
       expect(stdin.setRawMode).toHaveBeenCalledWith(false);
+    });
+
+    it('enables and disables terminal focus reporting when supported', () => {
+      configureProgressive({ overrides: { focusEvents: true } });
+      const ctx = initializeApp(stdin, stdout);
+      expect((stdout as any).getOutput()).toContain('\x1b[?1004h');
+
+      (stdout as any).clearOutput();
+      ctx.exit();
+      expect((stdout as any).getOutput()).toContain('\x1b[?1004l');
     });
 
     it('exits with code 0 by default', () => {

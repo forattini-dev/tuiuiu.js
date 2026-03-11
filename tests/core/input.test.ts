@@ -17,6 +17,10 @@ import {
   parseMouseEvent,
   enableBracketedPaste,
   disableBracketedPaste,
+  enableFocusEvents,
+  disableFocusEvents,
+  isFocusEvent,
+  parseFocusEvent,
   hasBracketedPaste,
   extractBracketedPaste,
   createInputState,
@@ -33,12 +37,30 @@ import {
 
 describe('Keyboard Protocol Detection', () => {
   const originalEnv = { ...process.env };
+  const terminalEnvVars = [
+    'KITTY_WINDOW_ID',
+    'TERM_PROGRAM',
+    'TERM',
+    'WEZTERM_PANE',
+    'GHOSTTY_RESOURCES_DIR',
+    'CONTOUR_TERMINAL_ID',
+    'ALACRITTY_WINDOW_ID',
+    'ALACRITTY_LOG',
+    'WARP_IS_LOCAL_SHELL_SESSION',
+    'WT_SESSION',
+    'KONSOLE_VERSION',
+    'VTE_VERSION',
+    'TILIX_ID',
+    'TERMINOLOGY',
+    'VSCODE_PID',
+  ];
 
   beforeEach(() => {
+    process.env = { ...originalEnv };
     resetKeyboardProtocol();
-    delete process.env.KITTY_WINDOW_ID;
-    delete process.env.TERM_PROGRAM;
-    delete process.env.TERM;
+    for (const key of terminalEnvVars) {
+      delete process.env[key];
+    }
   });
 
   afterEach(() => {
@@ -58,6 +80,21 @@ describe('Keyboard Protocol Detection', () => {
 
   it('should detect foot terminal as Kitty-compatible', () => {
     process.env.TERM = 'foot';
+    expect(detectKeyboardProtocol()).toBe('kitty');
+  });
+
+  it('should detect Ghostty via terminal profile database', () => {
+    process.env.GHOSTTY_RESOURCES_DIR = '/usr/share/ghostty';
+    expect(detectKeyboardProtocol()).toBe('kitty');
+  });
+
+  it('should detect Rio via terminal profile database', () => {
+    process.env.TERM_PROGRAM = 'rio';
+    expect(detectKeyboardProtocol()).toBe('kitty');
+  });
+
+  it('should detect Contour via terminal profile database', () => {
+    process.env.CONTOUR_TERMINAL_ID = '1234';
     expect(detectKeyboardProtocol()).toBe('kitty');
   });
 
@@ -268,6 +305,28 @@ describe('Bracketed Paste', () => {
   });
 });
 
+describe('Terminal Focus Events', () => {
+  it('should generate enable sequence', () => {
+    expect(enableFocusEvents()).toBe('\x1b[?1004h');
+  });
+
+  it('should generate disable sequence', () => {
+    expect(disableFocusEvents()).toBe('\x1b[?1004l');
+  });
+
+  it('should identify focus event prefixes', () => {
+    expect(isFocusEvent('\x1b[I')).toBe(true);
+    expect(isFocusEvent('\x1b[Orest')).toBe(true);
+    expect(isFocusEvent('plain')).toBe(false);
+  });
+
+  it('should parse focus in and out sequences', () => {
+    expect(parseFocusEvent('\x1b[I')).toEqual({ focused: true });
+    expect(parseFocusEvent('\x1b[O')).toEqual({ focused: false });
+    expect(parseFocusEvent('\x1b[A')).toBeNull();
+  });
+});
+
 describe('Input State Machine', () => {
   describe('createInputState', () => {
     it('should create empty state', () => {
@@ -457,6 +516,19 @@ describe('Unified Input Parser', () => {
     const result = parseInput('\x1b[<0;10;20M');
     expect(result.mouse).not.toBeUndefined();
     expect(result.mouse!.button).toBe('left');
+  });
+
+  it('should parse terminal focus events', () => {
+    const result = parseInput('\x1b[O');
+    expect(result.focus).toEqual({ focused: false });
+    expect(result.keys).toEqual([]);
+  });
+
+  it('should parse focus event followed by key input', () => {
+    const result = parseInput('\x1b[Ia');
+    expect(result.focus).toEqual({ focused: true });
+    expect(result.keys.length).toBe(1);
+    expect(result.keys[0]!.text).toBe('a');
   });
 
   it('should parse simple character', () => {

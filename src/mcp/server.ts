@@ -5,7 +5,7 @@
  * to AI assistants like Claude.
  *
  * Features:
- * - Tools: 10 documentation tools (including tuiuiu_api_patterns)
+ * - Tools: 12 documentation tools (including tuiuiu_api_patterns and tuiuiu_validate_code)
  * - Resources: Component, hook, theme, and guide resources
  * - Resource Templates: Dynamic URIs for flexible access
  * - Prompts: 15+ pre-defined prompts for common tasks
@@ -44,6 +44,8 @@ import {
   getResourceCompletions,
   getToolCompletions,
 } from './completions.js';
+import { formatSymbolDocSections, getSymbolDoc, searchSymbolDocs } from './symbol-docs.js';
+import { formatValidationResult, validateTuiuiuCode } from './validate-code.js';
 import {
   createMCPLogger,
   nullLogger,
@@ -218,6 +220,20 @@ const tools: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'tuiuiu_validate_code',
+    description: 'Validate a Tuiuiu code snippet against known runtime pitfalls. Detects createSignal inside component render, setTheme after render, and common API-pattern mismatches.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'Tuiuiu code snippet to analyze',
+        },
+      },
+      required: ['code'],
+    },
+  },
 ];
 
 // =============================================================================
@@ -309,6 +325,26 @@ function handleSearch(args: Record<string, unknown>): MCPToolResult {
   }
 
   const results: string[] = [];
+  const guides = [
+    {
+      name: 'Getting Started',
+      description: 'Quick start guide covering theme timing, useState, and input basics.',
+      uri: 'tuiuiu://guide/getting-started',
+      keywords: ['quick start', 'theme', 'input', 'useState', 'createSignal'],
+    },
+    {
+      name: 'Common Mistakes',
+      description: 'Runtime guardrails for createSignal placement, setTheme timing, and API-pattern mismatches.',
+      uri: 'tuiuiu://guide/common-mistakes',
+      keywords: ['common mistakes', 'warning', 'createSignal', 'setTheme', 'Page', 'AppShell', 'ScrollList', 'Tabs'],
+    },
+    {
+      name: 'API Patterns',
+      description: 'Critical reference for variadic, props, data-driven, and render-function component patterns.',
+      tool: 'tuiuiu_api_patterns',
+      keywords: ['api patterns', 'children', 'render function', 'data driven', 'props pattern'],
+    },
+  ];
 
   // Search components
   for (const comp of allComponents) {
@@ -349,6 +385,23 @@ function handleSearch(args: Record<string, unknown>): MCPToolResult {
     ) {
       results.push(`**${prompt.name}** (prompt): ${prompt.description}`);
     }
+  }
+
+  for (const guide of guides) {
+    if (
+      guide.name.toLowerCase().includes(query) ||
+      guide.description.toLowerCase().includes(query) ||
+      guide.keywords.some(keyword => keyword.toLowerCase().includes(query) || query.includes(keyword.toLowerCase()))
+    ) {
+      const ref = 'uri' in guide ? `guide: ${guide.uri}` : `tool: ${guide.tool}`;
+      results.push(`**${guide.name}** (${ref}): ${guide.description}`);
+    }
+  }
+
+  for (const symbol of searchSymbolDocs(query)) {
+    results.push(
+      `**${symbol.name}** (${symbol.kind}, import: ${symbol.importPath})${symbol.pattern ? ` [pattern: ${symbol.pattern}]` : ''}: ${symbol.summary}`,
+    );
   }
 
   if (results.length === 0) {
@@ -480,6 +533,12 @@ If input doesn't work or state resets:
 1. ✅ Is \`setTheme(darkTheme)\` called BEFORE \`render()\`?
 2. ✅ Using \`useState\` (not \`createSignal\`) inside components?
 3. ✅ For arrow keys, using \`key.upArrow\` not \`input\`?
+
+## Canonical Pitfalls Guide
+
+For the same mistakes the runtime warns about in development mode, read:
+
+- \`tuiuiu://guide/common-mistakes\`
 
 ## Explore Components
 
@@ -973,6 +1032,11 @@ function formatComponentDoc(comp: ComponentDoc): string {
   output += `**Category:** ${comp.category}\n\n`;
   output += `${comp.description}\n\n`;
 
+  const symbol = getSymbolDoc(comp.name);
+  if (symbol) {
+    output += formatSymbolDocSections(symbol) + '\n\n';
+  }
+
   if (comp.props.length > 0) {
     output += '## Props\n\n';
     output += '| Name | Type | Required | Default | Description |\n';
@@ -1001,6 +1065,10 @@ function formatComponentDoc(comp: ComponentDoc): string {
 function formatHookDoc(hook: HookDoc): string {
   let output = `# ${hook.name}\n\n`;
   output += `${hook.description}\n\n`;
+  const symbol = getSymbolDoc(hook.name);
+  if (symbol) {
+    output += formatSymbolDocSections(symbol) + '\n\n';
+  }
   output += `## Signature\n\n\`\`\`typescript\n${hook.signature}\n\`\`\`\n\n`;
 
   if (hook.params.length > 0) {
@@ -1064,6 +1132,7 @@ function handleApiPatterns(args: Record<string, unknown>): MCPToolResult {
       output += '```typescript\n' + example + '\n```\n\n';
     }
     output += `## Why This Pattern?\n\n${pattern.why}\n`;
+    output += `\nSee also: \`tuiuiu://guide/common-mistakes\`\n`;
 
     return { content: [{ type: 'text', text: output }] };
   }
@@ -1105,6 +1174,7 @@ function handleApiPatterns(args: Record<string, unknown>): MCPToolResult {
   }
 
   output += apiPatternsQuickReference;
+  output += `\n\n## Related Guide\n\n- \`tuiuiu://guide/common-mistakes\``;
 
   return { content: [{ type: 'text', text: output }] };
 }
@@ -1166,6 +1236,22 @@ function handlePromptsApi(args: Record<string, unknown>): MCPToolResult {
   return { content: [{ type: 'text', text: output }] };
 }
 
+function handleValidateCode(args: Record<string, unknown>): MCPToolResult {
+  const code = args.code as string | undefined;
+  if (!code || !code.trim()) {
+    return {
+      content: [{ type: 'text', text: 'Error: code is required' }],
+      isError: true,
+    };
+  }
+
+  const result = validateTuiuiuCode(code);
+  return {
+    content: [{ type: 'text', text: formatValidationResult(result) }],
+    isError: !result.ok,
+  };
+}
+
 // =============================================================================
 // Tool Handler Map
 // =============================================================================
@@ -1182,6 +1268,7 @@ const toolHandlers: Record<string, MCPToolHandler> = {
   tuiuiu_version: handleVersion,
   tuiuiu_api_patterns: handleApiPatterns,
   tuiuiu_prompts_api: handlePromptsApi,
+  tuiuiu_validate_code: handleValidateCode,
 };
 
 // =============================================================================

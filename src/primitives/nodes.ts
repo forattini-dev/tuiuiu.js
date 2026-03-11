@@ -15,6 +15,7 @@ import type {
   TuiChild, 
   BoxStyle 
 } from '../utils/types.js';
+import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
 
 /**
  * Normalize children into VNode array
@@ -209,6 +210,13 @@ export interface StaticProps<T> {
 }
 
 export function Static<T>(props: StaticProps<T>): VNode {
+  warnIfRenderFunctionPatternMisused(
+    'Static',
+    'children',
+    props.children,
+    '`Static({ items, children: (item, index) => Row(item) })`',
+  );
+
   const { items, children: render, style = {} } = props;
 
   const renderedItems = items.map((item, index) => render(item, index));
