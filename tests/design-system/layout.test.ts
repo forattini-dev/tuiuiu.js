@@ -3,6 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { createFrameSnapshot } from '../../src/core/frame.js';
+import { createSolidImage } from '../../src/core/graphics.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/index.js';
 import { VStack, HStack, Center, Spacer } from '../../src/templates/stack.js';
@@ -307,6 +310,26 @@ describe('Layout Components', () => {
       const output = renderToString(node, 80);
       expect(output).toContain('Top');
       expect(output).toContain('Bottom');
+    });
+
+    it('renders TerminalImage inside one side of the split layout', () => {
+      const node = SplitPanel({
+        left: TerminalImage({
+          source: createSolidImage(80, 48, 255, 0, 255),
+          protocol: 'kitty',
+          width: 'fill',
+          height: 'fill',
+        }),
+        right: Text({}, 'Inspector'),
+        width: 48,
+        height: 12,
+        divider: true,
+      });
+
+      const frame = createFrameSnapshot(node, { width: 48, height: 12 });
+
+      expect(frame.drawCommands.some(command => command.type === 'terminal-image')).toBe(true);
+      expect(frame.reservedRegions).toHaveLength(1);
     });
   });
 

@@ -129,6 +129,8 @@ export interface DrawTerminalImageCommand extends DrawCommandBase {
   y: number;
   width: number;
   height: number;
+  instanceKey?: string;
+  kittyImageId?: number;
   source: TerminalImageSource;
   fit: NonNullable<ImageOptions['fit']>;
   threshold?: number;
@@ -703,6 +705,8 @@ function createTerminalImageCommand(
     y: contentY,
     width: renderWidth,
     height: renderHeight,
+    instanceKey: metadata.protocolState?.instanceKey,
+    kittyImageId: metadata.protocolState?.kittyImageId,
     source,
     fit: plan.fit,
     threshold: metadata.options?.threshold,

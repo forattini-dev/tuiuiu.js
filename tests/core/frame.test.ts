@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
@@ -125,18 +126,18 @@ describe('FrameSnapshot', () => {
   });
 
   it('emits cleanup commands when a protocol image disappears in the standard renderer path', () => {
+    const imageState = createTerminalImage({
+      source: createSolidImage(60, 40, 255, 255, 0),
+      protocol: 'kitty',
+      fit: 'contain',
+    });
     const previousNode = Box(
-      {
-        id: 'image-box',
-        width: 10,
-        height: 6,
-        borderStyle: 'single',
-        padding: 1,
-        __terminalImage: {
-          source: createSolidImage(60, 40, 255, 255, 0),
-          options: { protocol: 'kitty' as const },
-        },
-      } as any,
+      { id: 'image-box', width: 10, height: 6, borderStyle: 'single', padding: 1 },
+      TerminalImage({
+        state: imageState,
+        width: 'fill',
+        height: 'fill',
+      }),
     );
     const nextNode = Box(
       { id: 'image-box', width: 10, height: 6, borderStyle: 'single', padding: 1 } as any,
@@ -147,6 +148,33 @@ describe('FrameSnapshot', () => {
     const nextFrame = createFrameSnapshot(nextNode, { width: 10, height: 8 });
     const output = renderFrameToString(nextFrame, { previousFrame });
 
-    expect(output).toContain('\x1b_Ga=d,d=A\x1b\\');
+    expect(output).toContain(`\x1b_Ga=d,d=i,i=${imageState.protocolState.kittyImageId}\x1b\\`);
+  });
+
+  it('re-emits kitty placement when the same image moves between frames', () => {
+    const imageState = createTerminalImage({
+      source: createSolidImage(60, 40, 255, 0, 255),
+      protocol: 'kitty',
+      fit: 'contain',
+    });
+    const previousFrame = createFrameSnapshot(
+      Box(
+        { width: 20, height: 10 },
+        Box({ width: 10, height: 6 }, TerminalImage({ state: imageState, width: 'fill', height: 'fill' })),
+      ),
+      { width: 20, height: 10 },
+    );
+    const nextFrame = createFrameSnapshot(
+      Box(
+        { width: 20, height: 10, paddingLeft: 4 },
+        Box({ width: 10, height: 6 }, TerminalImage({ state: imageState, width: 'fill', height: 'fill' })),
+      ),
+      { width: 20, height: 10 },
+    );
+
+    const output = renderFrameToString(nextFrame, { previousFrame });
+
+    expect(output).toContain(`\x1b_Ga=d,d=i,i=${imageState.protocolState.kittyImageId}\x1b\\`);
+    expect(output).toMatch(/\x1b7\x1b\[\d+;\d+H\x1b_Ga=T/);
   });
 });

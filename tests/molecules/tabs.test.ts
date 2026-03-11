@@ -7,6 +7,10 @@ import {
   type TabsOptions,
   type TabsState,
 } from '../../src/molecules/tabs.js';
+import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { createFrameSnapshot } from '../../src/core/frame.js';
+import { createSolidImage } from '../../src/core/graphics.js';
+import { renderFrameToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
 
@@ -210,6 +214,31 @@ describe('Tabs', () => {
     it('should show active tab content', () => {
       const output = renderOnce(Tabs({ tabs: baseTabs }));
       expect(output).toContain('Content 1');
+    });
+
+    it('renders TerminalImage content inside the active tab panel', () => {
+      const node = Tabs({
+        tabs: [
+          {
+            key: 'preview',
+            label: 'Preview',
+            content: TerminalImage({
+              source: createSolidImage(60, 40, 255, 0, 0),
+              protocol: 'kitty',
+              width: 12,
+              height: 6,
+            }),
+          },
+          { key: 'meta', label: 'Meta', content: Text({}, 'meta') },
+        ],
+      });
+
+      const frame = createFrameSnapshot(node, { width: 50, height: 16 });
+      const output = renderFrameToString(frame);
+
+      expect(frame.drawCommands.some(command => command.type === 'terminal-image')).toBe(true);
+      expect(frame.reservedRegions).toHaveLength(1);
+      expect(output).toContain('\x1b_G');
     });
 
     it('should accept different styles', () => {

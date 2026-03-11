@@ -366,6 +366,12 @@ export {
   scaleImage,
 } from './graphics.js';
 
+export {
+  loadImageFile,
+  loadTerminalImageSourceFromFile,
+  probeImageFile,
+} from './image-file.js';
+
 export type {
   GraphicsProtocol,
   CellSize,
@@ -380,6 +386,13 @@ export type {
   TerminalImageSource,
   TerminalImageRenderPlan,
 } from './graphics.js';
+
+export type {
+  ProbeImageFileResult,
+  ImageFileCommandOptions,
+  ImageFileCommandRunner,
+  LoadImageFileOptions,
+} from './image-file.js';
 
 // Advanced Focus Management
 export {

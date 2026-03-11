@@ -37,6 +37,8 @@ export interface ImageOptions {
   threshold?: number;
   /** Enable dithering for braille */
   dither?: boolean;
+  /** Stable kitty image ID for protocol-managed lifecycle */
+  imageId?: number;
 }
 
 export interface ImageData {
@@ -133,6 +135,8 @@ export interface TerminalImageProtocolRenderResult {
 }
 
 export interface TerminalImageProtocolState {
+  instanceKey: string;
+  kittyImageId: number;
   render(
     sourceOrImageData: TerminalImageSource | ImageData,
     options: TerminalImageProtocolRenderOptions,
@@ -158,6 +162,8 @@ let detectedProtocol: GraphicsProtocol | null = null;
 let manualOverride: GraphicsProtocol | null = null;
 let negotiatedCapabilities: TerminalImageCapabilities | null = null;
 let activeDetectionPromise: Promise<TerminalImageCapabilities> | null = null;
+let nextTerminalImageProtocolStateId = 1;
+let nextKittyImageId = 1;
 
 const DEFAULT_CELL_SIZE: CellSize = {
   width: 10,
@@ -822,6 +828,7 @@ function buildTerminalImageProtocolCacheKey(
     options.threshold ?? '',
     options.dither ? 1 : 0,
     options.preserveAspectRatio ? 1 : 0,
+    protocol === 'kitty' ? options.imageId ?? '' : '',
   ].join(':');
 }
 
@@ -829,6 +836,22 @@ export function createTerminalImageProtocolState(): TerminalImageProtocolState {
   const cache = new Map<string, Omit<TerminalImageProtocolRenderResult, 'reused'>>();
   let hits = 0;
   let misses = 0;
+  const instanceKey = `terminal-image:${nextTerminalImageProtocolStateId++}`;
+  const kittyImageId = nextKittyImageId++;
+
+  const withProtocolImageOptions = (
+    protocol: GraphicsProtocol,
+    options: Omit<TerminalImageProtocolRenderOptions, 'protocol'>,
+  ): ImageOptions => {
+    if (protocol !== 'kitty') {
+      return options;
+    }
+
+    return {
+      ...options,
+      imageId: options.imageId ?? kittyImageId,
+    };
+  };
 
   const getKey = (
     sourceOrImageData: TerminalImageSource | ImageData,
@@ -837,21 +860,25 @@ export function createTerminalImageProtocolState(): TerminalImageProtocolState {
     const { protocol, ...renderOptions } = options;
     const source = toTerminalImageSource(sourceOrImageData);
     const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
-    const plan = planImageRender(source, renderOptions);
-    return buildTerminalImageProtocolCacheKey(resolvedProtocol, source, plan, renderOptions);
+    const protocolOptions = withProtocolImageOptions(resolvedProtocol, renderOptions);
+    const plan = planImageRender(source, protocolOptions);
+    return buildTerminalImageProtocolCacheKey(resolvedProtocol, source, plan, protocolOptions);
   };
 
   return {
+    instanceKey,
+    kittyImageId,
     render(sourceOrImageData, options) {
       const { protocol, ...renderOptions } = options;
       const source = toTerminalImageSource(sourceOrImageData);
       const resolvedProtocol = resolveRenderableGraphicsProtocol(protocol);
-      const plan = planImageRender(source, renderOptions);
+      const protocolOptions = withProtocolImageOptions(resolvedProtocol, renderOptions);
+      const plan = planImageRender(source, protocolOptions);
       const cacheKey = buildTerminalImageProtocolCacheKey(
         resolvedProtocol,
         source,
         plan,
-        renderOptions,
+        protocolOptions,
       );
       const cached = cache.get(cacheKey);
 
@@ -864,7 +891,7 @@ export function createTerminalImageProtocolState(): TerminalImageProtocolState {
       }
 
       misses++;
-      const payload = renderImageWithProtocol(resolvedProtocol, source, renderOptions);
+      const payload = renderImageWithProtocol(resolvedProtocol, source, protocolOptions);
       const result: Omit<TerminalImageProtocolRenderResult, 'reused'> = {
         cacheKey,
         payload,
@@ -924,6 +951,9 @@ export const kittyGraphics = {
     const plan = planImageRender(source, options);
     const cols = options.width ?? plan.renderColumns;
     const rows = options.height ?? plan.renderRows;
+    const imageId = Number.isInteger(options.imageId) && options.imageId && options.imageId > 0
+      ? `,i=${options.imageId}`
+      : '';
 
     // Base64 encode PNG data (simplified - real implementation would encode PNG)
     const base64Data = base64Encode(pixels);
@@ -940,7 +970,7 @@ export const kittyGraphics = {
       if (i === 0) {
         // First chunk includes format info
         chunks.push(
-          `\x1b_Ga=T,f=32,s=${width},v=${height},c=${cols},r=${rows},m=${more};${chunk}\x1b\\`
+          `\x1b_Ga=T,f=32,s=${width},v=${height},c=${cols},r=${rows}${imageId},m=${more};${chunk}\x1b\\`
         );
       } else {
         // Continuation chunks

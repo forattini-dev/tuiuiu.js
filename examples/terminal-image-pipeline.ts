@@ -5,10 +5,6 @@
  * Run: pnpm tsx examples/terminal-image-pipeline.ts
  */
 
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { resolve as resolvePath } from 'node:path';
-
 import {
   Box,
   Footer,
@@ -19,10 +15,10 @@ import {
   Spacer,
   TerminalImage,
   Text,
-  createImageData,
   createGradientImage,
   createTerminalImage,
   type ImageData,
+  loadImageFile,
   queryGraphicsCapabilities,
   render,
   useApp,
@@ -31,73 +27,12 @@ import {
 
 const DEFAULT_IMAGE_PATH = 'tests/tuiuiu.png';
 
-function loadPngAsRgba(imagePath: string): ImageData {
-  const resolvedPath = resolvePath(process.cwd(), imagePath);
-
-  if (!existsSync(resolvedPath)) {
-    throw new Error(`Image file not found: ${resolvedPath}`);
-  }
-
-  const probeOutput = execFileSync(
-    'ffprobe',
-    [
-      '-v',
-      'error',
-      '-select_streams',
-      'v:0',
-      '-show_entries',
-      'stream=width,height',
-      '-of',
-      'json',
-      resolvedPath,
-    ],
-    { encoding: 'utf8' },
-  );
-  const probe = JSON.parse(probeOutput) as {
-    streams?: Array<{ width?: number; height?: number }>;
-  };
-  const width = probe.streams?.[0]?.width;
-  const height = probe.streams?.[0]?.height;
-
-  if (!width || !height) {
-    throw new Error(`Unable to determine image dimensions for ${resolvedPath}`);
-  }
-
-  const rawPixels = execFileSync(
-    'ffmpeg',
-    [
-      '-v',
-      'error',
-      '-i',
-      resolvedPath,
-      '-f',
-      'rawvideo',
-      '-pix_fmt',
-      'rgba',
-      '-',
-    ],
-    {
-      encoding: 'buffer',
-      maxBuffer: Math.max(width * height * 4 * 2, 4 * 1024 * 1024),
-    },
-  );
-
-  const expectedSize = width * height * 4;
-  if (rawPixels.length !== expectedSize) {
-    throw new Error(
-      `Decoded RGBA size mismatch for ${resolvedPath}: expected ${expectedSize}, got ${rawPixels.length}`,
-    );
-  }
-
-  return createImageData(rawPixels, width, height);
-}
-
 const imagePath = process.env.IMAGE_PATH ?? DEFAULT_IMAGE_PATH;
 let sourceDescription = `file=${imagePath}`;
 let sourceImage: ImageData;
 
 try {
-  sourceImage = loadPngAsRgba(imagePath);
+  sourceImage = await loadImageFile(imagePath);
 } catch (error) {
   sourceDescription = 'generated gradient fallback';
   sourceImage = createGradientImage(160, 96);

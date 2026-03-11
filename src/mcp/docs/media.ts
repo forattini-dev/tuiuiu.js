@@ -8,6 +8,26 @@ import type { ComponentDoc } from '../types.js';
 
 export const media: ComponentDoc[] = [
   {
+    name: 'TerminalImage',
+    category: 'media',
+    description: 'Display protocol-backed terminal images with automatic fallback to half-block or braille rendering. Accepts decoded RGBA data or a precomputed TerminalImageSource.',
+    props: [
+      { name: 'source', type: 'ImageData | TerminalImageSource', required: true, description: 'Decoded RGBA pixels or a precomputed terminal image source' },
+      { name: 'fit', type: "'contain' | 'cover' | 'fill' | 'crop' | 'none'", required: false, default: "'contain'", description: 'How to fit the image inside its layout bounds' },
+      { name: 'protocol', type: "GraphicsProtocol", required: false, description: 'Force a specific backend such as kitty, iterm2, sixel, halfblock, or braille' },
+      { name: 'imageWidth', type: 'number', required: false, description: 'Override image render width in terminal cells' },
+      { name: 'imageHeight', type: 'number', required: false, description: 'Override image render height in terminal cells' },
+      { name: 'state', type: 'TerminalImageState', required: false, description: 'Stable controller from createTerminalImage() for resize-aware caching' },
+      { name: 'width', type: "BoxStyle['width']", required: false, description: 'Layout width of the containing box' },
+      { name: 'height', type: "BoxStyle['height']", required: false, description: 'Layout height of the containing box' },
+    ],
+    examples: [
+      `const image = await loadImageFile('./tests/tuiuiu.png');\n\nPanel({ title: 'Preview', width: 40, height: 14 },\n  TerminalImage({\n    source: image,\n    width: 'fill',\n    height: 'fill',\n    fit: 'contain',\n  })\n)`,
+      `const imageState = createTerminalImage({\n  source: rgbaImage,\n  fit: 'contain',\n});\n\nTerminalImage({\n  state: imageState,\n  protocol: 'kitty',\n  width: 'fill',\n  height: 'fill',\n})`,
+    ],
+    relatedComponents: ['Picture', 'ColoredPicture', 'loadImageFile', 'createTerminalImage'],
+  },
+  {
     name: 'Picture',
     category: 'media',
     description: 'Display ASCII art and character-based images. Handles scaling, cropping, alignment, and transparency.',

@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
 import {
   createDeltaRenderer,
   resetDeltaRenderer,
@@ -177,19 +178,21 @@ describe('Delta Renderer', () => {
         showCursor: true,
         useDelta: true,
       });
+      const imageState = createTerminalImage({
+        source: createSolidImage(60, 40, 255, 255, 0),
+        protocol: 'kitty',
+        fit: 'contain',
+      });
 
       const previousFrame = createFrameSnapshot(
-        Box({
-          id: 'image-box',
-          width: 10,
-          height: 6,
-          borderStyle: 'single',
-          padding: 1,
-          __terminalImage: {
-            source: createSolidImage(60, 40, 255, 255, 0),
-            options: { protocol: 'kitty' as const },
-          },
-        } as any),
+        Box(
+          { id: 'image-box', width: 10, height: 6, borderStyle: 'single', padding: 1 },
+          TerminalImage({
+            state: imageState,
+            width: 'fill',
+            height: 'fill',
+          }),
+        ),
         {
           width: mockStdout.columns,
           height: mockStdout.rows,
@@ -211,7 +214,49 @@ describe('Delta Renderer', () => {
       renderer.renderFrame(nextFrame);
 
       const output = mockStdout.write.mock.calls.map(([chunk]) => String(chunk)).join('');
-      expect(output).toContain('\x1b_Ga=d,d=A\x1b\\');
+      expect(output).toContain(`\x1b_Ga=d,d=i,i=${imageState.protocolState.kittyImageId}\x1b\\`);
+    });
+
+    it('should re-emit kitty placement when a protocol image moves', () => {
+      const renderer = createDeltaRenderer({
+        stdout: mockStdout as unknown as NodeJS.WriteStream,
+        showCursor: true,
+        useDelta: true,
+      });
+      const imageState = createTerminalImage({
+        source: createSolidImage(60, 40, 255, 0, 255),
+        protocol: 'kitty',
+        fit: 'contain',
+      });
+      const previousFrame = createFrameSnapshot(
+        Box(
+          { width: 20, height: 10 },
+          Box({ width: 10, height: 6 }, TerminalImage({ state: imageState, width: 'fill', height: 'fill' })),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+      const nextFrame = createFrameSnapshot(
+        Box(
+          { width: 20, height: 10, paddingLeft: 4 },
+          Box({ width: 10, height: 6 }, TerminalImage({ state: imageState, width: 'fill', height: 'fill' })),
+        ),
+        {
+          width: mockStdout.columns,
+          height: mockStdout.rows,
+        },
+      );
+
+      renderer.renderFrame(previousFrame);
+      mockStdout.write.mockClear();
+
+      renderer.renderFrame(nextFrame);
+
+      const output = mockStdout.write.mock.calls.map(([chunk]) => String(chunk)).join('');
+      expect(output).toContain(`\x1b_Ga=d,d=i,i=${imageState.protocolState.kittyImageId}\x1b\\`);
+      expect(output).toMatch(/\x1b7\x1b\[\d+;\d+H\x1b_Ga=T/);
     });
 
     it('should keep full delta output aligned with canonical ANSI output', () => {

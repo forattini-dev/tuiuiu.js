@@ -762,6 +762,9 @@ export {
   createTerminalImageSource,
   planImageRender,
   createTerminalImageProtocolState,
+  loadImageFile,
+  loadTerminalImageSourceFromFile,
+  probeImageFile,
   // Image utilities
   createImageData,
   createSolidImage,
@@ -782,6 +785,10 @@ export type {
   TerminalGraphicsQueryTransport,
   TerminalImageSource,
   TerminalImageRenderPlan,
+  ProbeImageFileResult,
+  ImageFileCommandOptions,
+  ImageFileCommandRunner,
+  LoadImageFileOptions,
 } from './core/index.js';
 
 // =============================================================================

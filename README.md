@@ -61,6 +61,29 @@ await waitUntilExit();
 
 > ⚠️ **Critical**: Always call `setTheme()` before `render()` for proper input handling!
 
+## Terminal Images
+
+`tuiuiu.js` can render raster images directly inside compatible terminals such as Kitty, WezTerm, iTerm2, and Sixel terminals. The `TerminalImage` component negotiates the best backend available and falls back to colored half-blocks when protocol graphics are unavailable.
+
+```typescript
+import { Panel, TerminalImage, loadImageFile, render } from 'tuiuiu.js';
+
+const image = await loadImageFile('./tests/tuiuiu.png');
+
+render(() =>
+  Panel({ title: 'Preview', width: 40, height: 14 },
+    TerminalImage({
+      source: image,
+      width: 'fill',
+      height: 'fill',
+      fit: 'contain',
+    })
+  )
+);
+```
+
+`loadImageFile()` uses `ffprobe` and `ffmpeg` when available, so the core package stays zero-deps while still giving you a practical path from `PNG/JPEG/WebP` into RGBA.
+
 ## What's Inside
 
 | Category | Features |

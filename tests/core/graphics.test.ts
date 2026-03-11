@@ -239,6 +239,16 @@ describe('Graphics Protocol Detection', () => {
   });
 
   describe('createTerminalImageProtocolState', () => {
+    it('allocates a stable instance key and kitty image id per state object', () => {
+      const first = createTerminalImageProtocolState();
+      const second = createTerminalImageProtocolState();
+
+      expect(first.instanceKey).toMatch(/^terminal-image:\d+$/);
+      expect(first.kittyImageId).toBeGreaterThan(0);
+      expect(second.instanceKey).not.toBe(first.instanceKey);
+      expect(second.kittyImageId).not.toBe(first.kittyImageId);
+    });
+
     it('should reuse cached payloads for a stable source and render area', () => {
       const state = createTerminalImageProtocolState();
       const image = createSolidImage(20, 20, 255, 0, 0);
@@ -334,6 +344,20 @@ describe('Graphics Protocol Detection', () => {
       });
 
       expect(cached.payload).toBe(direct);
+    });
+
+    it('threads the stable kitty image id into kitty payload generation', () => {
+      const state = createTerminalImageProtocolState();
+      const image = createSolidImage(20, 20, 255, 255, 0);
+
+      const rendered = state.render(image, {
+        protocol: 'kitty',
+        width: 2,
+        height: 2,
+        fit: 'contain',
+      });
+
+      expect(rendered.payload).toContain(`i=${state.kittyImageId}`);
     });
   });
 });
@@ -537,6 +561,13 @@ describe('Kitty Graphics Protocol', () => {
       // Should include cell dimensions
       expect(output.includes('c=5')).toBe(true);
       expect(output.includes('r=3')).toBe(true);
+    });
+
+    it('should include an explicit kitty image id when provided', () => {
+      const img = createSolidImage(10, 10, 255, 255, 255);
+      const output = kittyGraphics.transmit(img, { imageId: 42 });
+
+      expect(output).toContain('i=42');
     });
   });
 

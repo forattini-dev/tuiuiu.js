@@ -30,6 +30,7 @@ import { hideCursor, showCursor } from '../utils/cursor.js';
 import { getTheme, resolveColor as resolveThemeColor } from './theme.js';
 import {
   clearImagesForProtocol,
+  kittyGraphics,
   renderImageWithProtocol,
 } from './graphics.js';
 import type {
@@ -827,35 +828,7 @@ function renderTerminalImageToBuffer(
   );
 }
 
-function protocolCommandSignature(command: DrawTerminalImageCommand): string {
-  if (command.protocolState) {
-    return command.protocolState.getCacheKey(command.source, {
-      protocol: command.protocol,
-      width: command.width,
-      height: command.height,
-      fit: command.fit,
-      threshold: command.threshold,
-      dither: command.dither,
-      preserveAspectRatio: command.preserveAspectRatio,
-    });
-  }
-
-  return [
-    command.protocol,
-    command.id ?? '',
-    command.x,
-    command.y,
-    command.width,
-    command.height,
-    command.source.hash,
-    command.fit,
-    command.threshold ?? '',
-    command.dither ? 1 : 0,
-    command.preserveAspectRatio ? 1 : 0,
-  ].join(':');
-}
-
-function getTerminalImagePayload(command: DrawTerminalImageCommand): string {
+function getTerminalImageRenderOptions(command: DrawTerminalImageCommand) {
   const options = {
     width: command.width,
     height: command.height,
@@ -864,6 +837,57 @@ function getTerminalImagePayload(command: DrawTerminalImageCommand): string {
     dither: command.dither,
     preserveAspectRatio: command.preserveAspectRatio,
   };
+
+  if (command.protocol === 'kitty' && command.kittyImageId) {
+    return {
+      ...options,
+      imageId: command.kittyImageId,
+    };
+  }
+
+  return options;
+}
+
+function protocolCommandPayloadSignature(command: DrawTerminalImageCommand): string {
+  const options = getTerminalImageRenderOptions(command);
+
+  if (command.protocolState) {
+    return command.protocolState.getCacheKey(command.source, {
+      protocol: command.protocol,
+      ...options,
+    });
+  }
+
+  return [
+    command.protocol,
+    command.kittyImageId ?? '',
+    command.id ?? '',
+    command.source.hash,
+    options.width,
+    options.height,
+    options.fit,
+    options.threshold ?? '',
+    options.dither ? 1 : 0,
+    options.preserveAspectRatio ? 1 : 0,
+  ].join(':');
+}
+
+function protocolCommandIdentity(command: DrawTerminalImageCommand): string {
+  return command.instanceKey
+    ?? (command.id ? `${command.protocol}:${command.id}` : `${command.protocol}:${protocolCommandPayloadSignature(command)}:${command.x}:${command.y}`);
+}
+
+function protocolCommandSignature(command: DrawTerminalImageCommand): string {
+  return [
+    protocolCommandIdentity(command),
+    command.x,
+    command.y,
+    protocolCommandPayloadSignature(command),
+  ].join(':');
+}
+
+function getTerminalImagePayload(command: DrawTerminalImageCommand): string {
+  const options = getTerminalImageRenderOptions(command);
 
   if (command.protocolState) {
     return command.protocolState.render(command.source, {
@@ -886,6 +910,48 @@ function collectProtocolImageCommands(frame: FrameSnapshot | null): DrawTerminal
   );
 }
 
+function buildKittyCleanupOutput(
+  previousCommands: readonly DrawTerminalImageCommand[],
+  nextCommands: readonly DrawTerminalImageCommand[],
+): string {
+  const nextByIdentity = new Map(
+    nextCommands
+      .filter(command => command.protocol === 'kitty')
+      .map(command => [protocolCommandIdentity(command), command] as const),
+  );
+  const deletedImageIds = new Set<number>();
+  let output = '';
+
+  for (const previousCommand of previousCommands) {
+    if (previousCommand.protocol !== 'kitty') {
+      continue;
+    }
+
+    const nextCommand = nextByIdentity.get(protocolCommandIdentity(previousCommand));
+    const changed = !nextCommand || protocolCommandSignature(previousCommand) !== protocolCommandSignature(nextCommand);
+
+    if (!changed) {
+      continue;
+    }
+
+    if (previousCommand.kittyImageId) {
+      if (deletedImageIds.has(previousCommand.kittyImageId)) {
+        continue;
+      }
+
+      deletedImageIds.add(previousCommand.kittyImageId);
+      output += '\x1b7\x1b[H';
+      output += kittyGraphics.delete(previousCommand.kittyImageId);
+      output += '\x1b8';
+      continue;
+    }
+
+    return `\x1b7\x1b[H${clearImagesForProtocol('kitty')}\x1b8`;
+  }
+
+  return output;
+}
+
 function buildProtocolGraphicsOutput(previousFrame: FrameSnapshot | null, frame: FrameSnapshot): string {
   const previousCommands = collectProtocolImageCommands(previousFrame);
   const nextCommands = collectProtocolImageCommands(frame);
@@ -896,18 +962,15 @@ function buildProtocolGraphicsOutput(previousFrame: FrameSnapshot | null, frame:
     return '';
   }
 
-  let output = '';
-
-  if (previousCommands.length > 0 && previousSignature !== nextSignature) {
-    const previousProtocols = new Set(previousCommands.map(command => command.protocol));
-    if (previousProtocols.has('kitty')) {
-      output += '\x1b7\x1b[H';
-      output += clearImagesForProtocol('kitty');
-      output += '\x1b8';
-    }
-  }
+  let output = buildKittyCleanupOutput(previousCommands, nextCommands);
+  const previousByIdentity = new Map(previousCommands.map(command => [protocolCommandIdentity(command), command] as const));
 
   for (const command of nextCommands) {
+    const previousCommand = previousByIdentity.get(protocolCommandIdentity(command));
+    if (previousCommand && protocolCommandSignature(previousCommand) === protocolCommandSignature(command)) {
+      continue;
+    }
+
     output += `\x1b7\x1b[${command.y + 1};${command.x + 1}H`;
     output += getTerminalImagePayload(command);
     output += '\x1b8';
