@@ -457,7 +457,9 @@ function layoutNode(node: VNode, ctx: RenderContext, parentNode: VNode | null): 
     }
 
     // Update the layout position
-    childLayouts.push(cloneLayoutWith(absLayout, { x: absX, y: absY }));
+    const positionedLayout = cloneLayoutWith(absLayout, { x: absX, y: absY });
+    updateLayoutRef(absChild, positionedLayout);
+    childLayouts.push(positionedLayout);
   }
 
   layout = {
@@ -492,7 +494,15 @@ function layoutRow(
   // First pass: calculate fixed sizes and count flexible children
   let fixedWidth = 0;
   let flexTotal = 0;
-  const childInfos: { node: VNode; flex: number; minWidth: number; marginLeft: number; marginRight: number }[] = [];
+  const childInfos: {
+    node: VNode;
+    flex: number;
+    minWidth: number;
+    marginLeft: number;
+    marginRight: number;
+    layout?: LayoutNode;
+    measuredCtxWidth?: number;
+  }[] = [];
 
   for (const child of children) {
     const style = child.props as BoxStyle;
@@ -509,10 +519,27 @@ function layoutRow(
       fixedWidth += marginLeft + marginRight;
       childInfos.push({ node: child, flex, minWidth, marginLeft, marginRight });
     } else {
-      // Fixed width child - layout to get its natural size
-      const layout = layoutNode(child, { x: 0, y: 0, width, height }, parentNode);
+      const hasReusableExplicitWidth =
+        style.width !== undefined &&
+        style.width !== 'auto' &&
+        style.width !== 'fill';
+      const measuredCtxWidth = hasReusableExplicitWidth
+        ? resolveSize(style.width, width) + marginLeft + marginRight
+        : width;
+      // Fixed width child - layout to get its natural size.
+      // If the child already has an explicit width, this pass uses the final width so
+      // the second pass can reposition it without recomputing the subtree.
+      const layout = layoutNode(child, { x: 0, y: 0, width: measuredCtxWidth, height }, parentNode);
       fixedWidth += layout.width + marginLeft + marginRight;
-      childInfos.push({ node: child, flex: 0, minWidth: layout.width, marginLeft, marginRight });
+      childInfos.push({
+        node: child,
+        flex: 0,
+        minWidth: layout.width,
+        marginLeft,
+        marginRight,
+        layout,
+        measuredCtxWidth,
+      });
     }
   }
 
@@ -556,7 +583,9 @@ function layoutRow(
     const info = childInfos[i];
     const childWidth = info.flex > 0 ? Math.floor(flexUnit * info.flex) : info.minWidth;
     const allocatedWidth = childWidth + info.marginLeft + info.marginRight;
-    const layout = layoutNode(info.node, { x, y: 0, width: allocatedWidth, height }, parentNode);
+    const layout = info.layout && info.measuredCtxWidth === allocatedWidth
+      ? cloneLayoutWith(info.layout, { x: info.layout.x + x })
+      : layoutNode(info.node, { x, y: 0, width: allocatedWidth, height }, parentNode);
 
     const childStyle = info.node.props as BoxStyle;
     rowHeight = Math.max(rowHeight, layout.height);
@@ -600,6 +629,7 @@ function layoutRow(
     }
 
     layout = cloneLayoutWith(layout, { y: nextY, height: nextHeight });
+    updateLayoutRef(layout.node, layout);
     results.push(layout);
   }
 
@@ -697,6 +727,7 @@ function layoutColumn(
         }
 
         layout = cloneLayoutWith(layout, { x: nextX, y, width: nextWidth });
+        updateLayoutRef(layout.node, layout);
         results.push(layout);
 
         y += info.marginTop + layout.height + info.marginBottom;
@@ -733,7 +764,9 @@ function layoutColumn(
       nextWidth = width;
     }
 
-    results.push(cloneLayoutWith(layout, { x: nextX, width: nextWidth }));
+    const alignedLayout = cloneLayoutWith(layout, { x: nextX, width: nextWidth });
+    updateLayoutRef(alignedLayout.node, alignedLayout);
+    results.push(alignedLayout);
 
     // Add child's height plus its marginBottom to position next sibling correctly
     y += marginTop + layout.height + marginBottom;
@@ -764,6 +797,7 @@ function layoutColumn(
         results[i] = cloneLayoutWith(results[i], {
           y: results[i].y + Math.floor(spaceBetween * i),
         });
+        updateLayoutRef(results[i].node, results[i]);
       }
       return results;
     } else if (justifyContent === 'space-around') {
@@ -772,6 +806,7 @@ function layoutColumn(
         results[i] = cloneLayoutWith(results[i], {
           y: results[i].y + Math.floor(spaceAround * (2 * i + 1)),
         });
+        updateLayoutRef(results[i].node, results[i]);
       }
       return results;
     } else if (justifyContent === 'space-evenly') {
@@ -780,6 +815,7 @@ function layoutColumn(
         results[i] = cloneLayoutWith(results[i], {
           y: results[i].y + Math.floor(spaceEvenly * (i + 1)),
         });
+        updateLayoutRef(results[i].node, results[i]);
       }
       return results;
     }
@@ -788,6 +824,7 @@ function layoutColumn(
     if (offset > 0) {
       for (let i = 0; i < results.length; i++) {
         results[i] = cloneLayoutWith(results[i], { y: results[i].y + offset });
+        updateLayoutRef(results[i].node, results[i]);
       }
     }
   }

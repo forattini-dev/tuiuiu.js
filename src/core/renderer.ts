@@ -366,6 +366,11 @@ function writeReservedAware(
   char: string,
   style?: string,
 ): void {
+  if (regions.length === 0) {
+    buffer.write(x, y, char, style);
+    return;
+  }
+
   const width = Math.max(1, stringWidth(char));
   for (let offset = 0; offset < width; offset++) {
     if (isReservedCell(regions, x + offset, y)) {
@@ -385,6 +390,11 @@ function fillReservedAware(
   char: string,
   style?: string,
 ): void {
+  if (regions.length === 0) {
+    buffer.fill(x, y, width, height, char, style);
+    return;
+  }
+
   for (let row = y; row < y + height; row++) {
     for (let col = x; col < x + width; col++) {
       if (!isReservedCell(regions, col, row)) {
@@ -402,6 +412,11 @@ function writeStringReservedAware(
   text: string,
   style?: string,
 ): void {
+  if (regions.length === 0) {
+    buffer.writeString(x, y, text, style);
+    return;
+  }
+
   let col = x;
   let index = 0;
   let currentStyle = style;

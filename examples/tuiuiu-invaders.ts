@@ -1297,6 +1297,24 @@ function statusText(state: GameState): string {
   return 'Arrows/A/D move. Space fires. P pauses. F1 opens help.';
 }
 
+type HudMetrics = {
+  aliveCount: number;
+  threat: number;
+  accuracy: number;
+  formationDelay: number;
+};
+
+function deriveHudMetrics(state: GameState, arena: Arena): HudMetrics {
+  const aliveCount = countAlive(state.invaders);
+
+  return {
+    aliveCount,
+    threat: getThreatLevel(state, arena),
+    accuracy: getAccuracy(state),
+    formationDelay: getFormationStepDelay(state.level, aliveCount, state.invaders.length),
+  };
+}
+
 function Metric(label: string, value: string, color: string): VNode {
   return Box(
     { flexDirection: 'row', gap: 1 },
@@ -1375,8 +1393,8 @@ function getEventIcon(status: EventSeverity): string {
   }
 }
 
-function HeaderBar(state: GameState, arena: Arena, fps: number, fpsColor: string): VNode {
-  const threat = getThreatLevel(state, arena);
+function HeaderBar(state: GameState, arena: Arena, fps: number, fpsColor: string, metrics: HudMetrics): VNode {
+  const { threat } = metrics;
   const saucerLabel = state.saucer.active
     ? 'Saucer live'
     : arena.compact
@@ -1433,15 +1451,15 @@ function HeaderBar(state: GameState, arena: Arena, fps: number, fpsColor: string
   );
 }
 
-function IntelTab(state: GameState, arena: Arena): VNode {
-  const threat = getThreatLevel(state, arena);
-
+function IntelTab(state: GameState, arena: Arena, metrics: HudMetrics): VNode {
+  const { threat, aliveCount, formationDelay } = metrics;
+  const threatHeatmap = buildThreatHeatmap(state, arena);
   return Box(
     { flexDirection: 'column', gap: 1 },
     Box(
       { flexDirection: 'row', gap: 1 },
       Badge({ label: `WAVE ${state.level}`, variant: 'primary', style: 'subtle' }),
-      Badge({ label: `${countAlive(state.invaders)} LEFT`, variant: 'secondary', style: 'subtle' })
+      Badge({ label: `${aliveCount} LEFT`, variant: 'secondary', style: 'subtle' })
     ),
     Digits({
       value: String(state.score).padStart(4, '0'),
@@ -1451,7 +1469,7 @@ function IntelTab(state: GameState, arena: Arena): VNode {
       leadingZeros: true,
     }),
     DataRow({ label: 'Hi score', value: String(state.hiScore).padStart(4, '0'), valueColor: 'whiteBright' }),
-    DataRow({ label: 'Formation', value: `${getFormationStepDelay(state.level, countAlive(state.invaders), state.invaders.length)}t`, valueColor: 'yellow' }),
+    DataRow({ label: 'Formation', value: `${formationDelay}t`, valueColor: 'yellow' }),
     Gauge({
       value: threat,
       max: 100,
@@ -1469,7 +1487,7 @@ function IntelTab(state: GameState, arena: Arena): VNode {
     }),
     Text({ color: 'gray', dim: true }, 'Threat corridor'),
     Heatmap({
-      data: buildThreatHeatmap(state, arena),
+      data: threatHeatmap,
       colorScale: 'heat',
       columnHeaders: ['1', '2', '3', '4', '5', '6', '7', '8'],
       cellWidth: 2,
@@ -1477,10 +1495,9 @@ function IntelTab(state: GameState, arena: Arena): VNode {
   );
 }
 
-function DefenseTab(state: GameState): VNode {
+function DefenseTab(state: GameState, metrics: HudMetrics): VNode {
+  const { accuracy } = metrics;
   const shields = getShieldIntegrity(state);
-  const accuracy = getAccuracy(state);
-
   return Box(
     { flexDirection: 'column', gap: 1 },
     Box(
@@ -1526,7 +1543,7 @@ function DefenseTab(state: GameState): VNode {
   );
 }
 
-function LogTab(state: GameState): VNode {
+function LogTab(state: GameState, metrics: HudMetrics): VNode {
   const events = state.telemetry.eventLog.length > 0
     ? state.telemetry.eventLog
     : [{ title: 'Quiet', detail: 'No combat events recorded yet.', status: 'info' as const }];
@@ -1538,7 +1555,7 @@ function LogTab(state: GameState): VNode {
       Badge({ label: `KILLS ${state.telemetry.invadersDestroyed}`, variant: 'success', style: 'subtle' }),
       Badge({ label: `SAUCERS ${state.telemetry.saucersDestroyed}`, variant: 'warning', style: 'subtle' })
     ),
-    DataRow({ label: 'Accuracy', value: `${getAccuracy(state)}%`, status: getStatusForPercent(getAccuracy(state)) }),
+    DataRow({ label: 'Accuracy', value: `${metrics.accuracy}%`, status: getStatusForPercent(metrics.accuracy) }),
     DataRow({ label: 'Telemetry', value: `${state.telemetry.scoreHistory.length} frames`, valueColor: 'gray' }),
     ...events.map((event, index) =>
       ListItem({
@@ -1555,14 +1572,10 @@ function LogTab(state: GameState): VNode {
 function Sidebar(
   state: GameState,
   arena: Arena,
-  hudTabs: ReturnType<typeof createTabs<HudTabKey>>
+  hudTabs: ReturnType<typeof createTabs<HudTabKey>>,
+  metrics: HudMetrics,
 ): VNode {
-  const threat = getThreatLevel(state, arena);
-  const tabs = [
-    { key: 'intel' as const, label: 'intel', content: IntelTab(state, arena) },
-    { key: 'defense' as const, label: 'defense', content: DefenseTab(state) },
-    { key: 'log' as const, label: 'log', content: LogTab(state) },
-  ];
+  const { threat } = metrics;
 
   return Panel(
     {
@@ -1577,7 +1590,7 @@ function Sidebar(
       Badge({ label: `THREAT ${threat}`, variant: getThreatVariant(threat), style: 'subtle' })
     ),
     Tabs({
-      tabs,
+      tabs: hudTabs.tabs(),
       state: hudTabs,
       isActive: false,
       style: 'pills',
@@ -1589,9 +1602,9 @@ function Sidebar(
   );
 }
 
-function FooterBar(state: GameState, arena: Arena): VNode {
-  const threat = getThreatLevel(state, arena);
-  const compactTelemetry = `W${state.level} | ${countAlive(state.invaders)} left | T${threat} | A${getAccuracy(state)}%`;
+function FooterBar(state: GameState, arena: Arena, metrics: HudMetrics): VNode {
+  const { threat, aliveCount, accuracy } = metrics;
+  const compactTelemetry = `W${state.level} | ${aliveCount} left | T${threat} | A${accuracy}%`;
   const controls = arena.compact
     ? compactTelemetry
     : 'Arrows/A/D move | Space fire | Tab panels | P pause | F1 help | Q quit';
@@ -1985,9 +1998,33 @@ function TuiuiuInvaders(): VNode {
   const [helpOpen, setHelpOpen] = useState(false);
   const hudTabs = useConst(() => createTabs<HudTabKey>({
     tabs: [
-      { key: 'intel', label: 'intel', content: Text({}, '') },
-      { key: 'defense', label: 'defense', content: Text({}, '') },
-      { key: 'log', label: 'log', content: Text({}, '') },
+      {
+        key: 'intel',
+        label: 'intel',
+        content: () => {
+          const currentState = game();
+          const currentArena = getArena(terminal.columns, terminal.rows);
+          return IntelTab(currentState, currentArena, deriveHudMetrics(currentState, currentArena));
+        },
+      },
+      {
+        key: 'defense',
+        label: 'defense',
+        content: () => {
+          const currentState = game();
+          const currentArena = getArena(terminal.columns, terminal.rows);
+          return DefenseTab(currentState, deriveHudMetrics(currentState, currentArena));
+        },
+      },
+      {
+        key: 'log',
+        label: 'log',
+        content: () => {
+          const currentState = game();
+          const currentArena = getArena(terminal.columns, terminal.rows);
+          return LogTab(currentState, deriveHudMetrics(currentState, currentArena));
+        },
+      },
     ],
     initialTab: 'intel',
   }));
@@ -1999,6 +2036,7 @@ function TuiuiuInvaders(): VNode {
   const currentScreen = screen();
   const state = game();
   const isHelpOpen = helpOpen();
+  const hudMetrics = deriveHudMetrics(state, arena);
 
   function startGame(): void {
     setHelpOpen(false);
@@ -2182,7 +2220,7 @@ function TuiuiuInvaders(): VNode {
       width: 'fill',
       position: 'relative',
     },
-    HeaderBar(state, arena, fps, fpsColor),
+    HeaderBar(state, arena, fps, fpsColor, hudMetrics),
     Box(
       {
         flexDirection: arena.compact ? 'column' : 'row',
@@ -2205,9 +2243,9 @@ function TuiuiuInvaders(): VNode {
           ...boardLines.map((line) => Text({}, line))
         )
       ),
-      arena.compact ? null : Sidebar(state, arena, hudTabs)
+      arena.compact ? null : Sidebar(state, arena, hudTabs, hudMetrics)
     ),
-    FooterBar(state, arena),
+    FooterBar(state, arena, hudMetrics),
     overlay
   );
 }
@@ -2222,6 +2260,10 @@ function isMainModule(): boolean {
 }
 
 if (isMainModule()) {
-  const { waitUntilExit } = render(TuiuiuInvaders, { fullHeight: true, autoTabNavigation: false });
+  const { waitUntilExit } = render(TuiuiuInvaders, {
+    fullHeight: true,
+    autoTabNavigation: false,
+    maxFps: 40,
+  });
   await waitUntilExit();
 }

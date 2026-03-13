@@ -321,6 +321,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let pendingRender = false;
   let scheduledRender = false;
   let renderTimer: ReturnType<typeof setTimeout> | null = null;
+  let renderMicrotaskQueued = false;
   let scheduledRenderCallback: (() => void) | null = null;
   let fixedStepTimer: ReturnType<typeof setTimeout> | null = null;
   let fixedStepAccumulatorMs = 0;
@@ -384,21 +385,34 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     const now = Date.now();
     const elapsed = now - lastRenderTime;
-    const delay = lastRenderTime === 0 || elapsed >= minRenderInterval ? 0 : minRenderInterval - elapsed;
+    const delay =
+      lastRenderTime === 0 || elapsed >= minRenderInterval
+        ? 0
+        : minRenderInterval - elapsed;
 
-    scheduledRender = true;
-    pendingRender = delay > 0;
-    renderTimer = setTimeout(() => {
+    const flushScheduledRender = () => {
       const flush = scheduledRenderCallback;
       scheduledRenderCallback = null;
       scheduledRender = false;
+      renderMicrotaskQueued = false;
       pendingRender = false;
       renderTimer = null;
 
       if (!isUnmounted) {
         flush?.();
       }
-    }, delay);
+    };
+
+    scheduledRender = true;
+    pendingRender = delay > 0;
+
+    if (delay === 0) {
+      renderMicrotaskQueued = true;
+      queueMicrotask(flushScheduledRender);
+      return;
+    }
+
+    renderTimer = setTimeout(flushScheduledRender, delay);
   }
 
   function scheduleFixedStepLoop(): void {
@@ -644,6 +658,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     outputBackpressured = false;
     scheduledRenderCallback = null;
     scheduledRender = false;
+    renderMicrotaskQueued = false;
     pendingRender = false;
 
     // Disable mouse tracking if enabled
@@ -738,6 +753,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         }
         scheduledRenderCallback = null;
         scheduledRender = false;
+        renderMicrotaskQueued = false;
         pendingRender = false;
         logUpdate.clear();
         writeOutput(ansi.clearTerminal);

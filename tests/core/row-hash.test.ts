@@ -50,4 +50,22 @@ describe('Row-aware diff shortcuts', () => {
     expect(patches[0]?.x).toBe(2);
     expect(patches[0]?.cell.char).toBe('X');
   });
+
+  it('keeps diffRects patch order row-major when tall rects overlap later rect origins', () => {
+    const current = new CellBuffer(40, 4);
+    const next = new CellBuffer(40, 4);
+
+    next.set(10, 2, createCell('A'));
+    next.set(20, 1, createCell('B'));
+
+    const patches = current.diffRects(next, [
+      { x: 10, y: 0, width: 1, height: 3 },
+      { x: 20, y: 1, width: 1, height: 1 },
+    ]);
+
+    expect(patches.map((patch) => ({ x: patch.x, y: patch.y, char: patch.cell.char }))).toEqual([
+      { x: 20, y: 1, char: 'B' },
+      { x: 10, y: 2, char: 'A' },
+    ]);
+  });
 });

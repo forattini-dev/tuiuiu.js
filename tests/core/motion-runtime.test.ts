@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   configureMotionRuntime,
   getMotionRuntimeState,
+  reportMotionBudgetResult,
   reportMotionFrameCost,
   requestMotionFrame,
   resetMotionRuntime,
@@ -53,6 +54,29 @@ describe('motion-runtime', () => {
       reportMotionFrameCost(8);
     }
     expect(getMotionRuntimeState().qualityTier).toBe('full');
+  });
+
+  it('elevates and recovers presentation pressure from budget results', () => {
+    expect(getMotionRuntimeState().presentationPressure).toBe('normal');
+    expect(getMotionRuntimeState().recommendedPresentationIntervalMs).toBe(0);
+
+    reportMotionBudgetResult({ totalMs: 8, phaseOverrunCount: 1 });
+    expect(getMotionRuntimeState().presentationPressure).toBe('elevated');
+    expect(getMotionRuntimeState().recommendedPresentationIntervalMs).toBeCloseTo(16.67, 2);
+
+    reportMotionBudgetResult({ totalMs: 40, overBudget: true });
+    expect(getMotionRuntimeState().presentationPressure).toBe('critical');
+
+    for (let index = 0; index < 5; index++) {
+      reportMotionBudgetResult({ totalMs: 8 });
+    }
+    expect(getMotionRuntimeState().presentationPressure).toBe('elevated');
+
+    for (let index = 0; index < 5; index++) {
+      reportMotionBudgetResult({ totalMs: 8 });
+    }
+    expect(getMotionRuntimeState().presentationPressure).toBe('normal');
+    expect(getMotionRuntimeState().recommendedPresentationIntervalMs).toBe(0);
   });
 
   it('pauses interval subscriptions that opt out while unfocused', () => {

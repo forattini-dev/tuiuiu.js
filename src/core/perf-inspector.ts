@@ -1,7 +1,9 @@
 import type { FramePhaseMetrics, FrameSnapshot, FrameStructuralMetrics } from './frame.js';
-import { reportMotionFrameCost } from './motion-runtime.js';
+import { reportMotionBudgetResult } from './motion-runtime.js';
 
 export type PerfRendererKind = 'ansi' | 'delta';
+export type PerfPhaseBudgetKey = keyof FramePhaseMetrics;
+export type PerfPhaseBudgetMap = Partial<Record<PerfPhaseBudgetKey, number>>;
 
 export interface PerfFrameRecord {
   frameId: number;
@@ -9,6 +11,8 @@ export interface PerfFrameRecord {
   renderer: PerfRendererKind;
   totalMs: number;
   budgetOverrunMs: number;
+  phaseBudgetOverruns: PerfPhaseBudgetMap;
+  overBudgetPhaseCount: number;
   slow: boolean;
   phases: FramePhaseMetrics;
   structural: FrameStructuralMetrics;
@@ -17,6 +21,7 @@ export interface PerfFrameRecord {
 export interface PerfBudgetConfig {
   frameMs: number;
   slowFrameMs: number;
+  phases?: PerfPhaseBudgetMap;
 }
 
 export interface PerfInspectorConfig {
@@ -29,6 +34,7 @@ export interface PerfInspectorSummary {
   frameCount: number;
   slowFrameCount: number;
   overBudgetCount: number;
+  overBudgetPhaseCounts: Partial<Record<PerfPhaseBudgetKey, number>>;
   averageFrameMs: number;
   minFrameMs: number;
   maxFrameMs: number;
@@ -49,6 +55,7 @@ const DEFAULT_PERF_CONFIG: PerfInspectorConfig = {
   budget: {
     frameMs: 16.67,
     slowFrameMs: 33.34,
+    phases: {},
   },
 };
 
@@ -129,6 +136,9 @@ export function configurePerfInspector(options: Partial<PerfInspectorConfig>): v
     budget: {
       frameMs: options.budget?.frameMs ?? config.budget.frameMs,
       slowFrameMs: options.budget?.slowFrameMs ?? config.budget.slowFrameMs,
+      phases: options.budget?.phases
+        ? { ...options.budget.phases }
+        : { ...config.budget.phases },
     },
   };
 
@@ -141,7 +151,11 @@ export function getPerfInspectorConfig(): Readonly<PerfInspectorConfig> {
   return {
     enabled: config.enabled,
     maxFrames: config.maxFrames,
-    budget: { ...config.budget },
+    budget: {
+      frameMs: config.budget.frameMs,
+      slowFrameMs: config.budget.slowFrameMs,
+      phases: { ...config.budget.phases },
+    },
   };
 }
 
@@ -156,7 +170,11 @@ export function resetPerfInspector(): void {
   config = {
     enabled: DEFAULT_PERF_CONFIG.enabled,
     maxFrames: DEFAULT_PERF_CONFIG.maxFrames,
-    budget: { ...DEFAULT_PERF_CONFIG.budget },
+    budget: {
+      frameMs: DEFAULT_PERF_CONFIG.budget.frameMs,
+      slowFrameMs: DEFAULT_PERF_CONFIG.budget.slowFrameMs,
+      phases: {},
+    },
   };
   ring = new Array(config.maxFrames);
   start = 0;
@@ -164,17 +182,49 @@ export function resetPerfInspector(): void {
   slowFrameListeners.clear();
 }
 
+function getPhaseBudgetOverruns(
+  phases: FramePhaseMetrics,
+  budgets: PerfPhaseBudgetMap | undefined,
+): PerfPhaseBudgetMap {
+  const overruns: PerfPhaseBudgetMap = {};
+  if (!budgets) {
+    return overruns;
+  }
+
+  for (const [phase, budget] of Object.entries(budgets) as Array<[PerfPhaseBudgetKey, number]>) {
+    if (!Number.isFinite(budget) || budget < 0) {
+      continue;
+    }
+
+    const actual = phases[phase];
+    if (typeof actual !== 'number') {
+      continue;
+    }
+
+    const overrun = actual - budget;
+    if (overrun > 0) {
+      overruns[phase] = overrun;
+    }
+  }
+
+  return overruns;
+}
+
 export function recordCommittedFrame(
   frame: FrameSnapshot,
   options: RecordPerfFrameOptions = {},
 ): PerfFrameRecord | null {
-  if (!config.enabled) {
-    return null;
-  }
-
   const totalMs = getFrameTotalMs(frame);
   const budgetOverrunMs = Math.max(0, totalMs - config.budget.frameMs);
+  const phaseBudgetOverruns = getPhaseBudgetOverruns(frame.metrics.phases, config.budget.phases);
+  const overBudgetPhaseCount = Object.keys(phaseBudgetOverruns).length;
   const slow = totalMs >= config.budget.slowFrameMs;
+  reportMotionBudgetResult({
+    totalMs,
+    overBudget: budgetOverrunMs > 0,
+    phaseOverrunCount: overBudgetPhaseCount,
+  });
+
   const record: PerfFrameRecord = {
     frameId: frame.info.frameId,
     committedAt: frame.info.committedAt,
@@ -183,13 +233,18 @@ export function recordCommittedFrame(
       (frame.metrics.phases.deltaRenderMs !== undefined ? 'delta' : 'ansi'),
     totalMs,
     budgetOverrunMs,
+    phaseBudgetOverruns,
+    overBudgetPhaseCount,
     slow,
     phases: { ...frame.metrics.phases },
     structural: { ...frame.metrics.structural },
   };
 
+  if (!config.enabled) {
+    return null;
+  }
+
   pushFrame(record);
-  reportMotionFrameCost(totalMs);
 
   if (slow) {
     for (const listener of slowFrameListeners) {
@@ -220,11 +275,16 @@ export function getPerfInspectorSummary(): PerfInspectorSummary {
   const patchCounts = frames.map((frame) => frame.structural.patchCount);
   const slowFrameCount = frames.filter((frame) => frame.slow).length;
   const overBudgetCount = frames.filter((frame) => frame.budgetOverrunMs > 0).length;
+  const overBudgetPhaseCounts: Partial<Record<PerfPhaseBudgetKey, number>> = {};
   const phaseKeys = new Set<keyof FramePhaseMetrics>();
 
   for (const frame of frames) {
     for (const key of Object.keys(frame.phases) as Array<keyof FramePhaseMetrics>) {
       phaseKeys.add(key);
+    }
+
+    for (const key of Object.keys(frame.phaseBudgetOverruns) as PerfPhaseBudgetKey[]) {
+      overBudgetPhaseCounts[key] = (overBudgetPhaseCounts[key] ?? 0) + 1;
     }
   }
 
@@ -243,6 +303,7 @@ export function getPerfInspectorSummary(): PerfInspectorSummary {
     frameCount: frames.length,
     slowFrameCount,
     overBudgetCount,
+    overBudgetPhaseCounts,
     averageFrameMs: getAverage(durations),
     minFrameMs: durations.length > 0 ? Math.min(...durations) : 0,
     maxFrameMs: durations.length > 0 ? Math.max(...durations) : 0,

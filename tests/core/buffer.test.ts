@@ -340,6 +340,20 @@ describe('CellBuffer', () => {
       const patches = buffer.diff(buffer2);
       expect(patches).toHaveLength(3);
     });
+
+    it('returns snapshot cells instead of aliasing the target buffer', () => {
+      const buffer2 = new CellBuffer(10, 5);
+      buffer2.set(0, 0, createCell('X', 'green'));
+
+      const patches = buffer.diff(buffer2);
+      buffer2.set(0, 0, createCell('Y', 'red'));
+
+      expect(patches[0]).toEqual({
+        x: 0,
+        y: 0,
+        cell: { char: 'X', fg: 'green', bg: undefined, attrs: {}, isWide: undefined },
+      });
+    });
   });
 
   describe('applyPatches', () => {
@@ -353,6 +367,24 @@ describe('CellBuffer', () => {
       expect(buffer.get(0, 0)?.char).toBe('A');
       expect(buffer.get(0, 0)?.fg).toBe('red');
       expect(buffer.get(1, 0)?.char).toBe('B');
+    });
+
+    it('should clone patch cells so later patch mutation does not affect the buffer', () => {
+      const patches = [
+        { x: 0, y: 0, cell: createCell('A', 'red') },
+      ];
+
+      buffer.applyPatches(patches);
+      patches[0]!.cell.char = 'Z';
+      patches[0]!.cell.fg = 'blue';
+
+      expect(buffer.get(0, 0)).toEqual({
+        char: 'A',
+        fg: 'red',
+        bg: undefined,
+        attrs: {},
+        isWide: undefined,
+      });
     });
   });
 

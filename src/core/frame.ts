@@ -19,6 +19,7 @@ import {
   type BoundCompositorMetadata,
   type CompositorBindingMetadata,
 } from './compositor.js';
+import { getMotionRuntimeState } from './motion-runtime.js';
 import {
   canReuseSubtree,
   getDirtyDiagnostics,
@@ -248,6 +249,26 @@ export interface FrameSnapshot {
 
 let nextFrameId = 1;
 let committedFrameSnapshot: FrameSnapshot | null = null;
+const DRAW_FINGERPRINT_IGNORE_KEYS = new Set(['__terminalImage', '__compositor']);
+const BOX_DRAW_KEYS = new Set([
+  'id',
+  'backgroundColor',
+  'borderStyle',
+  'borderColor',
+]);
+const TEXT_DRAW_KEYS = new Set([
+  'id',
+  'children',
+  'color',
+  'backgroundColor',
+  'bold',
+  'dim',
+  'italic',
+  'underline',
+  'strikethrough',
+  'inverse',
+  'wrap',
+]);
 
 const DEFAULT_FRAME_SNAPSHOT_OPTIONS: Required<FrameSnapshotOptions> = {
   eagerHitTargets: true,
@@ -287,8 +308,17 @@ interface DrawCommandCacheEntry {
   fingerprint: string;
   childRefs: VNode[];
   commands: CachedDrawCommand[];
+  hasCompositor: boolean;
   materialized?: DrawCommand[];
-  materializedFingerprint?: string;
+  subtreeSignature: string;
+  materializedSignature?: string;
+}
+
+interface StructuralDrawCommandCacheEntry {
+  commands: CachedDrawCommand[];
+  hasCompositor: boolean;
+  materialized?: DrawCommand[];
+  materializedSignature?: string;
 }
 
 interface TerminalImageNodeMetadata {
@@ -300,6 +330,8 @@ interface TerminalImageNodeMetadata {
 interface CompositorNodeMetadata extends CompositorBindingMetadata {}
 
 let drawCommandCache = new WeakMap<LayoutNode, DrawCommandCacheEntry>();
+let structuralDrawCommandCache = new Map<string, StructuralDrawCommandCacheEntry>();
+const STRUCTURAL_DRAW_COMMAND_CACHE_MAX = 4096;
 
 function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -327,6 +359,7 @@ function resolveFrameSnapshotOptions(
 
 function clearDrawCommandCache(): void {
   drawCommandCache = new WeakMap<LayoutNode, DrawCommandCacheEntry>();
+  structuralDrawCommandCache = new Map<string, StructuralDrawCommandCacheEntry>();
 }
 
 function buildElementQueryIndex(layout: LayoutNode): ElementQueryIndex {
@@ -637,51 +670,49 @@ function createDrawCommandCacheKey(
   offsetX: number,
   offsetY: number,
   parentBackgroundColor?: string,
+  activeCompositorKeys: readonly string[] = [],
 ): string {
-  return `${offsetX}:${offsetY}:${parentBackgroundColor ?? ''}`;
+  const compositorKeySignature = activeCompositorKeys.length > 0
+    ? fingerprintValue(activeCompositorKeys)
+    : '';
+  return `${offsetX}:${offsetY}:${parentBackgroundColor ?? ''}:${compositorKeySignature}`;
 }
 
 function createDrawCommandFingerprint(
   node: VNode,
   imageCommand: CachedDrawTerminalImageCommand | null,
 ): string {
+  const sourceKeys = node.type === 'text' ? TEXT_DRAW_KEYS : BOX_DRAW_KEYS;
   const rawProps = node.props as Record<string, unknown> | undefined;
-  const props = rawProps ? { ...rawProps } : undefined;
-  if (props && '__terminalImage' in props) {
-    delete props.__terminalImage;
-  }
-  if (props && '__compositor' in props) {
-    delete props.__compositor;
-  }
-  const childRefs = node.children.map((child) => {
-    if (typeof child === 'string' || typeof child === 'number') {
-      return child;
+  const filteredProps: Record<string, unknown> = {};
+
+  if (rawProps) {
+    for (const key of sourceKeys) {
+      if (key in rawProps) {
+        filteredProps[key] = rawProps[key];
+      }
     }
-    if (child && typeof child === 'object' && 'type' in child) {
-      return {
-        type: (child as VNode).type,
-        key: (child as VNode).props?.key,
-      };
-    }
-    return null;
-  });
+  }
 
   return fingerprintValue({
     type: node.type,
-    props,
-    childRefs,
+    props: filteredProps,
     image: imageCommand
       ? {
           protocol: imageCommand.protocol,
           hash: imageCommand.source.hash,
           width: imageCommand.width,
           height: imageCommand.height,
+          instanceKey: imageCommand.instanceKey,
+          kittyImageId: imageCommand.kittyImageId,
           fit: imageCommand.fit,
           threshold: imageCommand.threshold,
           dither: imageCommand.dither,
           preserveAspectRatio: imageCommand.preserveAspectRatio,
         }
       : null,
+  }, {
+    ignoreKeys: DRAW_FINGERPRINT_IGNORE_KEYS,
   });
 }
 
@@ -700,60 +731,66 @@ function getCurrentDrawCommandFingerprint(layout: LayoutNode): string {
   return createDrawCommandFingerprint(layout.node, imageCommand);
 }
 
-function createMaterializedDrawFingerprint(layout: LayoutNode): string {
-  const baseFingerprint = getCurrentDrawCommandFingerprint(layout);
-  const compositor = getCompositorNodeMetadata(layout.node);
-
-  return fingerprintValue({
+function composeSubtreeSignature(
+  current: LayoutNode,
+  cacheKey: string,
+  baseFingerprint: string,
+  compositor: CompositorNodeMetadata | null,
+  compositorKeys: readonly string[],
+  childSignatures: readonly string[],
+): string {
+  return fingerprintValue([
+    cacheKey,
     baseFingerprint,
-    compositor: fingerprintCompositorBinding(compositor),
-    children: layout.children.map((child) => createMaterializedDrawFingerprint(child)),
-  });
+    fingerprintCompositorBinding(compositor) ?? '',
+    compositorKeys.length,
+    ...compositorKeys,
+    current.x,
+    current.y,
+    current.width,
+    current.height,
+    childSignatures.length,
+    ...childSignatures,
+  ]);
 }
 
 function getCachedDrawCommandEntry(
   layout: LayoutNode,
   cacheKey: string,
-  fingerprint: string,
+  getFingerprint: () => string,
 ): DrawCommandCacheEntry | undefined {
   if (!canReuseSubtree(layout.node)) {
-    noteDirtyFresh('draw');
     return undefined;
   }
 
   const cached = drawCommandCache.get(layout);
   if (!cached) {
-    noteDirtyFresh('draw');
     return undefined;
   }
 
   if (cached.cacheKey !== cacheKey) {
     markDirty(layout.node, DirtyFlags.LAYOUT);
-    noteDirtyFresh('draw');
     return undefined;
   }
 
+  const fingerprint = getFingerprint();
   if (cached.fingerprint !== fingerprint) {
     markDirty(layout.node, DirtyFlags.CONTENT | DirtyFlags.STYLE);
-    noteDirtyFresh('draw');
     return undefined;
   }
 
   if (cached.childRefs.length !== layout.node.children.length) {
     markDirty(layout.node, DirtyFlags.CHILDREN);
-    noteDirtyFresh('draw');
     return undefined;
   }
 
   for (let index = 0; index < cached.childRefs.length; index++) {
     if (cached.childRefs[index] !== layout.node.children[index]) {
       markDirty(layout.node, DirtyFlags.CHILDREN);
-      noteDirtyFresh('draw');
       return undefined;
     }
   }
 
-  noteDirtyReuse('draw');
   return cached;
 }
 
@@ -762,12 +799,16 @@ function setCachedDrawCommandEntry(
   cacheKey: string,
   fingerprint: string,
   commands: CachedDrawCommand[],
+  hasCompositor: boolean,
+  subtreeSignature: string,
 ): DrawCommandCacheEntry {
   const entry: DrawCommandCacheEntry = {
     cacheKey,
     fingerprint,
     childRefs: [...layout.node.children],
     commands,
+    hasCompositor,
+    subtreeSignature,
   };
   drawCommandCache.set(layout, entry);
   return entry;
@@ -777,6 +818,69 @@ function materializeDrawCommands(commands: CachedDrawCommand[]): DrawCommand[] {
   return commands.map((command, order) => ({ ...command, order })) as DrawCommand[];
 }
 
+function getMaterializedDrawCommandSignature(
+  subtreeSignature: string,
+  hasCompositor: boolean,
+): string {
+  if (!hasCompositor) {
+    return subtreeSignature;
+  }
+
+  return `${subtreeSignature}|motion:${getMotionRuntimeState().qualityTier}`;
+}
+
+function evictStructuralDrawCommandCacheEntries(): void {
+  const toRemove = Math.max(1, Math.ceil(STRUCTURAL_DRAW_COMMAND_CACHE_MAX * 0.1));
+  const keys = structuralDrawCommandCache.keys();
+
+  for (let index = 0; index < toRemove; index++) {
+    const next = keys.next();
+    if (next.done) {
+      break;
+    }
+    structuralDrawCommandCache.delete(next.value);
+  }
+}
+
+function getStructuralDrawCommandEntry(signature: string): StructuralDrawCommandCacheEntry | undefined {
+  return structuralDrawCommandCache.get(signature);
+}
+
+function setStructuralDrawCommandEntry(
+  signature: string,
+  commands: CachedDrawCommand[],
+  hasCompositor: boolean,
+): StructuralDrawCommandCacheEntry {
+  const existing = structuralDrawCommandCache.get(signature);
+  const entry: StructuralDrawCommandCacheEntry = {
+    commands,
+    hasCompositor,
+    materialized: existing?.materialized,
+    materializedSignature: existing?.materializedSignature,
+  };
+
+  if (!structuralDrawCommandCache.has(signature) && structuralDrawCommandCache.size >= STRUCTURAL_DRAW_COMMAND_CACHE_MAX) {
+    evictStructuralDrawCommandCacheEntries();
+  }
+
+  structuralDrawCommandCache.set(signature, entry);
+  return entry;
+}
+
+function cacheMaterializedStructuralDrawCommands(
+  signature: string,
+  materialized: DrawCommand[],
+  materializedSignature: string,
+): void {
+  const entry = structuralDrawCommandCache.get(signature);
+  if (!entry) {
+    return;
+  }
+
+  entry.materialized = materialized;
+  entry.materializedSignature = materializedSignature;
+}
+
 function appendCachedDrawCommands(
   target: CachedDrawCommand[],
   source: readonly CachedDrawCommand[],
@@ -784,6 +888,12 @@ function appendCachedDrawCommands(
   for (const command of source) {
     target.push(command);
   }
+}
+
+interface CachedDrawCommandBuildResult {
+  commands: CachedDrawCommand[];
+  hasCompositor: boolean;
+  subtreeSignature: string;
 }
 
 function isTerminalImageSourceLike(value: ImageData | TerminalImageSource): value is TerminalImageSource {
@@ -919,7 +1029,7 @@ function buildCachedDrawCommands(
   offsetY = 0,
   parentBackgroundColor?: string,
   activeCompositorKeys: readonly string[] = [],
-): CachedDrawCommand[] {
+): CachedDrawCommandBuildResult {
   const { node, x, y, width, height, children } = current;
   const absX = offsetX + x;
   const absY = offsetY + y;
@@ -932,23 +1042,93 @@ function buildCachedDrawCommands(
   const compositorKeys = compositor
     ? [...activeCompositorKeys, compositor.key]
     : [...activeCompositorKeys];
+  let hasCompositor = compositor !== null;
   const imageCommand = createTerminalImageCommand(current, absX, absY, width, height, props);
   const imageCacheKey =
     imageCommand
       ? `:${imageCommand.protocol}:${imageCommand.source.hash}:${imageCommand.width}x${imageCommand.height}:${imageCommand.fit}:${imageCommand.threshold ?? ''}:${imageCommand.dither ? 1 : 0}:${imageCommand.preserveAspectRatio ? 1 : 0}`
       : '';
-  const cacheKey = createDrawCommandCacheKey(offsetX, offsetY, parentBackgroundColor) + imageCacheKey;
-  const fingerprint = createDrawCommandFingerprint(node, imageCommand);
-  const cached = getCachedDrawCommandEntry(current, cacheKey, fingerprint);
+  const cacheKey = createDrawCommandCacheKey(offsetX, offsetY, parentBackgroundColor, compositorKeys) + imageCacheKey;
+  let fingerprint: string | undefined;
+  const getFingerprint = () => {
+    if (fingerprint === undefined) {
+      fingerprint = createDrawCommandFingerprint(node, imageCommand);
+    }
+    return fingerprint;
+  };
+  const cached = getCachedDrawCommandEntry(current, cacheKey, getFingerprint);
   if (cached) {
-    return cached.commands;
+    noteDirtyReuse('draw');
+    return {
+      commands: cached.commands,
+      hasCompositor: cached.hasCompositor,
+      subtreeSignature: cached.subtreeSignature,
+    };
   }
 
-  const commands: CachedDrawCommand[] = [];
+  const resolvedFingerprint = getFingerprint();
   const id = typeof props.id === 'string' ? props.id : undefined;
   const backgroundColor =
     typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined;
+  const childResults: CachedDrawCommandBuildResult[] = [];
+  const childSignatures: string[] = [];
+  const paddingTop = props.paddingTop ?? props.paddingY ?? props.padding ?? 0;
+  const paddingLeft = props.paddingLeft ?? props.paddingX ?? props.padding ?? 0;
+  const borderSize = props.borderStyle && props.borderStyle !== 'none' ? 1 : 0;
+  const contentOffsetX = absX + paddingLeft + borderSize;
+  const contentOffsetY = absY + paddingTop + borderSize;
+  const nextBackgroundColor = backgroundColor ?? parentBackgroundColor;
 
+  for (const child of children) {
+    const childResult = buildCachedDrawCommands(
+      child,
+      contentOffsetX,
+      contentOffsetY,
+      nextBackgroundColor,
+      compositorKeys,
+    );
+    childResults.push(childResult);
+    hasCompositor ||= childResult.hasCompositor;
+    childSignatures.push(childResult.subtreeSignature);
+  }
+
+  const subtreeSignature = composeSubtreeSignature(
+    current,
+    cacheKey,
+    resolvedFingerprint,
+    compositor,
+    compositorKeys,
+    childSignatures,
+  );
+  const structuralCached = getStructuralDrawCommandEntry(subtreeSignature);
+  if (structuralCached) {
+    noteDirtyReuse('draw');
+    const entry = setCachedDrawCommandEntry(
+      current,
+      cacheKey,
+      resolvedFingerprint,
+      structuralCached.commands,
+      structuralCached.hasCompositor,
+      subtreeSignature,
+    );
+
+    const materializedSignature = getMaterializedDrawCommandSignature(
+      subtreeSignature,
+      structuralCached.hasCompositor,
+    );
+    if (structuralCached.materialized && structuralCached.materializedSignature === materializedSignature) {
+      entry.materialized = structuralCached.materialized;
+      entry.materializedSignature = materializedSignature;
+    }
+
+    return {
+      commands: entry.commands,
+      hasCompositor: entry.hasCompositor,
+      subtreeSignature,
+    };
+  }
+
+  const commands: CachedDrawCommand[] = [];
   if (node.type === 'box' && (backgroundColor || (props.borderStyle && props.borderStyle !== 'none'))) {
     commands.push({
       type: 'box',
@@ -995,46 +1175,62 @@ function buildCachedDrawCommands(
     });
   }
 
-  const paddingTop = props.paddingTop ?? props.paddingY ?? props.padding ?? 0;
-  const paddingLeft = props.paddingLeft ?? props.paddingX ?? props.padding ?? 0;
-  const borderSize = props.borderStyle && props.borderStyle !== 'none' ? 1 : 0;
-  const contentOffsetX = absX + paddingLeft + borderSize;
-  const contentOffsetY = absY + paddingTop + borderSize;
-  const nextBackgroundColor = backgroundColor ?? parentBackgroundColor;
-
-  for (const child of children) {
-    appendCachedDrawCommands(
-      commands,
-      buildCachedDrawCommands(child, contentOffsetX, contentOffsetY, nextBackgroundColor, compositorKeys),
-    );
+  for (const childResult of childResults) {
+    appendCachedDrawCommands(commands, childResult.commands);
   }
 
-  return setCachedDrawCommandEntry(current, cacheKey, fingerprint, commands).commands;
+  noteDirtyFresh('draw');
+  const entry = setCachedDrawCommandEntry(
+    current,
+    cacheKey,
+    resolvedFingerprint,
+    commands,
+    hasCompositor,
+    subtreeSignature,
+  );
+  setStructuralDrawCommandEntry(subtreeSignature, entry.commands, hasCompositor);
+
+  return {
+    commands: entry.commands,
+    hasCompositor,
+    subtreeSignature,
+  };
 }
 
 function buildDrawCommands(layout: LayoutNode): DrawCommand[] {
+  const cachedCommands = buildCachedDrawCommands(layout);
   const cached = drawCommandCache.get(layout);
-  const materializedFingerprint = createMaterializedDrawFingerprint(layout);
+  const materializedSignature = getMaterializedDrawCommandSignature(
+    cachedCommands.subtreeSignature,
+    cachedCommands.hasCompositor,
+  );
 
   if (cached?.materialized) {
-    if (materializedFingerprint === cached.materializedFingerprint) {
+    if (materializedSignature === cached.materializedSignature) {
       return cached.materialized;
     }
     cached.materialized = undefined;
-    cached.materializedFingerprint = undefined;
+    cached.materializedSignature = undefined;
   }
 
-  const cachedCommands = buildCachedDrawCommands(layout);
-  const materialized = applyCompositor(
-    materializeDrawCommands(cachedCommands),
-    collectCompositorBindings(layout),
-  );
+  const materializedCommands = materializeDrawCommands(cachedCommands.commands);
+  const materialized = cachedCommands.hasCompositor
+    ? applyCompositor(
+      materializedCommands,
+      collectCompositorBindings(layout),
+    )
+    : materializedCommands;
   const entry = drawCommandCache.get(layout);
 
   if (entry) {
     entry.materialized = materialized;
-    entry.materializedFingerprint = materializedFingerprint;
+    entry.materializedSignature = materializedSignature;
   }
+  cacheMaterializedStructuralDrawCommands(
+    cachedCommands.subtreeSignature,
+    materialized,
+    materializedSignature,
+  );
 
   return materialized;
 }

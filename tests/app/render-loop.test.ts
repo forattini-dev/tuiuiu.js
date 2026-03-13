@@ -15,7 +15,7 @@ import {
 } from '../../src/hooks/context.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
 import { clearCommittedFrameSnapshot, getCommittedFrameSnapshot } from '../../src/core/frame.js';
-import { getMotionRuntimeState, resetMotionRuntime } from '../../src/core/motion-runtime.js';
+import { getMotionRuntimeState, reportMotionBudgetResult, resetMotionRuntime } from '../../src/core/motion-runtime.js';
 import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/terminal-focus.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 
@@ -270,7 +270,7 @@ describe('render-loop', () => {
       instance.unmount();
     });
 
-    it('coalesces synchronous updates into one evaluation and paint when maxFps is uncapped', () => {
+    it('coalesces synchronous updates into one evaluation and paint when maxFps is uncapped', async () => {
       const [count, setCount] = createSignal(0);
       let renderCount = 0;
 
@@ -300,7 +300,7 @@ describe('render-loop', () => {
       expect(renderCount).toBe(1);
       expect(stdout.write).toHaveBeenCalledTimes(1);
 
-      vi.advanceTimersByTime(0);
+      await Promise.resolve();
 
       expect(renderCount).toBe(2);
       expect(stdout.write).toHaveBeenCalledTimes(2);
@@ -309,7 +309,75 @@ describe('render-loop', () => {
       instance.unmount();
     });
 
-    it('waits for drain and keeps only the latest pending frame under output backpressure', () => {
+    it('does not add extra render-loop delay when adaptive pressure is elevated', async () => {
+      const [count, setCount] = createSignal(0);
+      let renderCount = 0;
+
+      const instance = render(
+        () => {
+          renderCount++;
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      expect(renderCount).toBe(1);
+
+      reportMotionBudgetResult({ totalMs: 8, phaseOverrunCount: 1 });
+      expect(getMotionRuntimeState().presentationPressure).toBe('elevated');
+
+      setCount(1);
+      await Promise.resolve();
+
+      expect(renderCount).toBe(2);
+      expect(stdout.output).toContain('Count: 1');
+
+      instance.unmount();
+    });
+
+    it('does not compound maxFps throttling when adaptive pressure is elevated', () => {
+      const [count, setCount] = createSignal(0);
+      let renderCount = 0;
+
+      const instance = render(
+        () => {
+          renderCount++;
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 30,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      expect(renderCount).toBe(1);
+
+      reportMotionBudgetResult({ totalMs: 40, overBudget: true });
+      expect(getMotionRuntimeState().presentationPressure).not.toBe('normal');
+
+      setCount(1);
+
+      vi.advanceTimersByTime(33);
+      expect(renderCount).toBe(1);
+
+      vi.advanceTimersByTime(1);
+      expect(renderCount).toBe(2);
+
+      instance.unmount();
+    });
+
+    it('waits for drain and keeps only the latest pending frame under output backpressure', async () => {
       const [count, setCount] = createSignal(0);
       let renderCount = 0;
       let writeCount = 0;
@@ -339,7 +407,7 @@ describe('render-loop', () => {
       expect(writeCount).toBe(1);
 
       setCount(1);
-      vi.advanceTimersByTime(0);
+      await Promise.resolve();
 
       expect(renderCount).toBe(2);
       expect(writeCount).toBe(2);
@@ -351,7 +419,7 @@ describe('render-loop', () => {
       expect(writeCount).toBe(2);
 
       stdout.emit('drain');
-      vi.advanceTimersByTime(0);
+      await Promise.resolve();
 
       expect(renderCount).toBe(3);
       expect(writeCount).toBe(3);

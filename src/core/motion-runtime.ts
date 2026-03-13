@@ -1,6 +1,7 @@
 import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
 
 export type MotionQualityTier = 'full' | 'reduced' | 'skip';
+export type MotionPresentationPressure = 'normal' | 'elevated' | 'critical';
 
 export interface MotionRuntimeConfig {
   targetFps: number;
@@ -8,6 +9,8 @@ export interface MotionRuntimeConfig {
   unfocusedFps: number;
   frameBudgetMs: number;
   recoveryFrames: number;
+  elevatedFrameBudgetFactor: number;
+  criticalFrameBudgetFactor: number;
 }
 
 export interface MotionFrame {
@@ -22,9 +25,12 @@ export interface MotionFrame {
 export interface MotionRuntimeState {
   config: MotionRuntimeConfig;
   qualityTier: MotionQualityTier;
+  presentationPressure: MotionPresentationPressure;
   focused: boolean;
   targetFrameMs: number;
+  recommendedPresentationIntervalMs: number;
   onBudgetStreak: number;
+  pressureOnBudgetStreak: number;
 }
 
 export interface MotionIntervalOptions {
@@ -41,17 +47,27 @@ interface MotionIntervalSubscription {
   lastRunAt: number;
 }
 
+export interface MotionBudgetResult {
+  totalMs: number;
+  overBudget?: boolean;
+  phaseOverrunCount?: number;
+}
+
 const DEFAULT_CONFIG: MotionRuntimeConfig = {
   targetFps: 60,
   reducedFps: 30,
   unfocusedFps: 10,
   frameBudgetMs: 16.67,
   recoveryFrames: 5,
+  elevatedFrameBudgetFactor: 1,
+  criticalFrameBudgetFactor: 2,
 };
 
 let config: MotionRuntimeConfig = { ...DEFAULT_CONFIG };
 let qualityTier: MotionQualityTier = 'full';
+let presentationPressure: MotionPresentationPressure = 'normal';
 let onBudgetStreak = 0;
+let pressureOnBudgetStreak = 0;
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 let cleanupFocusSubscription: (() => void) | null = null;
 let nextFrameRequestId = 1;
@@ -75,6 +91,18 @@ function clampPositiveNumber(value: number, fallback: number): number {
   }
 
   return Math.max(0.1, value);
+}
+
+function getRecommendedPresentationIntervalMs(): number {
+  switch (presentationPressure) {
+    case 'elevated':
+      return config.frameBudgetMs * config.elevatedFrameBudgetFactor;
+    case 'critical':
+      return config.frameBudgetMs * config.criticalFrameBudgetFactor;
+    case 'normal':
+    default:
+      return 0;
+  }
 }
 
 function hasPendingWork(): boolean {
@@ -250,6 +278,14 @@ export function configureMotionRuntime(options: Partial<MotionRuntimeConfig>): v
       options.recoveryFrames ?? config.recoveryFrames,
       DEFAULT_CONFIG.recoveryFrames,
     ),
+    elevatedFrameBudgetFactor: clampPositiveNumber(
+      options.elevatedFrameBudgetFactor ?? config.elevatedFrameBudgetFactor,
+      DEFAULT_CONFIG.elevatedFrameBudgetFactor,
+    ),
+    criticalFrameBudgetFactor: clampPositiveNumber(
+      options.criticalFrameBudgetFactor ?? config.criticalFrameBudgetFactor,
+      DEFAULT_CONFIG.criticalFrameBudgetFactor,
+    ),
   };
 
   rescheduleMotionRuntime();
@@ -259,18 +295,54 @@ export function getMotionRuntimeState(): MotionRuntimeState {
   return {
     config: { ...config },
     qualityTier,
+    presentationPressure,
     focused: readTerminalFocus(),
     targetFrameMs: getTargetFrameMs(),
+    recommendedPresentationIntervalMs: getRecommendedPresentationIntervalMs(),
     onBudgetStreak,
+    pressureOnBudgetStreak,
   };
 }
 
-export function reportMotionFrameCost(frameMs: number): MotionQualityTier {
-  if (!Number.isFinite(frameMs) || frameMs < 0) {
+function escalatePresentationPressure(): void {
+  pressureOnBudgetStreak = 0;
+  if (presentationPressure === 'normal') {
+    presentationPressure = 'elevated';
+    return;
+  }
+  if (presentationPressure === 'elevated') {
+    presentationPressure = 'critical';
+  }
+}
+
+function recoverPresentationPressure(): void {
+  if (presentationPressure === 'normal') {
+    pressureOnBudgetStreak = 0;
+    return;
+  }
+
+  pressureOnBudgetStreak++;
+  if (pressureOnBudgetStreak < config.recoveryFrames) {
+    return;
+  }
+
+  if (presentationPressure === 'critical') {
+    presentationPressure = 'elevated';
+  } else {
+    presentationPressure = 'normal';
+  }
+  pressureOnBudgetStreak = 0;
+}
+
+export function reportMotionBudgetResult(result: MotionBudgetResult): MotionQualityTier {
+  if (!Number.isFinite(result.totalMs) || result.totalMs < 0) {
     return qualityTier;
   }
 
-  if (frameMs > config.frameBudgetMs) {
+  const totalOverBudget = result.overBudget ?? result.totalMs > config.frameBudgetMs;
+  const hasPhaseOverrun = (result.phaseOverrunCount ?? 0) > 0;
+
+  if (totalOverBudget) {
     onBudgetStreak = 0;
     if (qualityTier === 'full') {
       qualityTier = 'reduced';
@@ -278,22 +350,31 @@ export function reportMotionFrameCost(frameMs: number): MotionQualityTier {
       qualityTier = 'skip';
     }
     rescheduleMotionRuntime();
-    return qualityTier;
+  } else {
+    onBudgetStreak++;
+    if (onBudgetStreak >= config.recoveryFrames) {
+      if (qualityTier === 'skip') {
+        qualityTier = 'reduced';
+        onBudgetStreak = 0;
+      } else if (qualityTier === 'reduced') {
+        qualityTier = 'full';
+        onBudgetStreak = 0;
+      }
+    }
   }
 
-  onBudgetStreak++;
-  if (onBudgetStreak >= config.recoveryFrames) {
-    if (qualityTier === 'skip') {
-      qualityTier = 'reduced';
-      onBudgetStreak = 0;
-    } else if (qualityTier === 'reduced') {
-      qualityTier = 'full';
-      onBudgetStreak = 0;
-    }
+  if (totalOverBudget || hasPhaseOverrun) {
+    escalatePresentationPressure();
+  } else {
+    recoverPresentationPressure();
   }
 
   rescheduleMotionRuntime();
   return qualityTier;
+}
+
+export function reportMotionFrameCost(frameMs: number): MotionQualityTier {
+  return reportMotionBudgetResult({ totalMs: frameMs });
 }
 
 export function requestMotionFrame(callback: MotionFrameCallback): () => void {
@@ -350,7 +431,9 @@ export function resetMotionRuntime(): void {
   intervalSubscriptions.clear();
   config = { ...DEFAULT_CONFIG };
   qualityTier = 'full';
+  presentationPressure = 'normal';
   onBudgetStreak = 0;
+  pressureOnBudgetStreak = 0;
   lastPresentationAt = 0;
   nextFrameRequestId = 1;
   nextIntervalId = 1;

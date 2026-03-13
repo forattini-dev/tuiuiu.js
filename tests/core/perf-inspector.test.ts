@@ -16,6 +16,7 @@ import {
   recordCommittedFrame,
   resetPerfInspector,
 } from '../../src/core/perf-inspector.js';
+import { recordFramePhaseMetric } from '../../src/core/frame.js';
 import { render } from '../../src/app/render-loop.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/index.js';
@@ -131,6 +132,42 @@ describe('perf-inspector', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0]?.[0].slow).toBe(true);
     expect(listener.mock.calls[0]?.[0].budgetOverrunMs).toBe(14);
+  });
+
+  it('records committed phase budget overruns and aggregates them in the summary', () => {
+    configurePerfInspector({
+      budget: {
+        frameMs: 20,
+        slowFrameMs: 40,
+        phases: {
+          layoutMs: 1,
+          drawCommandMs: 2,
+        },
+      },
+    });
+
+    const frame = createFrameSnapshot(Text({}, 'budgeted'), { width: 40, height: 6 });
+    recordFramePhaseMetric(frame, 'layoutMs', 5);
+    recordFramePhaseMetric(frame, 'drawCommandMs', 3);
+    finalizeFrameRuntimeMetrics(
+      frame,
+      frame.metrics.frameStartAt,
+      frame.metrics.frameStartAt + 8,
+    );
+    recordCommittedFrame(frame, { renderer: 'ansi' });
+
+    const frames = getPerfFrames();
+    const summary = getPerfInspectorSummary();
+
+    expect(frames[0]?.phaseBudgetOverruns).toMatchObject({
+      layoutMs: 4,
+      drawCommandMs: 1,
+    });
+    expect(frames[0]?.overBudgetPhaseCount).toBe(2);
+    expect(summary.overBudgetPhaseCounts).toMatchObject({
+      layoutMs: 1,
+      drawCommandMs: 1,
+    });
   });
 
   it('records ANSI render-loop commits with runtime phases and output bytes', () => {

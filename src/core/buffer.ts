@@ -412,10 +412,12 @@ export class CellBuffer {
    */
   diffRects(target: CellBuffer, rects: DamageRect[]): CellPatch[] {
     const patches: CellPatch[] = [];
+    const maxX = Math.min(this.width, target.width);
     const rowSpans = buildMergedRowSpans(this.width, this.height, target.width, target.height, rects);
 
     for (const span of rowSpans) {
-      if (this.getRowSignature(span.y) === target.getRowSignature(span.y)) {
+      const coversWholeRow = span.x1 === 0 && span.x2 >= maxX;
+      if (coversWholeRow && this.getRowSignature(span.y) === target.getRowSignature(span.y)) {
         continue;
       }
 
@@ -437,7 +439,7 @@ export class CellBuffer {
    */
   applyPatches(patches: CellPatch[]): void {
     for (const patch of patches) {
-      this.set(patch.x, patch.y, patch.cell);
+      this.set(patch.x, patch.y, cloneCell(patch.cell));
     }
   }
 
@@ -501,6 +503,81 @@ function buildMergedRowSpans(
 ): RowSpan[] {
   const maxWidth = Math.min(sourceWidth, targetWidth);
   const maxHeight = Math.min(sourceHeight, targetHeight);
+  if (rects.length <= 1) {
+    return buildMergedRowSpansLinear(maxWidth, maxHeight, rects);
+  }
+
+  if (areRectsMonotonic(rects)) {
+    return buildMergedRowSpansLinear(maxWidth, maxHeight, rects);
+  }
+
+  return buildMergedRowSpansGeneric(maxWidth, maxHeight, rects);
+}
+
+function areRectsMonotonic(rects: readonly DamageRect[]): boolean {
+  let lastExpandedY = -1;
+  let lastExpandedX = -1;
+
+  for (const rect of rects) {
+    const x1 = Math.max(0, rect.x);
+    const y1 = Math.max(0, rect.y);
+    const y2 = rect.y + rect.height - 1;
+
+    if (rect.width <= 0 || rect.height <= 0 || y2 < y1) {
+      continue;
+    }
+
+    if (y1 < lastExpandedY) {
+      return false;
+    }
+
+    if (y1 === lastExpandedY && x1 < lastExpandedX) {
+      return false;
+    }
+
+    lastExpandedY = y2;
+    lastExpandedX = x1;
+  }
+
+  return true;
+}
+
+function buildMergedRowSpansLinear(
+  maxWidth: number,
+  maxHeight: number,
+  rects: readonly DamageRect[],
+): RowSpan[] {
+  const merged: RowSpan[] = [];
+
+  for (const rect of rects) {
+    const x1 = Math.max(0, rect.x);
+    const y1 = Math.max(0, rect.y);
+    const x2 = Math.min(maxWidth, rect.x + rect.width);
+    const y2 = Math.min(maxHeight, rect.y + rect.height);
+
+    if (x2 <= x1 || y2 <= y1) {
+      continue;
+    }
+
+    for (let y = y1; y < y2; y++) {
+      const last = merged[merged.length - 1];
+      if (last && last.y === y && x1 <= last.x2) {
+        last.x2 = Math.max(last.x2, x2);
+        continue;
+      }
+
+      merged.push({ y, x1, x2 });
+    }
+  }
+
+  return merged;
+}
+
+function buildMergedRowSpansGeneric(
+  maxWidth: number,
+  maxHeight: number,
+  rects: readonly DamageRect[],
+): RowSpan[] {
   const spansByRow = new Map<number, Array<{ x1: number; x2: number }>>();
 
   for (const rect of rects) {
@@ -811,9 +888,6 @@ function getCachedStyleString(fg: Color | undefined, bg: Color | undefined, attr
   const key = getStyleCacheKey(fg, bg, attrs);
   const cached = ansiStyleCache.get(key);
   if (cached !== undefined) {
-    // Refresh insertion order for simple LRU behavior.
-    ansiStyleCache.delete(key);
-    ansiStyleCache.set(key, cached);
     return cached === '' ? null : cached;
   }
 
@@ -836,6 +910,14 @@ function getCachedStyleString(fg: Color | undefined, bg: Color | undefined, attr
   }
   ansiStyleCache.set(key, style);
   return style === '' ? null : style;
+}
+
+function getCharWidthFast(char: string): number {
+  if (char.length === 1 && char.charCodeAt(0) <= 0x7f) {
+    return 1;
+  }
+
+  return stringWidth(char);
 }
 
 /** Convert a cell to ANSI string with style */
@@ -961,7 +1043,7 @@ export function patchesToAnsi(patches: CellPatch[], width: number, alreadySorted
     }
 
     runText += cell.char;
-    lastX = x + (stringWidth(cell.char) - 1);
+    lastX = x + (getCharWidthFast(cell.char) - 1);
     lastY = y;
   }
 

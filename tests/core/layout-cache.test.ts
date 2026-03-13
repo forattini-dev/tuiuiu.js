@@ -133,6 +133,28 @@ describe('layout reuse cache', () => {
     expect(secondRect).toEqual({ x: 0, y: 0, width: 10, height: 3 });
   });
 
+  it('updates child layout refs after row positioning reuses a precomputed layout', () => {
+    let childRect: { x: number; y: number; width: number; height: number } | undefined;
+
+    const childLayoutRef = {
+      __update: (rect: { x: number; y: number; width: number; height: number }) => {
+        childRect = rect;
+      },
+    };
+
+    calculateLayout(
+      Box(
+        { flexDirection: 'row', width: 30 },
+        Text({}, 'label'),
+        Box({ width: 10, height: 3, layoutRef: childLayoutRef } as any, Text({}, 'fixed')),
+      ),
+      30,
+      10,
+    );
+
+    expect(childRect).toEqual({ x: 5, y: 0, width: 10, height: 3 });
+  });
+
   it('does not mutate cached child layouts when parent alignment changes', () => {
     const sharedChild = Box({ flexGrow: 1 }, Text({}, 'X'));
 

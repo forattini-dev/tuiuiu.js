@@ -56,6 +56,26 @@ describe('DrawCommand contract', () => {
     expect(second.drawCommands.map((command) => command.order)).toEqual([0, 1]);
   });
 
+  it('reuses committed draw commands for structurally equivalent rebuilt frames', () => {
+    const first = createFrameSnapshot(
+      Box(
+        { id: 'stable-root', width: 18, height: 5, borderStyle: 'single', padding: 1 },
+        Text({ id: 'stable-label', color: 'cyan' } as any, 'stable'),
+      ),
+      { width: 18, height: 10 },
+    );
+    const second = createFrameSnapshot(
+      Box(
+        { id: 'stable-root', width: 18, height: 5, borderStyle: 'single', padding: 1 },
+        Text({ id: 'stable-label', color: 'cyan' } as any, 'stable'),
+      ),
+      { width: 18, height: 10 },
+    );
+
+    expect(second.drawCommands).toBe(first.drawCommands);
+    expect(second.drawCommands.map((command) => command.id)).toEqual(['stable-root', 'stable-label']);
+  });
+
   it('invalidates cached subtree draw commands when inherited background changes', () => {
     const sharedChild = Box(
       { id: 'shared-panel', width: 8, height: 1 },
@@ -163,6 +183,58 @@ describe('DrawCommand contract', () => {
       style: expect.objectContaining({
         color: 'blue',
       }),
+    });
+  });
+
+  it('invalidates structural draw reuse when rebuilt text style changes', () => {
+    const first = createFrameSnapshot(
+      Box({ width: 12 }, Text({ id: 'styled-label', color: 'red' } as any, 'stable')),
+      { width: 20, height: 4 },
+    );
+    const second = createFrameSnapshot(
+      Box({ width: 12 }, Text({ id: 'styled-label', color: 'blue' } as any, 'stable')),
+      { width: 20, height: 4 },
+    );
+
+    expect(second.drawCommands).not.toBe(first.drawCommands);
+    expect(second.drawCommands.find((command) => command.id === 'styled-label')).toMatchObject({
+      type: 'text',
+      style: expect.objectContaining({
+        color: 'blue',
+      }),
+    });
+  });
+
+  it('invalidates cached draw commands when the active compositor chain changes', () => {
+    const sharedChild = Text({ id: 'label' } as any, 'stable');
+
+    const first = createFrameSnapshot(
+      Box(
+        {
+          width: 12,
+          height: 3,
+          __compositor: {
+            key: 'slide-comp',
+            transforms: [{ kind: 'slide', offsetX: 2, offsetY: 0 }],
+          },
+        } as any,
+        sharedChild,
+      ),
+      { width: 20, height: 6 },
+    );
+    const second = createFrameSnapshot(
+      Box({ width: 12, height: 3 }, sharedChild),
+      { width: 20, height: 6 },
+    );
+
+    expect(first.drawCommands.find((command) => command.id === 'label')).toMatchObject({
+      type: 'text',
+      x: 2,
+    });
+    expect(second.drawCommands.find((command) => command.id === 'label')).toMatchObject({
+      type: 'text',
+      x: 0,
+      compositorKeys: undefined,
     });
   });
 });
