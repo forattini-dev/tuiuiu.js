@@ -20,6 +20,14 @@ Each workload measures:
 - delta rendering via `createDeltaRenderer().renderFrame(...)`
 - render-scheduler burst behavior via `render(...)` under synchronous invalidation bursts
 
+There is now a second local stress suite focused on more interactive failure modes:
+
+- large-tree churn where only part of a big tree changes each frame
+- localized board repaint vs full board repaint
+- keyboard burst handling
+- mouse burst handling
+- heavier scheduler/backpressure collapse under repeated invalidation
+
 ## Production Budgets
 
 These are the target budgets for the current optimization phase:
@@ -156,10 +164,27 @@ The local performance suite now includes a burst benchmark that exercises a larg
 
 The benchmark suite is local-only and intentionally skipped in CI because terminal and machine variance are too high for reliable hosted thresholds.
 
+## Stress Suite Notes
+
+The stress suite exists to catch the class of regressions that usually show up as:
+
+- FPS collapse under sustained churn even though microbenchmarks still look fine
+- localized updates silently degenerating into near-full repaint cost
+- keyboard or mouse bursts causing runaway render counts
+- scheduler collapse/backpressure handling regressing under heavier invalidation storms
+
+The budgets in this suite are intentionally conservative and local-only. They are not meant to certify absolute FPS across machines. They are meant to catch order-of-magnitude regressions in representative interactive workloads.
+
 ## Running The Suite
 
 ```bash
 pnpm test:performance
+```
+
+If you only want the interactive stress workloads:
+
+```bash
+pnpm test:performance:stress
 ```
 
 If you only want the cell-buffer hot paths:
