@@ -131,6 +131,8 @@
   - [Examples](/resources/examples.md)
     - [Tuiuiu Meteor](/resources/examples/tuiuiu-meteor.md)
     - [Tuiuiu Sideblaster](/resources/examples/tuiuiu-sideblaster.md)
+    - [Tuiuiu Tetris](/resources/examples/tuiuiu-tetris.md)
+    - [Tuiuiu Snake](/resources/examples/tuiuiu-snake.md)
   - [Engine Runtime Contract Coverage](/resources/engine-runtime-contracts.md)
   - [DEVX Contract Coverage](/resources/devx-contracts.md)
   - [Common Mistakes](/resources/common-mistakes.md)

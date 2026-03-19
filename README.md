@@ -129,6 +129,8 @@ pnpm tsx examples/app-ping.ts   # Network latency monitor
 pnpm example tuiuiu-invaders    # Literal ASCII Space Invaders
 pnpm example tuiuiu-meteor      # Asteroids-style meteor splitter
 pnpm example tuiuiu-sideblaster # Horizontal shoot'em up
+pnpm example tuiuiu-tetris      # Falling-block puzzle showcase
+pnpm example tuiuiu-snake       # Grid-chase snake showcase
 ```
 
 ## Gallery
@@ -198,6 +200,20 @@ pnpm example tuiuiu-sideblaster # Horizontal shoot'em up
 <strong>🚀 Tuiuiu Sideblaster</strong><br>
 <em>Horizontal Shoot'em Up Showcase</em><br>
 <code>pnpm example tuiuiu-sideblaster</code>
+</td>
+</tr>
+<tr>
+<td align="center" colspan="2">
+<strong>🧱 Tuiuiu Tetris</strong><br>
+<em>Falling-block Puzzle Showcase</em><br>
+<code>pnpm example tuiuiu-tetris</code>
+</td>
+</tr>
+<tr>
+<td align="center" colspan="2">
+<strong>🐍 Tuiuiu Snake</strong><br>
+<em>Grid-chase Arcade Showcase</em><br>
+<code>pnpm example tuiuiu-snake</code>
 </td>
 </tr>
 </table>

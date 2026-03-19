@@ -7,9 +7,17 @@
 import type { VNode, BoxStyle } from '../utils/types.js';
 import { renderToString, renderFrameToString } from '../core/renderer.js';
 import { batch, createEffect } from '../primitives/signal.js';
-import { initializeApp, cleanupApp, enableMouseTracking, disableMouseTracking, setClearScreen } from '../hooks/index.js';
+import {
+  initializeApp,
+  cleanupApp,
+  enableMouseTracking,
+  disableMouseTracking,
+  setClearScreen,
+  setExternalUpdateIngress,
+} from '../hooks/index.js';
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
+import { createUpdateBatcher } from '../utils/batcher.js';
 import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.js';
 import { createDeltaRenderer, type DeltaRenderer } from '../core/delta-render.js';
 import {
@@ -329,6 +337,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let fixedStepCount = 0;
   let fixedStepElapsedMs = 0;
   let cleanupFixedStepFocus: (() => void) | null = null;
+  let externalUpdateQueue: Array<() => void> = [];
 
   // Mouse tracking state
   let mouseTrackingEnabled = false;
@@ -347,6 +356,42 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   if (clearOnStart && !debug) {
     writeOutput(ansi.clearTerminal);
   }
+
+  const externalUpdateWindowMs = minRenderInterval > 0 ? minRenderInterval : 16;
+  const flushExternalUpdates = () => {
+    if (externalUpdateQueue.length === 0) {
+      return;
+    }
+
+    batch(() => {
+      while (externalUpdateQueue.length > 0) {
+        const updates = externalUpdateQueue;
+        externalUpdateQueue = [];
+        for (const update of updates) {
+          update();
+        }
+      }
+    });
+  };
+  const externalUpdateBatcher = createUpdateBatcher(flushExternalUpdates, externalUpdateWindowMs);
+  setExternalUpdateIngress({
+    enqueue(update) {
+      if (isUnmounted) {
+        return;
+      }
+      externalUpdateQueue.push(update);
+      externalUpdateBatcher.schedule();
+    },
+    flush() {
+      if (isUnmounted) {
+        return;
+      }
+      externalUpdateBatcher.flush();
+    },
+    isPending() {
+      return externalUpdateQueue.length > 0 || externalUpdateBatcher.isPending();
+    },
+  });
 
   const evaluateTree = () => {
     const evalStart = performance.now();
@@ -660,6 +705,9 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     scheduledRender = false;
     renderMicrotaskQueued = false;
     pendingRender = false;
+    externalUpdateBatcher.cancel();
+    externalUpdateQueue = [];
+    setExternalUpdateIngress(null);
 
     // Disable mouse tracking if enabled
     if (mouseTrackingEnabled) {

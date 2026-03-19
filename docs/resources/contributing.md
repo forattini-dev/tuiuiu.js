@@ -44,6 +44,7 @@ Use this pattern:
 3. Add `updateOptions()` on the controller when callbacks or mutable behavior options need to change across rerenders.
 4. Use the shared factory-state helper for the direct component path so parent rerenders preserve controller state.
 5. Expose `useXState()` publicly only when the component has substantial editing, search, selection, tree, or pagination state.
+6. Once a controller accumulates multiple advanced behaviors, move pure model helpers and persistence helpers into internal modules and keep the main controller file as the composition root.
 
 Minimal shape:
 
@@ -71,6 +72,7 @@ For migrated interactive components, add tests that cover:
 1. Direct component usage preserving user state across parent rerenders.
 2. Stable controller reuse for `useXState()` when the component exposes one.
 3. Updated callbacks or mutable options being applied without recreating controller state.
+4. Any extracted persistence or ranking logic still preserving controller-local state across parent rerenders.
 
 If the change touches public interactive behavior, run:
 

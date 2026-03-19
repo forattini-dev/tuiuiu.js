@@ -833,6 +833,39 @@ export type {
   CommandPaletteOptions,
 } from './command-palette.js';
 
+// Prompt command routing
+export {
+  createPromptCommandRegistry,
+} from './prompt-command-routing.js';
+
+export type {
+  PromptCommandArgumentCompletionContext,
+  PromptCommandArgumentCompletionItem,
+  PromptCommandCompletion,
+  PromptCommandCompletionContext,
+  PromptCommandDefinition,
+  PromptCommandLiveDiagnostic,
+  PromptCommandLiveDiagnosticContext,
+  PromptCommandLiveContext,
+  PromptCommandMatchedLiveContext,
+  PromptCommandParseResult,
+  PromptCommandRegistry,
+  PromptCommandResolvedCompletion,
+  PromptCommandUnresolvedLiveContext,
+} from './prompt-command-routing.js';
+
+// Prompt mode routing
+export {
+  createPromptModeRegistry,
+} from './prompt-mode-routing.js';
+
+export type {
+  PromptModeDefinition,
+  PromptModeRegistry,
+  PromptModeRegistryOptions,
+  PromptModeResolved,
+} from './prompt-mode-routing.js';
+
 // Screen Manager
 export {
   // Manager

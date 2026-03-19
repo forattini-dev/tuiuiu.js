@@ -237,9 +237,16 @@ class HitTestRegistry {
     // Create event data
     let propagationStopped = false;
     const createEventData = (target: VNode | null): MouseEventData => {
+      const bounds = target ? this.boundsByNode.get(target) : undefined;
+      const relativeX = bounds
+        ? rawEvent.x - bounds.x
+        : hit?.relativeX ?? 0;
+      const relativeY = bounds
+        ? rawEvent.y - bounds.y
+        : hit?.relativeY ?? 0;
       const data: MouseEventData = {
-        x: hit?.relativeX ?? 0,
-        y: hit?.relativeY ?? 0,
+        x: relativeX,
+        y: relativeY,
         absoluteX: rawEvent.x,
         absoluteY: rawEvent.y,
         button: rawEvent.button,
@@ -249,8 +256,14 @@ class HitTestRegistry {
           propagationStopped = true;
         },
       };
-      if (hit?.pixelRelativeX != null) data.pixelRelativeX = hit.pixelRelativeX;
-      if (hit?.pixelRelativeY != null) data.pixelRelativeY = hit.pixelRelativeY;
+      if (rawEvent.pixelX != null && rawEvent.pixelY != null && bounds) {
+        const cellSize = getGraphicsCapabilities().cellSize;
+        data.pixelRelativeX = rawEvent.pixelX - (bounds.x * cellSize.width);
+        data.pixelRelativeY = rawEvent.pixelY - (bounds.y * cellSize.height);
+      } else {
+        if (hit?.pixelRelativeX != null) data.pixelRelativeX = hit.pixelRelativeX;
+        if (hit?.pixelRelativeY != null) data.pixelRelativeY = hit.pixelRelativeY;
+      }
       return data;
     };
 

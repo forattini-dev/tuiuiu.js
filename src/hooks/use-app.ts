@@ -43,6 +43,12 @@ export interface InitAppOptions {
   autoTabNavigation?: boolean;
 }
 
+export interface ExternalUpdateIngress {
+  enqueue: (update: () => void) => void;
+  flush: () => void;
+  isPending: () => boolean;
+}
+
 /**
  * Initialize app context and input handling
  */
@@ -233,6 +239,13 @@ export function initializeApp(
     },
     isRawModeEnabled,
     isTerminalFocused: () => readTerminalFocus(),
+    enqueueExternalUpdate: (update) => {
+      batch(() => {
+        update();
+      });
+    },
+    flushExternalUpdates: () => {},
+    hasPendingExternalUpdates: () => false,
   };
 
   setAppContext(appContext);
@@ -259,4 +272,30 @@ export function setClearScreen(clearScreen: () => void): void {
   if (appContext) {
     appContext.clearScreen = clearScreen;
   }
+}
+
+/**
+ * Set the external async update ingress on the app context.
+ * Called by the render loop once it knows the frame budget.
+ */
+export function setExternalUpdateIngress(ingress: ExternalUpdateIngress | null): void {
+  const appContext = getAppContext();
+  if (!appContext) {
+    return;
+  }
+
+  if (!ingress) {
+    appContext.enqueueExternalUpdate = (update) => {
+      batch(() => {
+        update();
+      });
+    };
+    appContext.flushExternalUpdates = () => {};
+    appContext.hasPendingExternalUpdates = () => false;
+    return;
+  }
+
+  appContext.enqueueExternalUpdate = ingress.enqueue;
+  appContext.flushExternalUpdates = ingress.flush;
+  appContext.hasPendingExternalUpdates = ingress.isPending;
 }

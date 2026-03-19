@@ -36,8 +36,8 @@ import {
   useInterval,
   useState,
   useTerminalSize,
-} from '../src/index.js';
-import type { VNode } from '../src/utils/types.js';
+} from '../../src/index.js';
+import type { VNode } from '../../src/utils/types.js';
 
 setTheme(darkTheme);
 
@@ -1735,7 +1735,11 @@ function isMainModule(): boolean {
   return import.meta.url === pathToFileURL(entry).href;
 }
 
-if (isMainModule()) {
+export async function runTuiuiuSideblaster(): Promise<void> {
   const { waitUntilExit } = render(TuiuiuSideblaster, { fullHeight: true, autoTabNavigation: false });
   await waitUntilExit();
+}
+
+if (isMainModule()) {
+  await runTuiuiuSideblaster();
 }

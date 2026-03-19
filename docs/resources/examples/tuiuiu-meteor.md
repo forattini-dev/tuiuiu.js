@@ -48,7 +48,7 @@ The ship wraps around the arena edges, so movement pressure comes from momentum 
 
 ## Exported Gameplay Helpers
 
-These helpers are exported from `examples/tuiuiu-meteor.ts` so the example can be tested without driving the full TUI:
+These helpers are exported from `examples/games/tuiuiu-meteor.ts` so the example can be tested without driving the full TUI:
 
 - `getArena()`
 - `createNewGameState()`
@@ -65,7 +65,7 @@ These helpers are exported from `examples/tuiuiu-meteor.ts` so the example can b
 
 ## Source And Tests
 
-- Source: `examples/tuiuiu-meteor.ts`
+- Source: `examples/games/tuiuiu-meteor.ts`
 - Focused tests: `tests/integration/tuiuiu-meteor.test.ts`
 
 Run the focused test with:

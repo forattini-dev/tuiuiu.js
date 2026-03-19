@@ -252,6 +252,40 @@ describe('Hit Test System', () => {
       expect(onMouseMove).toHaveBeenCalledTimes(1);
     });
 
+    it('should dispatch drag with correct relative coordinates through padded ancestors', () => {
+      const onMouseMove = vi.fn();
+      const node: VNode = Box(
+        { flexDirection: 'column', padding: 1, gap: 1 },
+        Text({}, 'header'),
+        Box(
+          { width: 20, height: 5, onMouseMove },
+          Text({}, 'Drag target'),
+        ),
+      );
+
+      const layout = calculateLayout(node, 80, 24);
+      registerHitTestFromLayout(layout);
+
+      const registry = getHitTestRegistry();
+
+      registry.handleMouseEvent({
+        x: 4,
+        y: 3,
+        button: 'left',
+        action: 'drag',
+        modifiers: { ctrl: false, shift: false, alt: false },
+      });
+
+      expect(onMouseMove).toHaveBeenCalledTimes(1);
+      expect(onMouseMove.mock.calls[0][0]).toMatchObject({
+        x: 3,
+        y: 0,
+        absoluteX: 4,
+        absoluteY: 3,
+        button: 'left',
+      });
+    });
+
     it('should dispatch scroll to onScroll handler', () => {
       const onScroll = vi.fn();
       const node: VNode = Box(
@@ -273,6 +307,40 @@ describe('Hit Test System', () => {
       });
 
       expect(onScroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('should dispatch scroll with correct relative coordinates through padded ancestors', () => {
+      const onScroll = vi.fn();
+      const node: VNode = Box(
+        { flexDirection: 'column', padding: 1, gap: 1 },
+        Text({}, 'header'),
+        Box(
+          { width: 20, height: 5, onScroll },
+          Text({}, 'Scroll me'),
+        ),
+      );
+
+      const layout = calculateLayout(node, 80, 24);
+      registerHitTestFromLayout(layout);
+
+      const registry = getHitTestRegistry();
+
+      registry.handleMouseEvent({
+        x: 6,
+        y: 4,
+        button: 'scroll-down',
+        action: 'click',
+        modifiers: { ctrl: false, shift: false, alt: false },
+      });
+
+      expect(onScroll).toHaveBeenCalledTimes(1);
+      expect(onScroll.mock.calls[0][0]).toMatchObject({
+        x: 5,
+        y: 1,
+        absoluteX: 6,
+        absoluteY: 4,
+        button: 'scroll-down',
+      });
     });
   });
 
@@ -347,6 +415,52 @@ describe('Hit Test System', () => {
       });
 
       expect(onMouseLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('should report mouseLeave coordinates relative to the element being left', () => {
+      const leftLeave = vi.fn();
+      const rightEnter = vi.fn();
+      const root: VNode = Box(
+        { flexDirection: 'row', gap: 5 },
+        Box({ width: 10, height: 4, onMouseLeave: leftLeave }, Text({}, 'Left')),
+        Box({ width: 10, height: 4, onMouseEnter: rightEnter }, Text({}, 'Right')),
+      );
+
+      const layout = calculateLayout(root, 80, 24);
+      registerHitTestFromLayout(layout);
+
+      const registry = getHitTestRegistry();
+
+      registry.handleMouseEvent({
+        x: 2,
+        y: 1,
+        button: 'none',
+        action: 'move',
+        modifiers: { ctrl: false, shift: false, alt: false },
+      });
+
+      registry.handleMouseEvent({
+        x: 16,
+        y: 1,
+        button: 'none',
+        action: 'move',
+        modifiers: { ctrl: false, shift: false, alt: false },
+      });
+
+      expect(leftLeave).toHaveBeenCalledTimes(1);
+      expect(leftLeave.mock.calls[0][0]).toMatchObject({
+        x: 16,
+        y: 1,
+        absoluteX: 16,
+        absoluteY: 1,
+      });
+      expect(rightEnter).toHaveBeenCalledTimes(1);
+      expect(rightEnter.mock.calls[0][0]).toMatchObject({
+        x: 1,
+        y: 1,
+        absoluteX: 16,
+        absoluteY: 1,
+      });
     });
   });
 

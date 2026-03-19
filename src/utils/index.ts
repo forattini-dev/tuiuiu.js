@@ -95,6 +95,27 @@ export type {
   UpdateBatcher,
 } from './batcher.js';
 
+// Background execution
+export {
+  createBackgroundExecutor,
+  createInlineBackgroundExecutor,
+  createWorkerThreadBackgroundExecutor,
+} from './background-executor.js';
+
+export type {
+  BackgroundExecutor,
+  BackgroundTaskError,
+  BackgroundTaskEvent,
+  BackgroundTaskEventListener,
+  BackgroundTaskHandle,
+  BackgroundTaskHandler,
+  BackgroundTaskHandlers,
+  BackgroundTaskReporter,
+  BackgroundTaskRequest,
+  BackgroundTaskResult,
+  WorkerThreadBackgroundExecutorOptions,
+} from './background-executor.js';
+
 // Node.js FS Storage for persistence
 export {
   createNodeFsStorage,

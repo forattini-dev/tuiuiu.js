@@ -196,8 +196,8 @@ describe('Mouse Input', () => {
       expect(event).not.toBeNull();
       expect(event!.type).toBe('down');
       expect(event!.button).toBe('left');
-      expect(event!.x).toBe(10);
-      expect(event!.y).toBe(20);
+      expect(event!.x).toBe(9);
+      expect(event!.y).toBe(19);
     });
 
     it('should parse SGR left release', () => {
@@ -261,6 +261,8 @@ describe('Mouse Input', () => {
       const event = parseMouseEvent('\x1b[M !%'); // Button 0, x=1, y=5
       expect(event).not.toBeNull();
       expect(event!.button).toBe('left');
+      expect(event!.x).toBe(0);
+      expect(event!.y).toBe(4);
     });
 
     it('should return null for non-mouse sequences', () => {

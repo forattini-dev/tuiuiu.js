@@ -116,6 +116,15 @@ export interface AppContext {
   isTerminalFocused?: () => boolean;
   /** Clear the screen and reset render state (use for splash->main transitions) */
   clearScreen?: () => void;
+  /**
+   * Enqueue an external async update so bursty producers can be coalesced
+   * before mutating reactive state.
+   */
+  enqueueExternalUpdate?: (update: () => void) => void;
+  /** Flush any queued external updates immediately. */
+  flushExternalUpdates?: () => void;
+  /** Whether external updates are currently pending. */
+  hasPendingExternalUpdates?: () => boolean;
 }
 
 export interface FocusOptions {

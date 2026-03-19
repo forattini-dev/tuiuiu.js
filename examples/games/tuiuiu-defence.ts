@@ -8,8 +8,10 @@
  * - Tower upgrades with scaling stats
  * - Waves, gold economy, and lives
  *
- * Run: pnpm tsx examples/tuiuiu-defence.ts
+ * Run: pnpm tsx examples/games/tuiuiu-defence.ts
  */
+
+import { pathToFileURL } from 'node:url';
 
 import {
   render,
@@ -20,7 +22,6 @@ import {
   batch,
   useHotkeys,
   useApp,
-  useMouse,
   useLayoutRef,
   getTerminalSize,
   setTheme,
@@ -28,8 +29,9 @@ import {
   useInterval,
   useFps,
   resolveColor,
-} from '../src/index.js';
-import type { VNode } from '../src/utils/types.js';
+} from '../../src/index.js';
+import { useLocalMouse } from '../../src/hooks/use-local-mouse.js';
+import type { VNode } from '../../src/utils/types.js';
 
 // =============================================================================
 // ANSI Helpers for fast map rendering
@@ -101,6 +103,38 @@ type Projectile = {
   targetMonsterId: number;
 };
 
+type StyledCellTemplate = {
+  text: string;
+  ch: string;
+  color: string;
+  bold: boolean;
+  dim: boolean;
+  backgroundColor?: string;
+};
+
+type StyledRowTemplate = {
+  text: string;
+  cells: string[];
+};
+
+const materializedCellCache = new Map<string, StyledCellTemplate>();
+
+type RenderScratch = {
+  width: number;
+  height: number;
+  dynamicCells: Array<StyledCellTemplate | undefined>;
+  towerMask: Uint8Array;
+  rowDirty: Uint8Array;
+  monsterCounts: Uint16Array;
+  monsterHpTotals: Float32Array;
+  monsterMaxHpTotals: Float32Array;
+  touchedDynamicIndices: number[];
+  touchedMonsterIndices: number[];
+  touchedRows: number[];
+};
+
+let renderScratch: RenderScratch | null = null;
+
 // =============================================================================
 // Map + Path
 // =============================================================================
@@ -127,6 +161,91 @@ function getMapSize(columns: number, rows: number): { width: number; height: num
 
 function clampCoord(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function getCellIndex(x: number, y: number, width: number): number {
+  return y * width + x;
+}
+
+function createRenderScratch(width: number, height: number): RenderScratch {
+  const size = width * height;
+  return {
+    width,
+    height,
+    dynamicCells: new Array<StyledCellTemplate | undefined>(size),
+    towerMask: new Uint8Array(size),
+    rowDirty: new Uint8Array(height),
+    monsterCounts: new Uint16Array(size),
+    monsterHpTotals: new Float32Array(size),
+    monsterMaxHpTotals: new Float32Array(size),
+    touchedDynamicIndices: [],
+    touchedMonsterIndices: [],
+    touchedRows: [],
+  };
+}
+
+function ensureRenderScratch(width: number, height: number): RenderScratch {
+  if (!renderScratch || renderScratch.width !== width || renderScratch.height !== height) {
+    renderScratch = createRenderScratch(width, height);
+  }
+  return renderScratch;
+}
+
+function clearRenderScratch(scratch: RenderScratch): void {
+  for (const index of scratch.touchedDynamicIndices) {
+    scratch.dynamicCells[index] = undefined;
+    scratch.towerMask[index] = 0;
+  }
+  scratch.touchedDynamicIndices.length = 0;
+
+  for (const index of scratch.touchedMonsterIndices) {
+    scratch.monsterCounts[index] = 0;
+    scratch.monsterHpTotals[index] = 0;
+    scratch.monsterMaxHpTotals[index] = 0;
+  }
+  scratch.touchedMonsterIndices.length = 0;
+
+  for (const row of scratch.touchedRows) {
+    scratch.rowDirty[row] = 0;
+  }
+  scratch.touchedRows.length = 0;
+}
+
+function markRowDirty(scratch: RenderScratch, y: number): void {
+  if (scratch.rowDirty[y] === 0) {
+    scratch.rowDirty[y] = 1;
+    scratch.touchedRows.push(y);
+  }
+}
+
+function setDynamicCell(
+  scratch: RenderScratch,
+  index: number,
+  cell: StyledCellTemplate,
+  markTower: boolean = false,
+): void {
+  if (scratch.dynamicCells[index] === undefined) {
+    scratch.touchedDynamicIndices.push(index);
+  }
+  scratch.dynamicCells[index] = cell;
+  if (markTower) {
+    scratch.towerMask[index] = 1;
+  }
+  markRowDirty(scratch, Math.floor(index / scratch.width));
+}
+
+function accumulateMonsterCell(
+  scratch: RenderScratch,
+  index: number,
+  hp: number,
+  maxHp: number,
+): void {
+  if (scratch.monsterCounts[index] === 0) {
+    scratch.touchedMonsterIndices.push(index);
+  }
+  scratch.monsterCounts[index] += 1;
+  scratch.monsterHpTotals[index] += hp;
+  scratch.monsterMaxHpTotals[index] += maxHp;
 }
 
 function buildWaypoints(width: number, height: number): Point[] {
@@ -421,6 +540,117 @@ function createBaseMap(width: number, height: number, centerPath: Point[]): stri
   );
 }
 
+function createBaseCellTemplate(
+  base: string,
+  isOnWidePath: boolean,
+  isSpawn: boolean,
+  isExit: boolean,
+): StyledCellTemplate {
+  let ch = base;
+  let color = 'mutedForeground';
+  let bold = false;
+  let dim = false;
+  let backgroundColor: string | undefined;
+
+  if (base === '~') {
+    color = 'primary';
+  } else if (base === '^' || base === '░') {
+    color = 'mutedForeground';
+  } else if (base === 't' || base === 'T') {
+    color = 'success';
+    if (base === 'T') bold = true;
+  } else if (base === '*') {
+    color = 'warning';
+  } else if (base === '\'') {
+    color = 'success';
+    dim = true;
+  } else {
+    dim = true;
+  }
+
+  if (isOnWidePath) {
+    backgroundColor = '#3d2a1a';
+    dim = false;
+    if (isSpawn) {
+      ch = 'S';
+      color = 'success';
+      bold = true;
+      backgroundColor = '#1a3d1a';
+    } else if (isExit) {
+      ch = 'E';
+      color = 'error';
+      bold = true;
+      backgroundColor = '#3d1a1a';
+    }
+  }
+
+  return materializeCell(ch, color, backgroundColor, bold, dim);
+}
+
+function createBaseStyledMap(width: number, height: number, map: string[][], centerPath: Point[], widePathCells: Set<string>): StyledCellTemplate[] {
+  const templates = new Array<StyledCellTemplate>(width * height);
+  const spawn = centerPath[0];
+  const exit = centerPath[centerPath.length - 1];
+  const spawnKey = spawn ? `${spawn.x},${spawn.y}` : '';
+  const exitKey = exit ? `${exit.x},${exit.y}` : '';
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const key = `${x},${y}`;
+      templates[getCellIndex(x, y, width)] = createBaseCellTemplate(
+        map[y]?.[x] ?? '.',
+        widePathCells.has(key),
+        key === spawnKey,
+        key === exitKey,
+      );
+    }
+  }
+
+  return templates;
+}
+
+function createBaseStyledRows(width: number, height: number, templates: StyledCellTemplate[]): StyledRowTemplate[] {
+  const rows = new Array<StyledRowTemplate>(height);
+
+  for (let y = 0; y < height; y++) {
+    const cells = new Array<string>(width);
+    for (let x = 0; x < width; x++) {
+      cells[x] = templates[getCellIndex(x, y, width)]?.text ?? '';
+    }
+    rows[y] = {
+      text: cells.join(''),
+      cells,
+    };
+  }
+
+  return rows;
+}
+
+function materializeCell(
+  ch: string,
+  color: string,
+  backgroundColor: string | undefined,
+  bold: boolean,
+  dim: boolean,
+): StyledCellTemplate {
+  const key = `${ch}\u0000${color}\u0000${backgroundColor ?? ''}\u0000${bold ? 1 : 0}\u0000${dim ? 1 : 0}`;
+  const cached = materializedCellCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const cell = {
+    text: styledChar(ch, color, backgroundColor, bold, dim),
+    ch,
+    color,
+    bold,
+    dim,
+    backgroundColor,
+  };
+  materializedCellCache.set(key, cell);
+  return cell;
+}
+
 // =============================================================================
 // Game Constants
 // =============================================================================
@@ -616,6 +846,18 @@ const [widePath, setWidePath] = createSignal<Set<string>>(
 );
 const [baseMap, setBaseMap] = createSignal<string[][]>(
   createBaseMap(initialSize.width, initialSize.height, initialPath)
+);
+const [baseStyledMap, setBaseStyledMap] = createSignal<StyledCellTemplate[]>(
+  createBaseStyledMap(
+    initialSize.width,
+    initialSize.height,
+    baseMap(),
+    initialPath,
+    widePath(),
+  )
+);
+const [baseStyledRows, setBaseStyledRows] = createSignal<StyledRowTemplate[]>(
+  createBaseStyledRows(initialSize.width, initialSize.height, baseStyledMap())
 );
 const [gameSpeed, setGameSpeed] = createSignal<GameSpeed>(1);
 
@@ -937,53 +1179,58 @@ function TowerDefense(): VNode {
     setMessage(`Speed: 8x`);
   });
 
-  useMouse((event) => {
-    if (screen() !== 'game') return;
-    if (gameOver()) return;
-    if (mapRef.width() === 0 || mapRef.height() === 0) return;
+  useLocalMouse(
+    () => ({
+      x: mapRef.x(),
+      y: mapRef.y(),
+      width: mapRef.width(),
+      height: mapRef.height(),
+    }),
+    (event) => {
+      if (screen() !== 'game') return;
+      if (gameOver()) return;
+      if (mapRef.width() === 0 || mapRef.height() === 0) return;
 
-    // Account for 1-based terminal coordinates and panel structure
-    const mapX = event.x - mapRef.x();
-    const mapY = event.y - mapRef.y();
-    const currentWidth = mapWidth();
-    const currentHeight = mapHeight();
+      const mapX = event.x;
+      const mapY = event.y;
+      const currentWidth = mapWidth();
+      const currentHeight = mapHeight();
 
-    // Debug: uncomment to debug mouse offset issues
-    // setMessage(`raw(${event.x},${event.y}) ref(${mapRef.x()},${mapRef.y()}) map(${mapX},${mapY})`);
-
-    if (mapX < 0 || mapY < 0 || mapX >= currentWidth || mapY >= currentHeight) {
-      return;
-    }
-
-    // Move cursor on any mouse movement
-    if (event.action === 'move' || event.action === 'drag') {
-      const current = cursor();
-      if (current.x !== mapX || current.y !== mapY) {
-        setCursor({ x: mapX, y: mapY });
+      if (mapX < 0 || mapY < 0 || mapX >= currentWidth || mapY >= currentHeight) {
+        return;
       }
-      return;
-    }
 
-    // Single click: just select/move cursor (safe exploration)
-    if (event.action === 'click' && event.button === 'left') {
-      setCursor({ x: mapX, y: mapY });
-      return;
-    }
+      // Move cursor on any mouse movement
+      if (event.action === 'move' || event.action === 'drag') {
+        const current = cursor();
+        if (current.x !== mapX || current.y !== mapY) {
+          setCursor({ x: mapX, y: mapY });
+        }
+        return;
+      }
 
-    // Double-click left: build tower
-    if (event.action === 'double-click' && event.button === 'left') {
-      setCursor({ x: mapX, y: mapY });
-      buildAt(mapX, mapY);
-      return;
-    }
+      // Single click: just select/move cursor (safe exploration)
+      if (event.action === 'click' && event.button === 'left') {
+        setCursor({ x: mapX, y: mapY });
+        return;
+      }
 
-    // Right-click: upgrade tower
-    if (event.button === 'right' && (event.action === 'click' || event.action === 'double-click')) {
-      setCursor({ x: mapX, y: mapY });
-      upgradeAt(mapX, mapY);
-      return;
-    }
-  });
+      // Double-click left: build tower
+      if (event.action === 'double-click' && event.button === 'left') {
+        setCursor({ x: mapX, y: mapY });
+        buildAt(mapX, mapY);
+        return;
+      }
+
+      // Right-click: upgrade tower
+      if (event.button === 'right' && (event.action === 'click' || event.action === 'double-click')) {
+        setCursor({ x: mapX, y: mapY });
+        upgradeAt(mapX, mapY);
+        return;
+      }
+    },
+    { onlyInside: true },
+  );
 
   // Keyboard controls using useHotkeys
   useHotkeys('escape', () => exit());
@@ -1058,27 +1305,19 @@ function TowerDefense(): VNode {
   });
 
   const mapView = (): VNode => {
-    const map = baseMap();
     const width = mapWidth();
     const height = mapHeight();
+    const staticMap = baseStyledMap();
+    const staticRows = baseStyledRows();
     const currentPath = path();
-    const currentWidePath = widePath();
     const currentTowers = towers();
     const currentProjectiles = projectiles();
     const cursorPos = cursor();
+    const currentMonsters = monsters();
+    const scratch = ensureRenderScratch(width, height);
+    clearRenderScratch(scratch);
 
-    // Build tower lookup for 2x2 cells
-    const towerCells = new Map<string, { tower: Tower; position: 'TL' | 'TR' | 'BL' | 'BR' }>();
-    for (const tower of currentTowers) {
-      towerCells.set(`${tower.x},${tower.y}`, { tower, position: 'TL' });
-      towerCells.set(`${tower.x + 1},${tower.y}`, { tower, position: 'TR' });
-      towerCells.set(`${tower.x},${tower.y + 1}`, { tower, position: 'BL' });
-      towerCells.set(`${tower.x + 1},${tower.y + 1}`, { tower, position: 'BR' });
-    }
-
-    // Tower range visualization - show when cursor is over a tower
     const selectedTower = towerAtPosition(cursorPos.x, cursorPos.y, currentTowers);
-    const rangeSet = new Set<string>();
     if (selectedTower) {
       const stats = getTowerStats(selectedTower.level);
       const centerX = selectedTower.x + 0.5;
@@ -1092,37 +1331,102 @@ function TowerDefense(): VNode {
       for (let ry = minY; ry <= maxY; ry++) {
         for (let rx = minX; rx <= maxX; rx++) {
           if (isPointWithinTowerRange(centerX, centerY, rx, ry, stats.range)) {
-            rangeSet.add(`${rx},${ry}`);
+            const index = getCellIndex(rx, ry, width);
+            const template = staticMap[index];
+            if (!template) {
+              continue;
+            }
+            const backgroundColor =
+              template.backgroundColor === '#3d2a1a'
+                ? '#4d3a2a'
+                : '#2a2a1a';
+            setDynamicCell(
+              scratch,
+              index,
+              materializeCell(
+                template.ch,
+                template.color,
+                backgroundColor,
+                template.bold,
+                template.dim,
+              ),
+            );
           }
         }
       }
     }
 
-    // Projectile positions (interpolated)
-    const projectilePositions = new Map<string, Projectile>();
+    for (const tower of currentTowers) {
+      const levelChar = String(Math.min(tower.level, 9));
+      setDynamicCell(
+        scratch,
+        getCellIndex(tower.x, tower.y, width),
+        materializeCell(
+          '╔',
+          tower.cooldown === 0 ? 'accent' : 'warning',
+          '#1a2a3d',
+          true,
+          false,
+        ),
+        true,
+      );
+      setDynamicCell(
+        scratch,
+        getCellIndex(tower.x + 1, tower.y, width),
+        materializeCell(
+          levelChar,
+          tower.cooldown === 0 ? 'accent' : 'warning',
+          '#1a2a3d',
+          true,
+          false,
+        ),
+        true,
+      );
+      setDynamicCell(
+        scratch,
+        getCellIndex(tower.x, tower.y + 1, width),
+        materializeCell(
+          levelChar,
+          tower.cooldown === 0 ? 'accent' : 'warning',
+          '#1a2a3d',
+          true,
+          false,
+        ),
+        true,
+      );
+      setDynamicCell(
+        scratch,
+        getCellIndex(tower.x + 1, tower.y + 1, width),
+        materializeCell(
+          '╝',
+          tower.cooldown === 0 ? 'accent' : 'warning',
+          '#1a2a3d',
+          true,
+          false,
+        ),
+        true,
+      );
+    }
+
     for (const proj of currentProjectiles) {
       const px = Math.round(proj.fromX + (proj.toX - proj.fromX) * proj.progress);
       const py = Math.round(proj.fromY + (proj.toY - proj.fromY) * proj.progress);
-      projectilePositions.set(`${px},${py}`, proj);
+      if (px >= 0 && px < width && py >= 0 && py < height) {
+        const index = getCellIndex(px, py, width);
+        if (scratch.towerMask[index] === 0) {
+          setDynamicCell(
+            scratch,
+            index,
+            materializeCell('o', 'accent', undefined, true, false),
+          );
+        }
+      }
     }
 
-    // Spawn/exit markers (from center path)
-    const spawn = currentPath[0];
-    const exit = currentPath[currentPath.length - 1];
-    const spawnKey = spawn ? `${spawn.x},${spawn.y}` : '';
-    const exitKey = exit ? `${exit.x},${exit.y}` : '';
-
-    const monsterCounts = new Map<string, number>();
-    const monsterHealth = new Map<string, { hp: number; maxHp: number }>();
-    for (const monster of monsters()) {
+    for (const monster of currentMonsters) {
       const pos = getMonsterPosition(monster, currentPath);
-      const key = `${pos.x},${pos.y}`;
-      monsterCounts.set(key, (monsterCounts.get(key) ?? 0) + 1);
-      const currentHealth = monsterHealth.get(key) ?? { hp: 0, maxHp: 0 };
-      monsterHealth.set(key, {
-        hp: currentHealth.hp + monster.hp,
-        maxHp: currentHealth.maxHp + monster.maxHp,
-      });
+      const index = getCellIndex(pos.x, pos.y, width);
+      accumulateMonsterCell(scratch, index, monster.hp, monster.maxHp);
     }
 
     const rows: VNode[] = [];
@@ -1133,108 +1437,53 @@ function TowerDefense(): VNode {
       return 'error';
     }
 
+    for (const index of scratch.touchedMonsterIndices) {
+      const ratio = scratch.monsterHpTotals[index] / Math.max(1, scratch.monsterMaxHpTotals[index]);
+      setDynamicCell(
+        scratch,
+        index,
+        materializeCell(
+          scratch.monsterCounts[index] > 9 ? 'M' : String(scratch.monsterCounts[index]),
+          getHealthColor(ratio),
+          scratch.dynamicCells[index]?.backgroundColor,
+          true,
+          false,
+        ),
+      );
+    }
+
+    const cursorIndex = getCellIndex(cursorPos.x, cursorPos.y, width);
+    const cursorBase = scratch.dynamicCells[cursorIndex] ?? staticMap[cursorIndex];
+    if (cursorBase) {
+      setDynamicCell(
+        scratch,
+        cursorIndex,
+        materializeCell(
+          cursorBase.ch,
+          cursorBase.color,
+          'secondary',
+          cursorBase.bold,
+          cursorBase.dim,
+        ),
+      );
+    }
+
     for (let y = 0; y < height; y++) {
-      let rowStr = ''; // Build entire row as ANSI string for performance
-      for (let x = 0; x < width; x++) {
-        const key = `${x},${y}`;
-        const base = map[y]?.[x] ?? '.';
-        const towerCell = towerCells.get(key);
-        const monsterCount = monsterCounts.get(key) ?? 0;
-        const projectile = projectilePositions.get(key);
-        const isOnWidePath = currentWidePath.has(key);
-        const isSpawn = key === spawnKey;
-        const isExit = key === exitKey;
-        const isInRange = rangeSet.has(key);
-
-        let ch = base;
-        let color: string = 'mutedForeground';
-        let bold = false;
-        let dim = false;
-        let backgroundColor: string | undefined;
-
-        // Terrain colors
-        if (base === '~') {
-          color = 'primary';
-        } else if (base === '^' || base === '░') {
-          color = 'mutedForeground';
-        } else if (base === 't' || base === 'T') {
-          color = 'success';
-          if (base === 'T') bold = true;
-        } else if (base === '*') {
-          color = 'warning';
-        } else if (base === '\'') {
-          color = 'success';
-          dim = true;
-        } else {
-          dim = true;
-        }
-
-        // Tower range highlight (subtle)
-        if (isInRange && !towerCell) {
-          backgroundColor = '#2a2a1a'; // Subtle yellow tint
-        }
-
-        // Wide path: colored background
-        if (isOnWidePath && !towerCell) {
-          backgroundColor = isInRange ? '#4d3a2a' : '#3d2a1a'; // Lighter if in range
-          dim = false;
-          if (isSpawn) {
-            ch = 'S';
-            color = 'success';
-            bold = true;
-            backgroundColor = '#1a3d1a';
-          } else if (isExit) {
-            ch = 'E';
-            color = 'error';
-            bold = true;
-            backgroundColor = '#3d1a1a';
-          }
-        }
-
-        // Tower 2x2 rendering
-        if (towerCell) {
-          const { tower, position } = towerCell;
-          const levelChar = String(Math.min(tower.level, 9));
-          switch (position) {
-            case 'TL': ch = '╔'; break;
-            case 'TR': ch = levelChar; break;
-            case 'BL': ch = levelChar; break;
-            case 'BR': ch = '╝'; break;
-          }
-          color = tower.cooldown === 0 ? 'accent' : 'warning';
-          bold = true;
-          dim = false;
-          backgroundColor = '#1a2a3d';
-        }
-
-        // Projectile rendering (bullet character)
-        if (projectile && !towerCell) {
-          ch = 'o';
-          color = 'accent';
-          bold = true;
-          dim = false;
-        }
-
-        // Monster overrides (highest priority after cursor)
-        if (monsterCount > 0) {
-          ch = monsterCount > 9 ? 'M' : String(monsterCount);
-          const health = monsterHealth.get(key);
-          const ratio = health ? health.hp / Math.max(1, health.maxHp) : 1;
-          color = getHealthColor(ratio);
-          bold = true;
-          dim = false;
-        }
-
-        // Cursor highlight (highest priority)
-        const isCursor = cursorPos.x === x && cursorPos.y === y;
-        if (isCursor) {
-          backgroundColor = 'secondary';
-        }
-
-        rowStr += styledChar(ch, color, backgroundColor, bold, dim);
+      const templateRow = staticRows[y];
+      if (!templateRow || scratch.rowDirty[y] === 0) {
+        rows.push(Text({}, templateRow?.text ?? ''));
+        continue;
       }
-      // Single Text node per row instead of 80+ nodes - massive performance gain
-      rows.push(Text({}, rowStr));
+
+      const cells = templateRow.cells.slice();
+      const rowStart = y * width;
+      for (let x = 0; x < width; x++) {
+        const cell = scratch.dynamicCells[rowStart + x];
+        if (cell) {
+          cells[x] = cell.text;
+        }
+      }
+      rows.push(Text({}, cells.join('')));
     }
 
     return Box({ flexDirection: 'column', width, height, layoutRef: mapRef }, ...rows);
@@ -1360,7 +1609,22 @@ function TowerDefense(): VNode {
   );
 }
 
-const { waitUntilExit } = render(TowerDefense, {
-  // useDeltaRenderer: true, // Disabled - adds overhead, bottleneck is elsewhere
-});
-await waitUntilExit();
+function isMainModule(): boolean {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
+  }
+
+  return import.meta.url === pathToFileURL(entry).href;
+}
+
+export async function runTuiuiuDefence(): Promise<void> {
+  const { waitUntilExit } = render(TowerDefense, {
+    maxFps: 40,
+  });
+  await waitUntilExit();
+}
+
+if (isMainModule()) {
+  await runTuiuiuDefence();
+}

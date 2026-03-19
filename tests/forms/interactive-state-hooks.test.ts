@@ -55,6 +55,75 @@ describe('Interactive component state hooks', () => {
     expect(second.value()).toBe('persistent');
   });
 
+  it('keeps semantic segments across parent re-renders', () => {
+    const renderController = (placeholder: string) =>
+      renderWithHooks(() => useTextInputState({ placeholder }));
+
+    const first = renderController('Search...');
+    first.insertSegment({ kind: 'mention', displayText: '@ada' });
+
+    const second = renderController('Filter...');
+
+    expect(second).toBe(first);
+    expect(second.value()).toBe('@ada');
+    expect(second.segments()).toMatchObject([
+      { kind: 'mention', start: 0, end: 4, displayText: '@ada' },
+    ]);
+  });
+
+  it('keeps controller-local completion ranking across parent re-renders', async () => {
+    const renderController = (placeholder: string) =>
+      renderWithHooks(() =>
+        useTextInputState({
+          placeholder,
+          initialValue: '@a',
+          completion: {
+            resolveAnchor: ({ value, cursorPosition }) => {
+              const prefix = value.slice(0, cursorPosition);
+              const match = prefix.match(/@([a-z]*)$/);
+              if (!match || match.index === undefined) {
+                return null;
+              }
+
+              return {
+                start: match.index,
+                end: cursorPosition,
+                query: match[1] ?? '',
+                trigger: '@',
+              };
+            },
+            getItems: async () => [
+              { id: 'ada', label: 'Ada', replacement: { kind: 'mention', displayText: '@ada' } },
+              { id: 'alan', label: 'Alan', replacement: { kind: 'mention', displayText: '@alan' } },
+            ],
+            ranking: {
+              getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+            },
+          },
+        })
+      );
+
+    const first = renderController('Search...');
+    await Promise.resolve();
+    expect(first.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
+
+    first.selectNextCompletion();
+    first.acceptCompletion();
+    expect(first.getCompletionRankingSnapshot()).toMatchObject([
+      { key: '@:alan', count: 1 },
+    ]);
+
+    const second = renderController('Filter...');
+    second.setValue('@a');
+    await Promise.resolve();
+
+    expect(second).toBe(first);
+    expect(second.completion()?.items.map((item) => item.id)).toEqual(['alan', 'ada']);
+    expect(second.getCompletionRankingSnapshot()).toMatchObject([
+      { key: '@:alan', count: 1 },
+    ]);
+  });
+
   it('keeps Select selection across parent re-renders without external state', () => {
     const renderApp = () =>
       renderWithHooks(() =>

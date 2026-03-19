@@ -217,6 +217,32 @@ function updateLayoutRef(node: VNode, layout: LayoutNode): void {
   });
 }
 
+function syncAbsoluteLayoutRefs(
+  layout: LayoutNode,
+  offsetX = 0,
+  offsetY = 0,
+): void {
+  const absX = offsetX + layout.x;
+  const absY = offsetY + layout.y;
+
+  updateLayoutRef(layout.node, {
+    ...layout,
+    x: absX,
+    y: absY,
+  });
+
+  const style = layout.node.props as BoxStyle;
+  const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
+  const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
+  const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
+  const contentOffsetX = absX + paddingLeft + borderSize;
+  const contentOffsetY = absY + paddingTop + borderSize;
+
+  for (const child of layout.children) {
+    syncAbsoluteLayoutRefs(child, contentOffsetX, contentOffsetY);
+  }
+}
+
 /**
  * Clear the text measurement cache
  * Call this when you want to free memory or reset measurements
@@ -235,7 +261,9 @@ export function calculateLayout(
   availableHeight: number = Infinity
 ): LayoutNode {
   beginDirtyFrame(node);
-  return layoutNode(node, { x: 0, y: 0, width: availableWidth, height: availableHeight }, null);
+  const layout = layoutNode(node, { x: 0, y: 0, width: availableWidth, height: availableHeight }, null);
+  syncAbsoluteLayoutRefs(layout);
+  return layout;
 }
 
 function layoutTextNode(node: VNode, ctx: RenderContext): LayoutNode {

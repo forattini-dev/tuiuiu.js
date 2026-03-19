@@ -126,6 +126,8 @@
     "example:invaders": "tsx scripts/examples.ts run tuiuiu-invaders",
     "example:meteor": "tsx scripts/examples.ts run tuiuiu-meteor",
     "example:sideblaster": "tsx scripts/examples.ts run tuiuiu-sideblaster",
+    "example:tetris": "tsx scripts/examples.ts run tuiuiu-tetris",
+    "example:snake": "tsx scripts/examples.ts run tuiuiu-snake",
     "example:runtime-contracts": "tsx scripts/examples.ts run programmatic-runtime-contracts",
     "storybook:coverage": "tsx scripts/storybook-coverage.ts write",
     "verify:contracts": "tsx scripts/verify-public-contracts.ts",

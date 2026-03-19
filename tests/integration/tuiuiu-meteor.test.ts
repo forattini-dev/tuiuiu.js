@@ -10,7 +10,7 @@ import {
   type Arena,
   type GameState,
   type Meteor,
-} from '../../examples/tuiuiu-meteor.js';
+} from '../../examples/games/tuiuiu-meteor.js';
 
 const arena: Arena = {
   width: 60,

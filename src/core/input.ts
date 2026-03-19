@@ -390,8 +390,8 @@ function parseSGRMouse(cb: number, x: number, y: number, isRelease: boolean): Mo
   return {
     type: eventType,
     button: mouseButton,
-    x,
-    y,
+    x: x - 1,
+    y: y - 1,
     ctrl,
     alt,
     shift,
@@ -432,8 +432,8 @@ function parseX10Mouse(cb: number, x: number, y: number): MouseEvent {
   return {
     type: eventType,
     button: mouseButton,
-    x,
-    y,
+    x: x - 1,
+    y: y - 1,
     ctrl,
     alt,
     shift,

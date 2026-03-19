@@ -47,7 +47,7 @@ Unlike `tuiuiu-meteor`, this example does not wrap. Pressure builds from right-t
 
 ## Exported Gameplay Helpers
 
-These helpers are exported from `examples/tuiuiu-sideblaster.ts`:
+These helpers are exported from `examples/games/tuiuiu-sideblaster.ts`:
 
 - `getArena()`
 - `createNewGameState()`
@@ -61,7 +61,7 @@ These helpers are exported from `examples/tuiuiu-sideblaster.ts`:
 
 ## Source And Tests
 
-- Source: `examples/tuiuiu-sideblaster.ts`
+- Source: `examples/games/tuiuiu-sideblaster.ts`
 - Focused tests: `tests/integration/tuiuiu-sideblaster.test.ts`
 
 Run the focused test with:

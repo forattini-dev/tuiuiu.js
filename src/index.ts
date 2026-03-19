@@ -736,6 +736,9 @@ export {
   cursor,
   createLogUpdate,
   createUpdateBatcher,
+  createBackgroundExecutor,
+  createInlineBackgroundExecutor,
+  createWorkerThreadBackgroundExecutor,
   createDebounced as debouncedFn,
   createThrottled as throttledFn,
   createNodeFsStorage,
@@ -758,6 +761,17 @@ export type {
   ColorType,
   LogUpdate,
   LogUpdateOptions,
+  BackgroundExecutor,
+  BackgroundTaskError,
+  BackgroundTaskEvent,
+  BackgroundTaskEventListener,
+  BackgroundTaskHandle,
+  BackgroundTaskHandler,
+  BackgroundTaskHandlers,
+  BackgroundTaskReporter,
+  BackgroundTaskRequest,
+  BackgroundTaskResult,
+  WorkerThreadBackgroundExecutorOptions,
   UpdateBatcher,
   TuiChild,
 } from './utils/index.js';
@@ -1030,6 +1044,37 @@ export type {
   FuzzyMatch,
   CommandPaletteState,
   CommandPaletteOptions,
+} from './core/index.js';
+
+export {
+  createPromptCommandRegistry,
+} from './core/index.js';
+
+export type {
+  PromptCommandArgumentCompletionContext,
+  PromptCommandArgumentCompletionItem,
+  PromptCommandCompletion,
+  PromptCommandCompletionContext,
+  PromptCommandDefinition,
+  PromptCommandLiveDiagnostic,
+  PromptCommandLiveDiagnosticContext,
+  PromptCommandLiveContext,
+  PromptCommandMatchedLiveContext,
+  PromptCommandParseResult,
+  PromptCommandRegistry,
+  PromptCommandResolvedCompletion,
+  PromptCommandUnresolvedLiveContext,
+} from './core/index.js';
+
+export {
+  createPromptModeRegistry,
+} from './core/index.js';
+
+export type {
+  PromptModeDefinition,
+  PromptModeRegistry,
+  PromptModeRegistryOptions,
+  PromptModeResolved,
 } from './core/index.js';
 
 // =============================================================================

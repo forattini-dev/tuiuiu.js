@@ -63,6 +63,9 @@ The same rerender-safe pattern now applies to `MultiSelect`, `Autocomplete`, and
 - Multi-line mode with wrapping
 - Auto-grow and scrollbar
 - Click-to-caret
+- Semantic segments attached to text ranges
+- Paste transforms before buffer mutation
+- Anchored async completion state
 
 ### Main Props
 
@@ -77,6 +80,10 @@ The same rerender-safe pattern now applies to `MultiSelect`, `Autocomplete`, and
 | `maxLines` | `number` | Maximum visible lines before scrolling |
 | `autoGrow` | `boolean` | Grow height up to `maxLines` |
 | `showScrollbar` | `boolean` | Show overflow scrollbar |
+| `initialSegments` | `TextInputSegment[]` | Seed the input with semantic tokens |
+| `onSegmentsChange` | `(segments: TextInputSegment[]) => void` | Observe segment updates |
+| `transformPaste` | `(context) => TextInputInsertionLike` | Replace raw pasted text with text or segments |
+| `completion` | `TextInputCompletionOptions` | Anchored completion provider that may return items directly, a promise, or a task-backed handle |
 | `onChange` | `(val: string) => void` | Change handler |
 | `onSubmit` | `(val: string) => void` | Enter key handler |
 
@@ -111,6 +118,167 @@ renderTextInput(input, {
   fullWidth: true,
 });
 ```
+
+### Structured Prompt Usage
+
+```typescript
+const prompt = useTextInputState({
+  multiline: true,
+  autoGrow: true,
+  maxLines: 6,
+  history: [
+    {
+      value: '@research',
+      segments: [
+        {
+          id: 'seed-research',
+          kind: 'mention',
+          start: 0,
+          end: 9,
+          displayText: '@research',
+          payload: { agent: 'research' },
+        },
+      ],
+    },
+  ],
+  transformPaste: ({ text }) => {
+    if (text.length < 80) return undefined;
+    return {
+      parts: [
+        { type: 'text', text: 'Review ' },
+        {
+          type: 'segment',
+          segment: {
+            kind: 'paste',
+            displayText: `[paste:${text.length}c]`,
+            payload: { text },
+          },
+        },
+      ],
+    };
+  },
+  completion: {
+    resolveAnchor: ({ value, cursorPosition }) => {
+      const prefix = value.slice(0, cursorPosition);
+      const match = prefix.match(/(?:^|\\s)([@#])([\\w./-]*)$/);
+      if (!match || match.index === undefined) return null;
+      const start = match[0].startsWith(' ') ? match.index + 1 : match.index;
+      return {
+        start,
+        end: cursorPosition,
+        query: match[2] ?? '',
+        trigger: match[1],
+      };
+    },
+    getItems: loadPromptSuggestions,
+  },
+});
+
+TextInput({ state: prompt, borderStyle: 'round', fullWidth: true });
+```
+
+The controller also exposes low-level helpers such as `insertSegment()`, `paste()`, `acceptCompletion()`, and `cancelCompletion()` for prompt-like applications that want explicit orchestration.
+
+History entries can be plain strings or structured `{ value, segments }` objects. When a structured history entry is recalled with Up/Down, the controller restores both the text and the semantic tokens. Returning to the live draft also restores the draft segments instead of dropping them.
+
+If you want submitted prompts to survive process restarts, add synchronous prompt-history persistence:
+
+```typescript
+import { createNodeFsSyncStorage } from 'tuiuiu.js';
+
+const promptHistoryStorage = createNodeFsSyncStorage({
+  dir: './.prompt-state',
+});
+
+const prompt = useTextInputState({
+  history: [
+    {
+      value: '#src/atoms/text-input.ts',
+      segments: [
+        {
+          id: 'seed-file',
+          kind: 'file',
+          start: 0,
+          end: 25,
+          displayText: '#src/atoms/text-input.ts',
+          payload: { path: 'src/atoms/text-input.ts' },
+        },
+      ],
+    },
+  ],
+  historyPersistence: {
+    storage: promptHistoryStorage,
+    key: 'rich-prompt-history',
+    limit: 20,
+  },
+});
+```
+
+Persisted prompt history hydrates synchronously when the controller is created, so the first history navigation session can already restore prior structured prompts.
+
+### Prompt Command Routing
+
+Slash commands remain application-owned prompt semantics, but the library now provides helpers to remove most of the boilerplate. See the advanced reference in [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md).
+
+In short:
+
+- `createPromptCommandRegistry()` centralizes slash-command matching, completion, and parse helpers
+- `inspectPrompt(value, cursorPosition)` exposes live slash-command context and diagnostics while the user is typing
+- `completeArgs` lets each command provide argument-specific completion without pushing command semantics into `TextInput`
+
+### Prompt Mode Routing
+
+When one prompt needs multiple submit routes, `createPromptModeRegistry()` classifies prompt mode by prefix without pushing those semantics into `TextInput`. `inspectPrompt()` is the canonical API; `parse()` remains as a compatibility alias. See [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) for the full example.
+
+### Task-Backed Completion Usage
+
+When completion sources need ranking or background work, `getItems` can return a task handle instead of awaiting the result inline. The controller cancels obsolete tasks automatically when the anchor changes or the session closes. See [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) for the full pattern.
+
+### Completion Ranking
+
+Completion ranking is opt-in and controller-local. When enabled, accepted items gain frecency weight and rise in later sessions for the same ranking key:
+
+```typescript
+const prompt = useTextInputState({
+  completion: {
+    resolveAnchor,
+    getItems: loadPromptSuggestions,
+    ranking: {
+      getKey: (item, context) => `${context.anchor.trigger ?? ''}:${item.id}`,
+    },
+  },
+});
+```
+
+Provider order remains the stable tie-break when items have equal scores or no ranking history. The controller also exposes `getCompletionRankingSnapshot()` and `clearCompletionRanking()` for apps that want to inspect or reset the local in-memory ranking state.
+
+If you want ranking to survive process restarts, add synchronous persistence:
+
+```typescript
+import { createNodeFsSyncStorage } from 'tuiuiu.js';
+
+const rankingStorage = createNodeFsSyncStorage({
+  dir: './.prompt-state',
+});
+
+const prompt = useTextInputState({
+  completion: {
+    resolveAnchor,
+    getItems: loadPromptSuggestions,
+    ranking: {
+      getKey: (item, context) => `${context.anchor.trigger ?? ''}:${item.id}`,
+      persistence: {
+        storage: rankingStorage,
+        key: 'rich-prompt-ranking',
+      },
+    },
+  },
+});
+```
+
+Persisted ranking hydrates synchronously when the controller is created, so the first completion session in a new process can already use prior ranking history.
+
+For the full advanced prompt stack, including background task progress and the core-vs-app-owned boundary, see [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) and the workbench references in [examples.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/examples.md).
 
 ## Select
 

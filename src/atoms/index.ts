@@ -108,7 +108,13 @@ export {
   renderTextInput,
   useTextInputState,
   type TextInputProps,
+  type TextInputCompletionAnchor,
+  type TextInputHistoryEntry,
+  type TextInputHistoryItem,
+  type TextInputHistoryPersistenceOptions,
   type TextInputOptions,
+  type TextInputSegment,
+  type TextInputSegmentInput,
   type TextInputState,
 } from './text-input.js';
 

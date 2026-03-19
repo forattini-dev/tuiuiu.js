@@ -17,12 +17,35 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, MouseEventData } from '../utils/types.js';
-import { createSignal, createEffect } from '../primitives/signal.js';
+import { batch, createSignal, createEffect } from '../primitives/signal.js';
 import { useConst, useInput, type Key } from '../hooks/index.js';
 import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { stringWidth } from '../utils/text-utils.js';
+import type { BackgroundTaskHandle } from '../utils/background-executor.js';
+import type { SyncStorageAdapter } from '../primitives/store.js';
+import {
+  clampCursorToSegmentBoundary,
+  clampSegmentsToValue,
+  cloneSegments,
+  expandRangeAcrossSegments,
+  getCursorIndexFromColumn,
+  isTaskBackedCompletionResult,
+  normalizeHistoryEntry,
+  normalizeHistoryEntries,
+  sortCompletionRankingEntries,
+  sortSegments,
+} from './text-input-model.js';
+import {
+  isSameCompletionRankingPersistence,
+  isSameHistoryPersistenceOptions,
+  mergePersistedHistoryEntry,
+  readPersistedCompletionRankingEntries,
+  readPersistedHistoryEntries,
+  writePersistedCompletionRankingEntries,
+  writePersistedHistoryEntries,
+} from './text-input-persistence.js';
 
 export interface TextInputState {
   value: string;
@@ -30,11 +53,142 @@ export interface TextInputState {
   isMultiline: boolean;
   historyIndex: number;
   viewportOffset: number;
+  segments?: TextInputSegment[];
+  completion?: TextInputCompletionState | null;
+}
+
+export interface TextInputRange {
+  start: number;
+  end: number;
+}
+
+export interface TextInputSegment<T = unknown> {
+  id: string;
+  kind: string;
+  start: number;
+  end: number;
+  displayText: string;
+  payload?: T;
+}
+
+export interface TextInputSegmentInput<T = unknown> {
+  id?: string;
+  kind: string;
+  displayText: string;
+  payload?: T;
+}
+
+export type TextInputInsertedPart<T = unknown> =
+  | { type: 'text'; text: string }
+  | { type: 'segment'; segment: TextInputSegmentInput<T> };
+
+export interface TextInputInsertion<T = unknown> {
+  parts: TextInputInsertedPart<T>[];
+}
+
+export interface TextInputIgnoreResult {
+  ignore: true;
+}
+
+export type TextInputInsertionLike<T = unknown> =
+  | string
+  | TextInputInsertion<T>
+  | TextInputSegmentInput<T>;
+
+export interface TextInputPasteContext {
+  text: string;
+  value: string;
+  cursorPosition: number;
+  range: TextInputRange;
+  segments: TextInputSegment[];
+}
+
+export type TextInputPasteTransformResult<T = unknown> =
+  | TextInputInsertionLike<T>
+  | TextInputIgnoreResult
+  | null
+  | undefined;
+
+export interface TextInputCompletionAnchor extends TextInputRange {
+  query: string;
+  trigger?: string;
+}
+
+export interface TextInputCompletionContext {
+  value: string;
+  cursorPosition: number;
+  segments: TextInputSegment[];
+  anchor: TextInputCompletionAnchor;
+}
+
+export interface TextInputCompletionItem<T = unknown> {
+  id: string;
+  label: string;
+  detail?: string;
+  replacement?: TextInputInsertionLike<T>;
+  payload?: T;
+}
+
+export interface TextInputCompletionRankingEntry {
+  key: string;
+  count: number;
+  lastAcceptedAt: number;
+}
+
+export interface TextInputHistoryEntry {
+  value: string;
+  segments?: TextInputSegment[];
+}
+
+export type TextInputHistoryItem = string | TextInputHistoryEntry;
+
+export interface TextInputHistoryPersistenceOptions {
+  storage: SyncStorageAdapter;
+  key: string;
+  limit?: number;
+}
+
+export interface TextInputCompletionRankingOptions<T = unknown> {
+  getKey: (
+    item: TextInputCompletionItem<T>,
+    context: TextInputCompletionContext
+  ) => string;
+  persistence?: {
+    storage: SyncStorageAdapter;
+    key: string;
+  };
+}
+
+export interface TextInputCompletionState<T = unknown> {
+  anchor: TextInputCompletionAnchor;
+  query: string;
+  status: 'loading' | 'ready' | 'error';
+  items: TextInputCompletionItem<T>[];
+  selectedIndex: number;
+  statusText?: string;
+  progress?: number;
+  error?: string;
+}
+
+type TextInputCompletionItems<T = unknown> = readonly TextInputCompletionItem<T>[];
+type TextInputCompletionTask<T = unknown> = BackgroundTaskHandle<TextInputCompletionItems<T>>;
+
+export interface TextInputCompletionOptions<T = unknown> {
+  resolveAnchor: (context: {
+    value: string;
+    cursorPosition: number;
+    segments: TextInputSegment[];
+  }) => TextInputCompletionAnchor | null;
+  getItems: (context: TextInputCompletionContext) =>
+    Promise<TextInputCompletionItems<T>> | TextInputCompletionItems<T> | TextInputCompletionTask<T>;
+  ranking?: TextInputCompletionRankingOptions<T>;
 }
 
 export interface TextInputOptions {
   /** Initial value */
   initialValue?: string;
+  /** Initial semantic segments */
+  initialSegments?: TextInputSegment[];
   /** Placeholder when empty */
   placeholder?: string;
   /** Password mode - mask characters */
@@ -46,9 +200,13 @@ export interface TextInputOptions {
   /** Max length */
   maxLength?: number;
   /** Input history for Up/Down navigation */
-  history?: string[];
+  history?: TextInputHistoryItem[];
+  /** Optional synchronous persistence for submitted history entries */
+  historyPersistence?: TextInputHistoryPersistenceOptions;
   /** Called on value change */
   onChange?: (value: string) => void;
+  /** Called when semantic segments change */
+  onSegmentsChange?: (segments: TextInputSegment[]) => void;
   /** Called on submit (Enter) */
   onSubmit?: (value: string) => void;
   /** Called on cancel (Escape) */
@@ -83,29 +241,41 @@ export interface TextInputOptions {
   wordWrap?: boolean;
   /** If true, Enter creates a newline without Shift */
   enterCreatesNewline?: boolean;
+  /** Transform pasted content before it mutates the input buffer */
+  transformPaste?: (context: TextInputPasteContext) => TextInputPasteTransformResult;
+  /** Async completion provider anchored to the current cursor range */
+  completion?: TextInputCompletionOptions;
 }
 
 interface TextInputRuntimeOptions {
   maxLength?: number;
-  history: string[];
+  history: TextInputHistoryEntry[];
+  historyPersistence?: TextInputHistoryPersistenceOptions;
   onChange?: (value: string) => void;
+  onSegmentsChange?: (segments: TextInputSegment[]) => void;
   onSubmit?: (value: string) => void;
   onCancel?: () => void;
   isActive: boolean | (() => boolean);
   multiline: boolean;
   enterCreatesNewline: boolean;
+  transformPaste?: (context: TextInputPasteContext) => TextInputPasteTransformResult;
+  completion?: TextInputCompletionOptions;
 }
 
 function resolveRuntimeOptions(options: TextInputOptions): TextInputRuntimeOptions {
   return {
     maxLength: options.maxLength,
-    history: options.history ?? [],
+    history: normalizeHistoryEntries(options.history ?? []),
+    historyPersistence: options.historyPersistence,
     onChange: options.onChange,
+    onSegmentsChange: options.onSegmentsChange,
     onSubmit: options.onSubmit,
     onCancel: options.onCancel,
     isActive: options.isActive ?? true,
     multiline: options.multiline ?? false,
     enterCreatesNewline: options.enterCreatesNewline ?? false,
+    transformPaste: options.transformPaste,
+    completion: options.completion,
   };
 }
 
@@ -199,20 +369,6 @@ export function getVisualLines(text: string, width: number, wrap: boolean): Visu
   return lines;
 }
 
-function getCursorIndexFromColumn(text: string, column: number): number {
-  if (column <= 0) return 0;
-  let width = 0;
-  let index = 0;
-
-  for (const char of text) {
-    const charWidth = stringWidth(char);
-    if (width + charWidth > column) break;
-    width += charWidth;
-    index += char.length;
-  }
-
-  return index;
-}
 
 /**
  * Create a TextInput state manager
@@ -225,7 +381,8 @@ export function createTextInput(options: TextInputOptions = {}) {
     autoGrow = false,
     wordWrap = false,
   } = options;
-  let runtimeOptions = resolveRuntimeOptions(options);
+  let currentOptions: TextInputOptions = { ...options };
+  let runtimeOptions = resolveRuntimeOptions(currentOptions);
   let wrapWidth = width;
   let wrapWordWrap = wordWrap;
   let wrapMaxLines = maxLines;
@@ -242,9 +399,24 @@ export function createTextInput(options: TextInputOptions = {}) {
   const [cursorPosition, setCursorPosition] = createSignal(initialValue.length);
   const [isMultilineMode, setIsMultilineMode] = createSignal(false);
   const [historyIndex, setHistoryIndex] = createSignal(-1);
-  const [originalValue, setOriginalValue] = createSignal('');
+  const [originalHistoryDraft, setOriginalHistoryDraft] = createSignal<TextInputHistoryEntry>({
+    value: '',
+    segments: [],
+  });
   const [viewportOffset, setViewportOffset] = createSignal(0);
   const [preferredColumn, setPreferredColumn] = createSignal<number | null>(null);
+  const [segments, setSegments] = createSignal(
+    clampSegmentsToValue(options.initialSegments ?? [], initialValue.length)
+  );
+  const [completionState, setCompletionState] = createSignal<TextInputCompletionState | null>(null);
+  let nextSegmentId = segments().length;
+  let completionRequestId = 0;
+  let suppressedCompletionKey: string | null = null;
+  let activeCompletionTask: TextInputCompletionTask | null = null;
+  let releaseCompletionTaskEvents: (() => void) | null = null;
+  let seedHistoryEntries = runtimeOptions.history;
+  let persistedHistoryEntries: TextInputHistoryEntry[] = [];
+  const completionRanking = new Map<string, TextInputCompletionRankingEntry>();
 
   const setLayout = (layout: { width?: number; wordWrap?: boolean; maxLines?: number; autoGrow?: boolean }) => {
     if (typeof layout.width === 'number') {
@@ -261,6 +433,565 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
     resolvedMaxLines = wrapAutoGrow ? (wrapMaxLines ?? 5) : wrapMaxLines;
   };
+
+  const createSegmentId = () => `segment-${++nextSegmentId}`;
+
+  const getCompletionAnchorKey = (anchor: TextInputCompletionAnchor, nextValue: string, nextCursor: number) =>
+    `${anchor.start}:${anchor.end}:${anchor.query}:${nextCursor}:${nextValue}`;
+
+  const emitSegmentsChange = (nextSegments: TextInputSegment[]) => {
+    runtimeOptions.onSegmentsChange?.(nextSegments);
+  };
+
+  const getHistoryEntries = () => [...seedHistoryEntries, ...persistedHistoryEntries];
+
+  const hydratePersistedHistory = () => {
+    persistedHistoryEntries = readPersistedHistoryEntries(runtimeOptions.historyPersistence);
+  };
+
+  const persistPromptHistory = () => {
+    writePersistedHistoryEntries(runtimeOptions.historyPersistence, persistedHistoryEntries);
+  };
+
+  const syncHistorySources = () => {
+    seedHistoryEntries = runtimeOptions.history;
+    hydratePersistedHistory();
+  };
+
+  const applyHistoryEntry = (entry: TextInputHistoryEntry) => {
+    const normalizedEntry = normalizeHistoryEntry(entry);
+    const nextSegments = cloneSegments(normalizedEntry.segments ?? []);
+
+    batch(() => {
+      setValue(normalizedEntry.value);
+      setSegments(nextSegments);
+      setCursorPositionInternal(normalizedEntry.value.length);
+    });
+    runtimeOptions.onChange?.(normalizedEntry.value);
+    emitSegmentsChange(nextSegments);
+  };
+
+  const recordSubmittedHistoryEntry = (
+    submittedValue: string,
+    submittedSegments: readonly TextInputSegment[]
+  ) => {
+    if (!runtimeOptions.historyPersistence) {
+      return;
+    }
+
+    const nextEntry = normalizeHistoryEntry({
+      value: submittedValue,
+      segments: cloneSegments(submittedSegments),
+    });
+
+    if (!nextEntry.value.trim() && (nextEntry.segments?.length ?? 0) === 0) {
+      return;
+    }
+
+    persistedHistoryEntries = mergePersistedHistoryEntry(
+      persistedHistoryEntries,
+      nextEntry,
+      runtimeOptions.historyPersistence?.limit
+    );
+    persistPromptHistory();
+  };
+
+  const hydrateCompletionRanking = () => {
+    const persistence = runtimeOptions.completion?.ranking?.persistence;
+    if (!persistence) {
+      return;
+    }
+
+    completionRanking.clear();
+    for (const entry of readPersistedCompletionRankingEntries(persistence)) {
+      completionRanking.set(entry.key, entry);
+    }
+  };
+
+  const persistCompletionRanking = () => {
+    writePersistedCompletionRankingEntries(
+      runtimeOptions.completion?.ranking?.persistence,
+      getCompletionRankingSnapshot()
+    );
+  };
+
+  const getCompletionRankingSnapshot = () =>
+    sortCompletionRankingEntries([...completionRanking.values()]);
+
+  const clearCompletionRanking = () => {
+    completionRanking.clear();
+    persistCompletionRanking();
+  };
+
+  const rankCompletionItems = <T = unknown>(
+    items: TextInputCompletionItem<T>[],
+    context: TextInputCompletionContext
+  ): TextInputCompletionItem<T>[] => {
+    const ranking = runtimeOptions.completion?.ranking;
+    if (!ranking) {
+      return items;
+    }
+
+    return [...items]
+      .map((item, index) => {
+        const key = ranking.getKey(item, context);
+        const entry = completionRanking.get(key);
+        return {
+          item,
+          index,
+          count: entry?.count ?? 0,
+          lastAcceptedAt: entry?.lastAcceptedAt ?? 0,
+        };
+      })
+      .sort((left, right) => {
+        if (left.count !== right.count) return right.count - left.count;
+        if (left.lastAcceptedAt !== right.lastAcceptedAt) return right.lastAcceptedAt - left.lastAcceptedAt;
+        return left.index - right.index;
+      })
+      .map((entry) => entry.item);
+  };
+
+  const recordAcceptedCompletion = (
+    item: TextInputCompletionItem,
+    context: TextInputCompletionContext
+  ) => {
+    const ranking = runtimeOptions.completion?.ranking;
+    if (!ranking) {
+      return;
+    }
+
+    const key = ranking.getKey(item, context);
+    const previous = completionRanking.get(key);
+    completionRanking.set(key, {
+      key,
+      count: (previous?.count ?? 0) + 1,
+      lastAcceptedAt: Date.now(),
+    });
+    persistCompletionRanking();
+  };
+
+  syncHistorySources();
+  hydrateCompletionRanking();
+
+  const releaseCompletionTask = (cancelReason?: string) => {
+    const task = activeCompletionTask;
+    const unsubscribe = releaseCompletionTaskEvents;
+    activeCompletionTask = null;
+    releaseCompletionTaskEvents = null;
+
+    unsubscribe?.();
+    if (task && cancelReason) {
+      task.cancel(cancelReason);
+    }
+  };
+
+  const normalizeInsertion = (
+    insertion: TextInputInsertionLike | TextInputIgnoreResult | null | undefined,
+    fallbackText = ''
+  ): TextInputInsertion | TextInputIgnoreResult => {
+    if (!insertion) {
+      return { parts: fallbackText ? [{ type: 'text', text: fallbackText }] : [] };
+    }
+
+    if (typeof insertion === 'string') {
+      return { parts: insertion ? [{ type: 'text', text: insertion }] : [] };
+    }
+
+    if ('ignore' in insertion && insertion.ignore) {
+      return insertion;
+    }
+
+    if ('parts' in insertion) {
+      return insertion;
+    }
+
+    return {
+      parts: [{ type: 'segment', segment: insertion as TextInputSegmentInput }],
+    };
+  };
+
+  const applyMaxLengthToParts = (
+    parts: readonly TextInputInsertedPart[],
+    currentValue: string,
+    range: TextInputRange
+  ): TextInputInsertedPart[] => {
+    if (!runtimeOptions.maxLength) {
+      return [...parts];
+    }
+
+    let remaining = runtimeOptions.maxLength - (currentValue.length - (range.end - range.start));
+    if (remaining <= 0) {
+      return [];
+    }
+
+    const limited: TextInputInsertedPart[] = [];
+    for (const part of parts) {
+      if (part.type === 'text') {
+        const text = part.text.slice(0, remaining);
+        if (text.length > 0) {
+          limited.push({ type: 'text', text });
+          remaining -= text.length;
+        }
+        if (remaining <= 0) break;
+        continue;
+      }
+
+      const segmentLength = part.segment.displayText.length;
+      if (segmentLength <= remaining) {
+        limited.push(part);
+        remaining -= segmentLength;
+      } else {
+        break;
+      }
+    }
+
+    return limited;
+  };
+
+  const applyEdit = (
+    range: TextInputRange,
+    insertionLike: TextInputInsertionLike | TextInputIgnoreResult | null | undefined,
+    options?: {
+      resetHistory?: boolean;
+      setMultiline?: boolean;
+      suppressCompletion?: boolean;
+    }
+  ) => {
+    const currentValue = value();
+    const currentSegments = segments();
+    const expandedRange = expandRangeAcrossSegments(currentSegments, range.start, range.end);
+    const normalizedInsertion = normalizeInsertion(insertionLike);
+
+    if ('ignore' in normalizedInsertion) {
+      return false;
+    }
+
+    const parts = applyMaxLengthToParts(normalizedInsertion.parts, currentValue, expandedRange);
+    const before = currentValue.slice(0, expandedRange.start);
+    const after = currentValue.slice(expandedRange.end);
+
+    let insertedText = '';
+    let insertedCursor = expandedRange.start;
+    let insertedOffset = 0;
+    const insertedSegments: TextInputSegment[] = [];
+
+    for (const part of parts) {
+      if (part.type === 'text') {
+        insertedText += part.text;
+        insertedOffset += part.text.length;
+        continue;
+      }
+
+      const displayText = part.segment.displayText;
+      const start = expandedRange.start + insertedOffset;
+      insertedText += displayText;
+      insertedSegments.push({
+        id: part.segment.id ?? createSegmentId(),
+        kind: part.segment.kind,
+        start,
+        end: start + displayText.length,
+        displayText,
+        payload: part.segment.payload,
+      });
+      insertedOffset += displayText.length;
+    }
+
+    const nextValue = before + insertedText + after;
+    const delta = insertedText.length - (expandedRange.end - expandedRange.start);
+    const shiftedSegments = currentSegments
+      .filter((segment) => segment.end <= expandedRange.start || segment.start >= expandedRange.end)
+      .map((segment) => {
+        if (segment.start >= expandedRange.end) {
+          return {
+            ...segment,
+            start: segment.start + delta,
+            end: segment.end + delta,
+          };
+        }
+        return segment;
+      });
+
+    const nextSegments = sortSegments(
+      clampSegmentsToValue([...shiftedSegments, ...insertedSegments], nextValue.length)
+    );
+    insertedCursor = expandedRange.start + insertedText.length;
+
+    if (options?.suppressCompletion && runtimeOptions.completion) {
+      const nextAnchor = runtimeOptions.completion.resolveAnchor({
+        value: nextValue,
+        cursorPosition: insertedCursor,
+        segments: nextSegments,
+      });
+      suppressedCompletionKey = nextAnchor
+        ? getCompletionAnchorKey(nextAnchor, nextValue, insertedCursor)
+        : null;
+    } else {
+      suppressedCompletionKey = null;
+    }
+
+    batch(() => {
+      setValue(nextValue);
+      setSegments(nextSegments);
+      setCursorPositionInternal(insertedCursor, { updatePreferredColumn: true });
+      if (options?.resetHistory) {
+        setHistoryIndex(-1);
+      }
+      if (options?.setMultiline) {
+        setIsMultilineMode(true);
+      }
+    });
+    runtimeOptions.onChange?.(nextValue);
+    emitSegmentsChange(nextSegments);
+    return true;
+  };
+
+  const applyPaste = (text: string) => {
+    const range = {
+      start: cursorPosition(),
+      end: cursorPosition(),
+    };
+    const context: TextInputPasteContext = {
+      text,
+      value: value(),
+      cursorPosition: cursorPosition(),
+      range,
+      segments: segments(),
+    };
+    const transformed = runtimeOptions.transformPaste?.(context);
+    const insertion = normalizeInsertion(transformed, text);
+    return applyEdit(range, insertion, { resetHistory: true, setMultiline: text.includes('\n') });
+  };
+
+  const clearCompletion = (cancelReason = 'Completion cleared') => {
+    completionRequestId++;
+    releaseCompletionTask(cancelReason);
+    setCompletionState(null);
+  };
+
+  const selectCompletionIndex = (nextIndex: number) => {
+    const current = completionState();
+    if (!current || current.items.length === 0) {
+      return;
+    }
+    setCompletionState({
+      ...current,
+      selectedIndex: ((nextIndex % current.items.length) + current.items.length) % current.items.length,
+    });
+  };
+
+  const refreshCompletion = () => {
+    const completion = runtimeOptions.completion;
+    if (!completion) {
+      clearCompletion();
+      return;
+    }
+
+    const currentValue = value();
+    const currentCursor = cursorPosition();
+    const currentSegments = segments();
+    const anchor = completion.resolveAnchor({
+      value: currentValue,
+      cursorPosition: currentCursor,
+      segments: currentSegments,
+    });
+
+    if (!anchor || anchor.start > anchor.end) {
+      suppressedCompletionKey = null;
+      clearCompletion();
+      return;
+    }
+
+    const anchorKey = getCompletionAnchorKey(anchor, currentValue, currentCursor);
+    if (suppressedCompletionKey && suppressedCompletionKey === anchorKey) {
+      releaseCompletionTask('Completion suppressed');
+      setCompletionState(null);
+      return;
+    }
+    if (suppressedCompletionKey && suppressedCompletionKey !== anchorKey) {
+      suppressedCompletionKey = null;
+    }
+
+    const previous = completionState();
+    const shouldReuse =
+      previous &&
+      previous.anchor.start === anchor.start &&
+      previous.anchor.end === anchor.end &&
+      previous.query === anchor.query &&
+      previous.status !== 'error';
+
+    if (shouldReuse) {
+      return;
+    }
+
+    const requestId = ++completionRequestId;
+    releaseCompletionTask('Completion request replaced');
+    setCompletionState({
+      anchor,
+      query: anchor.query,
+      status: 'loading',
+      items: previous?.items ?? [],
+      selectedIndex: 0,
+      statusText: undefined,
+      progress: undefined,
+    });
+
+    const completionResult = completion.getItems({
+      value: currentValue,
+      cursorPosition: currentCursor,
+      segments: currentSegments,
+      anchor,
+    });
+
+    if (isTaskBackedCompletionResult(completionResult)) {
+      activeCompletionTask = completionResult;
+      releaseCompletionTaskEvents = completionResult.subscribe((event) => {
+        if (requestId !== completionRequestId || event.kind !== 'progress') {
+          return;
+        }
+
+        const payload = event.payload as {
+          status?: string;
+          progress?: number;
+        };
+        const currentCompletion = completionState();
+        if (!currentCompletion || currentCompletion.status !== 'loading') {
+          return;
+        }
+
+        setCompletionState({
+          ...currentCompletion,
+          statusText: typeof payload.status === 'string' ? payload.status : currentCompletion.statusText,
+          progress: typeof payload.progress === 'number' ? payload.progress : currentCompletion.progress,
+        });
+      });
+
+      Promise.resolve(completionResult.result)
+        .then((result) => {
+          if (requestId !== completionRequestId) {
+            return;
+          }
+
+          releaseCompletionTask();
+          if (result.status === 'cancelled') {
+            setCompletionState(null);
+            return;
+          }
+          if (result.status === 'rejected') {
+            setCompletionState({
+              anchor,
+              query: anchor.query,
+              status: 'error',
+              items: [],
+              selectedIndex: 0,
+              error: result.error.message,
+            });
+            return;
+          }
+          if (result.status !== 'resolved') {
+            return;
+          }
+
+          const nextItems = rankCompletionItems([...result.value], {
+            value: currentValue,
+            cursorPosition: currentCursor,
+            segments: currentSegments,
+            anchor,
+          });
+          setCompletionState({
+            anchor,
+            query: anchor.query,
+            status: 'ready',
+            items: nextItems,
+            selectedIndex: nextItems.length > 0 ? 0 : 0,
+          });
+        })
+        .catch((error) => {
+          if (requestId !== completionRequestId) {
+            return;
+          }
+
+          releaseCompletionTask();
+          setCompletionState({
+            anchor,
+            query: anchor.query,
+            status: 'error',
+            items: [],
+            selectedIndex: 0,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      return;
+    }
+
+    Promise.resolve(completionResult)
+      .then((items) => {
+        if (requestId !== completionRequestId) {
+          return;
+        }
+        const nextItems = rankCompletionItems([...items], {
+          value: currentValue,
+          cursorPosition: currentCursor,
+          segments: currentSegments,
+          anchor,
+        });
+        setCompletionState({
+          anchor,
+          query: anchor.query,
+          status: 'ready',
+          items: nextItems,
+          selectedIndex: nextItems.length > 0 ? 0 : 0,
+        });
+      })
+      .catch((error) => {
+        if (requestId !== completionRequestId) {
+          return;
+        }
+        setCompletionState({
+          anchor,
+          query: anchor.query,
+          status: 'error',
+          items: [],
+          selectedIndex: 0,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+  };
+
+  const acceptCompletion = (index = completionState()?.selectedIndex ?? 0) => {
+    const current = completionState();
+    if (!current || current.items.length === 0) {
+      return false;
+    }
+
+    const item = current.items[Math.max(0, Math.min(index, current.items.length - 1))];
+    recordAcceptedCompletion(item, {
+      value: value(),
+      cursorPosition: cursorPosition(),
+      segments: segments(),
+      anchor: current.anchor,
+    });
+    const applied = applyEdit(
+      { start: current.anchor.start, end: current.anchor.end },
+      item.replacement ?? item.label,
+      { resetHistory: true, suppressCompletion: true }
+    );
+    if (applied) {
+      clearCompletion();
+    }
+    return applied;
+  };
+
+  createEffect(() => {
+    value();
+    cursorPosition();
+    segments();
+    if (!runtimeOptions.completion) {
+      releaseCompletionTask('Completion disabled');
+      setCompletionState(null);
+      return;
+    }
+    refreshCompletion();
+  });
 
   const getCursorLineInfo = (val: string, cursor: number) => {
     const visualLines = getVisualLines(val, wrapWidth, wrapWordWrap);
@@ -291,10 +1022,19 @@ export function createTextInput(options: TextInputOptions = {}) {
 
   const setCursorPositionInternal = (
     pos: number,
-    options?: { scroll?: boolean; updatePreferredColumn?: boolean }
+    options?: {
+      scroll?: boolean;
+      updatePreferredColumn?: boolean;
+      clampDirection?: 'nearest' | 'left' | 'right';
+    }
   ) => {
     const current = value();
-    const clamped = Math.max(0, Math.min(pos, current.length));
+    const bounded = Math.max(0, Math.min(pos, current.length));
+    const clamped = clampCursorToSegmentBoundary(
+      segments(),
+      bounded,
+      options?.clampDirection ?? 'nearest'
+    );
     setCursorPosition(clamped);
     if (options?.updatePreferredColumn !== false) {
       updatePreferredColumn(current, clamped);
@@ -380,22 +1120,26 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (!checkIsActive()) return;
 
     const currentValue = value();
+    const currentSegments = segments();
     const pos = cursorPosition();
+    const activeCompletion = completionState();
 
     // Escape - cancel
     if (key.escape) {
+      if (activeCompletion) {
+        clearCompletion();
+        return;
+      }
       runtimeOptions.onCancel?.();
       return;
     }
 
     // Ctrl+N - insert newline (N = New line, works in all terminals)
     if (key.ctrl && input === 'n' && runtimeOptions.multiline) {
-      const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
-      setValue(newValue);
-      const newPos = pos + 1;
-      setCursorPositionInternal(newPos);
-      setIsMultilineMode(true);
-      runtimeOptions.onChange?.(newValue);
+      applyEdit({ start: pos, end: pos }, '\n', {
+        resetHistory: true,
+        setMultiline: true,
+      });
       return;
     }
 
@@ -403,24 +1147,23 @@ export function createTextInput(options: TextInputOptions = {}) {
     // Ctrl+Alt+Enter, Alt+Enter, or Shift+Enter creates newline (if terminal supports it)
     if (key.return) {
       if (((key.shift || key.meta) && runtimeOptions.multiline) || (runtimeOptions.multiline && runtimeOptions.enterCreatesNewline)) {
-        // Insert newline
-        const newValue = currentValue.slice(0, pos) + '\n' + currentValue.slice(pos);
-        setValue(newValue);
-        const newPos = pos + 1;
-        setCursorPositionInternal(newPos);
-        setIsMultilineMode(true);
-        runtimeOptions.onChange?.(newValue);
+        applyEdit({ start: pos, end: pos }, '\n', {
+          resetHistory: true,
+          setMultiline: true,
+        });
       } else {
         // Submit
+        recordSubmittedHistoryEntry(currentValue, currentSegments);
         runtimeOptions.onSubmit?.(currentValue);
         setHistoryIndex(-1);
       }
       return;
     }
 
-    // Tab - could be used for completion
     if (key.tab) {
-      // Reserved for future tab completion
+      if (activeCompletion && activeCompletion.items.length > 0) {
+        acceptCompletion();
+      }
       return;
     }
 
@@ -429,10 +1172,10 @@ export function createTextInput(options: TextInputOptions = {}) {
       if (key.ctrl) {
         // Move to previous word boundary
         const newPos = findPrevWordBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos);
+        setCursorPositionInternal(newPos, { clampDirection: 'left' });
       } else {
         const newPos = Math.max(0, pos - 1);
-        setCursorPositionInternal(newPos);
+        setCursorPositionInternal(newPos, { clampDirection: 'left' });
       }
       return;
     }
@@ -441,10 +1184,10 @@ export function createTextInput(options: TextInputOptions = {}) {
       if (key.ctrl) {
         // Move to next word boundary
         const newPos = findNextWordBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos);
+        setCursorPositionInternal(newPos, { clampDirection: 'right' });
       } else {
         const newPos = Math.min(currentValue.length, pos + 1);
-        setCursorPositionInternal(newPos);
+        setCursorPositionInternal(newPos, { clampDirection: 'right' });
       }
       return;
     }
@@ -462,6 +1205,11 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
 
     if (key.upArrow) {
+      if (activeCompletion && activeCompletion.items.length > 0) {
+        selectCompletionIndex(activeCompletion.selectedIndex - 1);
+        return;
+      }
+
       const { visualLines, lineIndex, column } = getCursorLineInfo(currentValue, pos);
       const targetColumn = preferredColumn() ?? column;
 
@@ -472,26 +1220,35 @@ export function createTextInput(options: TextInputOptions = {}) {
         if (preferredColumn() === null) {
           setPreferredColumn(targetColumn);
         }
-        setCursorPositionInternal(newPos, { updatePreferredColumn: false });
+        setCursorPositionInternal(newPos, {
+          updatePreferredColumn: false,
+          clampDirection: 'left',
+        });
         return;
       }
 
-      if (runtimeOptions.history.length > 0) {
+      const historyEntries = getHistoryEntries();
+      if (historyEntries.length > 0) {
         const currentIndex = historyIndex();
         if (currentIndex === -1) {
-          setOriginalValue(currentValue);
+          setOriginalHistoryDraft({
+            value: currentValue,
+            segments: cloneSegments(currentSegments),
+          });
         }
-        const newIndex = Math.min(currentIndex + 1, runtimeOptions.history.length - 1);
+        const newIndex = Math.min(currentIndex + 1, historyEntries.length - 1);
         setHistoryIndex(newIndex);
-        const historyValue = runtimeOptions.history[runtimeOptions.history.length - 1 - newIndex];
-        setValue(historyValue);
-        setCursorPositionInternal(historyValue.length);
-        runtimeOptions.onChange?.(historyValue);
+        applyHistoryEntry(historyEntries[historyEntries.length - 1 - newIndex]!);
       }
       return;
     }
 
     if (key.downArrow) {
+      if (activeCompletion && activeCompletion.items.length > 0) {
+        selectCompletionIndex(activeCompletion.selectedIndex + 1);
+        return;
+      }
+
       const { visualLines, lineIndex, column } = getCursorLineInfo(currentValue, pos);
       const targetColumn = preferredColumn() ?? column;
 
@@ -502,23 +1259,21 @@ export function createTextInput(options: TextInputOptions = {}) {
         if (preferredColumn() === null) {
           setPreferredColumn(targetColumn);
         }
-        setCursorPositionInternal(newPos, { updatePreferredColumn: false });
+        setCursorPositionInternal(newPos, {
+          updatePreferredColumn: false,
+          clampDirection: 'right',
+        });
         return;
       }
 
       if (historyIndex() >= 0) {
+        const historyEntries = getHistoryEntries();
         const newIndex = historyIndex() - 1;
         setHistoryIndex(newIndex);
         if (newIndex < 0) {
-          const orig = originalValue();
-          setValue(orig);
-          setCursorPositionInternal(orig.length);
-          runtimeOptions.onChange?.(orig);
+          applyHistoryEntry(originalHistoryDraft());
         } else {
-          const historyValue = runtimeOptions.history[runtimeOptions.history.length - 1 - newIndex];
-          setValue(historyValue);
-          setCursorPositionInternal(historyValue.length);
-          runtimeOptions.onChange?.(historyValue);
+          applyHistoryEntry(historyEntries[historyEntries.length - 1 - newIndex]!);
         }
       }
       return;
@@ -531,16 +1286,10 @@ export function createTextInput(options: TextInputOptions = {}) {
         if (key.ctrl) {
           // Delete word before cursor
           const boundary = findPrevWordBoundary(currentValue, pos);
-          const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
-          setValue(newValue);
-          setCursorPositionInternal(boundary);
-          runtimeOptions.onChange?.(newValue);
+          applyEdit({ start: boundary, end: pos }, '', { resetHistory: true });
         } else {
           // Delete single char
-          const newValue = currentValue.slice(0, pos - 1) + currentValue.slice(pos);
-          setValue(newValue);
-          setCursorPositionInternal(pos - 1);
-          runtimeOptions.onChange?.(newValue);
+          applyEdit({ start: pos - 1, end: pos }, '', { resetHistory: true });
         }
       }
       return;
@@ -551,14 +1300,10 @@ export function createTextInput(options: TextInputOptions = {}) {
         if (key.ctrl) {
           // Delete word after cursor
           const boundary = findNextWordBoundary(currentValue, pos);
-          const newValue = currentValue.slice(0, pos) + currentValue.slice(boundary);
-          setValue(newValue);
-          runtimeOptions.onChange?.(newValue);
+          applyEdit({ start: pos, end: boundary }, '', { resetHistory: true });
         } else {
           // Delete single char
-          const newValue = currentValue.slice(0, pos) + currentValue.slice(pos + 1);
-          setValue(newValue);
-          runtimeOptions.onChange?.(newValue);
+          applyEdit({ start: pos, end: pos + 1 }, '', { resetHistory: true });
         }
       }
       return;
@@ -568,9 +1313,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (key.ctrl && input === 'k') {
       const lineEnd = currentValue.indexOf('\n', pos);
       const endPos = lineEnd >= 0 ? lineEnd : currentValue.length;
-      const newValue = currentValue.slice(0, pos) + currentValue.slice(endPos);
-      setValue(newValue);
-      runtimeOptions.onChange?.(newValue);
+      applyEdit({ start: pos, end: endPos }, '', { resetHistory: true });
       return;
     }
 
@@ -578,45 +1321,33 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (key.ctrl && input === 'u') {
       const lineStart = currentValue.lastIndexOf('\n', pos - 1);
       const startPos = lineStart >= 0 ? lineStart + 1 : 0;
-      const newValue = currentValue.slice(0, startPos) + currentValue.slice(pos);
-      setValue(newValue);
-      setCursorPositionInternal(startPos);
-      runtimeOptions.onChange?.(newValue);
+      applyEdit({ start: startPos, end: pos }, '', { resetHistory: true });
       return;
     }
 
     // Ctrl+W - delete word before
     if (key.ctrl && input === 'w') {
       const boundary = findPrevWordBoundary(currentValue, pos);
-      const newValue = currentValue.slice(0, boundary) + currentValue.slice(pos);
-      setValue(newValue);
-      setCursorPositionInternal(boundary);
-      runtimeOptions.onChange?.(newValue);
+      applyEdit({ start: boundary, end: pos }, '', { resetHistory: true });
       return;
     }
 
     // Ctrl+X - clear all (like Ctrl+C in some terminals)
     if (key.ctrl && input === 'x') {
-      setValue('');
-      setCursorPositionInternal(0);
-      runtimeOptions.onChange?.('');
+      applyEdit({ start: 0, end: currentValue.length }, '', { resetHistory: true });
       return;
     }
 
     // Regular character input
     if (input && input.length > 0 && !key.ctrl && !key.meta) {
-      // Check max length
-      if (runtimeOptions.maxLength && currentValue.length + input.length > runtimeOptions.maxLength) {
-        const remaining = runtimeOptions.maxLength - currentValue.length;
-        if (remaining <= 0) return;
-        input = input.slice(0, remaining);
+      if (input.length > 1) {
+        applyPaste(input);
+      } else {
+        applyEdit({ start: pos, end: pos }, input, {
+          resetHistory: true,
+          setMultiline: input.includes('\n'),
+        });
       }
-
-      const newValue = currentValue.slice(0, pos) + input + currentValue.slice(pos);
-      setValue(newValue);
-      setCursorPositionInternal(pos + input.length);
-      setHistoryIndex(-1);
-      runtimeOptions.onChange?.(newValue);
     }
   };
 
@@ -625,6 +1356,8 @@ export function createTextInput(options: TextInputOptions = {}) {
 
   return {
     value,
+    segments,
+    completion: completionState,
     cursorPosition,
     viewportOffset,
     isMultiline: isMultilineMode,
@@ -634,19 +1367,69 @@ export function createTextInput(options: TextInputOptions = {}) {
       setCursorPositionInternal(pos, options);
     },
     setValue: (v: string) => {
-      setValue(v);
-      setCursorPositionInternal(v.length);
+      batch(() => {
+        setValue(v);
+        setSegments([]);
+        setCursorPositionInternal(v.length);
+        setHistoryIndex(-1);
+      });
       runtimeOptions.onChange?.(v);
+      emitSegmentsChange([]);
     },
+    insertSegment: (
+      segment: TextInputSegmentInput,
+      range: TextInputRange = { start: cursorPosition(), end: cursorPosition() }
+    ) => {
+      return applyEdit(range, segment, { resetHistory: true });
+    },
+    paste: (text: string) => applyPaste(text),
+    acceptCompletion,
+    cancelCompletion: clearCompletion,
+    selectNextCompletion: () => {
+      const current = completionState();
+      if (!current) return;
+      selectCompletionIndex(current.selectedIndex + 1);
+    },
+    selectPreviousCompletion: () => {
+      const current = completionState();
+      if (!current) return;
+      selectCompletionIndex(current.selectedIndex - 1);
+    },
+    getCompletionRankingSnapshot,
+    clearCompletionRanking,
     clear: () => {
-      setValue('');
-      setCursorPositionInternal(0);
-      setHistoryIndex(-1);
+      batch(() => {
+        setValue('');
+        setSegments([]);
+        setCursorPositionInternal(0);
+        setHistoryIndex(-1);
+      });
       runtimeOptions.onChange?.('');
+      emitSegmentsChange([]);
     },
     updateOptions: (nextOptions: TextInputOptions = {}) => {
-      runtimeOptions = resolveRuntimeOptions(nextOptions);
+      const previousHistoryPersistence = runtimeOptions.historyPersistence;
+      const previousRankingPersistence = runtimeOptions.completion?.ranking?.persistence;
+      currentOptions = { ...currentOptions, ...nextOptions };
+      runtimeOptions = resolveRuntimeOptions(currentOptions);
+      seedHistoryEntries = runtimeOptions.history;
+
+      if (!isSameHistoryPersistenceOptions(previousHistoryPersistence, runtimeOptions.historyPersistence)) {
+        hydratePersistedHistory();
+      }
+
+      if (
+        !isSameCompletionRankingPersistence(
+          previousRankingPersistence,
+          runtimeOptions.completion?.ranking?.persistence
+        )
+      ) {
+        hydrateCompletionRanking();
+      }
+
+      refreshCompletion();
     },
+    getOptions: () => ({ ...currentOptions }),
     focus: () => {
       // Focus logic if needed
     },
@@ -660,6 +1443,10 @@ export function renderTextInput(
   state: ReturnType<typeof createTextInput>,
   options: TextInputOptions = {}
 ): VNode {
+  const mergedOptions = {
+    ...(state.getOptions?.() ?? {}),
+    ...options,
+  };
   const theme = getTheme();
   const {
     placeholder = 'Type here...',
@@ -673,10 +1460,10 @@ export function renderTextInput(
     foreground = theme.accents.info,
     isActive = true,
     fullWidth = false,
-  } = options;
-  const autoGrow = options.autoGrow ?? false;
-  const showScrollbar = options.showScrollbar ?? true;
-  const resolvedMaxLines = autoGrow ? (options.maxLines ?? 5) : options.maxLines;
+  } = mergedOptions;
+  const autoGrow = mergedOptions.autoGrow ?? false;
+  const showScrollbar = mergedOptions.showScrollbar ?? true;
+  const resolvedMaxLines = autoGrow ? (mergedOptions.maxLines ?? 5) : mergedOptions.maxLines;
 
   // Register input handler during render phase
   useInput(state.handleInput);
@@ -687,10 +1474,10 @@ export function renderTextInput(
   const isEmpty = value.length === 0;
 
   // Use passed specific wrapping options or defaults
-  const width = options.width ?? 80;
-  const wordWrap = options.wordWrap ?? false;
+  const width = mergedOptions.width ?? 80;
+  const wordWrap = mergedOptions.wordWrap ?? false;
   const maxLines = resolvedMaxLines;
-  const showCharCount = options.showCharCount ?? false;
+  const showCharCount = mergedOptions.showCharCount ?? false;
 
   // Build the input display with cursor
   const beforeCursor = displayValue.slice(0, cursor);
@@ -720,11 +1507,11 @@ export function renderTextInput(
   state.setLayout?.({
     width: baseContentWidth,
     wordWrap,
-    maxLines: options.maxLines,
+    maxLines: mergedOptions.maxLines,
     autoGrow,
   });
 
-  const isMultiline = state.isMultiline() || displayValue.includes('\n') || options.multiline;
+  const isMultiline = state.isMultiline() || displayValue.includes('\n') || mergedOptions.multiline;
 
   // Use multiline path when any of these conditions are true
   const shouldUseMultiline = isMultiline || wordWrap || showCharCount;
@@ -738,17 +1525,19 @@ export function renderTextInput(
     // - Prompt plus space, or border plus space: 2 chars
     const baseWidth = baseContentWidth;
     let contentWidth = baseWidth;
-    let lines = getVisualLines(displayValue, contentWidth, wordWrap);
+    const placeholderValue = showPlaceholder ? placeholder : '';
+    const multilineSource = showPlaceholder ? placeholderValue : displayValue;
+    let lines = getVisualLines(multilineSource, contentWidth, wordWrap);
     const hasOverflow = maxLines !== undefined && lines.length > maxLines;
     const shouldShowScrollbar = showScrollbar && hasOverflow;
 
     if (shouldShowScrollbar) {
       contentWidth = Math.max(1, baseWidth - 1);
-      lines = getVisualLines(displayValue, contentWidth, wordWrap);
+      lines = getVisualLines(multilineSource, contentWidth, wordWrap);
       state.setLayout?.({
         width: contentWidth,
         wordWrap,
-        maxLines: options.maxLines,
+        maxLines: mergedOptions.maxLines,
         autoGrow,
       });
     }
@@ -838,6 +1627,7 @@ export function renderTextInput(
       const lineIndex = offset + i; // Absolute line index
       const isCursorLine = lineIndex === cursorLine;
       const line = lineObj.text;
+      const renderPlaceholderLine = showPlaceholder;
 
       const linePrompt = i === 0 && offset === 0 ? prompt : chars.border.vertical;
       const scrollbarChar = shouldShowScrollbar ? (scrollbarChars[i] ?? ' ') : '';
@@ -855,9 +1645,12 @@ export function renderTextInput(
         return Box(
           { flexDirection: 'row' },
           Text({ color: foreground }, `${linePrompt} `),
-          Text({}, before),
-          Text({ backgroundColor: cursorBg, color: cursorFg }, char),
-          Text({}, after),
+          Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, before),
+          Text({
+            backgroundColor: cursorBg,
+            color: renderPlaceholderLine ? cursorFg : cursorFg,
+          }, char),
+          Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, after),
           padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
           renderScrollbar(i, isThumb)
         );
@@ -869,14 +1662,14 @@ export function renderTextInput(
       return Box(
         { flexDirection: 'row' },
         Text({ color: foreground }, `${linePrompt} `),
-        Text({}, line),
+        Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, line),
         padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
         renderScrollbar(i, isThumb)
       );
     });
 
     if (showCharCount) {
-      const countText = `${value.length}${options.maxLength ? '/' + options.maxLength : ''}`;
+      const countText = `${value.length}${mergedOptions.maxLength ? '/' + mergedOptions.maxLength : ''}`;
       renderedLines.push(
         Box(
           { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 0 },

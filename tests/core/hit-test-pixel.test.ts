@@ -149,6 +149,33 @@ describe('Pixel Hit Test', () => {
       expect(result!.pixelRelativeX).toBe(32);
       expect(result!.pixelRelativeY).toBe(64);
     });
+
+    it('should compute pixel-relative offsets for offset elements', () => {
+      const onClick = vi.fn();
+      const node: VNode = Box(
+        { flexDirection: 'column', padding: 1, gap: 1 },
+        Text({}, 'header'),
+        Box(
+          { width: 4, height: 2, onClick },
+          Text({}, 'ABCD'),
+          Text({}, 'EFGH'),
+        ),
+      );
+
+      const layout = calculateLayout(node, 80, 24);
+      registerHitTestFromLayout(layout);
+
+      const registry = getHitTestRegistry();
+      const result = registry.pixelHitTest(35, 65, cellSize);
+
+      expect(result).not.toBeNull();
+      expect(result!.absoluteX).toBe(3);
+      expect(result!.absoluteY).toBe(3);
+      expect(result!.relativeX).toBe(2);
+      expect(result!.relativeY).toBe(0);
+      expect(result!.pixelRelativeX).toBe(25);
+      expect(result!.pixelRelativeY).toBe(5);
+    });
   });
 
   describe('regular hitTest unchanged', () => {

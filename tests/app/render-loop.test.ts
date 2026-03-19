@@ -18,6 +18,8 @@ import { clearCommittedFrameSnapshot, getCommittedFrameSnapshot } from '../../sr
 import { getMotionRuntimeState, reportMotionBudgetResult, resetMotionRuntime } from '../../src/core/motion-runtime.js';
 import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/terminal-focus.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
+import { useApp } from '../../src/hooks/use-app.js';
+import { useEffect } from '../../src/hooks/use-effect.js';
 
 // Create mock stdin
 function createMockStdin(): NodeJS.ReadStream {
@@ -266,6 +268,112 @@ describe('render-loop', () => {
       vi.advanceTimersByTime(100);
 
       expect(stdout.output).toContain('Updated');
+
+      instance.unmount();
+    });
+
+    it('coalesces bursty external updates through the app ingress', async () => {
+      const [count, setCount] = createSignal(0);
+      let app: ReturnType<typeof useApp> | undefined;
+      let renderCount = 0;
+      let effectRuns = 0;
+
+      const instance = render(
+        () => {
+          renderCount++;
+          app = useApp();
+          useEffect(() => {
+            count();
+            effectRuns++;
+          });
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 20,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      expect(renderCount).toBe(1);
+      expect(effectRuns).toBe(1);
+      expect(app?.hasPendingExternalUpdates?.()).toBe(false);
+
+      app!.enqueueExternalUpdate?.(() => setCount(1));
+      app!.enqueueExternalUpdate?.(() => setCount(2));
+      app!.enqueueExternalUpdate?.(() => setCount(3));
+
+      expect(app?.hasPendingExternalUpdates?.()).toBe(true);
+      expect(effectRuns).toBe(1);
+      expect(stdout.output).toContain('Count: 0');
+
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.resolve();
+
+      expect(app?.hasPendingExternalUpdates?.()).toBe(false);
+      expect(renderCount).toBe(2);
+      expect(effectRuns).toBe(2);
+      expect(stdout.output).toContain('Count: 3');
+
+      instance.unmount();
+    });
+
+    it('flushes queued external updates immediately when requested', async () => {
+      const [count, setCount] = createSignal(0);
+      let app: ReturnType<typeof useApp> | undefined;
+
+      const instance = render(
+        () => {
+          app = useApp();
+          return Text({}, `Count: ${count()}`);
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          showCursor: true,
+          useDeltaRenderer: false,
+        }
+      );
+
+      app!.enqueueExternalUpdate?.(() => setCount(9));
+      expect(app?.hasPendingExternalUpdates?.()).toBe(true);
+
+      app!.flushExternalUpdates?.();
+      await Promise.resolve();
+
+      expect(app?.hasPendingExternalUpdates?.()).toBe(false);
+      expect(stdout.output).toContain('Count: 9');
+
+      instance.unmount();
+    });
+
+    it('keeps direct synchronous signal updates unchanged outside the ingress', () => {
+      const [count, setCount] = createSignal(0);
+      let effectRuns = 0;
+
+      const instance = render(
+        () => {
+          useEffect(() => {
+            count();
+            effectRuns++;
+          });
+          return Text({}, `Count: ${count()}`);
+        },
+        { stdin, stdout }
+      );
+
+      expect(effectRuns).toBe(1);
+
+      setCount(1);
+      setCount(2);
+      setCount(3);
+
+      expect(effectRuns).toBe(4);
 
       instance.unmount();
     });

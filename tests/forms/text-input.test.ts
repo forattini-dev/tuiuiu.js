@@ -13,6 +13,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTextInput, renderTextInput, TextInput } from '../../src/atoms/text-input.js';
+import { renderToString } from '../../src/core/renderer.js';
+import { createInlineBackgroundExecutor } from '../../src/utils/background-executor.js';
 import { keys, charKey, typeString } from '../helpers/keyboard.js';
 import {
   addInputHandler,
@@ -623,6 +625,40 @@ describe('TextInput Keyboard Interactions', () => {
       simulateInput('', keys.up().key);
       expect(ti.cursorPosition()).toBe(5);
     });
+
+    it('restores semantic segments when navigating to a structured history entry', () => {
+      const ti = createTestInput({
+        initialValue: '',
+        history: [
+          {
+            value: '@reviewer',
+            segments: [
+              {
+                id: 'segment-reviewer',
+                kind: 'mention',
+                start: 0,
+                end: 9,
+                displayText: '@reviewer',
+                payload: { agent: 'reviewer' },
+              },
+            ],
+          },
+        ],
+      });
+
+      simulateInput('', keys.up().key);
+
+      expect(ti.value()).toBe('@reviewer');
+      expect(ti.segments()).toMatchObject([
+        {
+          id: 'segment-reviewer',
+          kind: 'mention',
+          start: 0,
+          end: 9,
+          displayText: '@reviewer',
+        },
+      ]);
+    });
   });
 
   // ============================================================================
@@ -660,6 +696,54 @@ describe('TextInput Keyboard Interactions', () => {
       });
       simulateInput('', keys.down().key);
       expect(ti.value()).toBe('hello');
+    });
+
+    it('restores the original draft value and segments after leaving history mode', () => {
+      const ti = createTestInput({
+        initialValue: '@planner refine this',
+        initialSegments: [
+          {
+            id: 'segment-planner',
+            kind: 'mention',
+            start: 0,
+            end: 8,
+            displayText: '@planner',
+            payload: { agent: 'planner' },
+          },
+        ],
+        history: [
+          {
+            value: '#src/app/render-loop.ts',
+            segments: [
+              {
+                id: 'segment-file',
+                kind: 'file',
+                start: 0,
+                end: 23,
+                displayText: '#src/app/render-loop.ts',
+                payload: { path: 'src/app/render-loop.ts' },
+              },
+            ],
+          },
+        ],
+      });
+
+      simulateInput('', keys.up().key);
+      expect(ti.value()).toBe('#src/app/render-loop.ts');
+      expect(ti.segments()).toHaveLength(1);
+
+      simulateInput('', keys.down().key);
+
+      expect(ti.value()).toBe('@planner refine this');
+      expect(ti.segments()).toMatchObject([
+        {
+          id: 'segment-planner',
+          kind: 'mention',
+          start: 0,
+          end: 8,
+          displayText: '@planner',
+        },
+      ]);
     });
   });
 
@@ -887,6 +971,682 @@ describe('TextInput Keyboard Interactions', () => {
     });
   });
 
+  describe('Semantic Segments, Paste, and Completion', () => {
+    it('preserves semantic segments when typing around them', () => {
+      const ti = createTestInput({ initialValue: '' });
+
+      ti.insertSegment({ kind: 'mention', displayText: '@ada' });
+      expect(ti.value()).toBe('@ada');
+      expect(ti.segments()).toMatchObject([
+        { kind: 'mention', start: 0, end: 4, displayText: '@ada' },
+      ]);
+
+      simulateInput('!', charKey('!').key);
+      expect(ti.value()).toBe('@ada!');
+      expect(ti.segments()).toMatchObject([
+        { kind: 'mention', start: 0, end: 4, displayText: '@ada' },
+      ]);
+
+      simulateInput('', keys.home().key);
+      type(typeString('hi '));
+
+      expect(ti.value()).toBe('hi @ada!');
+      expect(ti.segments()).toMatchObject([
+        { kind: 'mention', start: 3, end: 7, displayText: '@ada' },
+      ]);
+    });
+
+    it('treats semantic segments as atomic for cursor movement and deletion', () => {
+      const ti = createTestInput({ initialValue: '' });
+
+      ti.insertSegment({ kind: 'file', displayText: '[src/app.ts]' });
+      simulateInput('', keys.home().key);
+      simulateInput('', keys.right().key);
+      expect(ti.cursorPosition()).toBe('[src/app.ts]'.length);
+
+      simulateInput('', keys.backspace().key);
+      expect(ti.value()).toBe('');
+      expect(ti.segments()).toEqual([]);
+    });
+
+    it('transforms pasted text into semantic segments when configured', () => {
+      const ti = createTestInput({
+        initialValue: '',
+        transformPaste: ({ text }) => {
+          if (!text.startsWith('https://')) {
+            return undefined;
+          }
+
+          return {
+            parts: [
+              { type: 'text', text: 'Open ' },
+              { type: 'segment', segment: { kind: 'link', displayText: '[link]' } },
+            ],
+          };
+        },
+      });
+
+      ti.paste('https://example.com');
+
+      expect(ti.value()).toBe('Open [link]');
+      expect(ti.segments()).toMatchObject([
+        { kind: 'link', start: 5, end: 11, displayText: '[link]' },
+      ]);
+    });
+
+    it('preserves raw pasted text when no transform handles it', () => {
+      const ti = createTestInput({ initialValue: '' });
+
+      ti.paste('plain text');
+
+      expect(ti.value()).toBe('plain text');
+      expect(ti.segments()).toEqual([]);
+    });
+
+    it('accepts anchored async completions and can replace the query with a segment', async () => {
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async ({ anchor }) => {
+            if (anchor.query !== 'a') {
+              return [];
+            }
+
+            return [
+              {
+                id: 'ada',
+                label: 'Ada',
+                replacement: { kind: 'mention', displayText: '@ada' },
+              },
+              {
+                id: 'alan',
+                label: 'Alan',
+                replacement: { kind: 'mention', displayText: '@alan' },
+              },
+            ];
+          },
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(ti.completion()).toMatchObject({
+        status: 'ready',
+        query: 'a',
+      });
+      expect(ti.completion()?.items).toHaveLength(2);
+
+      simulateInput('', keys.down().key);
+      expect(ti.completion()?.selectedIndex).toBe(1);
+
+      simulateInput('', keys.tab().key);
+
+      expect(ti.value()).toBe('@alan');
+      expect(ti.segments()).toMatchObject([
+        { kind: 'mention', start: 0, end: 5, displayText: '@alan' },
+      ]);
+      expect(ti.completion()).toBeNull();
+    });
+
+    it('surfaces progress metadata for task-backed completions before items resolve', async () => {
+      const executor = createInlineBackgroundExecutor({
+        suggest: async (payload: { query: string }, _signal, reporter) => {
+          reporter.emit('progress', { status: 'Ranking refs', progress: 30 });
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          reporter.emit('progress', { status: 'Selecting results', progress: 80 });
+          await new Promise((resolve) => setTimeout(resolve, 35));
+          return [
+            {
+              id: payload.query,
+              label: payload.query.toUpperCase(),
+            },
+          ];
+        },
+      });
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: ({ anchor }) =>
+            executor.submit<{ query: string }, Array<{ id: string; label: string }>>({
+              type: 'suggest',
+              payload: { query: anchor.query },
+            }),
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'loading',
+          statusText: 'Selecting results',
+          progress: 80,
+        });
+      });
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'ready',
+        });
+      });
+      expect(ti.completion()?.items).toMatchObject([
+        { id: 'a', label: 'A' },
+      ]);
+
+      await executor.destroy();
+    });
+
+    it('cancels stale task-backed completions when the anchor changes and ignores late updates', async () => {
+      const cancelled: string[] = [];
+      const executor = createInlineBackgroundExecutor({
+        suggest: async (payload: { query: string }, signal, reporter) => {
+          signal.addEventListener('abort', () => {
+            cancelled.push(String(signal.reason ?? 'Cancelled'));
+            reporter.emit('progress', { status: 'late update', progress: 99 });
+          }, { once: true });
+
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          if (signal.aborted) {
+            throw new Error(String(signal.reason ?? 'Cancelled'));
+          }
+
+          reporter.emit('progress', {
+            status: `query:${payload.query}`,
+            progress: 45,
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          if (signal.aborted) {
+            throw new Error(String(signal.reason ?? 'Cancelled'));
+          }
+
+          return [
+            {
+              id: payload.query,
+              label: payload.query.toUpperCase(),
+            },
+          ];
+        },
+      });
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: ({ anchor }) =>
+            executor.submit<{ query: string }, Array<{ id: string; label: string }>>({
+              type: 'suggest',
+              payload: { query: anchor.query },
+            }),
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'loading',
+          query: 'a',
+        });
+      });
+
+      simulateInput('l', charKey('l').key);
+
+      await vi.waitFor(() => {
+        expect(cancelled).toContain('Completion request replaced');
+      });
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          query: 'al',
+          status: 'loading',
+        });
+      });
+      expect(ti.completion()?.statusText).not.toBe('late update');
+
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'ready',
+          query: 'al',
+        });
+      });
+      expect(ti.completion()?.items).toMatchObject([
+        { id: 'al', label: 'AL' },
+      ]);
+
+      await executor.destroy();
+    });
+
+    it('raises accepted completion items in later sessions when ranking is enabled', async () => {
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async () => [
+            { id: 'ada', label: 'Ada', replacement: { kind: 'mention', displayText: '@ada' } },
+            { id: 'alan', label: 'Alan', replacement: { kind: 'mention', displayText: '@alan' } },
+          ],
+          ranking: {
+            getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+          },
+        },
+      });
+
+      await Promise.resolve();
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
+
+      simulateInput('', keys.down().key);
+      simulateInput('', keys.tab().key);
+      expect(ti.value()).toBe('@alan');
+
+      ti.setValue('@a');
+      await Promise.resolve();
+
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['alan', 'ada']);
+      expect(ti.getCompletionRankingSnapshot()).toMatchObject([
+        { key: '@:alan', count: 1 },
+      ]);
+    });
+
+    it('preserves provider order when ranking is disabled or scores are tied', async () => {
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async () => [
+            { id: 'ada', label: 'Ada' },
+            { id: 'alan', label: 'Alan' },
+          ],
+          ranking: {
+            getKey: (item) => item.id,
+          },
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
+    });
+
+    it('keeps task-backed completions compatible when ranking is enabled', async () => {
+      const executor = createInlineBackgroundExecutor({
+        suggest: async (_payload: { query: string }, _signal, reporter) => {
+          reporter.emit('progress', { status: 'Ranking refs', progress: 50 });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return [
+            { id: 'ada', label: 'Ada', replacement: { kind: 'mention', displayText: '@ada' } },
+            { id: 'alan', label: 'Alan', replacement: { kind: 'mention', displayText: '@alan' } },
+          ];
+        },
+      });
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) {
+              return null;
+            }
+
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: ({ anchor }) =>
+            executor.submit<{ query: string }, Array<{ id: string; label: string; replacement: { kind: string; displayText: string } }>>({
+              type: 'suggest',
+              payload: { query: anchor.query },
+            }),
+          ranking: {
+            getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+          },
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'ready',
+        });
+      });
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
+
+      simulateInput('', keys.down().key);
+      simulateInput('', keys.tab().key);
+
+      ti.setValue('@a');
+      await vi.waitFor(() => {
+        expect(ti.completion()).toMatchObject({
+          status: 'ready',
+        });
+      });
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['alan', 'ada']);
+
+      await executor.destroy();
+    });
+
+    it('hydrates persisted ranking before the first completion session', async () => {
+      const storage = {
+        getItem: vi.fn(() => JSON.stringify([
+          { key: '@:alan', count: 3, lastAcceptedAt: 200 },
+        ])),
+        setItem: vi.fn(),
+      };
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) return null;
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async () => [
+            { id: 'ada', label: 'Ada' },
+            { id: 'alan', label: 'Alan' },
+          ],
+          ranking: {
+            getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+            persistence: {
+              storage,
+              key: 'prompt-ranking',
+            },
+          },
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(storage.getItem).toHaveBeenCalledWith('prompt-ranking');
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['alan', 'ada']);
+    });
+
+    it('persists ranking updates after accepted completion items mutate frecency state', async () => {
+      const saved = new Map<string, string>();
+      const storage = {
+        getItem: vi.fn((key: string) => saved.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => {
+          saved.set(key, value);
+        }),
+      };
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) return null;
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async () => [
+            { id: 'ada', label: 'Ada', replacement: { kind: 'mention', displayText: '@ada' } },
+            { id: 'alan', label: 'Alan', replacement: { kind: 'mention', displayText: '@alan' } },
+          ],
+          ranking: {
+            getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+            persistence: {
+              storage,
+              key: 'prompt-ranking',
+            },
+          },
+        },
+      });
+
+      await Promise.resolve();
+      simulateInput('', keys.down().key);
+      simulateInput('', keys.tab().key);
+
+      expect(storage.setItem).toHaveBeenCalled();
+      expect(JSON.parse(saved.get('prompt-ranking') ?? '[]')).toMatchObject([
+        { key: '@:alan', count: 1 },
+      ]);
+    });
+
+    it('falls back safely when persisted ranking data is invalid', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const storage = {
+        getItem: vi.fn(() => '{not-json'),
+        setItem: vi.fn(),
+      };
+
+      const ti = createTestInput({
+        initialValue: '@a',
+        completion: {
+          resolveAnchor: ({ value, cursorPosition }) => {
+            const prefix = value.slice(0, cursorPosition);
+            const match = prefix.match(/@([a-z]*)$/);
+            if (!match || match.index === undefined) return null;
+            return {
+              start: match.index,
+              end: cursorPosition,
+              query: match[1] ?? '',
+              trigger: '@',
+            };
+          },
+          getItems: async () => [
+            { id: 'ada', label: 'Ada' },
+            { id: 'alan', label: 'Alan' },
+          ],
+          ranking: {
+            getKey: (item, context) => `${context.anchor.trigger}:${item.id}`,
+            persistence: {
+              storage,
+              key: 'prompt-ranking',
+            },
+          },
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(ti.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
+      expect(ti.getCompletionRankingSnapshot()).toEqual([]);
+      expect(warn).toHaveBeenCalledWith(
+        'Failed to hydrate persisted completion ranking. Falling back to empty ranking state.',
+        expect.anything()
+      );
+
+      warn.mockRestore();
+    });
+  });
+
+  describe('Persisted semantic prompt history', () => {
+    it('hydrates persisted history before the first navigation session', () => {
+      const storage = {
+        getItem: vi.fn(() => JSON.stringify([
+          {
+            value: '@reviewer',
+            segments: [
+              {
+                id: 'persisted-reviewer',
+                kind: 'mention',
+                start: 0,
+                end: 9,
+                displayText: '@reviewer',
+                payload: { agent: 'reviewer' },
+              },
+            ],
+          },
+        ])),
+        setItem: vi.fn(),
+      };
+
+      const ti = createTestInput({
+        initialValue: '',
+        history: ['seeded'],
+        historyPersistence: {
+          storage,
+          key: 'prompt-history',
+        },
+      });
+
+      simulateInput('', keys.up().key);
+      expect(ti.value()).toBe('@reviewer');
+      expect(ti.segments()).toMatchObject([
+        {
+          id: 'persisted-reviewer',
+          kind: 'mention',
+          displayText: '@reviewer',
+        },
+      ]);
+
+      simulateInput('', keys.up().key);
+      expect(ti.value()).toBe('seeded');
+      expect(storage.getItem).toHaveBeenCalledWith('prompt-history');
+    });
+
+    it('persists submitted prompts through the configured storage adapter', () => {
+      const saved = new Map<string, string>();
+      const storage = {
+        getItem: vi.fn((key: string) => saved.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => {
+          saved.set(key, value);
+        }),
+      };
+
+      const ti = createTestInput({
+        initialValue: '#src/atoms/text-input.ts',
+        initialSegments: [
+          {
+            id: 'submitted-file',
+            kind: 'file',
+            start: 0,
+            end: 25,
+            displayText: '#src/atoms/text-input.ts',
+            payload: { path: 'src/atoms/text-input.ts' },
+          },
+        ],
+        historyPersistence: {
+          storage,
+          key: 'prompt-history',
+          limit: 3,
+        },
+      });
+
+      simulateInput('', keys.enter().key);
+
+      expect(storage.setItem).toHaveBeenCalled();
+      expect(JSON.parse(saved.get('prompt-history') ?? '[]')).toMatchObject([
+        {
+          value: '#src/atoms/text-input.ts',
+          segments: [
+            {
+              id: 'submitted-file',
+              kind: 'file',
+              displayText: '#src/atoms/text-input.ts',
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('falls back safely when persisted prompt history data is invalid', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const storage = {
+        getItem: vi.fn(() => '{not-json'),
+        setItem: vi.fn(),
+      };
+
+      const ti = createTestInput({
+        initialValue: '',
+        history: ['seeded'],
+        historyPersistence: {
+          storage,
+          key: 'prompt-history',
+        },
+      });
+
+      simulateInput('', keys.up().key);
+
+      expect(ti.value()).toBe('seeded');
+      expect(ti.segments()).toEqual([]);
+      expect(warn).toHaveBeenCalledWith(
+        'Failed to hydrate persisted prompt history. Falling back to seeded history only.',
+        expect.anything()
+      );
+
+      warn.mockRestore();
+    });
+  });
+
   // ============================================================================
   // RENDER TEXT INPUT TESTS
   // ============================================================================
@@ -904,6 +1664,15 @@ describe('TextInput Keyboard Interactions', () => {
       const vnode = renderTextInput(ti, { placeholder: 'Type here...' });
       expect(vnode).toBeDefined();
       expect(vnode.type).toBe('box');
+    });
+
+    it('should render placeholder configured on the controller when render options omit it', () => {
+      const ti = createTestInput({ initialValue: '', placeholder: 'Prompt from state' });
+      const vnode = renderTextInput(ti, {});
+      const output = renderToString(vnode, 80);
+
+      expect(output).toContain('Prompt from state');
+      expect(output).not.toContain('Type here...');
     });
 
     it('should render password mode with masked characters', () => {

@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { TextInput, createTextInput, renderTextInput } from '../../src/atoms/text-input';
 import { Box, Text } from '../../src/primitives/nodes';
 import { getChars, getRenderMode } from '../../src/core/capabilities';
+import { renderToString } from '../../src/core/renderer';
+import { stripAnsi } from '../../src/utils/text-utils';
 import { stringWidth } from '../../src/utils/text-utils';
 import type { Key } from '../../src/hooks';
 
@@ -80,6 +82,19 @@ describe('TextInput Advanced Features', () => {
             // Last child should include char count
             const lastChild = vnode.children[vnode.children.length - 1] as any;
             expect(lastChild.children[0].props.children).toContain('3');
+        });
+
+        it('should render placeholder text in multiline mode when empty', () => {
+            const ti = createTestInput({
+                initialValue: '',
+                multiline: true,
+                placeholder: 'Describe the task...',
+            });
+
+            const vnode = renderTextInput(ti, { multiline: true });
+            const output = stripAnsi(renderToString(vnode, 40));
+
+            expect(output).toContain('Describe the task...');
         });
     });
 
@@ -161,6 +176,18 @@ describe('TextInput Advanced Features', () => {
 
             onClick(createClickEvent(promptWidth + 2, 1));
             expect(ti.cursorPosition()).toBe(10);
+        });
+
+        it('should clamp clicks inside semantic segments to a segment boundary', () => {
+            const ti = createTestInput({ initialValue: '' });
+            ti.insertSegment({ kind: 'mention', displayText: '@ada' });
+
+            const vnode = renderTextInput(ti, { borderStyle: 'none', prompt: '>' });
+            const promptWidth = stringWidth('> ');
+            const onClick = (vnode.props as any).onClick;
+
+            onClick(createClickEvent(promptWidth + 3, 0));
+            expect(ti.cursorPosition()).toBe(4);
         });
     });
 

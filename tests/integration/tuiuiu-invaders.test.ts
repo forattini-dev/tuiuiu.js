@@ -13,7 +13,7 @@ import {
   getThreatLevel,
   togglePause,
   type Arena,
-} from '../../examples/tuiuiu-invaders.js';
+} from '../../examples/games/tuiuiu-invaders.js';
 
 const arena: Arena = {
   width: 60,

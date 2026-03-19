@@ -74,7 +74,9 @@ export {
   initializeApp,
   cleanupApp,
   setClearScreen,
+  setExternalUpdateIngress,
   type InitAppOptions,
+  type ExternalUpdateIngress,
 } from './use-app.js';
 
 // Focus context (Context API-based focus management)

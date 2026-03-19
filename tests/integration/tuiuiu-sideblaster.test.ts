@@ -11,7 +11,7 @@ import {
   type Arena,
   type Enemy,
   type GameState,
-} from '../../examples/tuiuiu-sideblaster.js';
+} from '../../examples/games/tuiuiu-sideblaster.js';
 
 const arena: Arena = {
   width: 64,

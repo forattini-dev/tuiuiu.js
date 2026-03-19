@@ -155,6 +155,53 @@ describe('layout reuse cache', () => {
     expect(childRect).toEqual({ x: 5, y: 0, width: 10, height: 3 });
   });
 
+  it('reports absolute layoutRef coordinates through padded ancestors', () => {
+    let childRect: { x: number; y: number; width: number; height: number } | undefined;
+
+    const childLayoutRef = {
+      __update: (rect: { x: number; y: number; width: number; height: number }) => {
+        childRect = rect;
+      },
+    };
+
+    calculateLayout(
+      Box(
+        { flexDirection: 'column', padding: 1, gap: 1 },
+        Text({}, 'top'),
+        Box({ width: 10, height: 3, layoutRef: childLayoutRef } as any, Text({}, 'fixed')),
+      ),
+      40,
+      12,
+    );
+
+    expect(childRect).toEqual({ x: 1, y: 3, width: 10, height: 3 });
+  });
+
+  it('reports absolute layoutRef coordinates through nested padding and borders', () => {
+    let childRect: { x: number; y: number; width: number; height: number } | undefined;
+
+    const childLayoutRef = {
+      __update: (rect: { x: number; y: number; width: number; height: number }) => {
+        childRect = rect;
+      },
+    };
+
+    calculateLayout(
+      Box(
+        { flexDirection: 'column', padding: 1, gap: 1 },
+        Text({}, 'top'),
+        Box(
+          { borderStyle: 'single', padding: 1 },
+          Box({ width: 4, height: 2, layoutRef: childLayoutRef } as any, Text({}, 'map')),
+        ),
+      ),
+      40,
+      16,
+    );
+
+    expect(childRect).toEqual({ x: 3, y: 5, width: 4, height: 2 });
+  });
+
   it('does not mutate cached child layouts when parent alignment changes', () => {
     const sharedChild = Box({ flexGrow: 1 }, Text({}, 'X'));
 

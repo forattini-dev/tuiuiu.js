@@ -14,7 +14,7 @@ Set TypingSpeed 50ms
 Set Framerate 30
 
 # Start the game
-Type "pnpm tsx examples/tuiuiu-defence.ts"
+Type "pnpm tsx examples/games/tuiuiu-defence.ts"
 Enter
 Sleep 3s
 
