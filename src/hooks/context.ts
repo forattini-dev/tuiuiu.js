@@ -15,6 +15,14 @@ import type {
 import { INPUT_PRIORITY_VALUES } from './types.js';
 import type { Effect } from '../primitives/signal.js';
 
+// Inline warn utility to avoid circular dep with dev-warnings.ts
+const _hookWarned = new Set<string>();
+function hookWarnOnce(key: string, message: string): void {
+  if (process.env.NODE_ENV === 'production' || _hookWarned.has(key)) return;
+  _hookWarned.add(key);
+  console.warn(`[tuiuiu] ${message}`);
+}
+
 // Global app context
 let appContext: AppContext | null = null;
 let focusManager: FocusManager | null = null;
@@ -54,6 +62,18 @@ export function endRender(): void {
 
   const currentMaxIndex = hookIndex;
 
+  // Detect conditional hook usage: hook count changed between renders
+  // This means hooks were called inside if/else, loops, or early returns — which breaks.
+  if (lastMaxHookIndex > 0 && currentMaxIndex !== lastMaxHookIndex) {
+    hookWarnOnce(
+      'hook-count-changed',
+      `Hook count changed between renders (${lastMaxHookIndex} → ${currentMaxIndex}). ` +
+      'This usually means hooks are being called conditionally (inside if/else or after early returns). ' +
+      'Hooks must always be called in the same order on every render. ' +
+      'Move conditional logic INSIDE the hook callback, not around the hook call.',
+    );
+  }
+
   // Deactivate orphaned hooks (hooks that were called in previous render but not in this one)
   // This happens when switching between components with different numbers of hooks
   if (currentMaxIndex < lastMaxHookIndex) {
@@ -84,6 +104,16 @@ export function getRenderPhaseMode(): 'hooks' | 'component' {
 
 /** Get or initialize hook state at current index */
 export function getHookState<T>(initialValue: T): { value: T; isNew: boolean } {
+  // Warn if hook called outside render context
+  if (!isRendering) {
+    hookWarnOnce(
+      'hook-outside-render',
+      'A hook (useState, useMemo, useComputed, etc.) was called outside a component render. ' +
+      'Hooks must be called inside a component function, not at module scope or in event handlers. ' +
+      'Move the hook call inside your component function.',
+    );
+  }
+
   const index = hookIndex++;
 
   if (index >= hookState.state.length) {
