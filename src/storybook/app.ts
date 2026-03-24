@@ -231,29 +231,60 @@ function Sidebar(props: {
       { paddingX: 1, height: 1 },
       Text({ color: theme.palette.primary[500], dim: true }, scrollUpText)
     ),
-    // Stories list (fixed height container) - clickable items
+    // Stories list (fixed height container) - with component sub-groups
     Box(
       { flexDirection: 'column', paddingX: 1, flexGrow: 1 },
-      ...visibleStories.map((story, idx) => {
-        const actualIdx = startIdx + idx;
-        const isSelected = actualIdx === selectedIndex;
-        return Box(
-          {
-            onClick: () => {
-              onFocus?.();
-              props.onStorySelect(actualIdx);
-            },
-          },
-          Text(
-            {
-              color: isSelected ? theme.foreground.primary : theme.foreground.muted,
-              bold: isSelected,
-              inverse: isSelected && isFocused,
-            },
-            isSelected ? ` ${story.name} ` : `  ${story.name}`
-          )
-        );
-      })
+      ...(() => {
+        const items: VNode[] = [];
+        let lastGroup = '';
+
+        for (let idx = 0; idx < visibleStories.length; idx++) {
+          const story = visibleStories[idx];
+          const actualIdx = startIdx + idx;
+          const isSelected = actualIdx === selectedIndex;
+
+          // Extract group name (before " - ") for sub-headers
+          const dash = story.name.indexOf(' - ');
+          const group = dash > 0 ? story.name.slice(0, dash) : '';
+
+          // Add group header when group changes (and group has more than 1 story)
+          if (group && group !== lastGroup) {
+            const groupCount = stories.filter(s => s.name.startsWith(group + ' - ')).length;
+            if (groupCount > 1) {
+              items.push(
+                Text({ color: theme.foreground.muted, dim: true, bold: true }, `  ${group} (${groupCount})`)
+              );
+            }
+            lastGroup = group;
+          }
+
+          // Story name: show only variant part if in a group
+          const displayName = (group && lastGroup === group)
+            ? story.name.slice(dash + 3) // show "Basic" instead of "Badge - Basic"
+            : story.name;
+
+          items.push(
+            Box(
+              {
+                onClick: () => {
+                  onFocus?.();
+                  props.onStorySelect(actualIdx);
+                },
+              },
+              Text(
+                {
+                  color: isSelected ? theme.foreground.primary : theme.foreground.muted,
+                  bold: isSelected,
+                  inverse: isSelected && isFocused,
+                },
+                isSelected ? ` ${group ? '  ' : ''}${displayName} ` : `  ${group ? '  ' : ''}${displayName}`
+              )
+            )
+          );
+        }
+
+        return items;
+      })()
     ),
     // Scroll down indicator (always present, may be empty)
     Box(
