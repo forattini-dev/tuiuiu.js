@@ -178,6 +178,13 @@ export const examplesManifest: ExampleManifestEntry[] = [
     difficulty: 'advanced',
   },
   {
+    name: 'tuiuiu-doom',
+    file: 'games/tuiuiu-doom.ts',
+    description: 'Doom-style raycaster with strafing, hitscan combat, and a live minimap HUD.',
+    category: 'showcase',
+    difficulty: 'advanced',
+  },
+  {
     name: 'programmatic-state-management',
     file: 'programmatic/state-management.ts',
     description: 'External triggers and programmatic state control.',
