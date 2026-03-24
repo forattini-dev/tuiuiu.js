@@ -15,6 +15,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
+import { warnOnce } from '../core/dev-warnings.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { Table, type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
@@ -667,14 +668,18 @@ export interface VirtualDataTableOptions<T> extends DataTableOptions<T> {
 export function VirtualDataTable<T = Record<string, any>>(
   props: VirtualDataTableOptions<T>
 ): VNode {
+  warnOnce(
+    'virtual-data-table-stub',
+    'VirtualDataTable is not yet fully implemented — it uses regular DataTable with pagination. ' +
+    'True virtual scrolling with overscan will be added in a future release.',
+  );
+
   const {
     visibleRows = 20,
     overscan = 3,
     ...rest
   } = props;
 
-  // For now, just use regular DataTable with adjusted pageSize
-  // A full virtual implementation would need scroll position tracking
   return DataTable({
     ...rest,
     pageSize: visibleRows,
@@ -710,7 +715,12 @@ export interface EditableDataTableOptions<T> extends Omit<DataTableOptions<T>, '
 export function EditableDataTable<T = Record<string, any>>(
   props: EditableDataTableOptions<T>
 ): VNode {
-  // Simplified implementation - full version would need cell-level focus
+  warnOnce(
+    'editable-data-table-stub',
+    'EditableDataTable is not yet fully implemented — it renders a read-only DataTable. ' +
+    'Inline cell editing will be added in a future release.',
+  );
+
   return DataTable({
     ...props,
     columns: props.columns,

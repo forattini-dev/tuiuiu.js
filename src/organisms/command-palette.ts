@@ -50,6 +50,7 @@ import { stringWidth } from '../utils/text-utils.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
+import { createSignal } from '../primitives/signal.js';
 
 // =============================================================================
 // Types
@@ -571,9 +572,9 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
   } = options;
 
   let items = [...options.items];
-  let query = '';
-  let selectedIndex = 0;
-  let filteredItems: CommandItem[] = items;
+  const [querySignal, setQuery] = createSignal('');
+  const [selectedIndexSignal, setSelectedIndex] = createSignal(0);
+  const [filteredItemsSignal, setFilteredItems] = createSignal<CommandItem[]>(items.filter(i => !i.disabled));
 
   // Focus trap zone
   let focusZone: ReturnType<typeof createFocusTrap> | null = null;
@@ -585,17 +586,19 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
   }
 
   const updateFiltered = () => {
-    if (!query) {
-      filteredItems = items.filter(i => !i.disabled);
+    const q = querySignal();
+    let result: CommandItem[];
+    if (!q) {
+      result = items.filter(i => !i.disabled);
     } else {
-      filteredItems = items
+      result = items
         .filter(i => !i.disabled)
         .map(item => ({
           item,
           score: Math.max(
-            filter(item, query),
-            item.description ? filter({ ...item, label: item.description }, query) * 0.5 : -1,
-            item.category ? filter({ ...item, label: item.category }, query) * 0.3 : -1
+            filter(item, q),
+            item.description ? filter({ ...item, label: item.description }, q) * 0.5 : -1,
+            item.category ? filter({ ...item, label: item.category }, q) * 0.3 : -1
           ),
         }))
         .filter(({ score }) => score >= 0)
@@ -603,18 +606,18 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
         .map(({ item }) => item);
     }
 
+    setFilteredItems(result);
+
     // Reset selection if out of bounds
-    if (selectedIndex >= filteredItems.length) {
-      selectedIndex = Math.max(0, filteredItems.length - 1);
+    if (selectedIndexSignal() >= result.length) {
+      setSelectedIndex(Math.max(0, result.length - 1));
     }
   };
 
-  updateFiltered();
-
   return {
-    query: () => query,
-    filteredItems: () => filteredItems,
-    selectedIndex: () => selectedIndex,
+    query: querySignal,
+    filteredItems: filteredItemsSignal,
+    selectedIndex: selectedIndexSignal,
 
     get zoneId() {
       return zoneId;
@@ -636,40 +639,42 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     },
 
     type: (char: string) => {
-      query += char;
+      setQuery(q => q + char);
       updateFiltered();
     },
 
     backspace: () => {
-      query = query.slice(0, -1);
+      setQuery(q => q.slice(0, -1));
       updateFiltered();
     },
 
     clear: () => {
-      query = '';
+      setQuery('');
       updateFiltered();
     },
 
     selectPrev: () => {
-      if (filteredItems.length > 0) {
-        selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : filteredItems.length - 1;
+      const fi = filteredItemsSignal();
+      if (fi.length > 0) {
+        setSelectedIndex(i => i > 0 ? i - 1 : fi.length - 1);
       }
     },
 
     selectNext: () => {
-      if (filteredItems.length > 0) {
-        selectedIndex = selectedIndex < filteredItems.length - 1 ? selectedIndex + 1 : 0;
+      const fi = filteredItemsSignal();
+      if (fi.length > 0) {
+        setSelectedIndex(i => i < fi.length - 1 ? i + 1 : 0);
       }
     },
 
     selectIndex: (index: number) => {
-      if (index >= 0 && index < filteredItems.length) {
-        selectedIndex = index;
+      if (index >= 0 && index < filteredItemsSignal().length) {
+        setSelectedIndex(index);
       }
     },
 
     confirm: () => {
-      const selected = filteredItems[selectedIndex];
+      const selected = filteredItemsSignal()[selectedIndexSignal()];
       if (selected) {
         selected.action?.();
         onSelect?.(selected);
@@ -686,7 +691,7 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
       onClose?.();
     },
 
-    getSelected: () => filteredItems[selectedIndex],
+    getSelected: () => filteredItemsSignal()[selectedIndexSignal()],
 
     setItems: (newItems: CommandItem[]) => {
       items = [...newItems];

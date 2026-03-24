@@ -661,19 +661,23 @@ export interface LazyTabsProps<T = string> extends TabsProps<T> {
 export function LazyTabs<T = string>(props: LazyTabsProps<T>): VNode {
   const { loadingContent = Text({ dim: true }, 'Loading...'), ...rest } = props;
 
-  // Track which tabs have been loaded
-  const [loadedTabs, setLoadedTabs] = createSignal<Set<T>>(new Set());
+  // useConst ensures signals + state persist across re-renders (created once)
+  const { loadedTabs, setLoadedTabs, state } = useConst(() => {
+    const [loadedTabs, setLoadedTabs] = createSignal<Set<T>>(new Set());
 
-  const state = createTabs({
-    ...rest,
-    onChange: (key: T) => {
-      setLoadedTabs((loaded) => {
-        const newLoaded = new Set(loaded);
-        newLoaded.add(key);
-        return newLoaded;
-      });
-      rest.onChange?.(key);
-    },
+    const state = createTabs({
+      ...rest,
+      onChange: (key: T) => {
+        setLoadedTabs((loaded) => {
+          const newLoaded = new Set(loaded);
+          newLoaded.add(key);
+          return newLoaded;
+        });
+        rest.onChange?.(key);
+      },
+    });
+
+    return { loadedTabs, setLoadedTabs, state };
   });
 
   // Mark initial tab as loaded

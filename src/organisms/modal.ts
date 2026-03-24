@@ -39,6 +39,7 @@ import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfUnexpectedPropProvided } from '../core/dev-warnings.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
+import { createSignal } from '../primitives/signal.js';
 
 /**
  * Border styles for modals - Unicode
@@ -783,7 +784,7 @@ export function createModal(options: CreateModalOptions = {}): ModalState {
     hotkeyScope,
   } = options;
 
-  let isOpen = false;
+  const [isOpenSignal, setIsOpen] = createSignal(false);
   let focusZone: ReturnType<typeof createFocusTrap> | null = null;
   let zoneId: string | null = null;
 
@@ -793,15 +794,16 @@ export function createModal(options: CreateModalOptions = {}): ModalState {
     zoneId = focusZone.zoneId;
   }
 
-  return {
+  const state = {
+    /** Reactive — reading inside an effect/component auto-tracks */
     get isOpen() {
-      return isOpen;
+      return isOpenSignal();
     },
     get zoneId() {
       return zoneId;
     },
     open: () => {
-      isOpen = true;
+      setIsOpen(true);
       if (hotkeyScope) {
         pushHotkeyScope(hotkeyScope);
       }
@@ -810,7 +812,7 @@ export function createModal(options: CreateModalOptions = {}): ModalState {
       }
     },
     close: () => {
-      isOpen = false;
+      setIsOpen(false);
       if (focusZone) {
         focusZone.deactivate();
       }
@@ -819,27 +821,14 @@ export function createModal(options: CreateModalOptions = {}): ModalState {
       }
     },
     toggle: () => {
-      if (isOpen) {
-        isOpen = false;
-        if (focusZone) {
-          focusZone.deactivate();
-        }
-        if (hotkeyScope) {
-          popHotkeyScope();
-        }
+      if (isOpenSignal()) {
+        state.close();
       } else {
-        isOpen = true;
-        if (hotkeyScope) {
-          pushHotkeyScope(hotkeyScope);
-        }
-        if (focusZone) {
-          focusZone.activate();
-        }
+        state.open();
       }
     },
     registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => {
       if (!zoneId) {
-        // No focus zone - return no-op cleanup
         return () => {};
       }
       const manager = getFocusZoneManager();
@@ -847,6 +836,8 @@ export function createModal(options: CreateModalOptions = {}): ModalState {
       return () => manager.unregisterElement(elementId, zoneId!);
     },
   };
+
+  return state;
 }
 
 // =============================================================================
