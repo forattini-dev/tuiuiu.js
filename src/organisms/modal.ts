@@ -32,7 +32,7 @@
  * ```
  */
 
-import { Box, Text, Newline } from '../primitives/nodes.js';
+import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
@@ -154,35 +154,6 @@ function getModalDimensions(size: ModalSize): { width: number; height: number } 
       return { width: termWidth - 2, height: termHeight - 2 };
     default:
       return { width: Math.min(60, termWidth - 4), height: Math.min(16, termHeight - 4) };
-  }
-}
-
-/**
- * Get modal position offsets
- */
-function getModalPosition(
-  position: ModalPosition,
-  width: number,
-  height: number
-): { x: number; y: number } {
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-
-  if (typeof position === 'object') {
-    return position;
-  }
-
-  switch (position) {
-    case 'top':
-      return { x: Math.floor((termWidth - width) / 2), y: 1 };
-    case 'bottom':
-      return { x: Math.floor((termWidth - width) / 2), y: termHeight - height - 1 };
-    case 'center':
-    default:
-      return {
-        x: Math.floor((termWidth - width) / 2),
-        y: Math.floor((termHeight - height) / 2),
-      };
   }
 }
 

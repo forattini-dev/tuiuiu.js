@@ -5,7 +5,7 @@
  * and history management. Integrates with the Screen Manager for transitions.
  */
 
-import { createSignal, createEffect, batch, untrack } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { EventEmitter } from './events.js';
 import type { Screen, ScreenComponent } from './screen.js';
 

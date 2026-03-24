@@ -5,7 +5,7 @@
  * across re-renders.
  */
 
-import { createEffect, Effect } from '../primitives/signal.js';
+import { Effect } from '../primitives/signal.js';
 import {
   getHookState,
   getCurrentHookIndex,

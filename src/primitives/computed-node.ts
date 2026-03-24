@@ -26,7 +26,6 @@
  */
 
 import type { VNode, TuiChild, TextProps } from '../utils/types.js';
-import { createEffect, createMemo, onCleanup } from './signal.js';
 import { useComputed } from '../hooks/use-computed.js';
 import { useMemo } from '../hooks/use-memo.js';
 import { isRenderingHooks } from '../hooks/context.js';

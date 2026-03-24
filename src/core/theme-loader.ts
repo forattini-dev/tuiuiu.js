@@ -82,24 +82,6 @@ export function defineTheme(definition: ThemeDefinition): Theme {
 // =============================================================================
 
 /**
- * Create a color scale from individual shade values.
- */
-export function createScale(shades: {
-  50: string;
-  100: string;
-  200: string;
-  300: string;
-  400: string;
-  500: string;
-  600: string;
-  700: string;
-  800: string;
-  900: string;
-}): ColorScale {
-  return shades;
-}
-
-/**
  * Get a shade from a color scale with fallback to 500.
  */
 export function shade(scale: ColorScale, value: keyof ColorScale = 500): string {

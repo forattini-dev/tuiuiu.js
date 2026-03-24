@@ -8,7 +8,7 @@
  * spring physics for natural-feeling animations.
  */
 
-import { createSignal, batch } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import {
   createHarmonicaSpring,
   useAnimation,

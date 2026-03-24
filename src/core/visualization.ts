@@ -177,17 +177,6 @@ const HBAR_CHARS = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 /** Vertical bar characters */
 const VBAR_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
-/** Box plot characters */
-const BOX_CHARS = {
-  horizontal: '─',
-  vertical: '│',
-  left: '├',
-  right: '┤',
-  box: '█',
-  whisker: '┬',
-  median: '┃',
-};
-
 /** Pie chart characters (for different segments) */
 const PIE_CHARS = ['█', '▓', '▒', '░', '○', '●', '◐', '◑', '◒', '◓'];
 

@@ -141,16 +141,6 @@ export function getCurrentHookIndex(): number {
   return hookIndex - 1; // Return the index of the last accessed hook
 }
 
-/** Get or initialize effect at current index */
-export function getHookEffect(index: number): Effect | undefined {
-  return hookState.effects[index];
-}
-
-/** Store effect at current index */
-export function setHookEffect(index: number, effect: Effect): void {
-  hookState.effects[index] = effect;
-}
-
 /** Reset all hook state (on unmount) */
 export function resetHookState(): void {
   // Dispose all effects

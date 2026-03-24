@@ -2,7 +2,7 @@
  * useState - Create reactive state with persistence across renders
  */
 
-import { createSignal, Signal } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { allowInternalSignalCreationDuringRender } from '../core/dev-warnings.js';
 import { getHookState, getCurrentHookIndex, setHookState } from './context.js';
 

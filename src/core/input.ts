@@ -947,20 +947,6 @@ function parseLegacyKey(input: string): KittyKeyEvent | null {
 // =============================================================================
 
 /**
- * Enter raw mode (for reading individual keypresses)
- */
-export function enterRawMode(): string {
-  return '';
-}
-
-/**
- * Exit raw mode
- */
-export function exitRawMode(): string {
-  return '';
-}
-
-/**
  * Enable alternate screen buffer
  */
 export function enableAlternateScreen(): string {

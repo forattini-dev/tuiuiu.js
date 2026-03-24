@@ -718,21 +718,6 @@ function createDrawCommandFingerprint(
   });
 }
 
-function getCurrentDrawCommandFingerprint(layout: LayoutNode): string {
-  const props = (layout.node.props ?? {}) as BoxStyle &
-    TextStyle & { children?: string; id?: string; __terminalImage?: unknown };
-  const imageCommand = createTerminalImageCommand(
-    layout,
-    layout.x,
-    layout.y,
-    layout.width,
-    layout.height,
-    props,
-  );
-
-  return createDrawCommandFingerprint(layout.node, imageCommand);
-}
-
 function composeSubtreeSignature(
   current: LayoutNode,
   cacheKey: string,

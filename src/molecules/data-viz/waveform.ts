@@ -66,9 +66,6 @@ export interface WaveformBufferOptions {
 /** Vertical block characters for different fill levels */
 const VBLOCK_CHARS = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
-/** Horizontal block characters */
-const HBLOCK_CHARS = [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
-
 /** ASCII fallback */
 const ASCII_FILL = ['_', '.', '-', '=', '#', '@', '█'];
 
@@ -131,12 +128,6 @@ function resampleData(data: number[], targetWidth: number): number[] {
 /**
  * Get fill character based on level (0-8)
  */
-function getFillChar(level: number, ascii: boolean): string {
-  const chars = ascii ? ASCII_FILL : VBLOCK_CHARS;
-  const idx = Math.max(0, Math.min(level, chars.length - 1));
-  return chars[idx] || EMPTY_BLOCK;
-}
-
 // =============================================================================
 // Rendering Functions
 // =============================================================================

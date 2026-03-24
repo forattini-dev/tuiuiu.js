@@ -16,7 +16,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { createSignal, createMemo } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { isRenderingHooks } from '../hooks/context.js';
 import { useConst } from '../hooks/use-const.js';
 import { useInput } from '../hooks/use-input.js';

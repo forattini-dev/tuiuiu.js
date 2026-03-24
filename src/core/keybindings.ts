@@ -5,7 +5,6 @@
  * Supports vim/emacs modes, conflict detection, and hierarchical contexts.
  */
 
-import { createSignal, createEffect } from '../primitives/signal.js';
 
 // ============================================================================
 // Types
