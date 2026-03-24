@@ -17,7 +17,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { createSignal, createEffect } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 

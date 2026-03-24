@@ -7,7 +7,7 @@
  */
 
 import { Box, Text, Spacer } from '../../primitives/nodes.js';
-import { storybookStore, type LogEntry } from '../store.js';
+import { storybookStore } from '../store.js';
 import { getTheme } from '../../core/theme.js';
 import type { VNode } from '../../utils/types.js';
 

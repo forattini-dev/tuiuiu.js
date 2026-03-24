@@ -20,7 +20,7 @@
 
 import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { CodeBlock, InlineCode, type Language } from './code-block.js';
+import { CodeBlock, type Language } from './code-block.js';
 
 export interface MarkdownOptions {
   /** Max width for text wrapping */

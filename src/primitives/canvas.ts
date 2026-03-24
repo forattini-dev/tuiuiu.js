@@ -8,7 +8,6 @@
  * - Block mode: Uses block characters for 2x2 sub-character resolution
  */
 
-import { createSignal } from './signal.js';
 import { colorToAnsi } from '../utils/text-utils.js';
 import { resolveColor } from '../core/theme.js';
 

@@ -11,7 +11,7 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
-import { createSignal, createEffect } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { Spinner, type SpinnerStyle } from '../atoms/spinner.js';
 import { ProgressBar } from '../atoms/progress-bar.js';
 import { BigText, type BigTextFont } from '../atoms/big-text.js';

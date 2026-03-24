@@ -18,7 +18,6 @@
  * );
  */
 
-import { createSignal } from '../primitives/signal.js';
 import {
   getHookState,
   getCurrentHookIndex,

@@ -16,10 +16,10 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
-import { useInput, type Key } from '../hooks/index.js';
+import { useInput } from '../hooks/index.js';
 import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getChars } from '../core/capabilities.js';
 
 // =============================================================================
 // Types

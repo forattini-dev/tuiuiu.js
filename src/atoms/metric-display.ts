@@ -15,7 +15,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { resolveColor, getTheme } from '../core/theme.js';
+import { resolveColor } from '../core/theme.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import { formatDelta } from '../utils/formatters.js';

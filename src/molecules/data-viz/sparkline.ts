@@ -7,7 +7,7 @@
 
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
-import { getChars, getRenderMode } from '../../core/capabilities.js';
+import { getRenderMode } from '../../core/capabilities.js';
 
 // =============================================================================
 // Types

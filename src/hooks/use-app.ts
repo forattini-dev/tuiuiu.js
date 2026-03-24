@@ -14,7 +14,7 @@ import {
   setFocusManager,
 } from './context.js';
 import { parseKeypress } from './use-input.js';
-import { parseMouseEvent, isMouseEvent, enableMouseTracking, disableMouseTracking } from './use-mouse.js';
+import { parseMouseEvent, isMouseEvent } from './use-mouse.js';
 import { getHitTestRegistry } from '../core/hit-test.js';
 import { readTerminalFocus, resetTerminalFocusState, setTerminalFocusState } from '../core/terminal-focus.js';
 import { FocusZoneManagerAdapter } from './use-focus.js';

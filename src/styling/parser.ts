@@ -5,7 +5,7 @@
  * Converts tokens from the tokenizer into an Abstract Syntax Tree (AST).
  */
 
-import { Token, TokenType, Tokenizer, tokenize } from './tokenizer.js';
+import { Token, TokenType, tokenize } from './tokenizer.js';
 
 // =============================================================================
 // AST Node Types

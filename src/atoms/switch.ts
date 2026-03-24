@@ -16,7 +16,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getRenderMode } from '../core/capabilities.js';
 import { getTheme } from '../core/theme.js';
 
 // =============================================================================

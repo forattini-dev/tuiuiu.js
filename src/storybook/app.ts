@@ -14,7 +14,6 @@ import type { VNode } from '../utils/types.js';
 import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
 import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
-import { createTextInput, renderTextInput } from '../atoms/text-input.js';
 import { ImpactSplashScreen, createSplashScreen } from '../molecules/splash-screen.js';
 
 // Version

@@ -56,11 +56,11 @@ export interface MouseOptions {
 // Mouse Protocol Constants
 // =============================================================================
 
-/** Enable SGR extended mouse mode (most modern terminals) */
-const SGR_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
+/** Enable SGR extended mouse mode with any-motion tracking */
+const SGR_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h';
 
 /** Disable SGR extended mouse mode */
-const SGR_MOUSE_DISABLE = '\x1b[?1000l\x1b[?1002l\x1b[?1006l';
+const SGR_MOUSE_DISABLE = '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l';
 
 /** Enable basic X10 mouse mode (legacy fallback) */
 const X10_MOUSE_ENABLE = '\x1b[?1000h';
@@ -137,7 +137,10 @@ function parseSGRMouse(match: RegExpMatchArray): MouseEvent | null {
       default: button = 'none'; break;
     }
 
-    if (isRelease) {
+    if (isMotion && baseButton === 3) {
+      button = 'none';
+      action = 'move';
+    } else if (isRelease) {
       action = 'release';
     } else if (isMotion) {
       action = 'drag';

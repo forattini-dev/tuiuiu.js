@@ -14,8 +14,8 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { resolveColor, getTheme } from '../core/theme.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { resolveColor } from '../core/theme.js';
+import { getRenderMode } from '../core/capabilities.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInterval } from '../hooks/use-interval.js';

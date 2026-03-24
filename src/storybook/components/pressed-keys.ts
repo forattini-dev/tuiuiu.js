@@ -5,7 +5,7 @@
  * Helps users understand keyboard and mouse interactions.
  */
 
-import { Box, Text, Spacer } from '../../primitives/nodes.js';
+import { Box, Text } from '../../primitives/nodes.js';
 import { createSignal } from '../../primitives/signal.js';
 import { getTheme } from '../../core/theme.js';
 import type { VNode } from '../../utils/types.js';
