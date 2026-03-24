@@ -27,7 +27,7 @@ import type { Story } from '../../types.js';
 
 const signalStories: Story[] = [
   story('Signal - Basic Counter')
-    .category('Patterns')
+    .category('Guides')
     .description('createSignal creates a reactive [getter, setter] pair. Click the controls to change the value and see the UI update.')
     .controls({
       value: defaultControls.number('Value', 0, { min: -100, max: 100, step: 1 }),
@@ -47,7 +47,7 @@ const signalStories: Story[] = [
     ),
 
   story('Signal - Derived (createMemo)')
-    .category('Patterns')
+    .category('Guides')
     .description('createMemo derives a value from other signals. Updates automatically when dependencies change.')
     .controls({
       price: defaultControls.number('Price', 100, { min: 0, max: 1000, step: 10 }),
@@ -75,7 +75,7 @@ const signalStories: Story[] = [
     }),
 
   story('Signal - Batch Updates')
-    .category('Patterns')
+    .category('Guides')
     .description('batch() groups multiple signal updates into one render. Without batch, each set triggers a re-render.')
     .controls({
       x: defaultControls.number('X', 10, { min: 0, max: 100 }),
@@ -112,7 +112,7 @@ const signalStories: Story[] = [
 
 const performanceStories: Story[] = [
   story('Computed - Reactive Isolation')
-    .category('Patterns')
+    .category('Guides')
     .description('Computed() wraps a VNode subtree. Only re-evaluates when signals it reads change — parent does NOT re-run.')
     .controls({
       score: defaultControls.number('Score', 0, { min: 0, max: 9999, step: 100 }),
@@ -147,7 +147,7 @@ const performanceStories: Story[] = [
     ),
 
   story('ComputedText - Reactive Labels')
-    .category('Patterns')
+    .category('Guides')
     .description('ComputedText is shorthand for Computed + Text. Each label updates independently.')
     .controls({
       fps: defaultControls.number('FPS', 30, { min: 0, max: 120 }),
@@ -169,7 +169,7 @@ const performanceStories: Story[] = [
     ),
 
   story('Memo - Cached Subtree')
-    .category('Patterns')
+    .category('Guides')
     .description('Memo(deps, fn) caches a VNode subtree. Only rebuilds when deps change. Empty deps = never rebuild.')
     .controls({
       goldChanged: defaultControls.boolean('Gold changed?', false),
@@ -204,7 +204,7 @@ const performanceStories: Story[] = [
     ),
 
   story('PreText - Raw ANSI Passthrough')
-    .category('Patterns')
+    .category('Guides')
     .description('PreText renders pre-built ANSI strings directly. The renderer skips encoding — fastest path for games.')
     .controls({
       width: defaultControls.range('Width', 40, 10, 80),
@@ -250,7 +250,7 @@ const performanceStories: Story[] = [
 
 const storeStories: Story[] = [
   story('Reactive Store - Per-Property Tracking')
-    .category('Patterns')
+    .category('Guides')
     .description('createReactiveStore provides per-property signals. Each effect only re-runs when the properties it reads change.')
     .controls({
       name: defaultControls.text('Player Name', 'Alice'),
@@ -284,7 +284,7 @@ const storeStories: Story[] = [
 
 const hookStories: Story[] = [
   story('onCleanup - Effect Cleanup')
-    .category('Patterns')
+    .category('Guides')
     .description('onCleanup() registers cleanup functions inside effects. More ergonomic than returning a cleanup.')
     .controls({
       timerActive: defaultControls.boolean('Timer active', true),
@@ -313,7 +313,7 @@ const hookStories: Story[] = [
     ),
 
   story('useMemo - Cached Computation')
-    .category('Patterns')
+    .category('Guides')
     .description('useMemo(deps, fn) caches a value between re-renders. Only recomputes when deps change.')
     .controls({
       itemCount: defaultControls.range('Items', 100, 10, 1000, 10),
@@ -336,7 +336,7 @@ const hookStories: Story[] = [
     ),
 
   story('useComputed - Auto-Tracking VNode')
-    .category('Patterns')
+    .category('Guides')
     .description('useComputed(fn) auto-tracks signal dependencies. The VNode only rebuilds when tracked signals change.')
     .controls({
       score: defaultControls.number('Score', 0, { min: 0, max: 9999, step: 100 }),
@@ -369,7 +369,7 @@ const hookStories: Story[] = [
 
 const errorStories: Story[] = [
   story('Error Boundary - withErrorBoundary')
-    .category('Patterns')
+    .category('Guides')
     .description('withErrorBoundary wraps a component to catch errors. Shows a formatted error screen instead of crashing.')
     .controls({
       shouldError: defaultControls.boolean('Trigger error', false),
@@ -406,7 +406,7 @@ const errorStories: Story[] = [
 // Export
 // =============================================================================
 
-export const allPatternStories: Story[] = [
+export const allGuideStories: Story[] = [
   ...signalStories,
   ...performanceStories,
   ...storeStories,

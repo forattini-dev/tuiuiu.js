@@ -7,7 +7,7 @@
  * - Molecules: Simple combinations (Forms, Alerts, Tabs, Sparklines)
  * - Organisms: Complex UI patterns (Layouts, Charts, Dashboards)
  * - Templates: Complete application templates (Shells, Navbars, Status Bars)
- * - Patterns: Hooks, signals, performance, reactive state, error handling
+ * - Guides: Hooks, signals, performance, reactive state, error handling
  */
 
 import type { Story } from '../types.js';
@@ -19,7 +19,7 @@ import { allAtomStories } from './atoms/index.js';
 import { allMoleculeStories } from './molecules/index.js';
 import { allOrganismStories } from './organisms/index.js';
 import { allTemplateStories } from './templates/index.js';
-import { allPatternStories } from './patterns/index.js';
+import { allGuideStories } from './patterns/index.js';
 
 /**
  * All stories from all categories
@@ -30,7 +30,7 @@ export const allStories: Story[] = [
   ...allMoleculeStories,
   ...allOrganismStories,
   ...allTemplateStories,
-  ...allPatternStories,
+  ...allGuideStories,
 ];
 
 /**
@@ -42,7 +42,7 @@ export const storiesByCategory = {
   molecules: allMoleculeStories,
   organisms: allOrganismStories,
   templates: allTemplateStories,
-  patterns: allPatternStories,
+  guides: allGuideStories,
 };
 
 /**
@@ -62,7 +62,7 @@ export function getStoryCounts(): Record<string, number> {
     Molecules: allMoleculeStories.length,
     Organisms: allOrganismStories.length,
     Templates: allTemplateStories.length,
-    Patterns: allPatternStories.length,
+    Guides: allGuideStories.length,
     Total: allStories.length,
   };
 }
@@ -73,4 +73,4 @@ export { allAtomStories } from './atoms/index.js';
 export { allMoleculeStories } from './molecules/index.js';
 export { allOrganismStories } from './organisms/index.js';
 export { allTemplateStories } from './templates/index.js';
-export { allPatternStories } from './patterns/index.js';
+export { allGuideStories } from './patterns/index.js';
