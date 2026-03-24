@@ -120,11 +120,22 @@ export function ComputedText(
   fn: () => string,
   props: Record<string, any> = {},
 ): VNode {
-  return Computed(() => ({
-    type: 'text' as const,
+  // Use useComputed directly (one hook) instead of nesting via Computed
+  if (isRenderingHooks()) {
+    const result = useComputed(() => ({
+      type: 'text' as const,
+      props: { ...props, children: fn() },
+      children: [],
+    }));
+    return result ?? { type: 'text', props: { children: '' }, children: [] };
+  }
+
+  // Outside render: evaluate eagerly
+  return {
+    type: 'text',
     props: { ...props, children: fn() },
     children: [],
-  }));
+  };
 }
 
 // =============================================================================

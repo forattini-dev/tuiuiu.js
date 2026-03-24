@@ -86,28 +86,26 @@ describe('Computed', () => {
 });
 
 describe('ComputedText', () => {
-  it('creates a reactive text node', () => {
+  it('creates a text node with content', () => {
     const [name, setName] = createSignal('Alice');
     const node = ComputedText(() => `Hello, ${name()}!`);
 
-    expect(isReactiveVNode(node)).toBe(true);
-    expect(node.children[0].props.children).toBe('Hello, Alice!');
+    // Outside render context: returns a plain text VNode
+    expect(node.type).toBe('text');
+    expect(node.props.children).toBe('Hello, Alice!');
   });
 
   it('accepts style props', () => {
     const node = ComputedText(() => 'styled', { color: 'red', bold: true });
-    expect(node.children[0].props.color).toBe('red');
-    expect(node.children[0].props.bold).toBe(true);
+    expect(node.props.color).toBe('red');
+    expect(node.props.bold).toBe(true);
+    expect(node.props.children).toBe('styled');
   });
 
-  it('refreshes on signal change', () => {
+  it('evaluates signal content', () => {
     const [count, setCount] = createSignal(0);
-    const node = ComputedText(() => `${count()}`) as ReactiveVNode;
+    const node = ComputedText(() => `${count()}`);
 
-    expect(node.children[0].props.children).toBe('0');
-
-    setCount(99);
-    refreshReactiveVNode(node);
-    expect(node.children[0].props.children).toBe('99');
+    expect(node.props.children).toBe('0');
   });
 });

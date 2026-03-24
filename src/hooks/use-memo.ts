@@ -39,7 +39,7 @@ function depsEqual(a: unknown[], b: unknown[]): boolean {
 export function useMemo<T>(deps: unknown[], fn: () => T): T {
   const { value: hookData, isNew } = getHookState<MemoHookData<T> | null>(null);
 
-  if (isNew || hookData === null || !depsEqual(hookData.deps, deps)) {
+  if (isNew || hookData === null || !hookData.deps || !depsEqual(hookData.deps, deps)) {
     // First render or deps changed — compute fresh
     const result = fn();
     const hookIndex = getCurrentHookIndex();
