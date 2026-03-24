@@ -1,5 +1,5 @@
 export interface CommonMistakeEntry {
-  code: 'signals-inside-component-render' | 'theme-after-render' | 'api-pattern-mismatch' | 'arrow-key-empty-input';
+  code: 'signals-inside-component-render' | 'theme-after-render' | 'api-pattern-mismatch' | 'arrow-key-empty-input' | 'hooks-called-conditionally' | 'hooks-outside-component' | 'missing-effect-cleanup' | 'nested-hooks-in-computed';
   title: string;
   anchor: string;
   summary: string;
@@ -60,6 +60,58 @@ export const commonMistakes: CommonMistakeEntry[] = [
     ],
     wrongExample: `useInput((input, key) => {\n  if (input === 'ArrowUp') moveUp();   // never fires\n  if (input === 'ArrowDown') moveDown(); // never fires\n});`,
     rightExample: `// Option 1: useInput with key object\nuseInput((input, key) => {\n  if (key.upArrow) moveUp();\n  if (key.downArrow) moveDown();\n});\n\n// Option 2: useHotkeys (preferred)\nuseHotkeys('up', () => moveUp());\nuseHotkeys('down', () => moveDown());`,
+  },
+  {
+    code: 'hooks-called-conditionally',
+    title: 'Hooks Called Conditionally',
+    anchor: 'hooks-called-conditionally',
+    summary: 'Hooks must always be called in the same order on every render. Do not put hooks inside if/else, loops, or after early returns.',
+    whyItBreaks: [
+      'Hooks use a global index counter to persist state between renders.',
+      'If a hook is skipped (inside an if branch), all subsequent hooks read the wrong slot.',
+      'This causes state corruption: useState returns the wrong value, useEffect runs the wrong callback.',
+    ],
+    wrongExample: `function App() {\n  const [show, setShow] = useState(true);\n  if (show()) {\n    const [name, setName] = useState('Alice'); // WRONG: conditional hook!\n  }\n  useHotkeys('q', () => exit());\n}`,
+    rightExample: `function App() {\n  const [show, setShow] = useState(true);\n  const [name, setName] = useState('Alice'); // Always called\n  useHotkeys('q', () => exit());\n  // Use the value conditionally, not the hook:\n  return show() ? Text({}, name()) : Text({}, 'Hidden');\n}`,
+  },
+  {
+    code: 'hooks-outside-component',
+    title: 'Hooks Called Outside Component',
+    anchor: 'hooks-outside-component',
+    summary: 'Hooks like useState, useMemo, useComputed must be called inside a component function, not at module scope or in event handlers.',
+    whyItBreaks: [
+      'Hooks depend on the render cycle to persist state via hook index.',
+      'Outside a render cycle there is no hook state array — data is lost or corrupts other hooks.',
+      'Use createSignal() at module scope for global state, not useState().',
+    ],
+    wrongExample: `// At module scope — no render context!\nconst [count, setCount] = useState(0); // WRONG\n\nfunction App() {\n  return Text({}, \`Count: \${count()}\`);\n}`,
+    rightExample: `// Module scope: use createSignal\nconst [count, setCount] = createSignal(0);\n\n// Or inside component: use useState\nfunction App() {\n  const [count, setCount] = useState(0);\n  return Text({}, \`Count: \${count()}\`);\n}`,
+  },
+  {
+    code: 'missing-effect-cleanup',
+    title: 'Missing Effect Cleanup',
+    anchor: 'missing-effect-cleanup',
+    summary: 'Effects that create timers, subscriptions, or event listeners must clean them up to prevent memory leaks.',
+    whyItBreaks: [
+      'Effects re-run when signal dependencies change. Without cleanup, each re-run adds another timer/listener.',
+      'After many signal changes you end up with hundreds of timers running simultaneously.',
+      'Use return () => cleanup or onCleanup(() => cleanup) inside the effect.',
+    ],
+    wrongExample: `useEffect(() => {\n  const timer = setInterval(tick, 1000);\n  // WRONG: timer never cleared!\n});`,
+    rightExample: `// Option 1: return cleanup\nuseEffect(() => {\n  const timer = setInterval(tick, 1000);\n  return () => clearInterval(timer);\n});\n\n// Option 2: onCleanup (can call multiple times)\nuseEffect(() => {\n  const timer = setInterval(tick, 1000);\n  onCleanup(() => clearInterval(timer));\n  const socket = connect(url());\n  onCleanup(() => socket.close());\n});`,
+  },
+  {
+    code: 'nested-hooks-in-computed',
+    title: 'Nested Hooks Inside Computed/Memo',
+    anchor: 'nested-hooks-in-computed',
+    summary: 'Do not call hooks (useState, useMemo, ComputedText, etc.) inside a Computed or Memo callback. When the wrapper caches, inner hooks are skipped, changing the hook count.',
+    whyItBreaks: [
+      'Computed and Memo skip their callback when the cached result is still valid.',
+      'If hooks are inside the skipped callback, those hooks don\'t run this render.',
+      'The hook count changes between renders, corrupting state for all subsequent hooks.',
+    ],
+    wrongExample: `Computed(() => {\n  // WRONG: ComputedText is a hook — skipped when Computed caches!\n  return Box({},\n    ComputedText(() => \`Score: \${score()}\`),\n  );\n})`,
+    rightExample: `// Keep hooks at the top level of the component\nComputedText(() => \`Score: \${score()}\`),\nComputed(() => {\n  // Only use plain VNode constructors inside Computed\n  return Box({}, Text({}, \`Lives: \${lives()}\`));\n})`,
   },
 ];
 

@@ -7,14 +7,27 @@ import { allowInternalSignalCreationDuringRender } from '../core/dev-warnings.js
 import { getHookState, getCurrentHookIndex, setHookState } from './context.js';
 
 /**
- * useState - Create reactive state
+ * useState - Create reactive state that persists across re-renders.
  *
- * Unlike createSignal, useState persists the same signal instance
- * across re-renders using a hook index system.
+ * Returns `[getter, setter]`. Call `getter()` to read, `setter(value)` to update.
+ * The signal persists between re-renders — unlike `createSignal`, which recreates on each call.
+ *
+ * **Rules:**
+ * - Must be called inside a component function (not at module scope)
+ * - Must be called unconditionally (not inside if/else or loops)
+ * - Call order must be the same every render
+ *
+ * **Common mistake:** Don't use `createSignal()` inside components — it recreates
+ * the signal every render, losing state. Use `useState()` instead.
  *
  * @example
- * const [count, setCount] = useState(0);
- * setCount(count() + 1);
+ * function Counter() {
+ *   const [count, setCount] = useState(0);
+ *   useHotkeys('up', () => setCount(c => c + 1));
+ *   return Text({}, `Count: ${count()}`);
+ * }
+ *
+ * @see docs/core/signals.md
  */
 export function useState<T>(initialValue: T): [() => T, (value: T | ((prev: T) => T)) => void] {
   // Get or create signal for this hook index

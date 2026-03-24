@@ -20,16 +20,30 @@ interface EffectHookData {
 }
 
 /**
- * useEffect - Run side effects reactively
+ * useEffect - Run side effects that auto-track signal dependencies.
  *
- * The effect will re-run whenever any signals read inside it change.
- * Only one effect is created per useEffect call, persisted across re-renders.
+ * Re-runs whenever signals read inside it change. Persists across re-renders.
+ * Return a cleanup function or use `onCleanup()` for resource disposal.
+ *
+ * **Rules:**
+ * - Must be called inside a component (not at module scope)
+ * - Must be called unconditionally (not inside if/else)
+ * - Always clean up subscriptions, timers, and event listeners
  *
  * @example
  * useEffect(() => {
- *   console.log('Count changed:', count());
+ *   console.log('Count is:', count());
  *   return () => console.log('Cleanup');
  * });
+ *
+ * @example
+ * // Using onCleanup (can be called multiple times)
+ * useEffect(() => {
+ *   const timer = setInterval(tick, 1000);
+ *   onCleanup(() => clearInterval(timer));
+ * });
+ *
+ * @see docs/core/signals.md
  */
 export function useEffect(fn: () => void | (() => void)): () => void {
   // Get or create hook state for this useEffect call

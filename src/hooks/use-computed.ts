@@ -20,20 +20,25 @@ interface ComputedHookData {
 }
 
 /**
- * useComputed - Create an auto-tracking memoized VNode.
+ * useComputed - Auto-tracking memoized VNode.
  *
- * The provided function is wrapped in a reactive memo.
- * When signals it reads change, only this VNode is re-computed.
- * When the component re-renders for other reasons, the cached result is returned.
+ * Wraps a function in a reactive memo that auto-tracks signal dependencies.
+ * Only re-evaluates when tracked signals change — cached on other re-renders.
+ * Use `Computed(fn)` component for the same behavior with simpler syntax.
  *
- * Must be called inside a component (follows rules of hooks).
+ * **Rules:**
+ * - Must be called inside a component (not at module scope)
+ * - Must be called unconditionally (not inside if/else)
+ * - Do NOT put other hooks (useState, useMemo) inside the fn callback
  *
- * @param fn - Function that reads signals and returns a VNode.
- * @returns Cached or freshly computed VNode.
+ * @param fn - Function reading signals, returning a VNode.
+ * @returns Cached or freshly computed VNode (null if fn returns null).
  *
  * @example
+ * // Only recomputes when score() signal changes
  * const scoreNode = useComputed(() => Text({}, `Score: ${score()}`));
- * // Only recomputes when score() changes, not on every component re-render
+ *
+ * @see docs/core/performance.md
  */
 export function useComputed(fn: () => VNode | null): VNode | null {
   const { value: hookData, isNew } = getHookState<ComputedHookData | null>(null);

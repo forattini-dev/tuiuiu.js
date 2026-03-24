@@ -21,20 +21,30 @@ function depsEqual(a: unknown[], b: unknown[]): boolean {
 }
 
 /**
- * useMemo - Memoize an expensive computation.
+ * useMemo - Cache an expensive computation between re-renders.
  *
- * Returns a cached value and only re-computes when deps change.
- * Must be called inside a component (follows rules of hooks).
+ * Only re-computes when deps change (shallow comparison via Object.is).
+ * Use `Memo(deps, fn)` component for caching VNode subtrees.
  *
- * @param deps - Values to watch. When any value changes, fn is re-called.
- * @param fn - Computation function. Only called when deps change.
- * @returns The cached (or freshly computed) value.
+ * **Rules:**
+ * - Must be called inside a component (not at module scope)
+ * - Must be called unconditionally (not inside if/else)
+ * - Do NOT nest inside Computed — causes hook count changes
+ *
+ * @param deps - Values to watch. Re-computes when any changes.
+ * @param fn - Computation function. Skipped when deps match.
+ * @returns Cached or freshly computed value.
  *
  * @example
- * // Only recomputes when items changes
- * const sorted = useMemo([items()], () => {
- *   return items().sort((a, b) => a.name.localeCompare(b.name));
- * });
+ * const sorted = useMemo([items()], () =>
+ *   items().sort((a, b) => a.name.localeCompare(b.name))
+ * );
+ *
+ * @example
+ * // Empty deps = compute once, cache forever
+ * const config = useMemo([], () => parseConfig());
+ *
+ * @see docs/core/performance.md
  */
 export function useMemo<T>(deps: unknown[], fn: () => T): T {
   const { value: hookData, isNew } = getHookState<MemoHookData<T> | null>(null);
