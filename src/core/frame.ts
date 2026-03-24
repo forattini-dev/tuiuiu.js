@@ -157,6 +157,8 @@ export interface DrawTextCommand extends DrawCommandBase {
   text: string;
   style: TextStyle;
   inheritedBackgroundColor?: string;
+  /** When true, text contains pre-built ANSI and should skip style encoding */
+  prebuiltAnsi?: boolean;
 }
 
 export interface DrawTerminalImageCommand extends DrawCommandBase {
@@ -1037,6 +1039,7 @@ function buildCachedDrawCommands(
     children?: string;
     id?: string;
     __terminalImage?: unknown;
+    __prebuiltAnsi?: boolean;
   };
   const compositor = getCompositorNodeMetadata(node);
   const compositorKeys = compositor
@@ -1165,6 +1168,7 @@ function buildCachedDrawCommands(
         wrap: props.wrap,
       },
       inheritedBackgroundColor: parentBackgroundColor,
+      ...(props.__prebuiltAnsi ? { prebuiltAnsi: true } : undefined),
     });
   }
 

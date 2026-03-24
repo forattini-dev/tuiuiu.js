@@ -27,6 +27,9 @@
 
 import type { VNode, TuiChild, TextProps } from '../utils/types.js';
 import { createEffect, createMemo, onCleanup } from './signal.js';
+import { useComputed } from '../hooks/use-computed.js';
+import { useMemo } from '../hooks/use-memo.js';
+import { isRenderingHooks } from '../hooks/context.js';
 
 /**
  * A reactive VNode marker.
@@ -65,10 +68,15 @@ export interface ReactiveVNode extends VNode {
  * })
  */
 export function Computed(fn: () => VNode | null): VNode {
-  // Evaluate eagerly to get the initial VNode
-  const initialResult = fn();
+  // Inside a component render: use hook-based caching (persists between re-renders)
+  if (isRenderingHooks()) {
+    const result = useComputed(fn);
+    if (!result) return { type: 'box', props: {}, children: [] };
+    return result;
+  }
 
-  // Create a marker VNode that the render loop can detect
+  // Outside render context: evaluate eagerly (tests, standalone usage)
+  const initialResult = fn();
   const node: ReactiveVNode = {
     type: 'box',
     props: {},
@@ -76,7 +84,6 @@ export function Computed(fn: () => VNode | null): VNode {
     __reactive: fn,
     __cachedResult: initialResult,
   };
-
   return node;
 }
 
@@ -114,7 +121,7 @@ export function ComputedText(
   props: Record<string, any> = {},
 ): VNode {
   return Computed(() => ({
-    type: 'text',
+    type: 'text' as const,
     props: { ...props, children: fn() },
     children: [],
   }));
@@ -157,6 +164,14 @@ export function ComputedText(
  * )
  */
 export function Memo(deps: unknown[], fn: () => VNode | null): VNode {
+  // Inside a component render: use hook-based caching (persists between re-renders)
+  if (isRenderingHooks()) {
+    const result = useMemo<VNode | null>(deps, fn);
+    if (!result) return { type: 'box', props: {}, children: [] };
+    return result;
+  }
+
+  // Outside render context: evaluate eagerly (tests, standalone usage)
   const result = fn();
   const node: MemoVNode = {
     type: 'box',

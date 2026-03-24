@@ -1230,14 +1230,18 @@ function renderTextToBuffer(
 ): void {
   const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
 
+  // PreText: content has pre-built ANSI — parse with empty base attrs
+  // so the embedded ANSI codes take full effect without style overlay
+  const isPrebuilt = command.prebuiltAnsi === true;
+
   // Parse colors and attributes (inherit bg from parent if not set)
-  const baseFg = style.color ? parseColor(style.color) : undefined;
-  const baseBg = style.backgroundColor
+  const baseFg = isPrebuilt ? undefined : (style.color ? parseColor(style.color) : undefined);
+  const baseBg = isPrebuilt ? undefined : (style.backgroundColor
     ? parseColor(style.backgroundColor)
     : inheritedBackgroundColor
       ? parseColor(inheritedBackgroundColor)
-      : undefined;
-  const baseAttrs: CellAttrs = {
+      : undefined);
+  const baseAttrs: CellAttrs = isPrebuilt ? {} : {
     bold: style.bold,
     dim: style.dim,
     italic: style.italic,
@@ -1248,7 +1252,7 @@ function renderTextToBuffer(
   };
 
   // Check if text contains ANSI sequences
-  const hasAnsi = text.includes('\x1b[');
+  const hasAnsi = isPrebuilt || text.includes('\x1b[');
 
   if (hasAnsi) {
     // Parse ANSI and render segments

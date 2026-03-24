@@ -521,6 +521,12 @@ function renderTextCommand(
 ): void {
   const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
 
+  // PreText: content already has ANSI codes — write as-is, skip style encoding
+  if (command.prebuiltAnsi) {
+    writeStringReservedAware(buffer, reservedRegions, x, y, text, undefined);
+    return;
+  }
+
   let ansiStyle = getTextStyle(style);
   if (inheritedBackgroundColor && !style.backgroundColor) {
     const inheritedCode = getColorCode(inheritedBackgroundColor, true);

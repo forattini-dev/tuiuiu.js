@@ -133,6 +133,8 @@ export type {
 export {
   useState,
   useConst,
+  useMemo,
+  useComputed,
   useEffect,
   useInput,
   useApp,

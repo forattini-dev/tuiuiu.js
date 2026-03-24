@@ -21,6 +21,10 @@ export { INPUT_PRIORITY_VALUES } from './types.js';
 export { useState } from './use-state.js';
 export { useConst } from './use-const.js';
 
+// Memoization hooks
+export { useMemo } from './use-memo.js';
+export { useComputed } from './use-computed.js';
+
 // Effect hook
 export { useEffect } from './use-effect.js';
 
