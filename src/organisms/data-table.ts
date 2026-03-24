@@ -273,17 +273,16 @@ export function createDataTable<T = Record<string, any>>(
     const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode === 'none') return;
 
-    setSelectedKeys((prev) => {
-      if (selectionMode === 'single') {
-        return new Set([key]);
-      }
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
+    // Compute new keys directly to avoid stale signal read
+    const prevKeys = selectedKeys();
+    const newKeys = selectionMode === 'single'
+      ? new Set([key])
+      : new Set([...prevKeys, key]);
+    setSelectedKeys(newKeys);
 
+    // Use the known new keys for onSelect (not the signal which may be stale)
     const selected = pageData().filter((row, i) =>
-      selectedKeys().has(getRowKey(row, i))
+      newKeys.has(getRowKey(row, i))
     );
     runtimeOptions.onSelect?.(selected);
   };
@@ -438,15 +437,20 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   const chars = getChars();
 
   // Setup keyboard handling
+  // When search has text, single-char input goes to search (not vim nav).
+  // Arrow keys always work for navigation regardless of search state.
   useInput(
     (input, key) => {
-      if (key.upArrow || input === 'k') {
+      const isSearching = showSearch && state.filterText().length > 0;
+
+      // Arrow keys: always navigate (regardless of search)
+      if (key.upArrow) {
         state.moveCursor(-1);
-      } else if (key.downArrow || input === 'j') {
+      } else if (key.downArrow) {
         state.moveCursor(1);
-      } else if (key.leftArrow || input === 'h') {
+      } else if (key.leftArrow) {
         state.prevPage();
-      } else if (key.rightArrow || input === 'l') {
+      } else if (key.rightArrow) {
         state.nextPage();
       } else if (key.return || input === ' ') {
         state.selectCurrent();
@@ -454,8 +458,20 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
         state.selectAll();
       } else if (input === 'd' && key.ctrl) {
         state.deselectAll();
-      } else if (input === 's') {
-        // Cycle through sortable columns
+      } else if (key.backspace && showSearch) {
+        state.setFilter(state.filterText().slice(0, -1));
+      } else if (isSearching && input && input.length === 1 && !key.ctrl && !key.meta) {
+        // When actively searching: all chars go to search filter
+        state.setFilter(state.filterText() + input);
+      } else if (!isSearching && (input === 'k')) {
+        state.moveCursor(-1);
+      } else if (!isSearching && (input === 'j')) {
+        state.moveCursor(1);
+      } else if (!isSearching && (input === 'h')) {
+        state.prevPage();
+      } else if (!isSearching && (input === 'l')) {
+        state.nextPage();
+      } else if (!isSearching && input === 's') {
         const sortable = columns.filter((c) => c.sortable);
         if (sortable.length > 0) {
           const current = state.sortColumn();
@@ -463,11 +479,8 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
           const nextIdx = (currentIdx + 1) % sortable.length;
           state.sort(sortable[nextIdx]!.key);
         }
-      } else if (input === '/') {
-        // Focus search (would need ref in real impl)
-      } else if (key.backspace && showSearch) {
-        state.setFilter(state.filterText().slice(0, -1));
       } else if (input && input.length === 1 && showSearch && !key.ctrl && !key.meta) {
+        // Start searching with first char
         state.setFilter(state.filterText() + input);
       }
     },

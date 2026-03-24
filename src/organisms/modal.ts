@@ -44,82 +44,30 @@ import { createSignal } from '../primitives/signal.js';
 /**
  * Border styles for modals - Unicode
  */
-const BORDER_CHARS_UNICODE = {
-  single: {
-    topLeft: '┌',
-    topRight: '┐',
-    bottomLeft: '└',
-    bottomRight: '┘',
-    horizontal: '─',
-    vertical: '│',
-  },
-  double: {
-    topLeft: '╔',
-    topRight: '╗',
-    bottomLeft: '╚',
-    bottomRight: '╝',
-    horizontal: '═',
-    vertical: '║',
-  },
-  round: {
-    topLeft: '╭',
-    topRight: '╮',
-    bottomLeft: '╰',
-    bottomRight: '╯',
-    horizontal: '─',
-    vertical: '│',
-  },
-  heavy: {
-    topLeft: '┏',
-    topRight: '┓',
-    bottomLeft: '┗',
-    bottomRight: '┛',
-    horizontal: '━',
-    vertical: '┃',
-  },
-};
-
-/**
- * Border styles for modals - ASCII fallback
- */
-const BORDER_CHARS_ASCII = {
-  single: {
-    topLeft: '+',
-    topRight: '+',
-    bottomLeft: '+',
-    bottomRight: '+',
-    horizontal: '-',
-    vertical: '|',
-  },
-  double: {
-    topLeft: '+',
-    topRight: '+',
-    bottomLeft: '+',
-    bottomRight: '+',
-    horizontal: '=',
-    vertical: '|',
-  },
-  round: {
-    topLeft: '+',
-    topRight: '+',
-    bottomLeft: '+',
-    bottomRight: '+',
-    horizontal: '-',
-    vertical: '|',
-  },
-  heavy: {
-    topLeft: '+',
-    topRight: '+',
-    bottomLeft: '+',
-    bottomRight: '+',
-    horizontal: '=',
-    vertical: '|',
-  },
-};
-
-/** Get border chars based on render mode */
+/** Get border chars from centralized capability system */
 function getBorderChars() {
-  return getRenderMode() === 'ascii' ? BORDER_CHARS_ASCII : BORDER_CHARS_UNICODE;
+  const chars = getChars();
+  const base = {
+    topLeft: chars.border.topLeft,
+    topRight: chars.border.topRight,
+    bottomLeft: chars.border.bottomLeft,
+    bottomRight: chars.border.bottomRight,
+    horizontal: chars.border.horizontal,
+    vertical: chars.border.vertical,
+  };
+  const round = {
+    ...base,
+    topLeft: chars.borderRound.topLeft,
+    topRight: chars.borderRound.topRight,
+    bottomLeft: chars.borderRound.bottomLeft,
+    bottomRight: chars.borderRound.bottomRight,
+  };
+  return {
+    single: base,
+    double: base, // capabilities doesn't have double set, fallback to single
+    round,
+    heavy: base,
+  };
 }
 
 /** Icons for Toast and AlertBox - with ASCII fallbacks */
@@ -239,60 +187,6 @@ function getModalPosition(
 }
 
 /**
- * Render modal border
- */
-function renderBorder(
-  width: number,
-  height: number,
-  style: BorderStyle,
-  color: string,
-  title?: string,
-  titleColor?: string
-): VNode[] {
-  if (style === 'none') {
-    return [];
-  }
-
-  const theme = getTheme();
-  const borderChars = getBorderChars();
-  const chars = borderChars[style] || borderChars.single;
-  const lines: VNode[] = [];
-
-  // Top border with title
-  const titleText = title ? ` ${title} ` : '';
-  const titleLen = titleText.length;
-  const remainingWidth = width - 2 - titleLen;
-  const leftPadding = Math.floor(remainingWidth / 2);
-  const rightPadding = remainingWidth - leftPadding;
-
-  const topLine = title
-    ? chars.topLeft +
-      chars.horizontal.repeat(leftPadding) +
-      titleText +
-      chars.horizontal.repeat(rightPadding) +
-      chars.topRight
-    : chars.topLeft + chars.horizontal.repeat(width - 2) + chars.topRight;
-
-  lines.push(
-    Box(
-      { flexDirection: 'row' },
-      Text({ color }, chars.topLeft),
-      title
-        ? Box(
-            { flexDirection: 'row' },
-            Text({ color }, chars.horizontal.repeat(leftPadding)),
-            Text({ color: titleColor || theme.palette.primary[500], bold: true }, titleText),
-            Text({ color }, chars.horizontal.repeat(rightPadding))
-          )
-        : Text({ color }, chars.horizontal.repeat(width - 2)),
-      Text({ color }, chars.topRight)
-    )
-  );
-
-  return lines;
-}
-
-/**
  * Modal Component
  *
  * Renders a modal dialog with customizable appearance and position.
@@ -343,7 +237,6 @@ export function Modal(props: ModalProps): VNode {
   const borderChars = getBorderChars();
   const chars = borderStyle !== 'none' ? borderChars[borderStyle] || borderChars.single : null;
   const contentWidth = width - 2 - padding * 2;
-  const contentHeight = height - 2 - (title ? 0 : 0) - (footer ? 2 : 0) - (showCloseHint ? 1 : 0);
 
   const isAscii = getRenderMode() === 'ascii';
   const closeButtonChar = isAscii ? '[X]' : ' × ';
