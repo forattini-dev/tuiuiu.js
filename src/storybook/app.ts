@@ -453,6 +453,22 @@ function DocsView(props: { story: Story }): VNode {
     );
   }
 
+  // Source code example
+  if (story.source) {
+    children.push(
+      Box(
+        { flexDirection: 'column', marginTop: 1 },
+        Text({ color: theme.accents.info, bold: true }, 'Usage:'),
+        Box(
+          { marginTop: 1, marginLeft: 1, borderStyle: 'single', borderColor: theme.borders.default, padding: 1 },
+          ...story.source.trim().split('\n').map(line =>
+            Text({ color: theme.foreground.primary }, line)
+          )
+        )
+      )
+    );
+  }
+
   // Category
   children.push(
     Box({ marginTop: 1 }, Text({ color: theme.foreground.muted }, 'Category: '), Text({ color: theme.accents.highlight }, story.category))

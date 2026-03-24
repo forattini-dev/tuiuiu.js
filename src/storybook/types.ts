@@ -29,6 +29,8 @@ export interface Story {
   category: string;
   /** Story description */
   description?: string;
+  /** Usage code example */
+  source?: string;
   /** Control definitions (optional - stories without controls are allowed) */
   controls?: Record<string, ControlDefinition>;
   /** Render function - receives current control values and optional frame number for animations */

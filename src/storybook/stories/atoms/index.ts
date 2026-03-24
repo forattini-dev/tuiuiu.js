@@ -195,6 +195,11 @@ export const buttonStories: Story[] = [
   story('Button - Basic')
     .category('Atoms')
     .description('Button with variants and states (onClick not controllable)')
+    .source(`import { Button } from 'tuiuiu.js';
+
+Button({ label: 'Click Me', variant: 'solid' })
+Button({ label: 'Cancel', variant: 'outline' })
+Button({ label: 'Delete', variant: 'ghost', color: 'error' })`)
     .controls({
       label: defaultControls.text('Label', 'Click Me'),
       variant: defaultControls.select('Variant', ['solid', 'outline', 'ghost', 'link'], 'solid'),

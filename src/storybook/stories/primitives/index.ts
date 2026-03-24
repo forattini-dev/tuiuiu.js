@@ -19,6 +19,11 @@ export const boxStories: Story[] = [
   story('Box - Basic')
     .category('Primitives')
     .description('Basic box container with content')
+    .source(`import { Box, Text } from 'tuiuiu.js';
+
+Box({ padding: 1 },
+  Text({}, 'Hello, Box!')
+)`)
     .controls({
       padding: defaultControls.range('Padding', 1, 0, 5),
       content: defaultControls.text('Content', 'Hello, Box!'),
@@ -143,6 +148,10 @@ export const textStories: Story[] = [
   story('Text - Basic')
     .category('Primitives')
     .description('Basic text with styling options')
+    .source(`import { Text } from 'tuiuiu.js';
+
+Text({ color: 'green', bold: true }, 'Hello!')
+Text({ dim: true }, 'Muted text')`)
     .controls({
       content: defaultControls.text('Content', 'Hello, Tuiuiu!'),
       color: defaultControls.color('Color', 'white'),

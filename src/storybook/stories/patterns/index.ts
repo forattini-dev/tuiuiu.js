@@ -29,6 +29,12 @@ const signalStories: Story[] = [
   story('Signal - Basic Counter')
     .category('Guides')
     .description('createSignal creates a reactive [getter, setter] pair. Click the controls to change the value and see the UI update.')
+    .source(`const [count, setCount] = createSignal(0);
+
+function App() {
+  useHotkeys('up', () => setCount(c => c + 1));
+  return Text({}, \`Count: \${count()}\`);
+}`)
     .controls({
       value: defaultControls.number('Value', 0, { min: -100, max: 100, step: 1 }),
     })
@@ -114,6 +120,11 @@ const performanceStories: Story[] = [
   story('Computed - Reactive Isolation')
     .category('Guides')
     .description('Computed() wraps a VNode subtree. Only re-evaluates when signals it reads change — parent does NOT re-run.')
+    .source(`// Only rebuilds when score() changes
+Computed(() => Text({ bold: true }, \`Score: \${score()}\`))
+
+// Only rebuilds when lives() changes
+Computed(() => Text({}, \`Lives: \${lives()}\`))`)
     .controls({
       score: defaultControls.number('Score', 0, { min: 0, max: 9999, step: 100 }),
       lives: defaultControls.number('Lives', 3, { min: 0, max: 10 }),
@@ -171,6 +182,15 @@ const performanceStories: Story[] = [
   story('Memo - Cached Subtree')
     .category('Guides')
     .description('Memo(deps, fn) caches a VNode subtree. Only rebuilds when deps change. Empty deps = never rebuild.')
+    .source(`// Only rebuilds when gold or wave changes
+Memo([gold(), wave()], () =>
+  Box({}, Text({}, \`Gold: \${gold()}\`))
+)
+
+// Never rebuilds (static content)
+Memo([], () =>
+  Text({ dim: true }, 'WASD: move | Q: quit')
+)`)
     .controls({
       goldChanged: defaultControls.boolean('Gold changed?', false),
       mapChanged: defaultControls.boolean('Map changed?', false),
