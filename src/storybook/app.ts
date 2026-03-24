@@ -199,14 +199,13 @@ function Sidebar(props: {
       { borderStyle: 'single', borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default, paddingX: 1 },
       Text({ color: theme.palette.primary[500], bold: true }, 'Stories')
     ),
-    // Categories (horizontal tabs) - clickable
+    // Categories (horizontal tabs) - single line, truncated to fit
     Box(
-      { flexDirection: 'row', paddingX: 1, marginY: 1 },
-      Text({ color: theme.foreground.muted }, '◀ ▶ '),
+      { flexDirection: 'row', paddingX: 1, height: 1, marginY: 1 },
+      Text({ color: theme.foreground.muted }, '◀▶ '),
       ...categories.map((cat, catIdx) => {
         const isActive = cat === currentCategory;
-        const count = getStoriesByCategory(cat).length;
-        const shortName = cat.slice(0, 4);
+        const shortName = cat.slice(0, 3);
         return Box(
           {
             onClick: () => {
@@ -220,7 +219,7 @@ function Sidebar(props: {
               bold: isActive,
               inverse: isActive,
             },
-            isActive ? `[${shortName}:${count}]` : ` ${shortName}:${count} `
+            isActive ? `[${shortName}]` : ` ${shortName} `
           )
         );
       })
@@ -246,11 +245,12 @@ function Sidebar(props: {
           // Extract group name (before " - ") for sub-headers
           const dash = story.name.indexOf(' - ');
           const group = dash > 0 ? story.name.slice(0, dash) : '';
+          const groupCount = group ? stories.filter(s => s.name.startsWith(group + ' - ')).length : 0;
+          const hasHeader = groupCount > 1;
 
-          // Add group header when group changes (and group has more than 1 story)
+          // Add group header when group changes and has multiple stories
           if (group && group !== lastGroup) {
-            const groupCount = stories.filter(s => s.name.startsWith(group + ' - ')).length;
-            if (groupCount > 1) {
+            if (hasHeader) {
               items.push(
                 Text({ color: theme.foreground.muted, dim: true, bold: true }, `  ${group} (${groupCount})`)
               );
@@ -258,10 +258,11 @@ function Sidebar(props: {
             lastGroup = group;
           }
 
-          // Story name: show only variant part if in a group
-          const displayName = (group && lastGroup === group)
-            ? story.name.slice(dash + 3) // show "Basic" instead of "Badge - Basic"
+          // Shorten name only when under a group header (2+ stories in group)
+          const displayName = (hasHeader && dash > 0)
+            ? story.name.slice(dash + 3)
             : story.name;
+          const indent = hasHeader ? '    ' : '  ';
 
           items.push(
             Box(
@@ -277,7 +278,7 @@ function Sidebar(props: {
                   bold: isSelected,
                   inverse: isSelected && isFocused,
                 },
-                isSelected ? ` ${group ? '  ' : ''}${displayName} ` : `  ${group ? '  ' : ''}${displayName}`
+                isSelected ? ` ${indent}${displayName} ` : `${indent}${displayName}`
               )
             )
           );
