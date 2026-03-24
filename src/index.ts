@@ -49,6 +49,7 @@ export {
   createMemo,
   batch,
   untrack,
+  onCleanup,
   Signal,
   Effect,
   createReducer,
@@ -219,6 +220,7 @@ export type {
 export {
   createStore,
   createPersistedStore,
+  createReactiveStore,
   applyMiddleware,
   createPersistMiddleware,
   createLoggerMiddleware,
@@ -261,6 +263,11 @@ export {
   Subtitle,
   Caption,
   Label,
+  // Fine-grained reactive nodes
+  Computed,
+  ComputedText,
+  Memo,
+  PreText,
   // SplitBox
   SplitBox,
   // Canvas

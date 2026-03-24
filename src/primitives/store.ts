@@ -4,7 +4,7 @@
  * Combines the predictability of Reducers with the performance of fine-grained reactivity.
  */
 
-import { createSignal, createEffect, type Signal } from './signal.js';
+import { createSignal, createEffect, Signal } from './signal.js';
 
 // =============================================================================
 // Types
@@ -376,4 +376,136 @@ export function createLoggerMiddleware(): Middleware<any, any> { // Added any, a
     console.log('  next state', nextState);
     return result;
   };
+}
+
+// =============================================================================
+// Reactive Store with Lazy Proxying (inspired by arrow-js)
+// =============================================================================
+
+/**
+ * Creates a deeply reactive store using Proxy with lazy child wrapping.
+ *
+ * Unlike the Redux-style `createStore`, this provides fine-grained reactivity
+ * at every property level. Child objects become reactive only when first accessed
+ * (lazy proxying), reducing initialization cost for large stores.
+ *
+ * @example
+ * const store = createReactiveStore({
+ *   user: { name: 'Alice', settings: { theme: 'dark' } },
+ *   items: [1, 2, 3],
+ *   count: 0,
+ * });
+ *
+ * // Reading in an effect auto-tracks fine-grained dependencies
+ * createEffect(() => {
+ *   console.log(store.count);        // Only re-runs when count changes
+ * });
+ *
+ * createEffect(() => {
+ *   console.log(store.user.name);    // Only re-runs when user.name changes
+ * });
+ *
+ * store.count = 1;                    // Triggers first effect only
+ * store.user.name = 'Bob';           // Triggers second effect only
+ */
+export function createReactiveStore<T extends Record<string, any>>(initial: T): T {
+  return deepReactive(initial);
+}
+
+// WeakMap to track already-proxied objects (avoids double-proxying)
+const proxyCache = new WeakMap<object, any>();
+
+// WeakMap to store per-property signals for each reactive object
+const propertySignals = new WeakMap<object, Map<string | symbol, Signal<any>>>();
+
+function getOrCreatePropertySignal<V>(
+  target: object,
+  key: string | symbol,
+  initialValue: V,
+): Signal<V> {
+  let signals = propertySignals.get(target);
+  if (!signals) {
+    signals = new Map();
+    propertySignals.set(target, signals);
+  }
+  let signal = signals.get(key);
+  if (!signal) {
+    signal = new Signal(initialValue);
+    signals.set(key, signal);
+  }
+  return signal as Signal<V>;
+}
+
+function deepReactive<T extends object>(obj: T): T {
+  // Already proxied? Return cached proxy
+  if (proxyCache.has(obj)) {
+    return proxyCache.get(obj);
+  }
+
+  // Cache for lazily-created child proxies
+  const childProxies = new Map<string | symbol, any>();
+
+  const proxy = new Proxy(obj, {
+    get(target: any, key: string | symbol, receiver: any): any {
+      // Symbol & prototype access: pass through without tracking
+      if (typeof key === 'symbol') {
+        return Reflect.get(target, key, receiver);
+      }
+
+      const value = Reflect.get(target, key, receiver);
+
+      // Track dependency via property signal (lazy creation)
+      const signal = getOrCreatePropertySignal(target, key, value);
+      signal.value; // Read triggers tracking in current effect
+
+      // Lazy child proxying: only wrap objects when accessed
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        if (!childProxies.has(key)) {
+          childProxies.set(key, deepReactive(value));
+        }
+        return childProxies.get(key);
+      }
+
+      return value;
+    },
+
+    set(target: any, key: string | symbol, newValue: any, receiver: any): boolean {
+      const oldValue = Reflect.get(target, key, receiver);
+      const result = Reflect.set(target, key, newValue, receiver);
+
+      if (!Object.is(oldValue, newValue)) {
+        // Clear cached child proxy if value changed
+        childProxies.delete(key);
+
+        // Notify signal subscribers
+        if (typeof key !== 'symbol') {
+          const signal = getOrCreatePropertySignal(target, key, newValue);
+          signal.value = newValue; // Triggers notify
+        }
+      }
+
+      return result;
+    },
+
+    deleteProperty(target: any, key: string | symbol): boolean {
+      const had = key in target;
+      const result = Reflect.deleteProperty(target, key);
+      if (had) {
+        childProxies.delete(key);
+        if (typeof key !== 'symbol') {
+          const signals = propertySignals.get(target);
+          if (signals) {
+            const signal = signals.get(key);
+            if (signal) {
+              signal.value = undefined;
+            }
+          }
+        }
+      }
+      return result;
+    },
+  });
+
+  proxyCache.set(obj, proxy);
+  return proxy;
 }

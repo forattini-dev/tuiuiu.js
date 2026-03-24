@@ -9,6 +9,7 @@ export {
   createMemo,
   batch,
   untrack,
+  onCleanup,
   Signal,
   Effect,
   createReducer,
@@ -20,6 +21,19 @@ export {
   createThrottled,
   createDebounced,
 } from '../primitives/signal.js';
+
+// Object pools
+export {
+  createPool,
+  vnodePool,
+  acquireVNode,
+  releaseVNodeTree,
+  layoutNodePool,
+  acquireLayoutNode,
+  releaseLayoutNodeTree,
+} from './pool.js';
+
+export type { Pool, PoolOptions } from './pool.js';
 
 // Layout engine
 export {

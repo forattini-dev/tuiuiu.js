@@ -145,4 +145,82 @@ export const signals: HookDoc[] = [
       `// Logger middleware\nconst logger = store => next => action => {\n  console.log('dispatching', action);\n  const result = next(action);\n  console.log('next state', store.getState());\n  return result;\n};\n\nconst store = createStore(reducer, initialState);\napplyMiddleware(logger)(store);`,
     ],
   },
+  {
+    name: 'onCleanup',
+    description: 'Register a cleanup function inside the current effect scope. More ergonomic than returning a cleanup — can be called at any point during effect execution. Multiple calls are allowed.',
+    signature: 'onCleanup(fn: () => void): void',
+    params: [
+      { name: 'fn', type: '() => void', required: true, description: 'Cleanup function to run when effect re-runs or disposes' },
+    ],
+    returns: 'void',
+    examples: [
+      `createEffect(() => {\n  const timer = setInterval(tick, 16);\n  onCleanup(() => clearInterval(timer));\n\n  const socket = connect(url());\n  onCleanup(() => socket.close());\n  // No need to return a cleanup function!\n});`,
+    ],
+  },
+  {
+    name: 'createReactiveStore',
+    description: 'Create a deeply reactive store with per-property signal tracking. Each property gets its own signal — effects only re-run when the properties they actually read change. Nested objects become reactive lazily (only when accessed).',
+    signature: 'createReactiveStore<T extends Record<string, any>>(initial: T): T',
+    params: [
+      { name: 'initial', type: 'T', required: true, description: 'Initial state object' },
+    ],
+    returns: 'A reactive proxy of the object',
+    examples: [
+      `const store = createReactiveStore({\n  player: { name: 'Alice', score: 0 },\n  settings: { theme: 'dark' },\n});\n\n// This effect ONLY re-runs when score changes\ncreateEffect(() => {\n  console.log('Score:', store.player.score);\n});\n\nstore.player.score = 100;       // ✅ triggers effect\nstore.settings.theme = 'light'; // ❌ does NOT trigger effect`,
+    ],
+  },
+  {
+    name: 'Computed',
+    description: 'Create a fine-grained reactive VNode. The function is evaluated and its signal dependencies are tracked. Only this subtree re-evaluates when its signals change — the parent component does NOT re-run. Use for isolating expensive UI sections.',
+    signature: 'Computed(fn: () => VNode | null): VNode',
+    params: [
+      { name: 'fn', type: '() => VNode | null', required: true, description: 'Function that reads signals and returns a VNode subtree' },
+    ],
+    returns: 'VNode that updates independently',
+    examples: [
+      `// Score display — only rebuilds when score() changes\nComputed(() => Text({ bold: true }, \`Score: \${score()}\`))`,
+      `// Complex subtree — only rebuilds when its signals change\nComputed(() => {\n  const items = monsters();\n  return Box({},\n    ...items.map(m => Text({}, \`HP: \${m.hp}\`))\n  );\n})`,
+    ],
+  },
+  {
+    name: 'ComputedText',
+    description: 'Shorthand for Computed + Text. Creates a reactive text node that only updates when the signals it reads change.',
+    signature: 'ComputedText(fn: () => string, props?: TextProps): VNode',
+    params: [
+      { name: 'fn', type: '() => string', required: true, description: 'Function returning text content' },
+      { name: 'props', type: 'TextProps', required: false, description: 'Text styling props' },
+    ],
+    returns: 'Reactive VNode',
+    examples: [
+      `ComputedText(() => \`Score: \${score()}\`, { color: 'green', bold: true })`,
+    ],
+  },
+  {
+    name: 'Memo',
+    description: 'Cache a VNode subtree and only rebuild when deps change (shallow comparison). Use for expensive subtrees where you know exactly what should trigger a rebuild.',
+    signature: 'Memo(deps: unknown[], fn: () => VNode | null): VNode',
+    params: [
+      { name: 'deps', type: 'unknown[]', required: true, description: 'Values to watch — rebuild when any changes' },
+      { name: 'fn', type: '() => VNode | null', required: true, description: 'Function returning the VNode subtree to cache' },
+    ],
+    returns: 'Cached VNode',
+    examples: [
+      `// Only rebuilds when gold or wave changes\nMemo([gold(), wave()], () =>\n  Box({ flexDirection: 'row' },\n    Text({}, \`Gold: \${gold()}\`),\n    Text({}, \`Wave: \${wave()}\`),\n  )\n)`,
+      `// Never rebuilds (empty deps) — perfect for static content\nMemo([], () =>\n  Text({ dim: true }, 'WASD: move | B: build | Q: quit')\n)`,
+    ],
+  },
+  {
+    name: 'PreText',
+    description: 'Render pre-built ANSI content directly without re-processing. Use when you have already built ANSI-escaped strings (common in games that render maps with per-cell styling).',
+    signature: 'PreText(content: string, props?: Partial<TextProps>): VNode',
+    params: [
+      { name: 'content', type: 'string', required: true, description: 'String with ANSI escape codes already applied' },
+      { name: 'props', type: 'Partial<TextProps>', required: false, description: 'Optional layout props (width, height)' },
+    ],
+    returns: 'VNode that passes content through as-is',
+    examples: [
+      `// Pre-styled game row\nconst row = '\\x1b[32m███\\x1b[0m \\x1b[31m░░░\\x1b[0m';\nPreText(row)`,
+      `// Game map with pre-built ANSI\nBox({ flexDirection: 'column' },\n  ...mapRows.map(row => PreText(row))\n)`,
+    ],
+  },
 ];

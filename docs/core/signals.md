@@ -134,6 +134,56 @@ createEffect(() => {
 });
 ```
 
+### `onCleanup`
+
+Register cleanup functions anywhere inside an effect — no need to return them.
+
+```typescript
+import { createEffect, onCleanup } from 'tuiuiu.js';
+
+createEffect(() => {
+  const id = setInterval(tick, 1000);
+  onCleanup(() => clearInterval(id));  // Runs when effect re-runs or disposes
+
+  const socket = connect(url());
+  onCleanup(() => socket.close());     // Multiple onCleanup calls are fine
+
+  // No need to return a cleanup function!
+});
+```
+
+`onCleanup` works alongside the traditional return-based cleanup:
+
+```typescript
+createEffect(() => {
+  onCleanup(() => console.log('cleanup via onCleanup'));
+  return () => console.log('cleanup via return');
+  // Both run when the effect re-runs
+});
+```
+
+### `autoBatch` (Effect option)
+
+Automatically batches rapid signal updates via `queueMicrotask`:
+
+```typescript
+import { createEffect, createSignal } from 'tuiuiu.js';
+
+const [count, setCount] = createSignal(0);
+
+createEffect(() => {
+  console.log('Count:', count());
+}, { autoBatch: true });
+
+// These 100 updates coalesce into 1 effect run
+for (let i = 0; i < 100; i++) {
+  setCount(i);
+}
+// Effect runs once after microtask with count = 99
+```
+
+> **Note:** Default effects run synchronously (important for `createMemo`). Use `autoBatch` for effects where immediate consistency isn't required.
+
 ### `createResource` (Concept)
 
 While not part of the core primitives, you can build async resource loaders using signals easily:

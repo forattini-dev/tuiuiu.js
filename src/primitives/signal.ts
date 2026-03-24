@@ -9,12 +9,17 @@ import {
   warnIfCreateSignalDuringComponentRender,
 } from '../core/dev-warnings.js';
 
-type Listener = () => void;
 type CleanupFn = () => void;
 export type EffectScheduler = (flush: () => void) => void;
 
 export interface EffectOptions {
   scheduler?: EffectScheduler;
+  /**
+   * When true, effects without a scheduler are batched via queueMicrotask
+   * instead of running synchronously. Multiple signal changes in the same
+   * tick consolidate into a single effect execution.
+   */
+  autoBatch?: boolean;
 }
 
 // Global tracking for auto-dependency detection
@@ -24,10 +29,15 @@ let isBatching = false;
 
 /**
  * Signal - A reactive value container
+ *
+ * Uses smart listener storage inspired by arrow-js:
+ * - 0 subscribers: _subs = null
+ * - 1 subscriber: _subs = Effect (no Set allocation)
+ * - 2+ subscribers: _subs = Set<Effect>
  */
 export class Signal<T> {
   private _value: T;
-  private subscribers = new Set<Effect>();
+  private _subs: Effect | Set<Effect> | null = null;
 
   constructor(initialValue: T) {
     this._value = initialValue;
@@ -36,8 +46,7 @@ export class Signal<T> {
   get value(): T {
     // Auto-track dependency when accessed inside an effect
     if (currentEffect) {
-      this.subscribers.add(currentEffect);
-      currentEffect.dependencies.add(this);
+      currentEffect._trackDep(this);
     }
     return this._value;
   }
@@ -47,7 +56,7 @@ export class Signal<T> {
     // Uses Object.is() for better semantics (handles NaN, -0)
     if (!Object.is(this._value, newValue)) {
       this._value = newValue;
-      this.notify();
+      this._notify();
     }
   }
 
@@ -61,10 +70,33 @@ export class Signal<T> {
     return this._value;
   }
 
-  private notify(): void {
-    // Copy subscribers before iterating to prevent infinite loops
-    // (effects may re-subscribe during their run)
-    const effects = [...this.subscribers];
+  /** Add subscriber with smart storage (fn vs Set) */
+  _addSub(effect: Effect): void {
+    if (this._subs === null) {
+      this._subs = effect;
+    } else if (this._subs instanceof Effect) {
+      if (this._subs === effect) return; // already subscribed
+      this._subs = new Set([this._subs, effect]);
+    } else {
+      this._subs.add(effect);
+    }
+  }
+
+  private _notify(): void {
+    if (this._subs === null) return;
+
+    if (this._subs instanceof Effect) {
+      const effect = this._subs;
+      if (isBatching) {
+        batchQueue.add(effect);
+      } else {
+        effect.notify();
+      }
+      return;
+    }
+
+    // Set path: copy to array to prevent mutation during iteration
+    const effects = [...this._subs];
     for (const effect of effects) {
       if (isBatching) {
         batchQueue.add(effect);
@@ -76,16 +108,87 @@ export class Signal<T> {
 
   /** Remove a subscriber */
   unsubscribe(effect: Effect): void {
-    this.subscribers.delete(effect);
+    if (this._subs === null) return;
+
+    if (this._subs instanceof Effect) {
+      if (this._subs === effect) {
+        this._subs = null;
+      }
+      return;
+    }
+
+    this._subs.delete(effect);
+    // Downgrade Set to single Effect when only 1 remains
+    if (this._subs.size === 1) {
+      this._subs = this._subs.values().next().value!;
+    } else if (this._subs.size === 0) {
+      this._subs = null;
+    }
+  }
+}
+
+// =============================================================================
+// onCleanup() - Register cleanup in current effect scope (arrow-js pattern)
+// =============================================================================
+
+let cleanupCollector: CleanupFn[] | null = null;
+
+/**
+ * Register a cleanup function in the current effect/component scope.
+ * More ergonomic than returning a cleanup from useEffect —
+ * can be called at any point during effect execution.
+ *
+ * @example
+ * createEffect(() => {
+ *   const id = setInterval(tick, 1000);
+ *   onCleanup(() => clearInterval(id));
+ *   // ... more logic, no need to return cleanup
+ * });
+ */
+export function onCleanup(fn: CleanupFn): void {
+  if (cleanupCollector) {
+    cleanupCollector.push(fn);
+  }
+}
+
+// =============================================================================
+// Microtask auto-batching (arrow-js pattern)
+// =============================================================================
+
+let microtaskQueued = false;
+const microtaskQueue = new Set<Effect>();
+
+function enqueueMicrotaskFlush(effect: Effect): void {
+  microtaskQueue.add(effect);
+  if (!microtaskQueued) {
+    microtaskQueued = true;
+    queueMicrotask(flushMicrotaskQueue);
+  }
+}
+
+function flushMicrotaskQueue(): void {
+  microtaskQueued = false;
+  const effects = [...microtaskQueue];
+  microtaskQueue.clear();
+  for (const effect of effects) {
+    effect.run(); // run() directly — avoids re-entering microtask path
   }
 }
 
 /**
  * Effect - A reactive side effect that re-runs when dependencies change
+ *
+ * Improvements over the basic model (inspired by arrow-js):
+ * - Dependency deduplication: skips unsubscribe/resubscribe when deps unchanged
+ * - onCleanup() collector: register cleanups anywhere during execution
+ * - Microtask auto-batching: unscheduled effects batch via queueMicrotask
  */
 export class Effect {
   dependencies = new Set<Signal<any>>();
-  private cleanup: CleanupFn | void = undefined;
+  /** Scratch set used during tracking to detect dep changes */
+  private _nextDeps: Set<Signal<any>> | null = null;
+  private _cleanups: CleanupFn[] = [];
+  private _returnCleanup: CleanupFn | void = undefined;
   private running = false;
   private disposed = false;
   private scheduled = false;
@@ -97,25 +200,38 @@ export class Effect {
     this.run();
   }
 
+  /** Track a dependency (called from Signal.get during run()) */
+  _trackDep(signal: Signal<any>): void {
+    if (this._nextDeps) {
+      this._nextDeps.add(signal);
+    }
+    // Outside of run() tracking is a no-op (safety: should not happen)
+  }
+
   notify(): void {
     if (this.disposed) {
       return;
     }
 
     const scheduler = this.options.scheduler;
-    if (!scheduler) {
-      this.run();
+    if (scheduler) {
+      if (this.scheduled) {
+        return;
+      }
+      this.scheduled = true;
+      scheduler(() => {
+        this.run();
+      });
       return;
     }
 
-    if (this.scheduled) {
-      return;
-    }
-
-    this.scheduled = true;
-    scheduler(() => {
+    // No scheduler: use microtask auto-batching if opted in,
+    // otherwise run synchronously (preserves existing behavior for createMemo etc.)
+    if (this.options.autoBatch) {
+      enqueueMicrotaskFlush(this);
+    } else {
       this.run();
-    });
+    }
   }
 
   run(): void {
@@ -129,28 +245,73 @@ export class Effect {
     this.running = true;
 
     try {
-      // Cleanup previous run
-      if (this.cleanup) {
-        this.cleanup();
-        this.cleanup = undefined;
-      }
+      // Run all cleanups (returned + onCleanup-registered)
+      this._runCleanups();
 
-      // Clear old dependencies
-      for (const dep of this.dependencies) {
-        dep.unsubscribe(this);
-      }
-      this.dependencies.clear();
+      // Set up dependency deduplication: collect new deps in scratch set
+      this._nextDeps = new Set<Signal<any>>();
+
+      // Set up onCleanup collector
+      const prevCollector = cleanupCollector;
+      cleanupCollector = this._cleanups;
 
       // Run effect with tracking enabled
       const prevEffect = currentEffect;
       currentEffect = this;
       try {
-        this.cleanup = this.fn();
+        this._returnCleanup = this.fn();
       } finally {
         currentEffect = prevEffect;
+        cleanupCollector = prevCollector;
       }
+
+      // Dependency deduplication: compare old vs new deps
+      const oldDeps = this.dependencies;
+      const newDeps = this._nextDeps;
+      this._nextDeps = null;
+
+      if (!this._samesDeps(oldDeps, newDeps)) {
+        // Unsubscribe from deps no longer tracked
+        for (const dep of oldDeps) {
+          if (!newDeps.has(dep)) {
+            dep.unsubscribe(this);
+          }
+        }
+        // Subscribe to newly tracked deps
+        for (const dep of newDeps) {
+          if (!oldDeps.has(dep)) {
+            dep._addSub(this);
+          }
+        }
+        this.dependencies = newDeps;
+      }
+      // If deps are the same, subscriptions are already in place — no work needed
     } finally {
       this.running = false;
+    }
+  }
+
+  /** Fast comparison: are old and new dep sets identical? */
+  private _samesDeps(a: Set<Signal<any>>, b: Set<Signal<any>>): boolean {
+    if (a.size !== b.size) return false;
+    for (const dep of a) {
+      if (!b.has(dep)) return false;
+    }
+    return true;
+  }
+
+  private _runCleanups(): void {
+    // Return-value cleanup
+    if (this._returnCleanup) {
+      this._returnCleanup();
+      this._returnCleanup = undefined;
+    }
+    // onCleanup-registered cleanups
+    if (this._cleanups.length > 0) {
+      for (const fn of this._cleanups) {
+        fn();
+      }
+      this._cleanups.length = 0;
     }
   }
 
@@ -158,10 +319,7 @@ export class Effect {
     if (this.disposed) return;
     this.disposed = true;
 
-    if (this.cleanup) {
-      this.cleanup();
-      this.cleanup = undefined;
-    }
+    this._runCleanups();
     for (const dep of this.dependencies) {
       dep.unsubscribe(this);
     }

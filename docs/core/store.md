@@ -205,14 +205,68 @@ Supported options:
 
 Unsupported legacy options like `path` and `format` are deprecated and have no runtime effect.
 
-## Store vs Signals
+## Reactive Store (Proxy-based)
 
-| Feature | Store | Signals |
-|:--------|:-----:|:-------:|
-| Reducer workflow | ✅ | ❌ |
-| Middleware | ✅ | ❌ |
-| Reactive reads in components | ✅ via `state()` | ✅ |
-| Fine-grained field tracking | Limited | ✅ |
-| Boilerplate | Higher | Lower |
+`createReactiveStore` provides fine-grained reactivity at the property level. Each property gets its own signal — effects only re-run when the properties they actually read change.
 
-Use store when reducers and middleware matter. Use signals when you want the simplest reactive model.
+```typescript
+import { createReactiveStore, createEffect } from 'tuiuiu.js';
+
+const store = createReactiveStore({
+  player: { name: 'Alice', score: 0 },
+  settings: { theme: 'dark', volume: 80 },
+});
+
+// This effect ONLY re-runs when score changes
+createEffect(() => {
+  console.log('Score:', store.player.score);
+});
+
+// This effect ONLY re-runs when theme changes
+createEffect(() => {
+  console.log('Theme:', store.settings.theme);
+});
+
+store.player.score = 100;    // Only first effect runs
+store.settings.theme = 'light'; // Only second effect runs
+store.settings.volume = 50;  // Neither effect runs (volume not tracked)
+```
+
+### Lazy Proxying
+
+Nested objects become reactive **only when accessed**. A store with 50 properties but where you only read 3 will only create 3 property signals — not 50.
+
+```typescript
+const bigStore = createReactiveStore({
+  moduleA: { /* lots of data */ },
+  moduleB: { /* lots of data */ },
+  moduleC: { /* lots of data */ },
+});
+
+// Only moduleA becomes reactive — B and C are untouched
+createEffect(() => {
+  console.log(bigStore.moduleA.status);
+});
+```
+
+### When to Use
+
+| Need | Use |
+|:-----|:----|
+| Simple component state | `useState()` |
+| Shared global state | `createSignal()` at module level |
+| Object with many properties, fine-grained tracking | `createReactiveStore()` |
+| Reducer workflow, middleware | `createStore()` |
+
+## Store vs Signals vs Reactive Store
+
+| Feature | createStore | createSignal | createReactiveStore |
+|:--------|:-----:|:-------:|:-------:|
+| Reducer workflow | ✅ | ❌ | ❌ |
+| Middleware | ✅ | ❌ | ❌ |
+| Fine-grained field tracking | ❌ | ❌ | ✅ |
+| Lazy nested reactivity | ❌ | ❌ | ✅ |
+| Boilerplate | Higher | Lower | Lower |
+| Best for | Complex state machines | Simple shared values | Object-shaped state |
+
+Use `createStore` when reducers and middleware matter. Use `createSignal` for simple values. Use `createReactiveStore` when you have structured state and want per-property reactivity.
