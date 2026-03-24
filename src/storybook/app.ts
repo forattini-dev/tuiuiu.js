@@ -99,6 +99,50 @@ function StoryContent(props: { story: Story; values: Record<string, any>; frame?
 }
 
 /**
+ * Welcome view - shown on first load until user selects a story
+ */
+function WelcomeView(props: { categories: string[]; storyCounts: Record<string, number> }): VNode {
+  const theme = getTheme();
+
+  const categoryDescriptions: Record<string, string> = {
+    'Primitives': 'Box, Text, Spacer, Divider, Fragment',
+    'Atoms': 'Button, Badge, Spinner, TextInput, Switch',
+    'Molecules': 'Select, Tabs, Table, Charts, Calendar',
+    'Organisms': 'Modal, DataTable, FileBrowser, CommandPalette',
+    'Templates': 'AppShell, Screen, Header, Sidebar, Panel',
+    'Guides': 'Signals, Performance, Hooks, Error Handling',
+  };
+
+  const total = Object.values(props.storyCounts).reduce((a, b) => a + b, 0);
+
+  return Box(
+    { flexDirection: 'column', flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 2 },
+    Text({ bold: true, color: theme.accents.info }, `Tuiuiu.js Storybook — ${total} Components`),
+    Box({ height: 1 }),
+    Box(
+      { flexDirection: 'column', gap: 0, width: 60 },
+      ...props.categories.map(cat =>
+        Box(
+          { flexDirection: 'row', paddingX: 2 },
+          Text({ color: theme.accents.info, bold: true }, `${cat} `.padEnd(14)),
+          Text({ color: theme.foreground.muted, dim: true }, `(${props.storyCounts[cat] || 0})`.padEnd(6)),
+          Text({ color: theme.foreground.secondary }, categoryDescriptions[cat] || ''),
+        )
+      ),
+    ),
+    Box({ height: 2 }),
+    Box(
+      { flexDirection: 'column', gap: 0, width: 60, paddingX: 2 },
+      Text({ color: theme.foreground.muted }, '[↑↓] Browse stories    [←→] Switch category'),
+      Text({ color: theme.foreground.muted }, '[Enter] Open preview   [Ctrl+F] Search'),
+      Text({ color: theme.foreground.muted }, '[p/g/c/d] View modes   [q] Quit'),
+    ),
+    Box({ height: 1 }),
+    Text({ dim: true }, 'Select a story from the sidebar to begin.'),
+  );
+}
+
+/**
  * Sidebar component - category and story list with virtual scroll
  */
 function Sidebar(props: {
@@ -626,6 +670,9 @@ function StorybookApp(): VNode {
   // Animation state - now uses global tick
   const [isPaused, setIsPaused] = useState(false);
 
+  // Welcome view - shown until user selects a story
+  const [showWelcome, setShowWelcome] = useState(true);
+
   // Get animation frame from global tick
   const animationFrame = () => getTick();
 
@@ -772,6 +819,7 @@ function StorybookApp(): VNode {
 
           if (catIndex >= 0) setCurrentCategoryIndex(catIndex);
           if (storyIndex >= 0) setSelectedStoryIndex(storyIndex);
+          setShowWelcome(false);
 
           storybookStore.dispatch({ type: 'CLOSE_SEARCH' });
         }
@@ -862,6 +910,7 @@ function StorybookApp(): VNode {
     if (key.return) {
       setClickCount((c) => c + 1);
       if (focusArea() === 'sidebar') {
+        setShowWelcome(false);
         const hasControls = Object.keys(currentStory?.controls || {}).length > 0;
         if (hasControls) {
           setViewMode('playground');
@@ -1098,14 +1147,19 @@ function StorybookApp(): VNode {
         },
         onFocus: () => setFocusArea('sidebar'),
       }),
-      PreviewPanel({
-        story: currentStory,
-        values: { ...values, __storybookActive: focusArea() === 'preview' },
-        viewMode: viewMode(),
-        focusArea: focusArea(),
-        frame: animationFrame(),
-        isPaused: isPaused(),
-      }),
+      showWelcome()
+        ? WelcomeView({
+            categories,
+            storyCounts: Object.fromEntries(categories.map(c => [c, getStoriesByCategory(c).length])),
+          })
+        : PreviewPanel({
+            story: currentStory,
+            values: { ...values, __storybookActive: focusArea() === 'preview' },
+            viewMode: viewMode(),
+            focusArea: focusArea(),
+            frame: animationFrame(),
+            isPaused: isPaused(),
+          }),
       viewMode() === 'playground' &&
         ControlPanel({
           story: currentStory,
