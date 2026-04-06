@@ -97,6 +97,7 @@ function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
       left.borderStyle === right.borderStyle &&
       left.borderColor === right.borderColor &&
       left.borderText === right.borderText &&
+      left.borderTextAlign === right.borderTextAlign &&
       left.borderSides?.top === right.borderSides?.top &&
       left.borderSides?.bottom === right.borderSides?.bottom &&
       left.borderSides?.left === right.borderSides?.left &&
@@ -836,7 +837,7 @@ function renderBoxToBuffer(
   buffer: CellBuffer,
   reservedRegions: readonly ReservedRegion[],
 ): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText } = command;
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText, borderTextAlign } = command;
   const boxBg = backgroundColor ? parseColor(backgroundColor) : undefined;
   const parsedBorderColor = borderColor ? parseColor(borderColor) : undefined;
 
@@ -880,7 +881,12 @@ function renderBoxToBuffer(
         const maxTextLen = width - 4;
         const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
         const textWithPad = ` ${truncated} `;
-        const startCol = x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
+        const align = borderTextAlign ?? 'center';
+        const startCol = align === 'left'
+          ? x + 1
+          : align === 'right'
+            ? x + Math.max(1, width - 1 - textWithPad.length)
+            : x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
         for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
           writeCharReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, parsedBorderColor, undefined, attrs);
         }

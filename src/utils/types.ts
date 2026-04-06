@@ -105,6 +105,8 @@ export interface BoxStyle {
   borderRight?: boolean;
   /** Text to display inline in the top border (e.g., title) */
   borderText?: string;
+  /** Alignment of borderText: 'left' | 'center' | 'right' (default: 'center') */
+  borderTextAlign?: 'left' | 'center' | 'right';
 
   // Overflow
   overflow?: 'visible' | 'hidden';

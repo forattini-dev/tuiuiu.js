@@ -151,6 +151,8 @@ export interface DrawBoxCommand extends DrawCommandBase {
   borderSides?: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean };
   /** Text to display inline in the top border */
   borderText?: string;
+  /** Alignment of borderText: 'left' | 'center' | 'right' (default: 'center') */
+  borderTextAlign?: 'left' | 'center' | 'right';
 }
 
 export interface DrawTextCommand extends DrawCommandBase {
@@ -1146,6 +1148,7 @@ function buildCachedDrawCommands(
       borderColor: typeof props.borderColor === 'string' ? props.borderColor : undefined,
       borderSides,
       borderText: typeof props.borderText === 'string' ? props.borderText : undefined,
+      borderTextAlign: props.borderTextAlign,
     });
   } else if (node.type === 'text') {
     commands.push({

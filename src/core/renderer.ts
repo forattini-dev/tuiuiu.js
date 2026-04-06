@@ -466,7 +466,7 @@ function renderBoxCommand(
   buffer: OutputBuffer,
   reservedRegions: readonly ReservedRegion[],
 ): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText } = command;
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText, borderTextAlign } = command;
 
   if (backgroundColor) {
     const bgCode = getColorCode(backgroundColor, true);
@@ -506,7 +506,12 @@ function renderBoxCommand(
         const maxTextLen = width - 4; // 2 for padding spaces + 2 for border chars at edges
         const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
         const textWithPad = ` ${truncated} `;
-        const startCol = x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
+        const align = borderTextAlign ?? 'center';
+        const startCol = align === 'left'
+          ? x + 1
+          : align === 'right'
+            ? x + Math.max(1, width - 1 - textWithPad.length)
+            : x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
         for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
           writeReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, borderAnsiStyle);
         }
