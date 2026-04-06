@@ -38,7 +38,45 @@ export interface Key {
   f12: boolean;
 }
 
-export type InputHandler = (input: string, key: Key) => void | boolean;
+/** Extended input event metadata (backward-compatible 3rd param) */
+export interface InputEvent {
+  /** The input string */
+  input: string;
+  /** Parsed key information */
+  key: Key;
+  /** Whether this input originated from a paste operation */
+  isPasted: boolean;
+  /** Raw terminal data */
+  raw?: string;
+}
+
+export type InputHandler = (input: string, key: Key, event?: InputEvent) => void | boolean;
+
+// =============================================================================
+// Paste Event System
+// =============================================================================
+
+/** Event emitted when text is pasted */
+export interface PasteEvent {
+  /** The pasted text content */
+  text: string;
+  /** Whether paste was detected via bracketed paste mode (vs heuristic) */
+  isBracketed: boolean;
+}
+
+export type PasteHandler = (event: PasteEvent) => void | boolean;
+
+/** Internal entry for a registered paste handler */
+export interface PasteHandlerEntry {
+  /** The actual handler function */
+  handler: PasteHandler;
+  /** Priority value for sorting */
+  priorityValue: number;
+  /** Whether to stop propagation when handler returns truthy */
+  stopPropagation: boolean;
+  /** Unique ID for removal */
+  id: number;
+}
 
 // =============================================================================
 // Input Priority System

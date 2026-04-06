@@ -110,6 +110,8 @@
   - [useForm](/hooks/use-form.md)
   - [useInterval](/hooks/use-interval.md)
   - [useTimeout](/hooks/use-timeout.md)
+  - [useSubscription](/hooks/use-subscription.md)
+  - [useAsyncData](/hooks/use-async-data.md)
   - [Context API](/hooks/context.md)
 
 - **Guides**

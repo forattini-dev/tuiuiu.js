@@ -19,6 +19,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, MouseEventData } from '../utils/types.js';
 import { batch, createSignal, createEffect } from '../primitives/signal.js';
 import { useConst, useInput, type Key } from '../hooks/index.js';
+import { usePaste } from '../hooks/use-paste.js';
 import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
@@ -1467,6 +1468,11 @@ export function renderTextInput(
 
   // Register input handler during render phase
   useInput(state.handleInput);
+
+  // Register paste handler for bracketed paste support
+  usePaste((event) => {
+    state.paste(event.text);
+  });
 
   const value = state.value();
   const cursor = state.cursorPosition();

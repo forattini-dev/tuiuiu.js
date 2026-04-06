@@ -103,6 +103,8 @@ export interface BoxStyle {
   borderBottom?: boolean;
   borderLeft?: boolean;
   borderRight?: boolean;
+  /** Text to display inline in the top border (e.g., title) */
+  borderText?: string;
 
   // Overflow
   overflow?: 'visible' | 'hidden';

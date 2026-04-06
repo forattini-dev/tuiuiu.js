@@ -66,9 +66,65 @@ function MyErrorScreen() {
 }
 ```
 
+## Terminal Panic Hooks
+
+Error boundaries catch render errors, but process-level crashes (uncaught exceptions, unhandled rejections, SIGINT/SIGTERM) can leave the terminal corrupted — raw mode on, cursor hidden, mouse tracking active.
+
+`installPanicHooks()` registers centralized process handlers that restore the terminal to a clean state before exiting. It's called automatically by `render()`, but you can also register custom cleanup callbacks.
+
+```typescript
+import { onTerminalPanic, installPanicHooks } from 'tuiuiu.js';
+
+// Automatically installed by render() — you don't need to call this manually
+// installPanicHooks();
+
+// Register custom cleanup (e.g., save state, close connections)
+const unregister = onTerminalPanic(() => {
+  db.close();
+  saveState();
+});
+
+// Later, if you no longer need this cleanup:
+unregister();
+```
+
+### What gets restored automatically
+
+When `render()` is used, these are registered automatically:
+- Raw mode disabled (`stdin.setRawMode(false)`)
+- Cursor restored (`\x1b[?25h`)
+- Focus events disabled (`\x1b[?1004l`)
+- Bracketed paste disabled (`\x1b[?2004l`)
+- Mouse tracking disabled
+
+### Handled signals
+
+- `process.on('exit')` — normal exit
+- `SIGINT` (Ctrl+C) — exit code 130
+- `SIGTERM` — exit code 143
+- `uncaughtException` — logs error, exit code 1
+- `unhandledRejection` — logs reason, exit code 1
+
+### API
+
+```typescript
+// Register a cleanup callback. Returns unregister function.
+function onTerminalPanic(cleanup: () => void): () => void;
+
+// Install process handlers (idempotent, called by render()).
+function installPanicHooks(): void;
+
+// Execute all registered cleanups (LIFO order).
+function restoreTerminal(): void;
+
+// Remove all handlers and clear registry (for tests).
+function removePanicHooks(): void;
+```
+
 ## Best practices
 
 1. **Always wrap your root component** with `withErrorBoundary` in production apps
 2. Use `tryCatch` for operations that might fail (parsing, file I/O, network)
 3. Use `onCleanup` in effects to prevent resource leaks that cause errors later
 4. Errors in event handlers (useInput, useHotkeys) are caught and logged — they don't crash the app
+5. Use `onTerminalPanic` to register cleanup for external resources (database connections, temp files) that should be cleaned up on crash

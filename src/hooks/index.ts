@@ -30,6 +30,11 @@ export { useEffect } from './use-effect.js';
 
 // Input hook with priority support
 export { useInput, useModalInput, useCriticalInput, parseKeypress } from './use-input.js';
+export type { InputEvent } from './use-input.js';
+
+// Paste hook
+export { usePaste } from './use-paste.js';
+export type { PasteHandler, PasteEvent } from './use-paste.js';
 
 // Input handler management (for advanced use cases)
 export {
@@ -39,6 +44,12 @@ export {
   clearInputHandlers,
   getInputHandlerCount,
   getInputHandlers,
+  // Paste handler management
+  addPasteHandler,
+  removePasteHandlerById,
+  emitPaste,
+  clearPasteHandlers,
+  getPasteHandlerCount,
 } from './context.js';
 
 // Mouse hook
@@ -221,9 +232,35 @@ export type {
 export { useClipboard } from './use-clipboard.js';
 export type { UseClipboardResult } from './use-clipboard.js';
 
+// Image paste hook
+export { useImagePaste } from './use-image-paste.js';
+export type { ImagePasteEvent, ImagePasteHandler, UseImagePasteOptions } from './use-image-paste.js';
+
+// Clipboard image hint hook
+export { useClipboardImageHint } from './use-clipboard-image-hint.js';
+export type { UseClipboardImageHintOptions } from './use-clipboard-image-hint.js';
+
+// Inline trigger completion hooks
+export { useInlineTrigger, useMultiInlineTrigger } from './use-inline-trigger.js';
+
 // Notification hook
 export { useNotification } from './use-notification.js';
 export type { UseNotificationResult } from './use-notification.js';
+
+// Subscription hook (external event sources → signals)
+export {
+  useSubscription,
+  cleanupSubscription,
+  type UseSubscriptionOptions,
+} from './use-subscription.js';
+
+// Async data hook (fetch with lifecycle)
+export {
+  useAsyncData,
+  cleanupAsyncData,
+  type UseAsyncDataOptions,
+  type UseAsyncDataReturn,
+} from './use-async-data.js';
 
 // Reactive format hooks
 export {

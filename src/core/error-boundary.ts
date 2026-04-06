@@ -369,6 +369,26 @@ export function tryCatch<T>(
 // Reset (for testing)
 // =============================================================================
 
+/**
+ * Wrap a render function with a silent error boundary.
+ *
+ * Unlike `withErrorBoundary`, this renders an empty Box on error instead
+ * of showing the error overlay. Use for non-critical components that
+ * should not crash the entire UI.
+ *
+ * @example
+ * const SafeWidget = withSilentErrorBoundary(() => RiskyWidget());
+ */
+export function withSilentErrorBoundary(render: () => VNode): () => VNode {
+  return () => {
+    try {
+      return render();
+    } catch {
+      return Box({});
+    }
+  };
+}
+
 export function resetErrorBoundary(): void {
   currentError = null;
   errorHandlers = [];

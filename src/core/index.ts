@@ -481,7 +481,18 @@ export {
   loadImageFile,
   loadTerminalImageSourceFromFile,
   probeImageFile,
+  isImagePath,
+  extractImagePaths,
 } from './image-file.js';
+
+export {
+  readClipboardImage,
+  hasClipboardImage,
+} from './clipboard-image.js';
+
+export type {
+  ClipboardImageResult,
+} from './clipboard-image.js';
 
 export type {
   GraphicsProtocol,
@@ -1109,6 +1120,7 @@ export {
   onError,
   // Error boundary wrapper
   withErrorBoundary,
+  withSilentErrorBoundary,
   tryCatch,
   resetErrorBoundary,
 } from './error-boundary.js';
@@ -1118,6 +1130,20 @@ export type {
   StackFrame,
   CodeExcerpt,
 } from './error-boundary.js';
+
+// Terminal Panic Hooks (centralized terminal restoration on crash)
+export {
+  installPanicHooks,
+  removePanicHooks,
+  onTerminalPanic,
+  restoreTerminal,
+} from './terminal-panic.js';
+
+// Reduced Motion Preference
+export {
+  setPrefersReducedMotion,
+  getPrefersReducedMotion,
+} from './motion-runtime.js';
 
 // Global Tick System (synchronized animations)
 export {

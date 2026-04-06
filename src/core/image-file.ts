@@ -171,3 +171,75 @@ export async function loadTerminalImageSourceFromFile(
       : undefined,
   });
 }
+
+// =============================================================================
+// Image Path Detection
+// =============================================================================
+
+/** Supported image file extensions */
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|tiff?|svg|ico|avif)$/i;
+
+/**
+ * Remove surrounding quotes from a string.
+ * Handles both single and double quotes from shell paste.
+ */
+function removeOuterQuotes(text: string): string {
+  if (
+    (text.startsWith('"') && text.endsWith('"')) ||
+    (text.startsWith("'") && text.endsWith("'"))
+  ) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+/**
+ * Remove shell backslash escapes from a path.
+ * E.g., `/path/to/my\ image.png` → `/path/to/my image.png`
+ */
+function stripBackslashEscapes(text: string): string {
+  if (process.platform === 'win32') return text;
+  return text.replace(/\\(.)/g, '$1');
+}
+
+/**
+ * Clean a raw pasted string into a usable file path.
+ */
+function cleanPath(raw: string): string {
+  return stripBackslashEscapes(removeOuterQuotes(raw.trim()));
+}
+
+/**
+ * Check if a string looks like a path to an image file.
+ */
+export function isImagePath(text: string): boolean {
+  const cleaned = cleanPath(text);
+  return cleaned.length > 0 && IMAGE_EXTENSIONS.test(cleaned);
+}
+
+/**
+ * Extract image file paths from pasted text.
+ *
+ * Handles:
+ * - Newline-separated paths (drag multiple files)
+ * - Space-separated absolute paths (Finder/Explorer drag)
+ * - Quoted paths with spaces
+ * - Shell-escaped paths with backslashes
+ *
+ * @example
+ * extractImagePaths('/home/user/photo.png\n/tmp/screenshot.jpg')
+ * // → ['/home/user/photo.png', '/tmp/screenshot.jpg']
+ *
+ * extractImagePaths('/path/to/my\\ image.png')
+ * // → ['/path/to/my image.png']
+ */
+export function extractImagePaths(text: string): string[] {
+  // Split on newlines first, then on spaces before absolute paths
+  const candidates = text
+    .split(/ (?=\/|[A-Za-z]:\\)/)
+    .flatMap((part) => part.split('\n'))
+    .map((line) => cleanPath(line))
+    .filter((line) => line.length > 0);
+
+  return candidates.filter((candidate) => IMAGE_EXTENSIONS.test(candidate));
+}

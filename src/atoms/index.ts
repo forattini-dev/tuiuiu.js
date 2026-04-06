@@ -131,6 +131,53 @@ export {
 } from './progress-bar.js';
 
 // =============================================================================
+// Keyboard Shortcut Hints
+// =============================================================================
+export {
+  KeyboardShortcutHint,
+  HintBar,
+} from './keyboard-shortcut-hint.js';
+
+export type {
+  KeyboardShortcutHintProps,
+  HintBarProps,
+} from './keyboard-shortcut-hint.js';
+
+// =============================================================================
+// Trigger Completion (inline @-mentions, /commands, #tags)
+// =============================================================================
+export {
+  createTriggerCompletion,
+  createMultiTriggerCompletion,
+} from './trigger-completion.js';
+
+export type {
+  TriggerItem,
+  TriggerConfig,
+} from './trigger-completion.js';
+
+// Completion Dropdown
+export {
+  CompletionDropdown,
+} from './completion-dropdown.js';
+
+export type {
+  CompletionDropdownProps,
+} from './completion-dropdown.js';
+
+// =============================================================================
+// Shimmer Text
+// =============================================================================
+export {
+  ShimmerText,
+  resetShimmerStartTime,
+} from './shimmer-text.js';
+
+export type {
+  ShimmerTextProps,
+} from './shimmer-text.js';
+
+// =============================================================================
 // Tooltip & related visual components
 // =============================================================================
 export {

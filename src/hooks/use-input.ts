@@ -10,10 +10,10 @@ import {
   setHookState,
   getHookStateByIndex,
 } from './context.js';
-import { parseKeypress, type Key, type InputHandler } from '../core/hotkeys.js';
-import type { InputPriority, UseInputOptions } from './types.js';
+import { parseKeypress, type Key } from '../core/hotkeys.js';
+import type { InputHandler, InputEvent, InputPriority, UseInputOptions } from './types.js';
 
-export type { Key, InputHandler, InputPriority, UseInputOptions };
+export type { Key, InputHandler, InputEvent, InputPriority, UseInputOptions };
 export { parseKeypress };
 
 /**
@@ -62,11 +62,11 @@ export function useInput(
 
   if (isNew || hookData === null) {
     // First render - create wrapper and register
-    const wrapper: InputHandler = (input, key) => {
+    const wrapper: InputHandler = (input, key, event) => {
       // Always call the latest handler (stored in hookData)
       const data = getStoredHookData();
       if (data && data.registered) {
-        return data.handler(input, key);
+        return data.handler(input, key, event);
       }
     };
 

@@ -91,6 +91,11 @@ export {
   renderOnce,
   // Hotkeys
   isHotkey,
+  // Terminal panic hooks
+  installPanicHooks,
+  removePanicHooks,
+  onTerminalPanic,
+  restoreTerminal,
 } from './core/index.js';
 
 export type {
@@ -137,6 +142,9 @@ export {
   useComputed,
   useEffect,
   useInput,
+  usePaste,
+  useImagePaste,
+  useClipboardImageHint,
   useApp,
   useFocus,
   useFocusManager,
@@ -168,6 +176,11 @@ export {
   cleanupInterval,
   useTimeout,
   cleanupTimeout,
+  // Subscription & async data hooks
+  useSubscription,
+  cleanupSubscription,
+  useAsyncData,
+  cleanupAsyncData,
   // Form management
   useForm,
   createFormValidator,
@@ -185,6 +198,11 @@ export {
 export type {
   Key,
   InputHandler,
+  InputEvent,
+  PasteHandler,
+  PasteEvent,
+  ImagePasteEvent,
+  ImagePasteHandler,
   AppContext,
   FocusOptions,
   FocusResult,
@@ -205,6 +223,10 @@ export type {
   UseIntervalReturn,
   UseTimeoutOptions,
   UseTimeoutReturn,
+  // Subscription & async data types
+  UseSubscriptionOptions,
+  UseAsyncDataOptions,
+  UseAsyncDataReturn,
   // Form types
   FormValues,
   FormErrors,
@@ -878,6 +900,11 @@ export {
   loadImageFile,
   loadTerminalImageSourceFromFile,
   probeImageFile,
+  isImagePath,
+  extractImagePaths,
+  // Clipboard image
+  readClipboardImage,
+  hasClipboardImage,
   // Image utilities
   createImageData,
   createSolidImage,

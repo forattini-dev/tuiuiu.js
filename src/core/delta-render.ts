@@ -95,7 +95,12 @@ function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
       left.height === right.height &&
       left.backgroundColor === right.backgroundColor &&
       left.borderStyle === right.borderStyle &&
-      left.borderColor === right.borderColor
+      left.borderColor === right.borderColor &&
+      left.borderText === right.borderText &&
+      left.borderSides?.top === right.borderSides?.top &&
+      left.borderSides?.bottom === right.borderSides?.bottom &&
+      left.borderSides?.left === right.borderSides?.left &&
+      left.borderSides?.right === right.borderSides?.right
     );
   }
 
@@ -831,7 +836,7 @@ function renderBoxToBuffer(
   buffer: CellBuffer,
   reservedRegions: readonly ReservedRegion[],
 ): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor } = command;
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText } = command;
   const boxBg = backgroundColor ? parseColor(backgroundColor) : undefined;
   const parsedBorderColor = borderColor ? parseColor(borderColor) : undefined;
 
@@ -852,76 +857,56 @@ function renderBoxToBuffer(
     const borderChars = BORDER_STYLES[borderStyle] ?? BORDER_STYLES.single;
     const attrs: CellAttrs = {};
 
+    // Per-side visibility
+    const showTop = borderSides?.top !== false;
+    const showBottom = borderSides?.bottom !== false;
+    const showLeft = borderSides?.left !== false;
+    const showRight = borderSides?.right !== false;
+
     // Top border
-    writeCharReservedAware(buffer, reservedRegions, x, y, borderChars.topLeft, parsedBorderColor, undefined, attrs);
-    for (let i = 1; i < width - 1; i++) {
-      writeCharReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, parsedBorderColor, undefined, attrs);
-    }
-    if (width > 1) {
-      writeCharReservedAware(
-        buffer,
-        reservedRegions,
-        x + width - 1,
-        y,
-        borderChars.topRight,
-        parsedBorderColor,
-        undefined,
-        attrs,
-      );
+    if (showTop) {
+      const tlChar = showLeft ? borderChars.topLeft : borderChars.top;
+      writeCharReservedAware(buffer, reservedRegions, x, y, tlChar, parsedBorderColor, undefined, attrs);
+      for (let i = 1; i < width - 1; i++) {
+        writeCharReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, parsedBorderColor, undefined, attrs);
+      }
+      if (width > 1) {
+        const trChar = showRight ? borderChars.topRight : borderChars.top;
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y, trChar, parsedBorderColor, undefined, attrs);
+      }
+
+      // Border text overlay
+      if (borderText && width > 4) {
+        const maxTextLen = width - 4;
+        const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
+        const textWithPad = ` ${truncated} `;
+        const startCol = x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
+        for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
+          writeCharReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, parsedBorderColor, undefined, attrs);
+        }
+      }
     }
 
     // Side borders
     for (let row = 1; row < height - 1; row++) {
-      writeCharReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, parsedBorderColor, undefined, attrs);
-      if (width > 1) {
-        writeCharReservedAware(
-          buffer,
-          reservedRegions,
-          x + width - 1,
-          y + row,
-          borderChars.right,
-          parsedBorderColor,
-          undefined,
-          attrs,
-        );
+      if (showLeft) {
+        writeCharReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, parsedBorderColor, undefined, attrs);
+      }
+      if (showRight && width > 1) {
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, parsedBorderColor, undefined, attrs);
       }
     }
 
     // Bottom border
-    if (height > 1) {
-      writeCharReservedAware(
-        buffer,
-        reservedRegions,
-        x,
-        y + height - 1,
-        borderChars.bottomLeft,
-        parsedBorderColor,
-        undefined,
-        attrs,
-      );
+    if (showBottom && height > 1) {
+      const blChar = showLeft ? borderChars.bottomLeft : borderChars.bottom;
+      writeCharReservedAware(buffer, reservedRegions, x, y + height - 1, blChar, parsedBorderColor, undefined, attrs);
       for (let i = 1; i < width - 1; i++) {
-        writeCharReservedAware(
-          buffer,
-          reservedRegions,
-          x + i,
-          y + height - 1,
-          borderChars.bottom,
-          parsedBorderColor,
-          undefined,
-          attrs,
-        );
+        writeCharReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, parsedBorderColor, undefined, attrs);
       }
       if (width > 1) {
-        writeCharReservedAware(
-          buffer,
-          reservedRegions,
-          x + width - 1,
-          y + height - 1,
-          borderChars.bottomRight,
-          parsedBorderColor,
-          undefined,
-          attrs,
-        );
+        const brChar = showRight ? borderChars.bottomRight : borderChars.bottom;
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + height - 1, brChar, parsedBorderColor, undefined, attrs);
       }
     }
   }

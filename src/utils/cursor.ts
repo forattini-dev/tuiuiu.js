@@ -3,24 +3,17 @@
  */
 
 import { Writable } from 'node:stream';
+import { onTerminalPanic, removePanicHooks } from '../core/terminal-panic.js';
 
 // ANSI escape codes for cursor control
 const SHOW_CURSOR = '\u001B[?25h';
 const HIDE_CURSOR = '\u001B[?25l';
 
 let isHidden = false;
-let handlersRegistered = false;
+let panicRegistered = false;
+let unregisterPanic: (() => void) | null = null;
 let lastStream: Writable | null = null;
 
-// Store handler references for potential cleanup
-let exitHandler: (() => void) | null = null;
-let sigintHandler: (() => void) | null = null;
-let sigtermHandler: (() => void) | null = null;
-let uncaughtHandler: ((err: Error) => void) | null = null;
-
-/**
- * Restore cursor visibility
- */
 function isTTYStream(stream: Writable): boolean {
   return 'isTTY' in stream && !!(stream as any).isTTY;
 }
@@ -37,50 +30,24 @@ function restoreCursor(): void {
 }
 
 /**
- * Ensure cursor is restored on process exit
+ * Register cursor restoration with the centralized panic handler
  */
-function setupExitHandler(): void {
-  if (handlersRegistered) return;
-  handlersRegistered = true;
-
-  exitHandler = restoreCursor;
-  sigintHandler = () => {
-    restoreCursor();
-    process.exit(128 + 2);
-  };
-  sigtermHandler = () => {
-    restoreCursor();
-    process.exit(128 + 15);
-  };
-  uncaughtHandler = (err: Error) => {
-    restoreCursor();
-    console.error(err);
-    process.exit(1);
-  };
-
-  // Handle various exit scenarios
-  process.on('exit', exitHandler);
-  process.on('SIGINT', sigintHandler);
-  process.on('SIGTERM', sigtermHandler);
-  process.on('uncaughtException', uncaughtHandler);
+function registerPanicCleanup(): void {
+  if (panicRegistered) return;
+  panicRegistered = true;
+  unregisterPanic = onTerminalPanic(restoreCursor);
 }
 
 /**
- * Remove exit handlers (useful for tests)
+ * Remove exit handlers (useful for tests).
+ * Delegates to removePanicHooks for full cleanup.
  */
 export function removeExitHandlers(): void {
-  if (!handlersRegistered) return;
-
-  if (exitHandler) process.off('exit', exitHandler);
-  if (sigintHandler) process.off('SIGINT', sigintHandler);
-  if (sigtermHandler) process.off('SIGTERM', sigtermHandler);
-  if (uncaughtHandler) process.off('uncaughtException', uncaughtHandler);
-
-  exitHandler = null;
-  sigintHandler = null;
-  sigtermHandler = null;
-  uncaughtHandler = null;
-  handlersRegistered = false;
+  if (unregisterPanic) {
+    unregisterPanic();
+    unregisterPanic = null;
+  }
+  panicRegistered = false;
   lastStream = null;
 }
 
@@ -104,7 +71,7 @@ export function hideCursor(stream: Writable = process.stdout): void {
     return;
   }
   lastStream = stream;
-  setupExitHandler();
+  registerPanicCleanup();
   isHidden = true;
   stream.write(HIDE_CURSOR);
 }

@@ -14,6 +14,7 @@ import {
   getHookStateByIndex,
   getAppContext,
 } from './context.js';
+import { onTerminalPanic } from '../core/terminal-panic.js';
 
 // =============================================================================
 // Types
@@ -235,6 +236,7 @@ export function enableMouseTracking(): void {
   mouseTrackingRefCount++;
   if (!mouseTrackingEnabled) {
     mouseTrackingEnabled = true;
+    registerMousePanicCleanup();
     const stream = getMouseOutputStream();
     mouseOutputStream = stream;
     if (isTTYStream(stream)) {
@@ -430,65 +432,35 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
 }
 
 // =============================================================================
-// Cleanup on process exit
+// Cleanup on process exit (via centralized terminal-panic)
 // =============================================================================
 
-let exitHandlersRegistered = false;
-
-// Store handler references for cleanup
-let mouseExitHandler: (() => void) | null = null;
-let mouseSigintHandler: (() => void) | null = null;
-let mouseSigtermHandler: (() => void) | null = null;
+let panicRegistered = false;
+let unregisterPanic: (() => void) | null = null;
 
 /**
- * Setup exit handlers to ensure mouse tracking is disabled on exit.
- * Uses a flag to prevent registering multiple listeners.
+ * Register mouse cleanup with centralized panic handler.
+ * Called when mouse tracking is first enabled.
  */
-function setupExitHandlers(): void {
-  if (exitHandlersRegistered) return;
-  exitHandlersRegistered = true;
-
-  mouseExitHandler = () => {
-    forceDisableMouseTracking();
-  };
-
-  mouseSigintHandler = () => {
-    forceDisableMouseTracking();
-    process.exit(0);
-  };
-
-  mouseSigtermHandler = () => {
-    forceDisableMouseTracking();
-    process.exit(0);
-  };
-
-  process.on('exit', mouseExitHandler);
-  process.on('SIGINT', mouseSigintHandler);
-  process.on('SIGTERM', mouseSigtermHandler);
+function registerMousePanicCleanup(): void {
+  if (panicRegistered) return;
+  panicRegistered = true;
+  unregisterPanic = onTerminalPanic(forceDisableMouseTracking);
 }
 
 /**
  * Remove mouse exit handlers (useful for tests)
  */
 export function removeMouseExitHandlers(): void {
-  if (!exitHandlersRegistered) return;
-
-  if (mouseExitHandler) process.off('exit', mouseExitHandler);
-  if (mouseSigintHandler) process.off('SIGINT', mouseSigintHandler);
-  if (mouseSigtermHandler) process.off('SIGTERM', mouseSigtermHandler);
-
-  mouseExitHandler = null;
-  mouseSigintHandler = null;
-  mouseSigtermHandler = null;
-  exitHandlersRegistered = false;
+  if (unregisterPanic) {
+    unregisterPanic();
+    unregisterPanic = null;
+  }
+  panicRegistered = false;
 }
-
-// Setup handlers when module is loaded
-setupExitHandlers();
 
 /**
  * Reset mouse module state (for testing purposes only).
- * This does NOT unregister process listeners (they are only registered once).
  */
 export function resetMouseState(): void {
   forceDisableMouseTracking();

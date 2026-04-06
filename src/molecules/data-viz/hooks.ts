@@ -11,7 +11,10 @@
  */
 
 import { createSignal, createMemo } from '../../primitives/signal.js';
-import type { ColorValue } from '../../utils/types.js';
+import { Box, Text } from '../../primitives/nodes.js';
+import { Spinner } from '../../atoms/spinner.js';
+import { useTerminalSize } from '../../hooks/use-terminal-size.js';
+import type { VNode, ColorValue } from '../../utils/types.js';
 
 // =============================================================================
 // Types
@@ -479,5 +482,173 @@ export function useChartDataChange<T>(data: T[], onDataChange?: (indices: number
 }
 
 // =============================================================================
-// Type exports are at the top of the file
+// Async Data Loading
 // =============================================================================
+
+/** State of an async data fetch */
+export type ChartDataState<T> =
+  | { status: 'loading' }
+  | { status: 'error'; error: Error }
+  | { status: 'empty' }
+  | { status: 'ready'; data: T };
+
+export interface UseChartDataOptions<T> {
+  /** Determine if the fetched data should be treated as empty */
+  isEmpty?: (data: T) => boolean;
+}
+
+/**
+ * Hook for loading chart data asynchronously.
+ *
+ * Returns a reactive state that transitions: loading → ready/error/empty.
+ * The fetcher is called once on first render.
+ *
+ * @example
+ * const state = useChartData(() => fetchMetrics('/api/cpu'));
+ * if (state().status === 'ready') {
+ *   return LineChart({ series: [{ data: state().data }] });
+ * }
+ */
+export function useChartData<T>(
+  fetcher: () => Promise<T>,
+  options: UseChartDataOptions<T> = {},
+): () => ChartDataState<T> {
+  const [state, setState] = createSignal<ChartDataState<T>>({ status: 'loading' });
+
+  // Fire the fetcher (runs once since signals are created once)
+  fetcher()
+    .then((data) => {
+      if (options.isEmpty?.(data)) {
+        setState({ status: 'empty' });
+      } else {
+        setState({ status: 'ready', data });
+      }
+    })
+    .catch((err) => {
+      setState({
+        status: 'error',
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+    });
+
+  return state;
+}
+
+export interface ChartDataProviderProps<T> {
+  /** Async data fetcher */
+  fetcher: () => Promise<T>;
+  /** Check if data is empty */
+  isEmpty?: (data: T) => boolean;
+  /** Custom loading view */
+  loading?: () => VNode;
+  /** Custom error view */
+  error?: (err: Error) => VNode;
+  /** Custom empty state view */
+  empty?: () => VNode;
+  /** Render function with the loaded data */
+  children: (data: T) => VNode;
+}
+
+/**
+ * Wrapper component that handles async chart data lifecycle.
+ *
+ * @example
+ * ChartDataProvider({
+ *   fetcher: () => fetchUsageData(),
+ *   isEmpty: (d) => d.length === 0,
+ *   children: (data) => BarChart({ data }),
+ * })
+ */
+export function ChartDataProvider<T>(props: ChartDataProviderProps<T>): VNode {
+  const state = useChartData(props.fetcher, { isEmpty: props.isEmpty });
+  const current = state();
+
+  switch (current.status) {
+    case 'loading':
+      return props.loading?.() ?? Spinner({ text: 'Loading data...' });
+    case 'error':
+      return props.error?.(current.error) ??
+        Text({ color: 'destructive' }, `Error: ${current.error.message}`);
+    case 'empty':
+      return props.empty?.() ??
+        Text({ color: 'mutedForeground', dim: true }, 'No data available');
+    case 'ready':
+      return props.children(current.data);
+  }
+}
+
+// =============================================================================
+// Responsive Chart Helpers
+// =============================================================================
+
+export interface ResponsiveBreakpoint {
+  /** Minimum terminal width for this breakpoint to activate */
+  minWidth: number;
+  /** Render function receiving the current terminal width */
+  render: (width: number) => VNode;
+}
+
+export interface ResponsiveChartProps {
+  /** Breakpoints sorted by minWidth (largest first gets priority) */
+  breakpoints: ResponsiveBreakpoint[];
+  /** Fallback render when no breakpoint matches */
+  fallback?: (width: number) => VNode;
+}
+
+/**
+ * Renders different chart layouts based on terminal width.
+ *
+ * Picks the breakpoint with the largest `minWidth` that fits.
+ * Falls back to the `fallback` renderer or an empty Box.
+ *
+ * @example
+ * ResponsiveChart({
+ *   breakpoints: [
+ *     { minWidth: 80, render: (w) => BarChart({ data, width: w, showValues: true }) },
+ *     { minWidth: 40, render: (w) => Sparkline({ data: values, width: w }) },
+ *   ],
+ *   fallback: () => Text({}, 'Terminal too narrow'),
+ * })
+ */
+export function ResponsiveChart(props: ResponsiveChartProps): VNode {
+  const { columns } = useTerminalSize();
+  const width = columns;
+
+  // Sort breakpoints by minWidth descending — pick the first that fits
+  const sorted = [...props.breakpoints].sort((a, b) => b.minWidth - a.minWidth);
+  const match = sorted.find((bp) => width >= bp.minWidth);
+
+  if (match) {
+    return match.render(width);
+  }
+
+  return props.fallback?.(width) ?? Box({});
+}
+
+/**
+ * Hook that merges chart props based on terminal width breakpoints.
+ *
+ * @example
+ * const chartProps = useResponsiveChart(
+ *   { data, width: 60, showValues: true, showPercentage: true },
+ *   [
+ *     { minWidth: 80, props: { width: 70, showPercentage: true } },
+ *     { minWidth: 40, props: { width: 35, showValues: false } },
+ *   ]
+ * );
+ * return BarChart(chartProps);
+ */
+export function useResponsiveChart<T extends Record<string, unknown>>(
+  baseProps: T,
+  breakpoints: { minWidth: number; props: Partial<T> }[],
+): T {
+  const { columns } = useTerminalSize();
+  const sorted = [...breakpoints].sort((a, b) => b.minWidth - a.minWidth);
+  const match = sorted.find((bp) => columns >= bp.minWidth);
+
+  if (match) {
+    return { ...baseProps, ...match.props };
+  }
+
+  return baseProps;
+}

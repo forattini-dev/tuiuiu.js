@@ -147,6 +147,10 @@ export interface DrawBoxCommand extends DrawCommandBase {
   backgroundColor?: string;
   borderStyle?: BorderStyleName;
   borderColor?: string;
+  /** Per-side border visibility (all true if omitted) */
+  borderSides?: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean };
+  /** Text to display inline in the top border */
+  borderText?: string;
 }
 
 export interface DrawTextCommand extends DrawCommandBase {
@@ -1118,6 +1122,16 @@ function buildCachedDrawCommands(
 
   const commands: CachedDrawCommand[] = [];
   if (node.type === 'box' && (backgroundColor || (props.borderStyle && props.borderStyle !== 'none'))) {
+    // Build per-side border visibility flags
+    const hasSideOverrides = props.borderTop !== undefined || props.borderBottom !== undefined ||
+      props.borderLeft !== undefined || props.borderRight !== undefined;
+    const borderSides = hasSideOverrides ? {
+      top: props.borderTop ?? true,
+      bottom: props.borderBottom ?? true,
+      left: props.borderLeft ?? true,
+      right: props.borderRight ?? true,
+    } : undefined;
+
     commands.push({
       type: 'box',
       id,
@@ -1130,6 +1144,8 @@ function buildCachedDrawCommands(
       backgroundColor,
       borderStyle: props.borderStyle,
       borderColor: typeof props.borderColor === 'string' ? props.borderColor : undefined,
+      borderSides,
+      borderText: typeof props.borderText === 'string' ? props.borderText : undefined,
     });
   } else if (node.type === 'text') {
     commands.push({

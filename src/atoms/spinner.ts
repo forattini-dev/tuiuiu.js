@@ -626,6 +626,16 @@ export interface SpinnerOptions {
   hint?: string;
   /** Minimum width for binary spinner (defaults to 6) */
   minWidth?: number;
+  /** Time in ms before spinner color shifts to warning (default: 10000) */
+  stallThreshold?: number;
+  /** Color to interpolate towards when stalled (default: theme warning) */
+  stallColor?: string;
+  /** Time in ms before spinner color shifts to critical (default: 30000) */
+  criticalThreshold?: number;
+  /** Color for critical stall state (default: theme error) */
+  criticalColor?: string;
+  /** Cycle frames forward then backward for smoother animation */
+  bidirectional?: boolean;
 }
 
 export type SpinnerState = ReturnType<typeof createSpinner>;
@@ -633,6 +643,8 @@ export type SpinnerState = ReturnType<typeof createSpinner>;
 /**
  * Create a spinner state
  */
+export type StallPhase = 'normal' | 'warning' | 'critical';
+
 export function createSpinner(options: SpinnerOptions = {}) {
   const {
     style = 'dots',
@@ -641,6 +653,9 @@ export function createSpinner(options: SpinnerOptions = {}) {
     textRotateInterval = 3000,
     speed = 1,
     minWidth,
+    stallThreshold = 10000,
+    criticalThreshold = 30000,
+    bidirectional = false,
   } = options;
 
   const effectiveStyle = getEffectiveStyle(style);
@@ -653,6 +668,11 @@ export function createSpinner(options: SpinnerOptions = {}) {
     );
     spinner = { ...spinner, frames: binaryFrames };
   }
+
+  // Bidirectional frame cycling: forward + reverse for smoother animation
+  const frames = bidirectional && spinner.frames.length > 2
+    ? [...spinner.frames, ...spinner.frames.slice(1, -1).reverse()]
+    : spinner.frames;
 
   const [frame, setFrame] = createSignal(0);
   const [textIndex, setTextIndex] = createSignal(0);
@@ -668,7 +688,7 @@ export function createSpinner(options: SpinnerOptions = {}) {
 
     // Frame animation
     frameTimer = setInterval(() => {
-      setFrame((f) => (f + 1) % spinner.frames.length);
+      setFrame((f) => (f + 1) % frames.length);
     }, spinner.interval / speed);
 
     // Text rotation
@@ -701,9 +721,28 @@ export function createSpinner(options: SpinnerOptions = {}) {
     isActive,
     start,
     stop,
-    getFrame: () => spinner.frames[frame()],
+    getFrame: () => frames[frame()],
     getText: () => (text || LOADING_TEXTS[textIndex()]),
     getElapsed: () => Math.floor((Date.now() - startTime()) / 1000),
+    getElapsedMs: () => Date.now() - startTime(),
+    /** Get the current stall phase based on elapsed time */
+    getStallPhase: (): StallPhase => {
+      const elapsed = Date.now() - startTime();
+      if (elapsed >= criticalThreshold) return 'critical';
+      if (elapsed >= stallThreshold) return 'warning';
+      return 'normal';
+    },
+    /** Get interpolation progress within the current stall phase (0-1) */
+    getStallProgress: (): number => {
+      const elapsed = Date.now() - startTime();
+      if (elapsed >= criticalThreshold) {
+        return Math.min(1, (elapsed - criticalThreshold) / criticalThreshold);
+      }
+      if (elapsed >= stallThreshold) {
+        return Math.min(1, (elapsed - stallThreshold) / (criticalThreshold - stallThreshold));
+      }
+      return 0;
+    },
   };
 }
 
@@ -725,6 +764,8 @@ export function renderSpinner(
     foreground = theme.foreground.primary,
     infoColor = theme.foreground.muted,
     hint = 'esc to interrupt',
+    stallColor = theme.accents.warning,
+    criticalColor = theme.accents.critical,
   } = options;
 
   if (!state.isActive()) {
@@ -734,6 +775,15 @@ export function renderSpinner(
   const frame = state.getFrame();
   const text = state.getText();
   const elapsed = state.getElapsed();
+
+  // Stall-aware color: interpolate from base color towards warning/critical
+  const stallPhase = state.getStallPhase();
+  let effectiveColor = color;
+  if (stallPhase === 'critical') {
+    effectiveColor = criticalColor;
+  } else if (stallPhase === 'warning') {
+    effectiveColor = stallColor;
+  }
 
   // Build info parts
   const infoParts: string[] = [];
@@ -758,11 +808,14 @@ export function renderSpinner(
 
   return Box(
     { flexDirection: 'row', gap: 1 },
-    Text({ color }, frame),
+    Text({ color: effectiveColor }, frame),
     Text({ color: foreground }, text),
     infoText ? Text({ color: infoColor, dim: true }, infoText) : Text({}, '')
   );
 }
+
+// Track standalone spinner start times by caller identity
+let _standaloneSpinnerStart = 0;
 
 /**
  * Simple standalone spinner component
@@ -771,8 +824,19 @@ export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode
   const { isActive = true, ...rest } = options;
 
   if (!isActive) {
+    _standaloneSpinnerStart = 0;
     return Box({});
   }
+
+  // Track when the spinner was first shown
+  if (_standaloneSpinnerStart === 0) {
+    _standaloneSpinnerStart = Date.now();
+  }
+
+  const theme = getTheme();
+  const stallThreshold = options.stallThreshold ?? 10000;
+  const criticalThreshold = options.criticalThreshold ?? 30000;
+  const bidirectional = options.bidirectional ?? false;
 
   // For simple usage, create inline state
   const style = options.style || 'dots';
@@ -793,12 +857,29 @@ export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode
     spinner = { ...spinner, frames: [currentBinaryFrame] };
   }
 
-  const frameIndex = Math.floor(Date.now() / spinner.interval) % spinner.frames.length;
+  // Bidirectional frame cycling
+  const frames = bidirectional && spinner.frames.length > 2
+    ? [...spinner.frames, ...spinner.frames.slice(1, -1).reverse()]
+    : spinner.frames;
+
+  const frameIndex = Math.floor(Date.now() / spinner.interval) % frames.length;
   const textIndex = Math.floor(Date.now() / 3000) % LOADING_TEXTS.length;
 
-  const frame = spinner.frames[frameIndex];
+  const frame = frames[frameIndex];
   const text = options.text || LOADING_TEXTS[textIndex];
-  const elapsed = 0;
+  const elapsedMs = Date.now() - _standaloneSpinnerStart;
+  const elapsed = Math.floor(elapsedMs / 1000);
+
+  // Stall-aware color
+  const baseColor = options.color || theme.accents.info || 'cyan';
+  const stallColor = options.stallColor || theme.accents.warning || 'yellow';
+  const criticalColor = options.criticalColor || theme.accents.critical || 'red';
+  let effectiveColor = baseColor;
+  if (elapsedMs >= criticalThreshold) {
+    effectiveColor = criticalColor;
+  } else if (elapsedMs >= stallThreshold) {
+    effectiveColor = stallColor;
+  }
 
   const infoParts: string[] = [];
   if (options.showTime) infoParts.push(`${elapsed}s`);
@@ -810,9 +891,9 @@ export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode
 
   return Box(
     { flexDirection: 'row', gap: 1 },
-    Text({ color: options.color || 'cyan' }, frame),
-    Text({ color: options.foreground || 'white' }, text),
-    infoText ? Text({ color: options.infoColor || 'gray', dim: true }, infoText) : Text({}, '')
+    Text({ color: effectiveColor }, frame),
+    Text({ color: options.foreground || theme.foreground?.primary || 'white' }, text),
+    infoText ? Text({ color: options.infoColor || theme.foreground?.muted || 'gray', dim: true }, infoText) : Text({}, '')
   );
 }
 

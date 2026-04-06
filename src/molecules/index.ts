@@ -225,3 +225,18 @@ export {
   type SplashScreenProps,
   type ImpactSplashProps,
 } from './splash-screen.js';
+
+// Menu - Navigable menu with submenus
+export {
+  Menu,
+  createMenu,
+} from './menu.js';
+
+export type {
+  MenuItem,
+  MenuSeparator,
+  MenuEntry,
+  MenuOptions,
+  MenuProps,
+  MenuState,
+} from './menu.js';

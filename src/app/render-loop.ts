@@ -35,6 +35,7 @@ import { invalidateCellSize } from '../core/graphics.js';
 import { beginAppRenderSession, endAppRenderSession } from '../core/dev-warnings.js';
 import { recordCommittedFrame } from '../core/perf-inspector.js';
 import { configureMotionRuntime } from '../core/motion-runtime.js';
+import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -187,6 +188,20 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Initialize app context FIRST (before calling component functions)
   const appContext = initializeApp(stdin, stdout, { autoTabNavigation });
   beginAppRenderSession();
+
+  // Install centralized panic hooks to restore terminal on crash
+  installPanicHooks();
+  onTerminalPanic(() => {
+    if (stdin.isTTY && (stdin as any).setRawMode) {
+      (stdin as any).setRawMode(false);
+    }
+  });
+  onTerminalPanic(() => {
+    stdout.write('\x1b[?1004l'); // disable focus events
+  });
+  onTerminalPanic(() => {
+    stdout.write('\x1b[?2004l'); // disable bracketed paste
+  });
 
   // Store the component function for re-evaluation
   const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;

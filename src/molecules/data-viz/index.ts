@@ -100,7 +100,11 @@ export type {
   ContributionGraphOptions,
   CalendarHeatmapOptions,
   CorrelationMatrixOptions,
+  NormalizationMode,
+  Percentiles,
 } from './heatmap.js';
+
+export { calculatePercentiles } from './heatmap.js';
 
 // Legend
 export {
@@ -200,6 +204,12 @@ export {
   useChartKeyboard,
   useChartInteraction,
   useChartDataChange,
+  // Async data loading
+  useChartData,
+  ChartDataProvider,
+  // Responsive chart helpers
+  ResponsiveChart,
+  useResponsiveChart,
 } from './hooks.js';
 
 export type {
@@ -208,4 +218,11 @@ export type {
   TooltipState,
   ZoomState,
   ChartInteractionState,
+  // Async data types
+  ChartDataState,
+  UseChartDataOptions,
+  ChartDataProviderProps,
+  // Responsive types
+  ResponsiveBreakpoint,
+  ResponsiveChartProps,
 } from './hooks.js';

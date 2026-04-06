@@ -437,4 +437,29 @@ export function resetMotionRuntime(): void {
   lastPresentationAt = 0;
   nextFrameRequestId = 1;
   nextIntervalId = 1;
+  _prefersReducedMotion = false;
+}
+
+// =============================================================================
+// Reduced Motion Preference
+// =============================================================================
+
+let _prefersReducedMotion = false;
+
+/**
+ * Set the reduced motion preference.
+ * When enabled, animation-heavy components should fall back to static rendering.
+ *
+ * @example
+ * setPrefersReducedMotion(true); // Disable animations globally
+ */
+export function setPrefersReducedMotion(value: boolean): void {
+  _prefersReducedMotion = value;
+}
+
+/**
+ * Get the current reduced motion preference.
+ */
+export function getPrefersReducedMotion(): boolean {
+  return _prefersReducedMotion;
 }

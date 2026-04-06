@@ -466,7 +466,7 @@ function renderBoxCommand(
   buffer: OutputBuffer,
   reservedRegions: readonly ReservedRegion[],
 ): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor } = command;
+  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText } = command;
 
   if (backgroundColor) {
     const bgCode = getColorCode(backgroundColor, true);
@@ -480,33 +480,66 @@ function renderBoxCommand(
     const borderChars = BORDER_STYLES[borderStyle] ?? BORDER_STYLES.single;
     const borderAnsiStyle = borderColor ? getColorStyle(borderColor) : undefined;
 
-    writeReservedAware(buffer, reservedRegions, x, y, borderChars.topLeft, borderAnsiStyle);
-    for (let i = 1; i < width - 1; i++) {
-      writeReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, borderAnsiStyle);
-    }
-    if (width > 1) {
-      writeReservedAware(buffer, reservedRegions, x + width - 1, y, borderChars.topRight, borderAnsiStyle);
+    // Resolve per-side visibility (default: all visible)
+    const showTop = borderSides?.top !== false;
+    const showBottom = borderSides?.bottom !== false;
+    const showLeft = borderSides?.left !== false;
+    const showRight = borderSides?.right !== false;
+
+    // Top edge
+    if (showTop) {
+      // Top-left corner (use corner char only if adjacent side is also visible)
+      const tlChar = showLeft ? borderChars.topLeft : borderChars.top;
+      writeReservedAware(buffer, reservedRegions, x, y, tlChar, borderAnsiStyle);
+
+      for (let i = 1; i < width - 1; i++) {
+        writeReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, borderAnsiStyle);
+      }
+
+      if (width > 1) {
+        const trChar = showRight ? borderChars.topRight : borderChars.top;
+        writeReservedAware(buffer, reservedRegions, x + width - 1, y, trChar, borderAnsiStyle);
+      }
+
+      // Border text overlay: ─── Title ───
+      if (borderText && width > 4) {
+        const maxTextLen = width - 4; // 2 for padding spaces + 2 for border chars at edges
+        const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
+        const textWithPad = ` ${truncated} `;
+        const startCol = x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
+        for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
+          writeReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, borderAnsiStyle);
+        }
+      }
     }
 
+    // Left & right edges
     for (let row = 1; row < height - 1; row++) {
-      writeReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, borderAnsiStyle);
-      if (width > 1) {
+      if (showLeft) {
+        writeReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, borderAnsiStyle);
+      }
+      if (showRight && width > 1) {
         writeReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, borderAnsiStyle);
       }
     }
 
-    if (height > 1) {
-      writeReservedAware(buffer, reservedRegions, x, y + height - 1, borderChars.bottomLeft, borderAnsiStyle);
+    // Bottom edge
+    if (showBottom && height > 1) {
+      const blChar = showLeft ? borderChars.bottomLeft : borderChars.bottom;
+      writeReservedAware(buffer, reservedRegions, x, y + height - 1, blChar, borderAnsiStyle);
+
       for (let i = 1; i < width - 1; i++) {
         writeReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, borderAnsiStyle);
       }
+
       if (width > 1) {
+        const brChar = showRight ? borderChars.bottomRight : borderChars.bottom;
         writeReservedAware(
           buffer,
           reservedRegions,
           x + width - 1,
           y + height - 1,
-          borderChars.bottomRight,
+          brChar,
           borderAnsiStyle,
         );
       }

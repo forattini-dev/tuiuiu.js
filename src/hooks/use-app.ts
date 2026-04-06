@@ -4,13 +4,23 @@
 
 import { batch } from '../primitives/signal.js';
 import { getCapabilities } from '../core/capabilities.js';
-import { enableFocusEvents, disableFocusEvents, parseFocusEvent } from '../core/input.js';
+import {
+  enableFocusEvents,
+  disableFocusEvents,
+  parseFocusEvent,
+  enableBracketedPaste,
+  disableBracketedPaste,
+  PASTE_START,
+  PASTE_END,
+} from '../core/input.js';
 import {
   getAppContext,
   setAppContext,
   emitInput,
+  emitPaste,
   emitMouseEvent,
   clearInputHandlers,
+  clearPasteHandlers,
   setFocusManager,
 } from './context.js';
 import { parseKeypress } from './use-input.js';
@@ -105,16 +115,83 @@ export function initializeApp(
     stdout.write(enableFocusEvents());
   }
 
+  // Enable bracketed paste mode for paste detection
+  if (typeof stdout.write === 'function') {
+    stdout.write(enableBracketedPaste());
+  }
+
   // Initialize focus manager (using modern FocusZoneManagerAdapter)
   const focusManager = new FocusZoneManagerAdapter();
   setFocusManager(focusManager);
+
+  // Bracketed paste state machine
+  let pasteBuffer: string | null = null;
+
+  // Heuristic paste detection: input longer than this with no escape
+  // sequences is likely a paste in terminals without bracketed paste support
+  const PASTE_HEURISTIC_THRESHOLD = 32;
 
   // Handle input
   const handleData = (data: Buffer) => {
     let rawInput = data.toString();
 
+    // --- Bracketed paste accumulation ---
+    // If we're in the middle of collecting a bracketed paste, keep buffering
+    if (pasteBuffer !== null) {
+      const endIdx = rawInput.indexOf(PASTE_END);
+      if (endIdx === -1) {
+        // No end marker yet — accumulate entire chunk
+        pasteBuffer += rawInput;
+        return;
+      }
+      // Found end marker — complete the paste
+      pasteBuffer += rawInput.slice(0, endIdx);
+      batch(() => {
+        emitPaste(pasteBuffer!, true);
+      });
+      pasteBuffer = null;
+      rawInput = rawInput.slice(endIdx + PASTE_END.length);
+      if (rawInput.length === 0) return;
+    }
+
     // Loop through input to handle batched events (mouse + keys)
     while (rawInput.length > 0) {
+      // Check for bracketed paste start
+      const pasteStartIdx = rawInput.indexOf(PASTE_START);
+      if (pasteStartIdx !== -1) {
+        // Process any input before the paste marker
+        const before = rawInput.slice(0, pasteStartIdx);
+        if (before.length > 0) {
+          processNonPasteInput(before);
+        }
+
+        // Look for paste end in the same chunk
+        const afterStart = rawInput.slice(pasteStartIdx + PASTE_START.length);
+        const endIdx = afterStart.indexOf(PASTE_END);
+        if (endIdx !== -1) {
+          // Complete paste in one chunk
+          const pasteText = afterStart.slice(0, endIdx);
+          batch(() => {
+            emitPaste(pasteText, true);
+          });
+          rawInput = afterStart.slice(endIdx + PASTE_END.length);
+          continue;
+        } else {
+          // Paste spans multiple data events — start buffering
+          pasteBuffer = afterStart;
+          return;
+        }
+      }
+
+      // Heuristic paste detection for terminals without bracketed paste
+      // Large input without escape sequences is likely a paste
+      if (rawInput.length > PASTE_HEURISTIC_THRESHOLD && !rawInput.includes('\x1b')) {
+        batch(() => {
+          emitPaste(rawInput, false);
+        });
+        return;
+      }
+
       const focusEvent = parseFocusEvent(rawInput.slice(0, 3));
       if (focusEvent) {
         batch(() => {
@@ -143,7 +220,7 @@ export function initializeApp(
 
       // Not a mouse event, parse as key
       const { input, key, length } = parseKeypress(rawInput);
-      
+
       // Consume processed part
       const consumed = length > 0 ? length : 1; // Safety fallback
       rawInput = rawInput.slice(consumed);
@@ -190,6 +267,35 @@ export function initializeApp(
     }
   };
 
+  /** Process non-paste input (before a paste marker or standalone) */
+  function processNonPasteInput(raw: string): void {
+    let remaining = raw;
+    while (remaining.length > 0) {
+      const focusEvent = parseFocusEvent(remaining.slice(0, 3));
+      if (focusEvent) {
+        batch(() => { setTerminalFocusState(focusEvent.focused); });
+        remaining = remaining.slice(3);
+        continue;
+      }
+      if (isMouseEvent(remaining)) {
+        const mouseResult = parseMouseEvent(remaining);
+        if (mouseResult) {
+          batch(() => {
+            getHitTestRegistry().handleMouseEvent(mouseResult.event);
+            emitMouseEvent(mouseResult.event);
+          });
+          remaining = remaining.slice(mouseResult.length);
+          continue;
+        }
+      }
+      const { input, key, length } = parseKeypress(remaining);
+      const consumed = length > 0 ? length : 1;
+      remaining = remaining.slice(consumed);
+      if (key.ctrl && input === 'c') { exit(); return; }
+      batch(() => { emitInput(input, key); });
+    }
+  }
+
   stdin.on('data', handleData);
 
   const exit = (error?: Error) => {
@@ -206,6 +312,10 @@ export function initializeApp(
     }
     if (focusTrackingEnabled && typeof stdout.write === 'function') {
       stdout.write(disableFocusEvents());
+    }
+    // Disable bracketed paste mode
+    if (typeof stdout.write === 'function') {
+      stdout.write(disableBracketedPaste());
     }
     resetTerminalFocusState();
 
@@ -258,6 +368,7 @@ export function initializeApp(
  */
 export function cleanupApp(): void {
   clearInputHandlers();
+  clearPasteHandlers();
   setFocusManager(null);
   setAppContext(null);
   resetTerminalFocusState();

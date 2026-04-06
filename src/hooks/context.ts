@@ -7,10 +7,14 @@
 import type {
   Key,
   InputHandler,
+  InputEvent,
   AppContext,
   FocusManager,
   InputHandlerEntry,
   InputPriority,
+  PasteHandler,
+  PasteHandlerEntry,
+  PasteEvent,
 } from './types.js';
 import { INPUT_PRIORITY_VALUES } from './types.js';
 import type { Effect } from '../primitives/signal.js';
@@ -68,9 +72,10 @@ export function endRender(): void {
     hookWarnOnce(
       'hook-count-changed',
       `Hook count changed between renders (${lastMaxHookIndex} → ${currentMaxIndex}). ` +
-      'This usually means hooks are being called conditionally (inside if/else or after early returns). ' +
-      'Hooks must always be called in the same order on every render. ' +
-      'Move conditional logic INSIDE the hook callback, not around the hook call.',
+      'A component with internal hooks (Select, Tabs, Menu, ChatList, ScrollList, etc.) ' +
+      'was conditionally added or removed from the render tree. ' +
+      'FIX: Keep hook-bearing components always rendered — use height: 0, isActive: false, ' +
+      'or display: "none" to hide them instead of removing them with ternaries or When().',
     );
   }
 
@@ -221,7 +226,7 @@ export function removeInputHandlerById(id: number): boolean {
  * Handlers are called in priority order (highest first).
  * If a handler with stopPropagation returns truthy, lower priority handlers don't fire.
  */
-export function emitInput(input: string, key: Key): void {
+export function emitInput(input: string, key: Key, event?: Partial<InputEvent>): void {
   // Sort handlers by priority (highest first), stable sort by id for same priority
   const sorted = [...inputHandlers].sort((a, b) => {
     if (b.priorityValue !== a.priorityValue) {
@@ -230,9 +235,16 @@ export function emitInput(input: string, key: Key): void {
     return a.id - b.id; // Earlier registered first at same priority
   });
 
+  const inputEvent: InputEvent = {
+    input,
+    key,
+    isPasted: false,
+    ...event,
+  };
+
   for (const entry of sorted) {
     try {
-      const result = entry.handler(input, key);
+      const result = entry.handler(input, key, inputEvent);
       // Stop propagation if handler returned truthy and has stopPropagation flag
       if (entry.stopPropagation && result) {
         break;
@@ -330,4 +342,83 @@ export function clearMouseHandlers(): void {
  */
 export function getMouseHandlerCount(): number {
   return mouseHandlers.length;
+}
+
+// =============================================================================
+// PASTE EVENT HANDLING (Priority-based)
+// =============================================================================
+
+const pasteHandlers: PasteHandlerEntry[] = [];
+let pasteHandlerIdCounter = 0;
+
+/**
+ * Register a paste event handler with priority support
+ */
+export function addPasteHandler(
+  handler: PasteHandler,
+  options: {
+    priority?: InputPriority;
+    stopPropagation?: boolean;
+  } = {}
+): number {
+  const { priority = 'normal', stopPropagation = false } = options;
+
+  const id = pasteHandlerIdCounter++;
+  const entry: PasteHandlerEntry = {
+    handler,
+    priorityValue: INPUT_PRIORITY_VALUES[priority],
+    stopPropagation,
+    id,
+  };
+
+  pasteHandlers.push(entry);
+  return id;
+}
+
+/**
+ * Remove a paste handler by ID
+ */
+export function removePasteHandlerById(id: number): boolean {
+  const index = pasteHandlers.findIndex((entry) => entry.id === id);
+  if (index !== -1) {
+    pasteHandlers.splice(index, 1);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Emit paste event to all handlers, respecting priority
+ */
+export function emitPaste(text: string, isBracketed: boolean): void {
+  const sorted = [...pasteHandlers].sort((a, b) => {
+    if (b.priorityValue !== a.priorityValue) {
+      return b.priorityValue - a.priorityValue;
+    }
+    return a.id - b.id;
+  });
+
+  const event: PasteEvent = { text, isBracketed };
+
+  for (const entry of sorted) {
+    try {
+      const result = entry.handler(event);
+      if (entry.stopPropagation && result) {
+        break;
+      }
+    } catch (error) {
+      console.error('[tuiuiu] Error in paste handler:', error);
+    }
+  }
+}
+
+/** Clear all paste handlers */
+export function clearPasteHandlers(): void {
+  pasteHandlers.length = 0;
+  pasteHandlerIdCounter = 0;
+}
+
+/** Get count of registered paste handlers */
+export function getPasteHandlerCount(): number {
+  return pasteHandlers.length;
 }

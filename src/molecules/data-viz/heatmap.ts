@@ -68,7 +68,12 @@ export interface HeatmapOptions {
   isActive?: boolean;
   /** Callbacks */
   onSelect?: (row: number, col: number, value: number) => void;
+  /** Normalization mode for value-to-color mapping */
+  normalization?: NormalizationMode;
 }
+
+/** How values are mapped to color intensities */
+export type NormalizationMode = 'linear' | 'percentile' | 'logarithmic';
 
 // =============================================================================
 // Color Scales
@@ -124,11 +129,82 @@ function getCellLabel(cell: number | HeatmapCell): string | undefined {
 }
 
 /**
- * Normalize value to 0-1 range
+ * Normalize value to 0-1 range (linear)
  */
 function normalizeValue(value: number, min: number, max: number): number {
   if (max === min) return 0.5;
   return Math.max(0, Math.min(1, (value - min) / (max - min)));
+}
+
+// =============================================================================
+// Percentile-Based Normalization
+// =============================================================================
+
+export interface Percentiles {
+  p25: number;
+  p50: number;
+  p75: number;
+}
+
+/**
+ * Calculate percentiles from an array of values.
+ * Filters out zeros to focus on active data points.
+ */
+export function calculatePercentiles(values: number[]): Percentiles | null {
+  const nonZero = values.filter((v) => v > 0).sort((a, b) => a - b);
+  if (nonZero.length === 0) return null;
+
+  return {
+    p25: nonZero[Math.floor(nonZero.length * 0.25)] ?? nonZero[0]!,
+    p50: nonZero[Math.floor(nonZero.length * 0.5)] ?? nonZero[0]!,
+    p75: nonZero[Math.floor(nonZero.length * 0.75)] ?? nonZero[0]!,
+  };
+}
+
+/**
+ * Normalize a value using percentile quartiles.
+ * Returns 0-1 mapped to 5 intensity levels:
+ * 0 = no data, 0.25 = below p25, 0.5 = p25-p50, 0.75 = p50-p75, 1.0 = above p75
+ */
+function normalizePercentile(value: number, percentiles: Percentiles | null): number {
+  if (value === 0 || !percentiles) return 0;
+  if (value >= percentiles.p75) return 1.0;
+  if (value >= percentiles.p50) return 0.75;
+  if (value >= percentiles.p25) return 0.5;
+  return 0.25;
+}
+
+/**
+ * Normalize a value using logarithmic scale.
+ * Better for data with large dynamic range (e.g., 1 to 10000).
+ */
+function normalizeLogarithmic(value: number, min: number, max: number): number {
+  if (max === min) return 0.5;
+  if (value <= min) return 0;
+  return Math.max(0, Math.min(1,
+    Math.log(value - min + 1) / Math.log(max - min + 1)
+  ));
+}
+
+/**
+ * Normalize a value using the specified mode
+ */
+function normalizeWithMode(
+  value: number,
+  min: number,
+  max: number,
+  mode: NormalizationMode,
+  percentiles?: Percentiles | null,
+): number {
+  switch (mode) {
+    case 'percentile':
+      return normalizePercentile(value, percentiles ?? null);
+    case 'logarithmic':
+      return normalizeLogarithmic(value, min, max);
+    case 'linear':
+    default:
+      return normalizeValue(value, min, max);
+  }
 }
 
 /**
@@ -294,11 +370,17 @@ export function Heatmap(props: HeatmapProps): VNode {
     state: externalState,
   } = props;
 
+  const normalization = props.normalization ?? 'linear';
   const isAscii = getRenderMode() === 'ascii';
   const scale = resolveColorScale(colorScale);
   const { min, max } = getDataRange(data);
   const effectiveMin = minValue ?? min;
   const effectiveMax = maxValue ?? max;
+
+  // Pre-calculate percentiles if needed
+  const percentiles = normalization === 'percentile'
+    ? calculatePercentiles(data.flat().map(getCellValue))
+    : null;
 
   const state = interactive
     ? useFactoryState(externalState, props, createHeatmap)
@@ -368,7 +450,7 @@ export function Heatmap(props: HeatmapProps): VNode {
     row.forEach((cell, colIdx) => {
       const value = getCellValue(cell);
       const label = getCellLabel(cell);
-      const normalized = normalizeValue(value, effectiveMin, effectiveMax);
+      const normalized = normalizeWithMode(value, effectiveMin, effectiveMax, normalization, percentiles);
       const color = getColorForValue(normalized, scale);
 
       const isSelected = interactive && rowIdx === selectedRow && colIdx === selectedCol;
@@ -451,6 +533,8 @@ export interface ContributionGraphOptions {
   showDays?: boolean;
   /** Format for cell values */
   formatValue?: (count: number) => string;
+  /** Normalization mode (default: 'percentile' — better for activity data) */
+  normalization?: NormalizationMode;
 }
 
 const GREENS_SCALE: ColorScale = {
@@ -522,8 +606,11 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
     dateMap.set(dateStr, (dateMap.get(dateStr) ?? 0) + item.count);
   }
 
-  // Find max value
-  const maxCount = Math.max(1, ...Array.from(dateMap.values()));
+  // Find max value and calculate percentiles for normalization
+  const allCounts = Array.from(dateMap.values());
+  const maxCount = Math.max(1, ...allCounts);
+  const normMode = props.normalization ?? 'percentile';
+  const percentiles = normMode === 'percentile' ? calculatePercentiles(allCounts) : null;
 
   // Generate weeks grid (7 rows x N columns)
   let startDateObj = new Date();
@@ -608,7 +695,7 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
 
     for (let week = 0; week < weeksToShow; week++) {
       const count = grid[day]![week] ?? 0;
-      const normalized = normalizeValue(count, 0, maxCount);
+      const normalized = normalizeWithMode(count, 0, maxCount, normMode, percentiles);
       const color = getColorForValue(normalized, scale);
       const char = isAscii ? (count > 0 ? '█' : '·') : '█';
 
@@ -640,6 +727,8 @@ export interface CalendarHeatmapOptions {
   colorScale?: ColorScale | 'heat' | 'greens';
   /** Show legend */
   showLegend?: boolean;
+  /** Normalization mode (default: 'percentile') */
+  normalization?: NormalizationMode;
 }
 
 /**
@@ -671,8 +760,11 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
     dateMap.set(dateStr, (dateMap.get(dateStr) ?? 0) + item.count);
   }
 
-  // Find max value
-  const maxCount = Math.max(1, ...Array.from(dateMap.values()));
+  // Find max value and calculate percentiles
+  const calAllCounts = Array.from(dateMap.values());
+  const maxCount = Math.max(1, ...calAllCounts);
+  const calNormMode = props.normalization ?? 'percentile';
+  const calPercentiles = calNormMode === 'percentile' ? calculatePercentiles(calAllCounts) : null;
 
   // Build months
   const monthRows: VNode[] = [];
@@ -687,7 +779,7 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const count = dateMap.get(dateStr) ?? 0;
-      const normalized = normalizeValue(count, 0, maxCount);
+      const normalized = normalizeWithMode(count, 0, maxCount, calNormMode, calPercentiles);
       const color = getColorForValue(normalized, scale);
 
       // Use subtle character for empty days, solid block for days with data

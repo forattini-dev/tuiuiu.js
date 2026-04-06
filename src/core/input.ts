@@ -445,8 +445,8 @@ function parseX10Mouse(cb: number, x: number, y: number): MouseEvent {
 // Bracketed Paste
 // =============================================================================
 
-const PASTE_START = '\x1b[200~';
-const PASTE_END = '\x1b[201~';
+export const PASTE_START = '\x1b[200~';
+export const PASTE_END = '\x1b[201~';
 const FOCUS_IN = '\x1b[I';
 const FOCUS_OUT = '\x1b[O';
 

@@ -363,6 +363,41 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
+    name: 'useSubscription',
+    description: 'Connect external event sources (EventEmitter, WebSocket, streams) to reactive signals with automatic cleanup.',
+    signature: 'useSubscription<T>(subscribe: (callback: (value: T) => void) => () => void, options?: UseSubscriptionOptions<T>): () => T | undefined',
+    params: [
+      { name: 'subscribe', type: '(cb: (value: T) => void) => () => void', required: true, description: 'Function that subscribes to a source and returns an unsubscribe function' },
+      { name: 'options.initialValue', type: 'T', required: false, description: 'Value before first emission' },
+      { name: 'options.enabled', type: 'boolean', required: false, default: 'true', description: 'Enable/disable the subscription reactively' },
+    ],
+    returns: 'Signal getter that updates when the subscription emits',
+    examples: [
+      `// EventEmitter\nconst price = useSubscription<number>(\n  (cb) => { ws.on('price', cb); return () => ws.off('price', cb); },\n  { initialValue: 0 }\n);\nreturn Text({}, 'Price: $' + price());`,
+      `// WebSocket\nconst msg = useSubscription<string>((cb) => {\n  socket.onmessage = (e) => cb(e.data);\n  return () => { socket.onmessage = null; };\n});`,
+    ],
+  },
+  {
+    name: 'useAsyncData',
+    description: 'Async data fetching with loading state, error handling, abort on refetch/unmount, and optional auto-polling.',
+    signature: 'useAsyncData<T>(fetcher: (signal: AbortSignal) => Promise<T>, options?: UseAsyncDataOptions): UseAsyncDataReturn<T>',
+    params: [
+      { name: 'fetcher', type: '(signal: AbortSignal) => Promise<T>', required: true, description: 'Async function that fetches data. Receives AbortSignal for cancellation.' },
+      { name: 'options.enabled', type: 'boolean', required: false, default: 'true', description: 'Enable/disable fetching reactively' },
+      { name: 'options.refreshInterval', type: 'number', required: false, description: 'Auto-refetch interval in milliseconds' },
+    ],
+    returns: `Object with:
+- data() - fetched data (undefined until loaded)
+- loading() - whether a fetch is in progress
+- error() - error from the last fetch attempt
+- refetch() - trigger a manual refetch (aborts in-flight request)`,
+    examples: [
+      `const { data, loading, error } = useAsyncData(\n  (signal) => fetch('/api/data', { signal }).then(r => r.json())\n);\n\nif (loading()) return Spinner({});\nif (error()) return Text({}, 'Error: ' + error().message);\nreturn Text({}, JSON.stringify(data()));`,
+      `// With auto-polling\nconst { data } = useAsyncData(\n  (signal) => fetch('/api/status', { signal }).then(r => r.json()),\n  { refreshInterval: 5000 }\n);`,
+      `// Manual refetch\nconst { data, refetch } = useAsyncData(fetchItems);\nuseHotkeys('r', () => refetch());`,
+    ],
+  },
+  {
     name: 'useThresholdColor',
     description: 'Reactive color resolution based on numeric thresholds.',
     signature: 'useThresholdColor(value: number | (() => number), thresholds: ExtendedThresholdConfig, defaultColor?: string): () => string',
