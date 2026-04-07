@@ -616,12 +616,12 @@ function createBusMessageId(): string {
   return `bus-msg-${Math.random().toString(36).slice(2)}`;
 }
 
-function createThreadBusListenerSet(): Map<string, Set<ThreadBusListener>> {
+function createThreadBusListenerSet(): Map<string, Set<ThreadBusListener<any>>> {
   return new Map();
 }
 
 function notifyThreadBusListeners<T>(
-  listeners: Set<ThreadBusListener>,
+  listeners: Set<ThreadBusListener<any>>,
   event: InterThreadBusMessage<T>
 ): void {
   for (const listener of listeners) {
@@ -631,7 +631,7 @@ function notifyThreadBusListeners<T>(
 
 function normalizeThreadBusMessage<T = unknown>(
   source: string,
-  rawMessage: InterThreadBusMessage<T> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp'>,
+  rawMessage: InterThreadBusMessage<T> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp'> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp' | 'from'> & { from?: string },
   defaults: { mainThreadName: string; defaultChannel: string }
 ): InterThreadBusMessage | null {
   if (!rawMessage || typeof rawMessage !== 'object') {
@@ -671,7 +671,7 @@ export function createThreadBus({
   defaultChannel = 'default',
   mirrorToMain = true,
 }: ThreadBusOptions): ThreadBus {
-  const allListeners = new Set<ThreadBusListener>();
+  const allListeners = new Set<ThreadBusListener<any>>();
   const channelListeners = createThreadBusListenerSet();
   const activeThreads = new Map<string, TaskBridge>();
   const threadTaskCleanup = new Set<() => void>();
@@ -726,8 +726,8 @@ export function createThreadBus({
   };
 
   const createThreadBridge = (threadName: string, bridge: TaskBridge): TaskBridge => ({
-    execute(type, payload) {
-      const handle = bridge.execute(type, payload);
+    execute<TPayload, TResult>(type: string, payload: TPayload) {
+      const handle = bridge.execute<TPayload, TResult>(type, payload);
       const unsubscribe = handle.subscribe((event) => {
         if (event.kind !== THREAD_BUS_EVENT_KIND) {
           return;
@@ -753,8 +753,8 @@ export function createThreadBus({
       });
       return handle;
     },
-    submit(request) {
-      const handle = bridge.submit(request);
+    submit<TPayload, TResult>(request: BackgroundTaskRequest<TPayload>) {
+      const handle = bridge.submit<TPayload, TResult>(request);
       const unsubscribe = handle.subscribe((event) => {
         if (event.kind !== THREAD_BUS_EVENT_KIND) {
           return;
@@ -822,7 +822,7 @@ export function createThreadBus({
     onChannel(channel, listener) {
       const listeners = channelListeners.get(channel);
       if (!listeners) {
-        const next = new Set<ThreadBusListener>();
+        const next = new Set<ThreadBusListener<any>>();
         next.add(listener);
         channelListeners.set(channel, next);
         return () => {
@@ -866,8 +866,9 @@ export function createTaskBridge(
     | WorkerExecutorOptions
 ): TaskBridge {
   const executor: BackgroundExecutor = typeof executorOrModule === 'string'
-    || (typeof executorOrModule === 'object' && 'modulePath' in executorOrModule && !('submit' in executorOrModule))
-      ? createWorkerExecutor(executorOrModule as string | WorkerExecutorOptions)
+    ? createWorkerExecutor(executorOrModule)
+    : typeof executorOrModule === 'object' && 'modulePath' in executorOrModule && !('submit' in executorOrModule)
+      ? createWorkerExecutor(executorOrModule as WorkerExecutorOptions)
       : (executorOrModule as BackgroundExecutor);
 
   const createHandle = <TPayload = unknown, TResult = unknown>(
@@ -877,14 +878,14 @@ export function createTaskBridge(
   };
 
   return {
-    execute(type, payload) {
-      return createHandle({
+    execute<TPayload, TResult>(type: string, payload: TPayload) {
+      return createHandle<TPayload, TResult>({
         type,
         payload,
       });
     },
-    submit(request) {
-      return createHandle(request);
+    submit<TPayload, TResult>(request: BackgroundTaskRequest<TPayload>) {
+      return createHandle<TPayload, TResult>(request);
     },
     async destroy() {
       await executor.destroy();
@@ -953,15 +954,15 @@ export function createTaskBridgePool(
     request: BackgroundTaskRequest<TPayload>
   ): BackgroundTaskHandle<TResult> => {
     const index = pickWorkerIndex();
-    const handle = bridges[index].submit(request);
+    const handle = bridges[index].submit<TPayload, TResult>(request);
     return withLoadTracking<TResult>(index, handle);
   };
 
   return {
-    execute(type, payload) {
+    execute<TPayload, TResult>(type: string, payload: TPayload) {
       const index = pickWorkerIndex();
-      const handle = bridges[index].execute(type, payload);
-      return withLoadTracking(index, handle);
+      const handle = bridges[index].execute<TPayload, TResult>(type, payload);
+      return withLoadTracking<TResult>(index, handle);
     },
     submit(request) {
       return createSubmitHandle(request);
