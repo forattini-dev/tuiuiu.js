@@ -27,6 +27,10 @@
   ],
   "author": "Forattini <contact@forattini.dev>",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "homepage": "https://github.com/forattini-dev/tuiuiu.js",
   "repository": {
     "type": "git",

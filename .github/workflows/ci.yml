@@ -111,7 +111,7 @@ jobs:
 
       - name: Publish to NPM (Next)
         if: steps.check.outputs.skip != 'true'
-        run: pnpm publish --tag next --no-git-checks
+        run: pnpm publish --tag next --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -209,7 +209,7 @@ jobs:
         run: pnpm run build
 
       - name: Publish to NPM (Stable)
-        run: pnpm publish --no-git-checks
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
