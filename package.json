@@ -25,7 +25,7 @@
     "terminal-ui",
     "nodejs"
   ],
-  "author": "Forattini <contact@forattini.dev>",
+  "author": "Forattini <filipe@forattini.com.br>",
   "license": "MIT",
   "publishConfig": {
     "access": "public",
@@ -141,9 +141,6 @@
   },
   "engines": {
     "node": ">=18"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

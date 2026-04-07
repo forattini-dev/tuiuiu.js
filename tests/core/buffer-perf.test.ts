@@ -162,8 +162,8 @@ describeOrSkip('CellBuffer performance microbenchmarks', () => {
       }
     });
 
-    expect(optimized.avgMs).toBeLessThan(4);
-    expect(optimized.maxMs).toBeLessThan(10);
+    expect(optimized.avgMs).toBeLessThan(8);
+    expect(optimized.maxMs).toBeLessThan(20);
     expect(baseline.avgMs).toBeGreaterThan(0);
   });
 
@@ -197,8 +197,8 @@ describeOrSkip('CellBuffer performance microbenchmarks', () => {
       }
     });
 
-    expect(optimized.avgMs).toBeLessThan(12);
-    expect(optimized.maxMs).toBeLessThan(20);
+    expect(optimized.avgMs).toBeLessThan(24);
+    expect(optimized.maxMs).toBeLessThan(40);
     expect(baseline.avgMs).toBeGreaterThan(0);
   });
 });

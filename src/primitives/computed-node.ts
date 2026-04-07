@@ -29,6 +29,8 @@ import type { VNode, TuiChild, TextProps } from '../utils/types.js';
 import { useComputed } from '../hooks/use-computed.js';
 import { useMemo } from '../hooks/use-memo.js';
 import { isRenderingHooks } from '../hooks/context.js';
+import { createMemo } from '../primitives/signal.js';
+import { fingerprintValue } from '../core/structural-fingerprint.js';
 
 /**
  * A reactive VNode marker.
@@ -40,6 +42,8 @@ export interface ReactiveVNode extends VNode {
   __reactive: () => VNode | null;
   /** Cached last result */
   __cachedResult?: VNode | null;
+  /** Cached structural fingerprint for change detection */
+  __cachedFingerprint?: string;
   /** Dispose function for the internal effect */
   __dispose?: () => void;
 }
@@ -74,14 +78,16 @@ export function Computed(fn: () => VNode | null): VNode {
     return result;
   }
 
-  // Outside render context: evaluate eagerly (tests, standalone usage)
-  const initialResult = fn();
+  // Outside render context: wrap in createMemo for signal-level memoization
+  const memo = createMemo(fn);
+  const initialResult = memo();
   const node: ReactiveVNode = {
     type: 'box',
     props: {},
     children: initialResult ? [initialResult] : [],
-    __reactive: fn,
+    __reactive: memo,
     __cachedResult: initialResult,
+    __cachedFingerprint: fingerprintValue(initialResult),
   };
   return node;
 }
@@ -95,12 +101,14 @@ export function isReactiveVNode(node: VNode): node is ReactiveVNode {
 
 /**
  * Refresh a reactive VNode by re-evaluating its expression.
- * Returns true if the result changed.
+ * Returns true if the result structurally changed.
  */
 export function refreshReactiveVNode(node: ReactiveVNode): boolean {
   const newResult = node.__reactive();
-  const changed = newResult !== node.__cachedResult;
+  const newFingerprint = fingerprintValue(newResult);
+  const changed = newFingerprint !== node.__cachedFingerprint;
   node.__cachedResult = newResult;
+  node.__cachedFingerprint = newFingerprint;
   node.children = newResult ? [newResult] : [];
   return changed;
 }
@@ -129,19 +137,21 @@ export function ComputedText(
     return result ?? { type: 'text', props: { children: '' }, children: [] };
   }
 
-  // Outside render context: evaluate eagerly and wrap in ReactiveVNode (like Computed)
+  // Outside render context: wrap in createMemo for signal-level memoization
   const textFn = () => ({
     type: 'text' as const,
     props: { ...props, children: fn() },
     children: [] as VNode[],
   });
-  const initialResult = textFn();
+  const memo = createMemo(textFn);
+  const initialResult = memo();
   const node: ReactiveVNode = {
     type: 'box',
     props: {},
     children: [initialResult],
-    __reactive: textFn,
+    __reactive: memo,
     __cachedResult: initialResult,
+    __cachedFingerprint: fingerprintValue(initialResult),
   };
   return node;
 }
