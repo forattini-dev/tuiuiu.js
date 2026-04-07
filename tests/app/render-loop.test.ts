@@ -398,7 +398,8 @@ describe('render-loop', () => {
       );
 
       expect(renderCount).toBe(1);
-      expect(stdout.write).toHaveBeenCalledTimes(1);
+      // 2 writes: enableBracketedPaste() during init + initial render paint
+      expect(stdout.write).toHaveBeenCalledTimes(2);
 
       setCount(1);
       setCount(2);
@@ -406,12 +407,12 @@ describe('render-loop', () => {
 
       // Evaluation and paint are deferred so a burst of sync updates can collapse to the latest state.
       expect(renderCount).toBe(1);
-      expect(stdout.write).toHaveBeenCalledTimes(1);
+      expect(stdout.write).toHaveBeenCalledTimes(2);
 
       await Promise.resolve();
 
       expect(renderCount).toBe(2);
-      expect(stdout.write).toHaveBeenCalledTimes(2);
+      expect(stdout.write).toHaveBeenCalledTimes(3);
       expect(stdout.output).toContain('Count: 3');
 
       instance.unmount();
@@ -493,7 +494,8 @@ describe('render-loop', () => {
       vi.mocked(stdout.write).mockImplementation((chunk: string | Buffer) => {
         writeCount++;
         stdout.output += chunk.toString();
-        return writeCount !== 2;
+        // Trigger backpressure on 3rd write (init bracketedPaste + render1 + render2)
+        return writeCount !== 3;
       });
 
       const instance = render(
@@ -512,25 +514,27 @@ describe('render-loop', () => {
       );
 
       expect(renderCount).toBe(1);
-      expect(writeCount).toBe(1);
+      // 2 writes: enableBracketedPaste() during init + initial render paint
+      expect(writeCount).toBe(2);
 
       setCount(1);
       await Promise.resolve();
 
       expect(renderCount).toBe(2);
-      expect(writeCount).toBe(2);
+      // 3rd write triggers backpressure (returns false)
+      expect(writeCount).toBe(3);
 
       setCount(2);
       setCount(3);
 
       expect(renderCount).toBe(2);
-      expect(writeCount).toBe(2);
+      expect(writeCount).toBe(3);
 
       stdout.emit('drain');
       await Promise.resolve();
 
       expect(renderCount).toBe(3);
-      expect(writeCount).toBe(3);
+      expect(writeCount).toBe(4);
       expect(stdout.output).toContain('Count: 3');
 
       instance.unmount();

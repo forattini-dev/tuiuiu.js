@@ -129,12 +129,21 @@ export function ComputedText(
     return result ?? { type: 'text', props: { children: '' }, children: [] };
   }
 
-  // Outside render: evaluate eagerly
-  return {
-    type: 'text',
+  // Outside render context: evaluate eagerly and wrap in ReactiveVNode (like Computed)
+  const textFn = () => ({
+    type: 'text' as const,
     props: { ...props, children: fn() },
-    children: [],
+    children: [] as VNode[],
+  });
+  const initialResult = textFn();
+  const node: ReactiveVNode = {
+    type: 'box',
+    props: {},
+    children: [initialResult],
+    __reactive: textFn,
+    __cachedResult: initialResult,
   };
+  return node;
 }
 
 // =============================================================================

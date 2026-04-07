@@ -395,6 +395,11 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     '`ScrollList({ items, height: 10, children: (item, index) => Row(item) })`',
   );
 
+  // Bail out if children is not a render function to avoid hook-related side effects
+  if (typeof props.children !== 'function') {
+    return { type: 'box', props: {}, children: [] };
+  }
+
   const {
     items,
     children,

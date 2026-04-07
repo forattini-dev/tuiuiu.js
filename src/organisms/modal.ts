@@ -64,9 +64,23 @@ function getBorderChars() {
   };
   return {
     single: base,
-    double: base, // capabilities doesn't have double set, fallback to single
+    double: {
+      topLeft: '╔',
+      topRight: '╗',
+      bottomLeft: '╚',
+      bottomRight: '╝',
+      horizontal: '═',
+      vertical: '║',
+    },
     round,
-    heavy: base,
+    heavy: {
+      topLeft: '┏',
+      topRight: '┓',
+      bottomLeft: '┗',
+      bottomRight: '┛',
+      horizontal: '━',
+      vertical: '┃',
+    },
   };
 }
 

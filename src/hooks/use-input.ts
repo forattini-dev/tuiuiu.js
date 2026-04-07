@@ -9,6 +9,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  isRenderingHooks,
 } from './context.js';
 import { parseKeypress, type Key } from '../core/hotkeys.js';
 import type { InputHandler, InputEvent, InputPriority, UseInputOptions } from './types.js';
@@ -48,6 +49,9 @@ export function useInput(
   handler: InputHandler,
   options: UseInputOptions = {}
 ): void {
+  // No-op outside render context — hooks require a component lifecycle
+  if (!isRenderingHooks()) return;
+
   const { isActive = true, priority = 'normal', stopPropagation = false } = options;
 
   // Get or create hook state for this useInput call
