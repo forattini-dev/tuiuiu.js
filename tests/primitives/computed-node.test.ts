@@ -90,22 +90,23 @@ describe('ComputedText', () => {
     const [name, setName] = createSignal('Alice');
     const node = ComputedText(() => `Hello, ${name()}!`);
 
-    // Outside render context: returns a plain text VNode
-    expect(node.type).toBe('text');
-    expect(node.props.children).toBe('Hello, Alice!');
+    // Outside render context: returns a ReactiveVNode wrapping the text node
+    expect(node.type).toBe('box');
+    expect(node.children[0].type).toBe('text');
+    expect(node.children[0].props.children).toBe('Hello, Alice!');
   });
 
   it('accepts style props', () => {
     const node = ComputedText(() => 'styled', { color: 'red', bold: true });
-    expect(node.props.color).toBe('red');
-    expect(node.props.bold).toBe(true);
-    expect(node.props.children).toBe('styled');
+    expect(node.children[0].props.color).toBe('red');
+    expect(node.children[0].props.bold).toBe(true);
+    expect(node.children[0].props.children).toBe('styled');
   });
 
   it('evaluates signal content', () => {
     const [count, setCount] = createSignal(0);
     const node = ComputedText(() => `${count()}`);
 
-    expect(node.props.children).toBe('0');
+    expect(node.children[0].props.children).toBe('0');
   });
 });

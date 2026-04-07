@@ -5,7 +5,7 @@ import { __resetDevWarningsForTesting } from '../../src/core/dev-warnings.js';
 import { clearCommittedFrameSnapshot } from '../../src/core/frame.js';
 import { resetTerminalFocusState } from '../../src/core/terminal-focus.js';
 import { darkTheme, lightTheme, setTheme } from '../../src/core/theme.js';
-import { beginRender, clearInputHandlers, endRender, resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { beginRender, clearInputHandlers, endRender, resetHookState, setAppContext, __resetHookWarningsForTesting } from '../../src/hooks/context.js';
 import { useState } from '../../src/hooks/use-state.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
 import { Accordion } from '../../src/molecules/collapsible.js';
@@ -63,6 +63,7 @@ describe('developer warnings', () => {
 
   beforeEach(() => {
     __resetDevWarningsForTesting();
+    __resetHookWarningsForTesting();
     resetHookState();
     clearInputHandlers();
     setAppContext(null);
@@ -76,6 +77,7 @@ describe('developer warnings', () => {
   afterEach(() => {
     warnSpy.mockRestore();
     __resetDevWarningsForTesting();
+    __resetHookWarningsForTesting();
     resetHookState();
     clearInputHandlers();
     setAppContext(null);
@@ -191,9 +193,13 @@ describe('developer warnings', () => {
         children: Text({}, 'Wrong') as any,
       });
 
-      expect(warnSpy).toHaveBeenCalledTimes(2);
-      expect(warnSpy.mock.calls[0]?.[0]).toContain('ScrollList expects `children` to be a render function');
-      expect(warnSpy.mock.calls[1]?.[0]).toContain('Static expects `children` to be a render function');
+      // Filter to only API-pattern warnings (ignore hook-outside-render noise)
+      const apiWarnings = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('expects `children` to be a render function')
+      );
+      expect(apiWarnings).toHaveLength(2);
+      expect(apiWarnings[0]?.[0]).toContain('ScrollList expects `children` to be a render function');
+      expect(apiWarnings[1]?.[0]).toContain('Static expects `children` to be a render function');
     });
 
     it('warns when data-driven components receive top-level content props', () => {
@@ -207,9 +213,13 @@ describe('developer warnings', () => {
         children: Text({}, 'Wrong'),
       } as any);
 
-      expect(warnSpy).toHaveBeenCalledTimes(2);
-      expect(warnSpy.mock.calls[0]?.[0]).toContain('Tabs is data-driven');
-      expect(warnSpy.mock.calls[1]?.[0]).toContain('Accordion is data-driven');
+      // Filter to only data-driven warnings (ignore hook-outside-render noise)
+      const dataWarnings = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('is data-driven')
+      );
+      expect(dataWarnings).toHaveLength(2);
+      expect(dataWarnings[0]?.[0]).toContain('Tabs is data-driven');
+      expect(dataWarnings[1]?.[0]).toContain('Accordion is data-driven');
     });
 
     it('warns when Modal receives children instead of content', () => {

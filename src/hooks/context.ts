@@ -26,6 +26,10 @@ function hookWarnOnce(key: string, message: string): void {
   _hookWarned.add(key);
   console.warn(`[tuiuiu] ${message}`);
 }
+/** Reset hook warning deduplication state (for tests) */
+export function __resetHookWarningsForTesting(): void {
+  _hookWarned.clear();
+}
 
 // Global app context
 let appContext: AppContext | null = null;
