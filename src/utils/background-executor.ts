@@ -54,9 +54,65 @@ export interface BackgroundExecutor {
   destroy: () => Promise<void>;
 }
 
-export interface WorkerThreadBackgroundExecutorOptions {
+export const THREAD_BUS_TASK_TYPE = '__threadBusMessage__';
+export const THREAD_BUS_EVENT_KIND = 'thread-bus';
+
+export interface InterThreadBusMessage<T = unknown> {
+  id: string;
+  from: string;
+  to?: string;
+  channel: string;
+  type: string;
+  payload: T;
+  timestamp: number;
+}
+
+export type ThreadBusListener<T = unknown> = (event: InterThreadBusMessage<T>) => void;
+
+export interface ThreadBus {
+  post<T>(
+    message: Omit<InterThreadBusMessage<T>, 'id' | 'timestamp' | 'from'> & {
+      from?: string;
+      to?: string;
+      channel?: string;
+    }
+  ): void;
+  sendToMain<T>(type: string, payload: T, channel?: string, from?: string): void;
+  broadcast<T>(type: string, payload: T, channel?: string, from?: string): void;
+  subscribe<T>(listener: ThreadBusListener<T>): () => void;
+  onChannel<T>(channel: string, listener: ThreadBusListener<T>): () => void;
+  destroy: () => Promise<void>;
+}
+
+export interface ThreadBusOptions {
+  threads: Record<string, TaskBridge>;
+  mainThreadName?: string;
+  taskType?: string;
+  defaultChannel?: string;
+  mirrorToMain?: boolean;
+}
+
+export interface TaskBridge {
+  execute<TPayload = unknown, TResult = unknown>(
+    type: string,
+    payload: TPayload
+  ): BackgroundTaskHandle<TResult>;
+  submit<TPayload = unknown, TResult = unknown>(
+    request: BackgroundTaskRequest<TPayload>
+  ): BackgroundTaskHandle<TResult>;
+  destroy: () => Promise<void>;
+}
+
+export interface WorkerExecutorOptions {
   modulePath: string;
   workerName?: string;
+}
+
+export type TaskBridgePoolScheduler = 'round-robin' | 'least-pending';
+
+export interface TaskBridgePoolOptions extends WorkerExecutorOptions {
+  poolSize?: number;
+  scheduler?: TaskBridgePoolScheduler;
 }
 
 interface PendingTask {
@@ -402,17 +458,32 @@ parentPort.on('message', async (message) => {
 `;
 }
 
-export function createWorkerThreadBackgroundExecutor(
-  options: WorkerThreadBackgroundExecutorOptions
+export function createWorkerExecutor(
+  modulePath: string,
+  options?: Pick<WorkerExecutorOptions, 'workerName'>
+): BackgroundExecutor;
+export function createWorkerExecutor(
+  options: WorkerExecutorOptions
+): BackgroundExecutor;
+export function createWorkerExecutor(
+  modulePathOrOptions: string | WorkerExecutorOptions,
+  options?: Pick<WorkerExecutorOptions, 'workerName'>
 ): BackgroundExecutor {
+  const resolvedOptions = typeof modulePathOrOptions === 'string'
+    ? {
+        modulePath: modulePathOrOptions,
+        ...options,
+      }
+    : modulePathOrOptions;
+
   const nextTaskId = createTaskIdFactory();
   const pending = new Map<string, PendingTask>();
   const worker = new Worker(
     new URL(`data:text/javascript;charset=utf-8,${encodeURIComponent(createWorkerSource())}`),
     {
-      name: options.workerName ?? 'tuiuiu-background-executor',
+      name: resolvedOptions.workerName ?? 'tuiuiu-background-executor',
       workerData: {
-        modulePath: toModuleHref(options.modulePath),
+        modulePath: toModuleHref(resolvedOptions.modulePath),
       },
     }
   );
@@ -532,11 +603,373 @@ export function createBackgroundExecutor(options: {
   workerName?: string;
 }): BackgroundExecutor {
   if (options.modulePath) {
-    return createWorkerThreadBackgroundExecutor({
+    return createWorkerExecutor({
       modulePath: options.modulePath,
       workerName: options.workerName,
     });
   }
 
   return createInlineBackgroundExecutor(options.handlers ?? {});
+}
+
+function createBusMessageId(): string {
+  return `bus-msg-${Math.random().toString(36).slice(2)}`;
+}
+
+function createThreadBusListenerSet(): Map<string, Set<ThreadBusListener>> {
+  return new Map();
+}
+
+function notifyThreadBusListeners<T>(
+  listeners: Set<ThreadBusListener>,
+  event: InterThreadBusMessage<T>
+): void {
+  for (const listener of listeners) {
+    listener(event);
+  }
+}
+
+function normalizeThreadBusMessage<T = unknown>(
+  source: string,
+  rawMessage: InterThreadBusMessage<T> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp'>,
+  defaults: { mainThreadName: string; defaultChannel: string }
+): InterThreadBusMessage | null {
+  if (!rawMessage || typeof rawMessage !== 'object') {
+    return null;
+  }
+
+  const messageLike = rawMessage as Partial<InterThreadBusMessage<T>>;
+  const type = typeof messageLike.type === 'string' ? messageLike.type : '';
+  const channel =
+    typeof messageLike.channel === 'string' && messageLike.channel.length > 0
+      ? messageLike.channel
+      : defaults.defaultChannel;
+  const target = typeof messageLike.to === 'string' && messageLike.to.length > 0
+    ? messageLike.to
+    : defaults.mainThreadName;
+  const payload = (messageLike as { payload?: T }).payload;
+
+  if (!type || channel.length === 0) {
+    return null;
+  }
+
+  return {
+    id: messageLike.id ?? createBusMessageId(),
+    from: messageLike.from ?? source,
+    to: target,
+    channel,
+    type,
+    payload: payload as T,
+    timestamp: typeof messageLike.timestamp === 'number' ? messageLike.timestamp : Date.now(),
+  };
+}
+
+export function createThreadBus({
+  threads,
+  mainThreadName = 'main',
+  taskType = THREAD_BUS_TASK_TYPE,
+  defaultChannel = 'default',
+  mirrorToMain = true,
+}: ThreadBusOptions): ThreadBus {
+  const allListeners = new Set<ThreadBusListener>();
+  const channelListeners = createThreadBusListenerSet();
+  const activeThreads = new Map<string, TaskBridge>();
+  const threadTaskCleanup = new Set<() => void>();
+  const defaults = { mainThreadName, defaultChannel };
+
+  const emitToListeners = (event: InterThreadBusMessage) => {
+    notifyThreadBusListeners(allListeners, event);
+    notifyThreadBusListeners(channelListeners.get(event.channel) ?? new Set(), event);
+  };
+
+  const routeToThread = (message: InterThreadBusMessage): void => {
+    if (!message.to) {
+      return;
+    }
+
+    if (message.to === '*') {
+      for (const [threadName, threadBridge] of activeThreads) {
+        if (threadName === message.from) {
+          continue;
+        }
+
+        threadBridge.execute(taskType, message);
+      }
+      return;
+    }
+
+    const destination = activeThreads.get(message.to);
+    if (!destination || message.to === message.from) {
+      return;
+    }
+
+    destination.execute(taskType, message);
+  };
+
+  const post = <T>(
+    rawMessage: Omit<InterThreadBusMessage<T>, 'id' | 'timestamp' | 'from'> & {
+      from?: string;
+      to?: string;
+      channel?: string;
+    }
+  ): void => {
+    const message = normalizeThreadBusMessage<T>(rawMessage.from ?? mainThreadName, rawMessage, defaults);
+    if (!message) {
+      return;
+    }
+
+    if (mirrorToMain || message.to === mainThreadName) {
+      emitToListeners(message);
+    }
+
+    routeToThread(message);
+  };
+
+  const createThreadBridge = (threadName: string, bridge: TaskBridge): TaskBridge => ({
+    execute(type, payload) {
+      const handle = bridge.execute(type, payload);
+      const unsubscribe = handle.subscribe((event) => {
+        if (event.kind !== THREAD_BUS_EVENT_KIND) {
+          return;
+        }
+
+        const message = normalizeThreadBusMessage(threadName, event.payload as InterThreadBusMessage<unknown>, defaults);
+        if (!message) {
+          return;
+        }
+
+        post({
+          from: message.from,
+          channel: message.channel,
+          to: message.to,
+          type: message.type,
+          payload: message.payload,
+        });
+      });
+      threadTaskCleanup.add(unsubscribe);
+      void handle.result.finally(() => {
+        unsubscribe();
+        threadTaskCleanup.delete(unsubscribe);
+      });
+      return handle;
+    },
+    submit(request) {
+      const handle = bridge.submit(request);
+      const unsubscribe = handle.subscribe((event) => {
+        if (event.kind !== THREAD_BUS_EVENT_KIND) {
+          return;
+        }
+
+        const message = normalizeThreadBusMessage(
+          threadName,
+          event.payload as InterThreadBusMessage<unknown>,
+          defaults
+        );
+        if (!message) {
+          return;
+        }
+
+        post({
+          from: message.from,
+          channel: message.channel,
+          to: message.to,
+          type: message.type,
+          payload: message.payload,
+        });
+      });
+      threadTaskCleanup.add(unsubscribe);
+      void handle.result.finally(() => {
+        unsubscribe();
+        threadTaskCleanup.delete(unsubscribe);
+      });
+      return handle;
+    },
+    async destroy() {
+      await bridge.destroy();
+    },
+  });
+
+  for (const [name, bridge] of Object.entries(threads)) {
+    activeThreads.set(name, createThreadBridge(name, bridge));
+  }
+
+  return {
+    post,
+    sendToMain(type, payload, channel = defaultChannel, from = mainThreadName) {
+      post({
+        from,
+        to: mainThreadName,
+        type,
+        payload,
+        channel,
+      });
+    },
+    broadcast(type, payload, channel = defaultChannel, from = mainThreadName) {
+      post({
+        from,
+        to: '*',
+        channel,
+        type,
+        payload,
+      });
+    },
+    subscribe(listener) {
+      allListeners.add(listener);
+      return () => {
+        allListeners.delete(listener);
+      };
+    },
+    onChannel(channel, listener) {
+      const listeners = channelListeners.get(channel);
+      if (!listeners) {
+        const next = new Set<ThreadBusListener>();
+        next.add(listener);
+        channelListeners.set(channel, next);
+        return () => {
+          const current = channelListeners.get(channel);
+          if (!current) return;
+          current.delete(listener);
+          if (current.size === 0) {
+            channelListeners.delete(channel);
+          }
+        };
+      }
+
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          channelListeners.delete(channel);
+        }
+      };
+    },
+    async destroy() {
+      for (const unsubscribe of threadTaskCleanup) {
+        unsubscribe();
+      }
+      threadTaskCleanup.clear();
+
+      for (const threadBridge of activeThreads.values()) {
+        await threadBridge.destroy();
+      }
+      activeThreads.clear();
+      allListeners.clear();
+      channelListeners.clear();
+    },
+  };
+}
+
+export function createTaskBridge(
+  executorOrModule:
+    | BackgroundExecutor
+    | string
+    | WorkerExecutorOptions
+): TaskBridge {
+  const executor: BackgroundExecutor = typeof executorOrModule === 'string'
+    || (typeof executorOrModule === 'object' && 'modulePath' in executorOrModule && !('submit' in executorOrModule))
+      ? createWorkerExecutor(executorOrModule as string | WorkerExecutorOptions)
+      : (executorOrModule as BackgroundExecutor);
+
+  const createHandle = <TPayload = unknown, TResult = unknown>(
+    request: BackgroundTaskRequest<TPayload>
+  ): BackgroundTaskHandle<TResult> => {
+    return executor.submit<TPayload, TResult>(request);
+  };
+
+  return {
+    execute(type, payload) {
+      return createHandle({
+        type,
+        payload,
+      });
+    },
+    submit(request) {
+      return createHandle(request);
+    },
+    async destroy() {
+      await executor.destroy();
+    },
+  };
+}
+
+export function createTaskBridgePool(
+  options: TaskBridgePoolOptions
+): TaskBridge {
+  const poolSize = Math.max(1, Math.floor(options.poolSize ?? 1));
+  const scheduler = options.scheduler ?? 'round-robin';
+  const bridges = Array.from({ length: poolSize }, (_, index) =>
+    createTaskBridge({
+      modulePath: options.modulePath,
+      workerName: options.workerName
+        ? `${options.workerName}-${index + 1}`
+        : `tuiuiu-background-executor-pool-${index + 1}`,
+    })
+  );
+
+  const workerLoad = bridges.map(() => ({
+    pending: 0,
+  }));
+  let rrCursor = -1;
+
+  const pickWorkerIndex = (): number => {
+    if (bridges.length === 1) {
+      return 0;
+    }
+
+    if (scheduler === 'least-pending') {
+      let selected = 0;
+      let lowestLoad = workerLoad[0].pending;
+      for (let i = 1; i < workerLoad.length; i += 1) {
+        if (workerLoad[i].pending < lowestLoad) {
+          lowestLoad = workerLoad[i].pending;
+          selected = i;
+        }
+      }
+      return selected;
+    }
+
+    rrCursor = (rrCursor + 1) % bridges.length;
+    return rrCursor;
+  };
+
+  const withLoadTracking = <TResult = unknown>(
+    trackedWorkerIndex: number,
+    handle: BackgroundTaskHandle<TResult>
+  ): BackgroundTaskHandle<TResult> => {
+    workerLoad[trackedWorkerIndex].pending += 1;
+    let settled = false;
+
+    const settleLoad = () => {
+      if (settled) return;
+      settled = true;
+      workerLoad[trackedWorkerIndex].pending -= 1;
+    };
+
+    void handle.result.finally(settleLoad);
+    return handle;
+  };
+
+  const createSubmitHandle = <TPayload = unknown, TResult = unknown>(
+    request: BackgroundTaskRequest<TPayload>
+  ): BackgroundTaskHandle<TResult> => {
+    const index = pickWorkerIndex();
+    const handle = bridges[index].submit(request);
+    return withLoadTracking<TResult>(index, handle);
+  };
+
+  return {
+    execute(type, payload) {
+      const index = pickWorkerIndex();
+      const handle = bridges[index].execute(type, payload);
+      return withLoadTracking(index, handle);
+    },
+    submit(request) {
+      return createSubmitHandle(request);
+    },
+    async destroy() {
+      for (const bridge of bridges) {
+        await bridge.destroy();
+      }
+    },
+  };
 }

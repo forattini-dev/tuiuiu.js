@@ -61,6 +61,125 @@ await waitUntilExit();
 
 > ⚠️ **Critical**: Always call `setTheme()` before `render()` for proper input handling!
 
+## Background Workers (DX-first)
+
+`createWorkerExecutor()` runs tasks in `worker_threads` so long or CPU-heavy work doesn't block key handling or rendering.
+
+```typescript
+import {
+  createWorkerExecutor,
+  useApp,
+} from 'tuiuiu.js';
+
+const workerExecutor = createWorkerExecutor('./workers/task-runner.mjs', {
+  workerName: 'app-task-runner',
+});
+```
+
+```typescript
+const task = workerExecutor.submit({
+  type: 'analyze',
+  payload: { text: promptValue() },
+});
+
+const app = useApp();
+task.subscribe((event) => {
+  if (event.kind === 'progress') {
+    app.enqueueExternalUpdate?.(() => {
+      setStatus(String((event.payload as { status?: string }).status ?? 'working'));
+    });
+  }
+});
+
+const result = await task.result;
+if (result.status === 'resolved') {
+  setOutput(result.value);
+} else if (result.status === 'rejected') {
+  showError(result.error.message);
+} else {
+  showStatus(result.reason ?? 'cancelled');
+}
+
+task.cancel('superseded');
+await workerExecutor.destroy();
+```
+
+Use inline execution for lightweight, ultra-low-latency handlers and worker execution for analysis/indexing/IO orchestration.
+
+For multi-thread orchestration and cross-thread messaging, use:
+
+```typescript
+import {
+  createTaskBridge,
+  createThreadBus,
+} from 'tuiuiu.js';
+
+const bridges = {
+  analyzer: createTaskBridge('./workers/analyzer.mjs'),
+  indexer: createTaskBridge('./workers/indexer.mjs'),
+};
+
+const bus = createThreadBus({ threads: bridges });
+```
+
+Then use `bus.subscribe`, `bus.post({ to, ... })` and `bus.broadcast(...)` to move work/results between workers and main.
+
+If you need raw parallelism, use `createTaskBridgePool`:
+
+```typescript
+import { createTaskBridgePool } from 'tuiuiu.js';
+
+const analyzerPool = createTaskBridgePool({
+  modulePath: './workers/analyzer.mjs',
+  poolSize: 4,
+  scheduler: 'least-pending',
+});
+
+const handle = analyzerPool.submit({
+  type: 'analyze',
+  payload: { text: '...' },
+});
+
+```
+
+You can combine the pool with `createThreadBus` and still keep the same message flow:
+
+```typescript
+import {
+  createTaskBridge,
+  createThreadBus,
+} from 'tuiuiu.js';
+
+const indexerBridge = createTaskBridge('./workers/indexer.mjs');
+const bus = createThreadBus({
+  threads: {
+    analyzer: analyzerPool,
+    indexer: indexerBridge,
+  },
+});
+
+bus.subscribe((event) => {
+  if (event.to === 'main') {
+    console.log('main got:', event.type, event.payload);
+  }
+});
+
+await analyzerPool.destroy();
+await indexerBridge.destroy();
+await bus.destroy();
+```
+
+Run the dedicated walkthrough:
+
+```bash
+pnpm example thread-pool-demo
+# or
+pnpm tsx examples/thread-pool-demo.ts
+```
+
+See also: [/guides/thread-pool.md](/guides/thread-pool.md)
+```
+
 ## Terminal Images
 
 `tuiuiu.js` can render raster images directly inside compatible terminals such as Kitty, WezTerm, iTerm2, and Sixel terminals. The `TerminalImage` component negotiates the best backend available and falls back to colored half-blocks when protocol graphics are unavailable.

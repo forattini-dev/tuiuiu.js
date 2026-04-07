@@ -121,6 +121,7 @@
   - [Building Headers](/guides/building-headers.md)
   - [State Management](/guides/state-management.md)
   - [Programmatic Control](/guides/programmatic-control.md)
+  - [Worker Pools](/guides/thread-pool.md)
 
 - **Design System**
   - [Overview](/design-system/overview.md)
@@ -135,6 +136,7 @@
     - [Tuiuiu Sideblaster](/resources/examples/tuiuiu-sideblaster.md)
     - [Tuiuiu Tetris](/resources/examples/tuiuiu-tetris.md)
     - [Tuiuiu Snake](/resources/examples/tuiuiu-snake.md)
+  - [Thread Bus Tutorial](/resources/thread-bus-tutorial.md)
   - [Engine Runtime Contract Coverage](/resources/engine-runtime-contracts.md)
   - [DEVX Contract Coverage](/resources/devx-contracts.md)
   - [Common Mistakes](/resources/common-mistakes.md)

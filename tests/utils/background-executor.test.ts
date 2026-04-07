@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   createInlineBackgroundExecutor,
-  createWorkerThreadBackgroundExecutor,
+  createWorkerExecutor,
   type BackgroundTaskEvent,
 } from '../../src/utils/background-executor.js';
 import { render } from '../../src/app/render-loop.js';
@@ -180,9 +180,7 @@ describe('background executor', () => {
   });
 
   it('runs tasks in a worker thread and reports a unified result envelope', async () => {
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
 
     const infoTask = executor.submit<undefined, { isMainThread: boolean; threadId: number }>({
       type: 'threadInfo',
@@ -200,9 +198,7 @@ describe('background executor', () => {
   });
 
   it('delivers ordered progress events through the worker-thread executor before resolution', async () => {
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
 
     const task = executor.submit<{ text: string; delayMs: number }, string>({
       type: 'progressEcho',
@@ -228,9 +224,7 @@ describe('background executor', () => {
   });
 
   it('supports task cancellation in the worker-thread executor', async () => {
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
 
     const task = executor.submit<{ text: string; delayMs: number }, string>({
       type: 'delayedEcho',
@@ -248,9 +242,7 @@ describe('background executor', () => {
   });
 
   it('ignores late worker events after cancellation', async () => {
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
 
     const task = executor.submit<{ delayMs: number }, string>({
       type: 'emitAfterAbort',
@@ -275,9 +267,7 @@ describe('background executor', () => {
   it('keeps input and rendering responsive on the main thread while a worker task runs', async () => {
     const stdin = createMockStdin();
     const stdout = createMockStdout();
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
     const [typed, setTyped] = createSignal('');
 
     const instance = render(
@@ -320,9 +310,7 @@ describe('background executor', () => {
   it('lets task events drive UI state through enqueueExternalUpdate before task completion', async () => {
     const stdin = createMockStdin();
     const stdout = createMockStdout();
-    const executor = createWorkerThreadBackgroundExecutor({
-      modulePath: workerModulePath,
-    });
+    const executor = createWorkerExecutor(workerModulePath);
 
     const instance = render(
       () => {

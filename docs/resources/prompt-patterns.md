@@ -199,7 +199,7 @@ When prompt state depends on background work, prefer task-scoped events plus the
 
 ```typescript
 const app = useApp();
-const executor = createWorkerThreadBackgroundExecutor({ modulePath: workerModulePath });
+const executor = createWorkerExecutor(workerModulePath);
 
 const task = executor.submit({
   type: 'analyzePrompt',
@@ -221,6 +221,34 @@ unsubscribe();
 
 This keeps worker-side progress real, routes UI mutations through the batched ingress, and avoids one render per ad-hoc timer tick.
 
+## Generic Task Bridge
+
+Use `createTaskBridge()` when the domain is not about prompts or UI-specific semantics:
+
+```typescript
+import { createTaskBridge } from 'tuiuiu.js';
+
+const taskBridge = createTaskBridge('./workers/background-pipeline.mjs');
+const handle = taskBridge.execute('analyze-text', { text: 'heavy payload...' });
+
+handle.subscribe((event) => {
+  if (event.kind === 'progress') {
+    app.enqueueExternalUpdate?.(() => {
+      setProgress(Number((event.payload as { progress?: number }).progress ?? 0));
+    });
+  }
+});
+
+const result = await handle.result;
+```
+
+`createTaskBridge` accepts either:
+- `createTaskBridge('./workers/file.mjs')`
+- `createTaskBridge({ modulePath: './workers/file.mjs', workerName: 'my-worker' })`
+- `createTaskBridge(existingBackgroundExecutor)`
+
+Call `taskBridge.destroy()` when the screen/context is done.
+
 ## Core vs App-Owned Integration
 
 Library core is responsible for:
@@ -239,3 +267,58 @@ Application code is still responsible for:
 - owning PTY sessions, shell processes, remote terminals, or resumable terminal transport
 
 See [examples.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/examples.md) for the concrete `rich-prompt-workbench` and `shell-session-workbench` references.
+
+## Developer-friendly worker API
+
+Use `createWorkerExecutor` for background CPU work that should not block input/rendering:
+
+```typescript
+import { createWorkerExecutor } from 'tuiuiu.js';
+
+const executor = createWorkerExecutor('./workers/app-tasks.mjs', {
+  workerName: 'app-task-runner',
+});
+```
+
+Submit a task and keep the handle lifecycle explicit:
+
+```typescript
+const task = executor.submit<{ text: string }, { ok: boolean }>(
+  { type: 'analyzeText', payload: { text: '...some text...' } }
+);
+
+const unsub = task.subscribe((event) => {
+  if (event.kind !== 'progress') return;
+  app.enqueueExternalUpdate?.(() => {
+    setProgressText(String((event.payload as { status?: string }).status ?? 'working'));
+  });
+});
+
+const result = await task.result;
+if (result.status === 'resolved') {
+  setStatus(`ok=${result.value.ok}`);
+} else if (result.status === 'rejected') {
+  setStatus(`error=${result.error.message}`);
+} else {
+  setStatus(result.reason ?? 'cancelled');
+}
+
+unsub();
+```
+
+Abort when the request becomes stale:
+
+```typescript
+task.cancel('Input changed');
+```
+
+Dispose when the screen or service is torn down:
+
+```typescript
+await executor.destroy();
+```
+
+Keep these rules in mind:
+- Keep UI state updates in `app.enqueueExternalUpdate(...)`.
+- Use workers for long or CPU-heavy tasks.
+- For tiny, fast handlers, prefer inline execution to avoid overhead.

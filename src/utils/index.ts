@@ -99,7 +99,10 @@ export type {
 export {
   createBackgroundExecutor,
   createInlineBackgroundExecutor,
-  createWorkerThreadBackgroundExecutor,
+  createWorkerExecutor,
+  createThreadBus,
+  createTaskBridge,
+  createTaskBridgePool,
 } from './background-executor.js';
 
 export type {
@@ -113,7 +116,16 @@ export type {
   BackgroundTaskReporter,
   BackgroundTaskRequest,
   BackgroundTaskResult,
-  WorkerThreadBackgroundExecutorOptions,
+  InterThreadBusMessage,
+  THREAD_BUS_EVENT_KIND,
+  THREAD_BUS_TASK_TYPE,
+  TaskBridge,
+  TaskBridgePoolOptions,
+  TaskBridgePoolScheduler,
+  ThreadBus,
+  ThreadBusOptions,
+  ThreadBusListener,
+  WorkerExecutorOptions,
 } from './background-executor.js';
 
 // Node.js FS Storage for persistence

@@ -206,6 +206,13 @@ export const examplesManifest: ExampleManifestEntry[] = [
     difficulty: 'medium',
   },
   {
+    name: 'thread-pool-demo',
+    file: 'thread-pool-demo.ts',
+    description: 'Dispatch multiple CPU-heavy jobs through createTaskBridgePool.',
+    category: 'programmatic',
+    difficulty: 'advanced',
+  },
+  {
     name: 'programmatic-runtime-contracts',
     file: 'programmatic/runtime-contracts.ts',
     description: 'Committed-frame queries, scroll-by-ID, and inspector snapshots.',

@@ -28,7 +28,7 @@ import {
   createPromptCommandRegistry,
   createPromptModeRegistry,
   createNodeFsSyncStorage,
-  createWorkerThreadBackgroundExecutor,
+  createTaskBridge,
   useApp,
   useConst,
   useEffect,
@@ -457,15 +457,15 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
   const historyStorageKey = props.historyStorageKey ?? DEFAULT_HISTORY_STORAGE_KEY;
   const promptModes = useConst(() => createPromptModeRegistry(PROMPT_MODES));
   const promptCommands = useConst(() => createPromptCommandRegistry(SLASH_COMMANDS));
-  const executor = useConst(() =>
-    createWorkerThreadBackgroundExecutor({
+  const taskBridge = useConst(() =>
+    createTaskBridge({
       modulePath: workerModulePath,
       workerName: 'tuiuiu-rich-prompt',
     })
   );
   const runtime = useConst(() => ({
     resetTimer: null as ReturnType<typeof setTimeout> | null,
-    currentTask: null as ReturnType<typeof executor.submit<{ text: string; segments: TextInputSegment[] }, WorkerAnalysis>> | null,
+    currentTask: null as ReturnType<typeof taskBridge.submit<{ text: string; segments: TextInputSegment[] }, WorkerAnalysis>> | null,
     currentTaskSubscription: null as (() => void) | null,
   }));
 
@@ -554,7 +554,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
           );
         }
 
-        return executor.submit<
+        return taskBridge.submit<
           { trigger?: string; query: string },
           Array<{ id: string; label: string; detail?: string; replacement: { kind: string; displayText: string; payload?: Record<string, string> } }>
         >({
@@ -700,7 +700,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
         runtime.currentTaskSubscription = null;
       }
 
-      const task = executor.submit<
+      const task = taskBridge.submit<
         { text: string; segments: TextInputSegment[] },
         WorkerAnalysis
       >({
@@ -794,7 +794,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
         runtime.currentTaskSubscription();
         runtime.currentTaskSubscription = null;
       }
-      void executor.destroy();
+      void taskBridge.destroy();
     };
   });
 

@@ -110,7 +110,14 @@ These show lower-level control flows and are better after you understand the can
 | `programmatic-state-management` | Medium | External state changes |
 | `programmatic-scroll-control` | Medium | Scroll control APIs |
 | `programmatic-external-triggers` | Medium | Out-of-band updates |
+| `thread-pool-demo` | Advanced | `createTaskBridgePool` with multiple workers + parallel jobs |
 | `programmatic-runtime-contracts` | Medium | Committed-frame queries, scroll-by-ID, and inspector usage |
+
+Run it with:
+
+```bash
+pnpm example thread-pool-demo
+```
 
 ## Canonical Input Pattern
 
