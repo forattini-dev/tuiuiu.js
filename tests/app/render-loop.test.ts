@@ -394,6 +394,7 @@ describe('render-loop', () => {
           clearOnStart: false,
           showCursor: true,
           useDeltaRenderer: false,
+          alternateScreen: false,
         }
       );
 
@@ -510,6 +511,7 @@ describe('render-loop', () => {
           clearOnStart: false,
           showCursor: true,
           useDeltaRenderer: false,
+          alternateScreen: false,
         }
       );
 

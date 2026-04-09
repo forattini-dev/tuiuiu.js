@@ -15,6 +15,7 @@ import {
   setClearScreen,
   setExternalUpdateIngress,
 } from '../hooks/index.js';
+import { enableAlternateScreen, disableAlternateScreen } from '../core/input.js';
 import { beginRender, endRender, resetHookState } from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
 import { createUpdateBatcher } from '../utils/batcher.js';
@@ -127,6 +128,10 @@ export interface RenderOptions {
    *  When enabled, only changed cells are redrawn instead of the entire screen.
    *  Set to false if you need Static component support or encounter rendering issues. */
   useDeltaRenderer?: boolean;
+  /** Use alternate screen buffer (default: true).
+   *  When enabled, the terminal switches to a separate screen on startup and
+   *  restores the original screen on exit, preserving your scrollback history. */
+  alternateScreen?: boolean;
   /** Optional fixed-step update loop for game-like workloads.
    *  Updates run at a fixed cadence while presentation remains capped by `maxFps`. */
   fixedStep?: FixedStepOptions;
@@ -182,6 +187,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     autoTabNavigation = true,
     fullHeight = false,
     useDeltaRenderer = true,
+    alternateScreen = true,
     fixedStep,
   } = options;
 
@@ -202,6 +208,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   onTerminalPanic(() => {
     stdout.write('\x1b[?2004l'); // disable bracketed paste
   });
+  if (alternateScreen) {
+    stdout.write(enableAlternateScreen());
+    onTerminalPanic(() => {
+      stdout.write(disableAlternateScreen());
+    });
+  }
 
   // Store the component function for re-evaluation
   const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
@@ -737,6 +749,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       deltaRenderer.cleanup();
     } else {
       logUpdate.done(); // Restore cursor and cleanup
+    }
+
+    // Restore original screen buffer
+    if (alternateScreen) {
+      stdout.write(disableAlternateScreen());
     }
 
     resetHookState(); // Clear all hook state
