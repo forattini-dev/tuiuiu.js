@@ -39,6 +39,8 @@ import {
   CodeBlock,
   InlineCode,
   Markdown,
+  TerminalMessage,
+  ActivityTrail,
   Collapsible,
   Accordion,
   Details,
@@ -922,6 +924,57 @@ export const codeStories: Story[] = [
         content: markdownSample,
         maxWidth: props.maxWidth,
         codeLineNumbers: props.codeLineNumbers,
+      })
+    ),
+
+  story('TerminalMessage - Agent Output')
+    .category('Molecules')
+    .description('Terminal message with Markdown and CodeBlock-backed fences')
+    .controls({
+      streaming: defaultControls.boolean('Streaming', false),
+      codeLineNumbers: defaultControls.boolean('Code Line Numbers', true),
+    })
+    .render((props) =>
+      TerminalMessage({
+        role: 'assistant',
+        streaming: props.streaming,
+        codeLineNumbers: props.codeLineNumbers,
+        maxWidth: 72,
+        content: props.streaming
+          ? 'Preparing patch...\n```ts src/agent.ts\nconst result ='
+          : [
+            'Here is the patch:',
+            '',
+            '```ts src/agent.ts',
+            'export const result = "ready";',
+            '```',
+          ].join('\n'),
+      })
+    ),
+
+  story('ActivityTrail - Tool Calls')
+    .category('Molecules')
+    .description('Compact status trail for agent/tool activity')
+    .controls({
+      expanded: defaultControls.boolean('Expand Tests', false),
+      previewLines: defaultControls.range('Preview Lines', 1, 1, 4),
+    })
+    .render((props) =>
+      ActivityTrail({
+        previewLines: props.previewLines,
+        expandedIds: props.expanded ? ['tests'] : [],
+        items: [
+          { id: 'read', label: 'Read file', detail: 'src/app.ts', status: 'success', durationMs: 24 },
+          { id: 'patch', label: 'Apply patch', status: 'success', summary: '3 files changed', durationMs: 118 },
+          {
+            id: 'tests',
+            label: 'Run tests',
+            detail: 'pnpm vitest',
+            status: props.expanded ? 'success' : 'running',
+            progress: props.expanded ? 100 : 0.64,
+            output: ['collecting tests', 'running text-input.test.ts', 'running data-display.test.ts', 'waiting for coverage'],
+          },
+        ],
       })
     ),
 ];

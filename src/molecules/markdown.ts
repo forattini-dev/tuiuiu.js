@@ -20,7 +20,9 @@
 
 import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { CodeBlock, type Language } from './code-block.js';
+import { CodeBlock, type CodeBlockOptions, type Language } from './code-block.js';
+
+type MarkdownCodeBlockOptions = Partial<Omit<CodeBlockOptions, 'code'>>;
 
 export interface MarkdownOptions {
   /** Max width for text wrapping */
@@ -43,6 +45,8 @@ export interface MarkdownOptions {
   };
   /** Show code block line numbers */
   codeLineNumbers?: boolean;
+  /** Default options passed to fenced CodeBlock renderers */
+  codeBlock?: MarkdownCodeBlockOptions;
   /** Indent size for nested elements */
   indentSize?: number;
 }
@@ -73,6 +77,111 @@ interface ParsedNode {
   checked?: boolean;
   url?: string;
   alt?: string;
+  filename?: string;
+}
+
+const SUPPORTED_LANGUAGES: Language[] = [
+  'javascript',
+  'typescript',
+  'python',
+  'json',
+  'yaml',
+  'bash',
+  'shell',
+  'html',
+  'css',
+  'sql',
+  'go',
+  'rust',
+  'markdown',
+  'diff',
+  'plain',
+];
+
+const LANGUAGE_ALIASES: Record<string, Language> = {
+  cjs: 'javascript',
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  yml: 'yaml',
+  sh: 'shell',
+  zsh: 'shell',
+  fish: 'shell',
+  md: 'markdown',
+  patch: 'diff',
+  text: 'plain',
+  plaintext: 'plain',
+};
+
+function normalizeLanguage(language?: string): Language {
+  const normalized = (language || '').trim().toLowerCase().replace(/^\./, '');
+  if (!normalized) return 'plain';
+  if ((SUPPORTED_LANGUAGES as string[]).includes(normalized)) return normalized as Language;
+  return LANGUAGE_ALIASES[normalized] ?? 'plain';
+}
+
+function tokenizeFenceInfo(info: string): string[] {
+  const tokens: string[] = [];
+  const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(info)) !== null) {
+    tokens.push(match[1] ?? match[2] ?? match[3] ?? '');
+  }
+
+  return tokens.filter(Boolean);
+}
+
+function parseFenceInfo(info: string): { language: Language; filename?: string } {
+  const tokens = tokenizeFenceInfo(info);
+  let language: Language = 'plain';
+  let filename: string | undefined;
+
+  const first = tokens[0];
+  if (first && !first.includes('=')) {
+    language = normalizeLanguage(first);
+    tokens.shift();
+  }
+
+  for (const token of tokens) {
+    const keyValue = token.match(/^(?:file|filename|path|title)=(.+)$/i);
+    if (keyValue) {
+      filename = keyValue[1].replace(/^["']|["']$/g, '');
+      continue;
+    }
+
+    if (!token.includes('=') && !filename) {
+      filename = token;
+    }
+  }
+
+  return { language, filename };
+}
+
+function getFenceStart(line: string): { char: '`' | '~'; length: number; info: string } | null {
+  const match = line.match(/^(`{3,}|~{3,})(.*)$/);
+  if (!match) return null;
+
+  const fence = match[1];
+  return {
+    char: fence[0] as '`' | '~',
+    length: fence.length,
+    info: match[2].trim(),
+  };
+}
+
+function isFenceClose(line: string, char: '`' | '~', minLength: number): boolean {
+  const trimmed = line.trim();
+  let length = 0;
+
+  while (trimmed[length] === char) {
+    length++;
+  }
+
+  return length >= minLength && trimmed.slice(length).trim() === '';
 }
 
 /**
@@ -94,11 +203,12 @@ function parseMarkdown(markdown: string): ParsedNode[] {
     }
 
     // Code block (fenced)
-    if (line.startsWith('```')) {
-      const language = line.slice(3).trim() || 'plain';
+    const fenceStart = getFenceStart(line);
+    if (fenceStart) {
+      const { language, filename } = parseFenceInfo(fenceStart.info);
       const codeLines: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].startsWith('```')) {
+      while (i < lines.length && !isFenceClose(lines[i], fenceStart.char, fenceStart.length)) {
         codeLines.push(lines[i]);
         i++;
       }
@@ -106,8 +216,9 @@ function parseMarkdown(markdown: string): ParsedNode[] {
         type: 'codeblock',
         content: codeLines.join('\n'),
         language,
+        filename,
       });
-      i++; // Skip closing ```
+      if (i < lines.length) i++; // Skip closing fence
       continue;
     }
 
@@ -208,7 +319,7 @@ function parseMarkdown(markdown: string): ParsedNode[] {
 
     // Paragraph (collect consecutive non-empty lines)
     const paragraphLines: string[] = [];
-    while (i < lines.length && lines[i].trim() && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !/^[-*+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i]) && !lines[i].startsWith('```')) {
+    while (i < lines.length && lines[i].trim() && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !/^[-*+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i]) && !getFenceStart(lines[i])) {
       paragraphLines.push(lines[i]);
       i++;
     }
@@ -327,16 +438,21 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
       return Box({ marginBottom: 1, flexDirection: 'row', flexWrap: 'wrap' }, ...inline);
     }
 
-    case 'codeblock':
+    case 'codeblock': {
+      const codeBlockOptions = options.codeBlock ?? {};
       return Box(
         { marginBottom: 1 },
         CodeBlock({
+          ...codeBlockOptions,
           code: node.content || '',
-          language: (node.language || 'plain') as Language,
-          lineNumbers: options.codeLineNumbers ?? true,
-          borderStyle: 'round',
+          language: normalizeLanguage(node.language),
+          filename: node.filename ?? codeBlockOptions.filename,
+          lineNumbers: options.codeLineNumbers ?? codeBlockOptions.lineNumbers ?? true,
+          borderStyle: codeBlockOptions.borderStyle ?? 'round',
+          maxWidth: codeBlockOptions.maxWidth ?? options.maxWidth,
         })
       );
+    }
 
     case 'blockquote': {
       const quoteLines = (node.content || '').split('\n');

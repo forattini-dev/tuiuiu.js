@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTextInput, renderTextInput, TextInput } from '../../src/atoms/text-input.js';
+import { createPasteCollapseStore, createPasteCollapseTransform } from '../../src/atoms/paste-collapse.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { createInlineBackgroundExecutor } from '../../src/utils/background-executor.js';
 import { keys, charKey, typeString } from '../helpers/keyboard.js';
@@ -1041,6 +1042,141 @@ describe('TextInput Keyboard Interactions', () => {
 
       expect(ti.value()).toBe('plain text');
       expect(ti.segments()).toEqual([]);
+    });
+
+    it('keeps short pasted text when paste collapse thresholds are not met', () => {
+      const pasteCollapse = createPasteCollapseTransform({
+        minChars: 20,
+        minLines: 3,
+      });
+      const ti = createTestInput({
+        initialValue: '',
+        transformPaste: pasteCollapse,
+      });
+
+      ti.paste('short text');
+
+      expect(ti.value()).toBe('short text');
+      expect(ti.segments()).toEqual([]);
+      expect(pasteCollapse.store.size()).toBe(0);
+    });
+
+    it('collapses pasted text by character threshold and stores the original text', () => {
+      const store = createPasteCollapseStore({
+        createId: (next) => `paste-${next}`,
+        now: () => 123,
+      });
+      const pasteCollapse = createPasteCollapseTransform({
+        minChars: 10,
+        minLines: 99,
+        store,
+      });
+      const ti = createTestInput({
+        initialValue: '',
+        transformPaste: pasteCollapse,
+      });
+
+      ti.paste('0123456789');
+
+      expect(ti.value()).toBe('[paste:1 line,10c]');
+      expect(ti.segments()).toMatchObject([
+        {
+          id: 'paste-1',
+          kind: 'paste',
+          start: 0,
+          end: '[paste:1 line,10c]'.length,
+          displayText: '[paste:1 line,10c]',
+          payload: {
+            pasteId: 'paste-1',
+            charCount: 10,
+            lineCount: 1,
+          },
+        },
+      ]);
+      expect(store.get('paste-1')).toMatchObject({
+        id: 'paste-1',
+        text: '0123456789',
+        charCount: 10,
+        lineCount: 1,
+        createdAt: 123,
+      });
+    });
+
+    it('collapses pasted text by line threshold', () => {
+      const pasteCollapse = createPasteCollapseTransform({
+        minChars: 999,
+        minLines: 2,
+      });
+      const ti = createTestInput({
+        initialValue: '',
+        transformPaste: pasteCollapse,
+      });
+
+      ti.paste('line one\nline two');
+
+      expect(ti.value()).toBe('[paste:2 lines,17c]');
+      expect(ti.segments()).toMatchObject([
+        {
+          kind: 'paste',
+          payload: {
+            charCount: 17,
+            lineCount: 2,
+          },
+        },
+      ]);
+      expect(pasteCollapse.store.get('paste-1')?.text).toBe('line one\nline two');
+    });
+
+    it('supports custom paste collapse placeholder, kind, metadata, and payload', () => {
+      const pasteCollapse = createPasteCollapseTransform<
+        { source: string },
+        { id: string; source: string }
+      >({
+        minChars: 1,
+        segmentKind: 'log',
+        metadata: () => ({ source: 'terminal' }),
+        placeholder: (record) => `[log:${record.id}]`,
+        payload: (record) => ({ id: record.id, source: record.metadata?.source ?? 'unknown' }),
+      });
+      const ti = createTestInput({
+        initialValue: 'Review ',
+        transformPaste: pasteCollapse,
+      });
+
+      ti.paste('stack trace');
+
+      expect(ti.value()).toBe('Review [log:paste-1]');
+      expect(ti.segments()).toMatchObject([
+        {
+          kind: 'log',
+          start: 7,
+          end: 'Review [log:paste-1]'.length,
+          displayText: '[log:paste-1]',
+          payload: {
+            id: 'paste-1',
+            source: 'terminal',
+          },
+        },
+      ]);
+      expect(pasteCollapse.store.get('paste-1')?.metadata).toEqual({ source: 'terminal' });
+    });
+
+    it('retains paste collapse store records up to maxItems', () => {
+      const store = createPasteCollapseStore({
+        maxItems: 2,
+        createId: (next) => `id-${next}`,
+      });
+
+      store.add('first');
+      store.add('second');
+      store.add('third');
+
+      expect(store.list().map((record) => record.id)).toEqual(['id-2', 'id-3']);
+      expect(store.get('id-1')).toBeUndefined();
+      expect(store.remove('id-2')).toBe(true);
+      expect(store.list().map((record) => record.id)).toEqual(['id-3']);
+      store.clear();
+      expect(store.size()).toBe(0);
     });
 
     it('accepts anchored async completions and can replace the query with a segment', async () => {

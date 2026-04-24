@@ -168,6 +168,21 @@ export {
   type MarkdownOptions,
 } from './markdown.js';
 
+export {
+  TerminalMessage,
+  type TerminalMessageOptions,
+  type TerminalMessageRole,
+  type TerminalMessageRoleStyle,
+} from './terminal-message.js';
+
+export {
+  ActivityTrail,
+  type ActivityStatus,
+  type ActivityTrailItem,
+  type ActivityTrailOptions,
+  type ActivityTrailStatusStyle,
+} from './activity-trail.js';
+
 // Layout
 export {
   Collapsible,

@@ -7,6 +7,7 @@ import { renderToString } from '../../src/core/renderer.js';
 import { Table, SimpleTable, KeyValueTable } from '../../src/molecules/table.js';
 import { CodeBlock, InlineCode } from '../../src/molecules/code-block.js';
 import { Markdown, renderMarkdown } from '../../src/molecules/markdown.js';
+import { TerminalMessage } from '../../src/molecules/terminal-message.js';
 
 describe('Data Display Components', () => {
   describe('Table', () => {
@@ -328,6 +329,28 @@ describe('Data Display Components', () => {
       expect(output).toContain('code block');
     });
 
+    it('should render fenced code with language alias and filename', () => {
+      const node = Markdown({ content: '```ts src/app.ts\nconst ok = true;\n```' });
+      const output = renderToString(node, 80);
+      expect(output).toContain('src/app.ts');
+      expect(output).toContain('const');
+      expect(output).not.toContain('```');
+    });
+
+    it('should render fenced code with filename metadata', () => {
+      const node = Markdown({ content: '```typescript filename="src/index.ts"\nexport const ok = true;\n```' });
+      const output = renderToString(node, 80);
+      expect(output).toContain('src/index.ts');
+      expect(output).toContain('export');
+    });
+
+    it('should fall back for unknown fenced code language', () => {
+      const node = Markdown({ content: '```madeuplang\nvalue\n```' });
+      const output = renderToString(node, 80);
+      expect(output).toContain('value');
+      expect(output).not.toContain('madeuplang');
+    });
+
     it('should render horizontal rule', () => {
       const node = Markdown({ content: '---' });
       const output = renderToString(node, 80);
@@ -352,6 +375,55 @@ describe('Data Display Components', () => {
       const node = renderMarkdown('Long text here', { maxWidth: 10 });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
+    });
+  });
+
+  describe('TerminalMessage', () => {
+    it('should render completed assistant message as markdown', () => {
+      const node = TerminalMessage({
+        role: 'assistant',
+        content: 'Here is code:\n\n```ts src/agent.ts\nconst answer = 42;\n```',
+      });
+      const output = renderToString(node, 100);
+      expect(output).toContain('assistant');
+      expect(output).toContain('src/agent.ts');
+      expect(output).toContain('answer');
+      expect(output).not.toContain('```');
+    });
+
+    it('should render streaming message as raw text', () => {
+      const node = TerminalMessage({
+        role: 'assistant',
+        streaming: true,
+        content: 'Working...\n```ts\nconst answer =',
+      });
+      const output = renderToString(node, 100);
+      expect(output).toContain('assistant');
+      expect(output).toContain('streaming');
+      expect(output).toContain('```ts');
+      expect(output).not.toContain('1 │');
+    });
+
+    it('should render distinct role labels', () => {
+      const roles = ['user', 'assistant', 'system', 'tool'] as const;
+      for (const role of roles) {
+        const node = TerminalMessage({ role, content: `${role} body` });
+        const output = renderToString(node, 100);
+        expect(output).toContain(role);
+        expect(output).toContain(`${role} body`);
+      }
+    });
+
+    it('should allow role label and marker overrides', () => {
+      const node = TerminalMessage({
+        role: 'tool',
+        label: 'runner',
+        marker: '#',
+        content: 'pnpm test passed',
+      });
+      const output = renderToString(node, 100);
+      expect(output).toContain('# runner');
+      expect(output).toContain('pnpm test passed');
     });
   });
 });

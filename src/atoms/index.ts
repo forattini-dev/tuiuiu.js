@@ -109,14 +109,53 @@ export {
   useTextInputState,
   type TextInputProps,
   type TextInputCompletionAnchor,
+  type TextInputCompletionState,
   type TextInputHistoryEntry,
   type TextInputHistoryItem,
   type TextInputHistoryPersistenceOptions,
+  type TextInputIgnoreResult,
+  type TextInputInsertedPart,
+  type TextInputInsertion,
+  type TextInputInsertionLike,
   type TextInputOptions,
+  type TextInputPasteContext,
+  type TextInputPasteTransformResult,
+  type TextInputRange,
   type TextInputSegment,
   type TextInputSegmentInput,
   type TextInputState,
 } from './text-input.js';
+
+export {
+  createPasteCollapseStore,
+  createPasteCollapseTransform,
+} from './paste-collapse.js';
+
+export type {
+  PasteCollapsePayload,
+  PasteCollapseRecord,
+  PasteCollapseStore,
+  PasteCollapseStoreOptions,
+  PasteCollapseSummary,
+  PasteCollapseTransform,
+  PasteCollapseTransformOptions,
+} from './paste-collapse.js';
+
+export {
+  createPromptSubmitController,
+} from './prompt-submit-controller.js';
+
+export type {
+  PromptSubmitBusyPolicy,
+  PromptSubmitController,
+  PromptSubmitControllerOptions,
+  PromptSubmitEvent,
+  PromptSubmitInputState,
+  PromptSubmitInterruptContext,
+  PromptSubmitItem,
+  PromptSubmitResult,
+  PromptSubmitSource,
+} from './prompt-submit-controller.js';
 
 // =============================================================================
 // ProgressBar - Progress indicators
@@ -149,11 +188,19 @@ export type {
 export {
   createTriggerCompletion,
   createMultiTriggerCompletion,
+  createTriggerCompletionSource,
+  createComposableCompletion,
+  createPathCompletionSource,
+  createPathCompletion,
 } from './trigger-completion.js';
 
 export type {
   TriggerItem,
   TriggerConfig,
+  TextInputCompletionSource,
+  ComposableCompletionOptions,
+  PathCompletionPayload,
+  PathCompletionOptions,
 } from './trigger-completion.js';
 
 // Completion Dropdown

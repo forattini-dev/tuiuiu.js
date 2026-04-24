@@ -8,15 +8,38 @@
  * - Multi-trigger delegation
  */
 
-import { describe, it, expect } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  createComposableCompletion,
+  createPathCompletion,
+  createPathCompletionSource,
   createTriggerCompletion,
+  createTriggerCompletionSource,
   createMultiTriggerCompletion,
 } from '../../src/atoms/trigger-completion.js';
+import { createTextInput } from '../../src/atoms/text-input.js';
 import type {
   TextInputSegment,
   TextInputCompletionAnchor,
 } from '../../src/atoms/text-input.js';
+
+const tempDirs: string[] = [];
+
+function createTempDir(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'tuiuiu-completion-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    rmSync(tempDirs.pop()!, { recursive: true, force: true });
+  }
+});
 
 // Helper to call resolveAnchor with sensible defaults
 function resolveAnchor(
@@ -560,5 +583,272 @@ describe('createMultiTriggerCompletion', () => {
 
     expect(typeof items[0]!.replacement).toBe('string');
     expect(items[0]!.replacement).toBe('@alice ');
+  });
+});
+
+// =============================================================================
+// createComposableCompletion
+// =============================================================================
+
+describe('createComposableCompletion', () => {
+  it('routes @ and # triggers to different providers', async () => {
+    const atItems = vi.fn((query: string) => [{ id: `file-${query}`, label: `file-${query}` }]);
+    const hashItems = vi.fn((query: string) => [{ id: `issue-${query}`, label: `issue-${query}` }]);
+    const completion = createComposableCompletion([
+      createTriggerCompletionSource({
+        trigger: '@',
+        getItems: atItems,
+        insertAsSegment: false,
+      }),
+      createTriggerCompletionSource({
+        trigger: '#',
+        getItems: hashItems,
+        insertAsSegment: false,
+      }),
+    ]);
+
+    const atAnchor = completion.resolveAnchor({
+      value: 'ask @sr',
+      cursorPosition: 'ask @sr'.length,
+      segments: [],
+    });
+
+    expect(atAnchor).toMatchObject({ trigger: '@', query: 'sr' });
+    await completion.getItems({
+      value: 'ask @sr',
+      cursorPosition: 'ask @sr'.length,
+      segments: [],
+      anchor: atAnchor!,
+    });
+
+    expect(atItems).toHaveBeenCalledWith('sr');
+    expect(hashItems).not.toHaveBeenCalled();
+
+    const hashAnchor = completion.resolveAnchor({
+      value: 'fix #42',
+      cursorPosition: 'fix #42'.length,
+      segments: [],
+    });
+
+    expect(hashAnchor).toMatchObject({ trigger: '#', query: '42' });
+    await completion.getItems({
+      value: 'fix #42',
+      cursorPosition: 'fix #42'.length,
+      segments: [],
+      anchor: hashAnchor!,
+    });
+
+    expect(hashItems).toHaveBeenCalledWith('42');
+  });
+
+  it('accepts a composed trigger completion as a semantic snippet', async () => {
+    const completion = createComposableCompletion([
+      createTriggerCompletionSource({
+        trigger: '@',
+        segmentKind: 'file',
+        getItems: () => [
+          {
+            id: 'src/index.ts',
+            label: 'src/index.ts',
+            payload: { path: 'src/index.ts' },
+          },
+        ],
+      }),
+    ]);
+    const input = createTextInput({
+      initialValue: '@s',
+      completion,
+    });
+
+    await vi.waitFor(() => {
+      expect(input.completion()?.items).toHaveLength(1);
+    });
+    input.acceptCompletion();
+
+    expect(input.value()).toBe('@src/index.ts');
+    expect(input.segments()).toMatchObject([
+      {
+        kind: 'file',
+        start: 0,
+        end: 13,
+        displayText: '@src/index.ts',
+        payload: { path: 'src/index.ts' },
+      },
+    ]);
+  });
+
+  it('lets path tokens coexist with @ and # sources without invoking them', async () => {
+    const cwd = createTempDir();
+    mkdirSync(path.join(cwd, 'src'));
+    const atItems = vi.fn(() => [{ id: 'user', label: 'user' }]);
+    const hashItems = vi.fn(() => [{ id: 'tag', label: 'tag' }]);
+    const completion = createComposableCompletion([
+      createTriggerCompletionSource({ trigger: '@', getItems: atItems }),
+      createTriggerCompletionSource({ trigger: '#', getItems: hashItems }),
+      createPathCompletionSource({ cwd }),
+    ]);
+    const value = 'open ./s';
+    const anchor = completion.resolveAnchor({
+      value,
+      cursorPosition: value.length,
+      segments: [],
+    });
+
+    expect(anchor).toMatchObject({ trigger: 'path', query: './s' });
+
+    const items = await completion.getItems({
+      value,
+      cursorPosition: value.length,
+      segments: [],
+      anchor: anchor!,
+    });
+
+    expect(items[0]).toMatchObject({
+      label: 'src/',
+      replacement: './src/',
+    });
+    expect(atItems).not.toHaveBeenCalled();
+    expect(hashItems).not.toHaveBeenCalled();
+  });
+});
+
+// =============================================================================
+// createPathCompletionSource / createPathCompletion
+// =============================================================================
+
+describe('createPathCompletionSource', () => {
+  it('lists home-relative entries and preserves ~/ replacements', async () => {
+    const homeDir = createTempDir();
+    mkdirSync(path.join(homeDir, 'Documents'));
+    writeFileSync(path.join(homeDir, 'notes.txt'), 'hello');
+    const source = createPathCompletionSource({ cwd: homeDir, homeDir });
+    const value = 'attach ~/';
+    const anchor = source.resolveAnchor({
+      value,
+      cursorPosition: value.length,
+      segments: [],
+    });
+
+    expect(anchor).toMatchObject({ trigger: 'path', query: '~/' });
+
+    const items = await source.getItems({
+      value,
+      cursorPosition: value.length,
+      segments: [],
+      anchor: anchor!,
+    });
+    const docs = items.find((item) => item.label === 'Documents/');
+    const notes = items.find((item) => item.label === 'notes.txt');
+
+    expect(docs?.replacement).toBe('~/Documents/');
+    expect(docs?.detail).toBe('dir');
+    expect(docs?.payload).toMatchObject({
+      kind: 'directory',
+      name: 'Documents',
+      path: '~/Documents/',
+      absolutePath: path.join(homeDir, 'Documents'),
+    });
+    expect(notes?.replacement).toBe('~/notes.txt');
+  });
+
+  it('preserves ./ replacements and marks directories with a trailing slash', async () => {
+    const cwd = createTempDir();
+    mkdirSync(path.join(cwd, 'src'));
+    writeFileSync(path.join(cwd, 'script.ts'), 'export {};');
+    const source = createPathCompletionSource({ cwd, homeDir: cwd });
+
+    const dirAnchor = source.resolveAnchor({
+      value: './s',
+      cursorPosition: './s'.length,
+      segments: [],
+    });
+    const dirItems = await source.getItems({
+      value: './s',
+      cursorPosition: './s'.length,
+      segments: [],
+      anchor: dirAnchor!,
+    });
+
+    expect(dirItems.map((item) => item.replacement)).toContain('./src/');
+    expect(dirItems.map((item) => item.replacement)).toContain('./script.ts');
+  });
+
+  it('supports semantic path segments when requested', async () => {
+    const cwd = createTempDir();
+    writeFileSync(path.join(cwd, 'README.md'), '# test');
+    const source = createPathCompletionSource({
+      cwd,
+      homeDir: cwd,
+      insertAsSegment: true,
+      fileSegmentKind: 'attachment',
+    });
+    const anchor = source.resolveAnchor({
+      value: './R',
+      cursorPosition: './R'.length,
+      segments: [],
+    });
+    const items = await source.getItems({
+      value: './R',
+      cursorPosition: './R'.length,
+      segments: [],
+      anchor: anchor!,
+    });
+
+    expect(items[0]?.replacement).toMatchObject({
+      kind: 'attachment',
+      displayText: './README.md',
+      payload: {
+        kind: 'file',
+        path: './README.md',
+        name: 'README.md',
+      },
+    });
+  });
+
+  it('limits results after sorting directories before files', async () => {
+    const cwd = createTempDir();
+    mkdirSync(path.join(cwd, 'alpha'));
+    mkdirSync(path.join(cwd, 'beta'));
+    writeFileSync(path.join(cwd, 'gamma.txt'), '');
+    writeFileSync(path.join(cwd, 'omega.txt'), '');
+    const source = createPathCompletionSource({ cwd, homeDir: cwd, maxItems: 3 });
+    const anchor = source.resolveAnchor({
+      value: './',
+      cursorPosition: './'.length,
+      segments: [],
+    });
+    const items = await source.getItems({
+      value: './',
+      cursorPosition: './'.length,
+      segments: [],
+      anchor: anchor!,
+    });
+
+    expect(items.map((item) => item.label)).toEqual(['alpha/', 'beta/', 'gamma.txt']);
+  });
+
+  it('createPathCompletion returns a standalone TextInput completion provider', async () => {
+    const cwd = createTempDir();
+    mkdirSync(path.join(cwd, 'lib'));
+    const completion = createPathCompletion({ cwd, homeDir: cwd });
+    const anchor = completion.resolveAnchor({
+      value: '~',
+      cursorPosition: 1,
+      segments: [],
+    });
+
+    expect(anchor).toMatchObject({ trigger: 'path', query: '~' });
+
+    const items = await completion.getItems({
+      value: '~',
+      cursorPosition: 1,
+      segments: [],
+      anchor: anchor!,
+    });
+
+    expect(items[0]).toMatchObject({
+      label: 'lib/',
+      replacement: '~/lib/',
+    });
   });
 });

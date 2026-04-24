@@ -1383,6 +1383,15 @@ export function createTextInput(options: TextInputOptions = {}) {
     ) => {
       return applyEdit(range, segment, { resetHistory: true });
     },
+    insertText: (
+      text: string,
+      range: TextInputRange = { start: cursorPosition(), end: cursorPosition() }
+    ) => {
+      return applyEdit(range, text, {
+        resetHistory: true,
+        setMultiline: text.includes('\n'),
+      });
+    },
     paste: (text: string) => applyPaste(text),
     acceptCompletion,
     cancelCompletion: clearCompletion,
