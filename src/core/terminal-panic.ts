@@ -1,8 +1,10 @@
 /**
  * Terminal Panic Hooks - Centralized terminal state restoration on crash
  *
- * Ensures the terminal is restored to a usable state when the process
- * exits unexpectedly (uncaughtException, unhandledRejection, SIGINT, SIGTERM).
+ * Ensures the terminal is restored to a usable state when the process exits.
+ *
+ * The hooks deliberately observe fatal errors without handling them. A library
+ * must not replace Node.js signal/error semantics or force process termination.
  *
  * Any module that modifies terminal state (raw mode, cursor, mouse tracking,
  * focus events, bracketed paste) should register a cleanup callback via
@@ -12,13 +14,11 @@
 const cleanups: Array<() => void> = [];
 let installed = false;
 let restoring = false;
+let installReferences = 0;
 
 // Handler references for removal
 let exitHandler: (() => void) | null = null;
-let sigintHandler: (() => void) | null = null;
-let sigtermHandler: (() => void) | null = null;
-let uncaughtHandler: ((err: Error) => void) | null = null;
-let unhandledHandler: ((reason: unknown) => void) | null = null;
+let uncaughtMonitorHandler: ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void) | null = null;
 
 /**
  * Execute all registered cleanup callbacks in reverse order (LIFO).
@@ -55,44 +55,44 @@ export function onTerminalPanic(cleanup: () => void): () => void {
 }
 
 /**
- * Install process-level signal and error handlers (idempotent).
- * Should be called once during render() setup.
+ * Install non-owning process hooks. Calls are reference counted and the
+ * returned function releases one installation reference.
  */
-export function installPanicHooks(): void {
-  if (installed) return;
-  installed = true;
+export function installPanicHooks(): () => void {
+  installReferences++;
 
-  exitHandler = () => {
-    restoreTerminal();
+  if (!installed) {
+    installed = true;
+    exitHandler = () => {
+      restoreTerminal();
+    };
+    uncaughtMonitorHandler = () => {
+      restoreTerminal();
+    };
+    process.on('exit', exitHandler);
+    process.on('uncaughtExceptionMonitor', uncaughtMonitorHandler);
+  }
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    installReferences = Math.max(0, installReferences - 1);
+    if (installReferences === 0) {
+      uninstallProcessHooks();
+    }
   };
+}
 
-  sigintHandler = () => {
-    restoreTerminal();
-    process.exit(128 + 2);
-  };
-
-  sigtermHandler = () => {
-    restoreTerminal();
-    process.exit(128 + 15);
-  };
-
-  uncaughtHandler = (err: Error) => {
-    restoreTerminal();
-    console.error(err);
-    process.exit(1);
-  };
-
-  unhandledHandler = (reason: unknown) => {
-    restoreTerminal();
-    console.error(reason);
-    process.exit(1);
-  };
-
-  process.on('exit', exitHandler);
-  process.on('SIGINT', sigintHandler);
-  process.on('SIGTERM', sigtermHandler);
-  process.on('uncaughtException', uncaughtHandler);
-  process.on('unhandledRejection', unhandledHandler);
+function uninstallProcessHooks(): void {
+  if (!installed) return;
+  if (exitHandler) process.off('exit', exitHandler);
+  if (uncaughtMonitorHandler) {
+    process.off('uncaughtExceptionMonitor', uncaughtMonitorHandler);
+  }
+  exitHandler = null;
+  uncaughtMonitorHandler = null;
+  installed = false;
 }
 
 /**
@@ -100,19 +100,7 @@ export function installPanicHooks(): void {
  * Useful for tests.
  */
 export function removePanicHooks(): void {
-  if (!installed) return;
-
-  if (exitHandler) process.off('exit', exitHandler);
-  if (sigintHandler) process.off('SIGINT', sigintHandler);
-  if (sigtermHandler) process.off('SIGTERM', sigtermHandler);
-  if (uncaughtHandler) process.off('uncaughtException', uncaughtHandler);
-  if (unhandledHandler) process.off('unhandledRejection', unhandledHandler);
-
-  exitHandler = null;
-  sigintHandler = null;
-  sigtermHandler = null;
-  uncaughtHandler = null;
-  unhandledHandler = null;
-  installed = false;
+  installReferences = 0;
+  uninstallProcessHooks();
   cleanups.length = 0;
 }

@@ -12,7 +12,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createTextInput, renderTextInput, TextInput } from '../../src/atoms/text-input.js';
+import {
+  createTextInput,
+  getVisualLines,
+  renderTextInput,
+  TextInput,
+} from '../../src/atoms/text-input.js';
 import { createPasteCollapseStore, createPasteCollapseTransform } from '../../src/atoms/paste-collapse.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { createInlineBackgroundExecutor } from '../../src/utils/background-executor.js';
@@ -51,6 +56,27 @@ describe('TextInput Keyboard Interactions', () => {
 
   afterEach(() => {
     clearInputHandlers();
+  });
+
+  describe('Unicode visual layout', () => {
+    it('wraps on display width without splitting grapheme clusters', () => {
+      const lines = getVisualLines('A👨‍👩‍👧‍👦B', 3, true);
+
+      expect(lines.map((line) => line.text)).toEqual(['A👨‍👩‍👧‍👦', 'B']);
+      expect(lines[0]).toMatchObject({ start: 0, end: 12 });
+      expect(lines[1]).toMatchObject({ start: 12, end: 13 });
+    });
+
+    it('renders a multiline cursor over a complete grapheme', () => {
+      const input = createTestInput({ initialValue: '👍🏽x', multiline: true });
+      input.setCursorPosition(0);
+
+      const output = renderToString(renderTextInput(input, { multiline: true }), 80);
+
+      expect(output).toContain('👍🏽');
+      expect(output).toContain('x');
+      expect(output).not.toContain('�');
+    });
   });
 
   // ============================================================================
@@ -149,6 +175,14 @@ describe('TextInput Keyboard Interactions', () => {
       expect(ti.cursorPosition()).toBe(4);
     });
 
+    it('should delete a complete Unicode grapheme before cursor', () => {
+      const ti = createTestInput({ initialValue: 'a\u{1F44D}\u{1F3FD}' });
+      simulateInput('', keys.backspace().key);
+      expect(ti.value()).toBe('a');
+      expect(ti.cursorPosition()).toBe(1);
+      expect(() => encodeURIComponent(ti.value())).not.toThrow();
+    });
+
     it('should do nothing when cursor is at position 0', () => {
       const ti = createTestInput({ initialValue: 'hello' });
       simulateInput('', keys.home().key);
@@ -195,6 +229,14 @@ describe('TextInput Keyboard Interactions', () => {
       simulateInput('', keys.home().key);
       simulateInput('', keys.delete().key);
       expect(ti.value()).toBe('ello');
+      expect(ti.cursorPosition()).toBe(0);
+    });
+
+    it('should delete a complete Unicode grapheme after cursor', () => {
+      const ti = createTestInput({ initialValue: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}x' });
+      simulateInput('', keys.home().key);
+      simulateInput('', keys.delete().key);
+      expect(ti.value()).toBe('x');
       expect(ti.cursorPosition()).toBe(0);
     });
 

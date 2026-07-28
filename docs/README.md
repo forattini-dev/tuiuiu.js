@@ -77,6 +77,7 @@ import { Box, Text } from 'tuiuiu.js/primitives';
 import { Button, Spinner } from 'tuiuiu.js/atoms';
 import { Select, Table } from 'tuiuiu.js/molecules';
 import { Modal, DataTable } from 'tuiuiu.js/organisms';
+import { VirtualDataTable } from 'tuiuiu.js/experimental';
 import { AppShell, Page } from 'tuiuiu.js/templates';
 
 // Core & utilities
@@ -99,6 +100,9 @@ import { BarChart } from 'tuiuiu.js/design-system';
 
 ### Organisms
 `Modal` `CommandPalette` `DataTable` `FileManager` `SplitPanel` `ScrollList` `ChatList` `Grid` `OverlayStack`
+
+### Experimental
+`VirtualDataTable` `EditableDataTable`
 
 ### Templates
 `AppShell` `Page` `Header` `StatusBar` `VStack` `HStack` `Center` `FullScreen`

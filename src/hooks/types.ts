@@ -137,9 +137,12 @@ export interface InputHandlerEntry {
 
 export interface AppContext {
   exit: (error?: Error) => void;
+  /** Release input listeners and restore terminal modes without terminating the process. */
+  dispose: () => void;
   stdin: NodeJS.ReadStream;
   stdout: NodeJS.WriteStream;
-  onExit: (callback: () => void) => void;
+  /** Register an exit callback. Returns a function that unregisters it. */
+  onExit: (callback: (error?: Error) => void) => () => void;
   /** Whether automatic Tab/Shift+Tab navigation is enabled */
   autoTabNavigation: boolean;
   /** Set automatic Tab navigation enabled/disabled */

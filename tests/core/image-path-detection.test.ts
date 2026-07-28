@@ -187,18 +187,10 @@ describe('extractImagePaths', () => {
   });
 
   describe('handles Windows paths', () => {
-    // Windows paths with backslashes are only preserved on win32.
-    // On Linux/macOS, backslash escapes are stripped.
-    const isWindows = process.platform === 'win32';
-
     it('extracts Windows-style image paths', () => {
       const input = 'C:\\Users\\user\\image.png';
       const result = extractImagePaths(input);
-      // On all platforms the path ends in .png after cleaning, so it matches.
-      // On Linux/macOS backslash escapes are stripped: C:Usersuserimage.png
-      // On Windows backslashes are preserved: C:\Users\user\image.png
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatch(/image\.png$/);
+      expect(result).toEqual(['C:\\Users\\user\\image.png']);
     });
 
     it('handles forward-slash Windows paths on any platform', () => {

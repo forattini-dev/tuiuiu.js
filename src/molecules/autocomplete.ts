@@ -20,6 +20,7 @@ import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getContrastColor } from '../core/theme.js';
+import { previousGraphemeBoundary } from '../utils/grapheme.js';
 
 // =============================================================================
 // Types
@@ -724,6 +725,8 @@ export interface TagInputState<T = string> {
   removeTag: (value: T) => void;
   removeLastTag: () => void;
   setInput: (value: string) => void;
+  selectPrevious: () => void;
+  selectNext: () => void;
   updateOptions: (options: TagInputOptions<T>) => void;
 }
 
@@ -805,6 +808,16 @@ export function createTagInput<T = string>(
     removeTag,
     removeLastTag,
     setInput,
+    selectPrevious: () => {
+      const count = suggestions().length;
+      if (count === 0) return;
+      setSelectedIndex((index) => (index - 1 + count) % count);
+    },
+    selectNext: () => {
+      const count = suggestions().length;
+      if (count === 0) return;
+      setSelectedIndex((index) => (index + 1) % count);
+    },
     updateOptions: (nextOptions: TagInputOptions<T>) => {
       runtimeOptions = nextOptions;
       setOptionsVersion((version) => version + 1);
@@ -856,15 +869,15 @@ export function TagInput<T = string>(props: TagInputProps<T>): VNode {
   useInput(
     (input, key) => {
       if (key.upArrow) {
-        // Not implemented for simplicity
+        state.selectPrevious();
       } else if (key.downArrow) {
-        // Not implemented for simplicity
+        state.selectNext();
       } else if (key.backspace) {
         if (state.inputValue() === '') {
           state.removeLastTag();
         } else {
           const val = state.inputValue();
-          state.setInput(val.slice(0, -1));
+          state.setInput(val.slice(0, previousGraphemeBoundary(val, val.length)));
         }
       } else if (key.return || key.tab) {
         const suggs = state.suggestions();

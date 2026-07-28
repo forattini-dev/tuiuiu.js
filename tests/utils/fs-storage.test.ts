@@ -43,6 +43,13 @@ describe('createNodeFsStorage', () => {
 
       expect(fs.existsSync(TEST_DIR)).toBe(true);
     });
+
+    it('should reject an extension that can escape the storage directory', () => {
+      expect(() => createNodeFsStorage({
+        dir: TEST_DIR,
+        ext: `${path.sep}..${path.sep}outside.json`,
+      })).toThrow('Invalid storage extension');
+    });
   });
 
   describe('setItem', () => {
@@ -53,6 +60,7 @@ describe('createNodeFsStorage', () => {
 
       const filePath = path.join(TEST_DIR, 'test-key.json');
       expect(fs.existsSync(filePath)).toBe(true);
+      expect(fs.readdirSync(TEST_DIR).some((name) => name.endsWith('.tmp'))).toBe(false);
     });
 
     it('should use custom extension', async () => {
@@ -71,6 +79,8 @@ describe('createNodeFsStorage', () => {
       await expect(storage.setItem('..', 'x')).rejects.toThrow('Invalid storage key');
       await expect(storage.setItem('bad/key', 'x')).rejects.toThrow('Invalid storage key');
       await expect(storage.setItem('bad\\\\key', 'x')).rejects.toThrow('Invalid storage key');
+      await expect(storage.setItem('CON', 'x')).rejects.toThrow('Invalid storage key');
+      await expect(storage.setItem('.', 'x')).rejects.toThrow('Invalid storage key');
     });
   });
 
@@ -178,5 +188,40 @@ describe('createNodeFsSyncStorage', () => {
     const filePath = path.join(TEST_DIR, 'plain.txt');
     expect(fs.existsSync(filePath)).toBe(true);
     expect(storage.getItem('plain')).toBe('hello');
+  });
+
+  it('should reject unsafe extensions', () => {
+    expect(() => createNodeFsSyncStorage({
+      dir: TEST_DIR,
+      ext: `${path.sep}..${path.sep}outside.json`,
+    })).toThrow('Invalid storage extension');
+  });
+
+  it('should reject Windows device names on every platform', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
+
+    expect(() => storage.setItem('NUL', 'x')).toThrow('Invalid storage key');
+    expect(() => storage.setItem('COM1.log', 'x')).toThrow('Invalid storage key');
+  });
+
+  it('should reject a symlink as the storage root when symlinks are available', () => {
+    const realDir = `${TEST_DIR}-real`;
+    const linkDir = `${TEST_DIR}-link`;
+    fs.mkdirSync(realDir, { recursive: true });
+    try {
+      fs.symlinkSync(path.resolve(realDir), linkDir, 'junction');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') return;
+      throw error;
+    }
+
+    try {
+      expect(() => createNodeFsSyncStorage({ dir: linkDir })).toThrow(
+        'Storage root must be a real directory',
+      );
+    } finally {
+      fs.rmSync(linkDir, { recursive: true, force: true });
+      fs.rmSync(realDir, { recursive: true, force: true });
+    }
   });
 });

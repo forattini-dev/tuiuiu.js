@@ -390,18 +390,20 @@ DataTable({
   {
     name: 'VirtualDataTable',
     category: 'organisms',
-    description: 'DataTable variant with virtual scrolling for very large datasets.',
+    description: 'Experimental DataTable facade. Currently paginates visible rows; true virtual scrolling is not implemented. Import from tuiuiu.js/experimental.',
     props: [
       { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions' },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Row data' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
+      { name: 'visibleRows', type: 'number', required: false, default: '20', description: 'Rows per fallback page' },
       { name: 'rowHeight', type: 'number', required: false, default: '1', description: 'Row height' },
     ],
     examples: [
-      `VirtualDataTable({
+      `import { VirtualDataTable } from 'tuiuiu.js/experimental'
+
+VirtualDataTable({
   columns: columns,
-  data: largeDataset,  // 10k+ rows
-  height: 30,
+  data: largeDataset,
+  visibleRows: 30,
 })`,
     ],
   },
@@ -936,7 +938,7 @@ ScrollList({
   {
     name: 'EditableDataTable',
     category: 'organisms',
-    description: 'DataTable with inline cell editing support. Extends DataTable with editable columns.',
+    description: 'Experimental read-only facade for a future editable table. Inline editing callbacks are not implemented yet. Import from tuiuiu.js/experimental.',
     props: [
       { name: 'data', type: 'T[]', required: true, description: 'Array of row data objects' },
       { name: 'columns', type: 'EditableColumn<T>[]', required: true, description: 'Column definitions with edit configuration' },
@@ -945,7 +947,13 @@ ScrollList({
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation and editing' },
     ],
     examples: [
-      `EditableDataTable({\n  data: users(),\n  columns: [\n    { key: 'name', header: 'Name', editable: true },\n    { key: 'email', header: 'Email', editable: true },\n    { key: 'role', header: 'Role', editable: true, options: ['admin', 'user'] },\n  ],\n  height: 10,\n  onCellEdit: (row, key, value) => updateUser(row.id, { [key]: value }),\n})`,
+      `import { EditableDataTable } from 'tuiuiu.js/experimental'
+
+// Currently renders read-only while the editing contract is experimental.
+EditableDataTable({
+  data: users(),
+  columns: [{ key: 'name', header: 'Name', editable: true }],
+})`,
     ],
     relatedComponents: ['DataTable'],
   },

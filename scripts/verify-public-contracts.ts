@@ -20,7 +20,7 @@ function runCommand(command: string, args: string[]): void {
   const result = spawnSync(command, args, {
     cwd: rootDir,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: false,
   });
 
   if (result.status !== 0) {
@@ -166,9 +166,8 @@ function compileCuratedExamples(): void {
     fail('No curated examples are marked for validation.');
   }
 
-  runCommand('pnpm', [
-    'exec',
-    'tsc',
+  runCommand(process.execPath, [
+    path.join(rootDir, 'node_modules', 'typescript', 'bin', 'tsc'),
     '--noEmit',
     '--module',
     'NodeNext',

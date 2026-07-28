@@ -80,6 +80,18 @@ describe('Text Utilities', () => {
     });
   });
 
+  describe('Unicode grapheme widths', () => {
+    it('should measure emoji grapheme clusters as one terminal glyph', () => {
+      expect(stringWidth('\u{1F44D}\u{1F3FD}')).toBe(2);
+      expect(stringWidth('\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}')).toBe(2);
+      expect(stringWidth('\u{1F1E7}\u{1F1F7}')).toBe(2);
+    });
+
+    it('should ignore non-SGR terminal protocols', () => {
+      expect(stringWidth('a\x1b[2Jb\x1b]2;title\x07c')).toBe(3);
+    });
+  });
+
   describe('wrapText', () => {
     it('should wrap long lines', () => {
       const result = wrapText('hello world foo bar', 10);

@@ -116,4 +116,42 @@ describe('image-file helpers', () => {
       /Decoded RGBA size mismatch/,
     );
   });
+
+  it('rejects unsafe image dimensions before invoking ffmpeg', async () => {
+    const filePath = await createTempImagePath();
+    const commands: string[] = [];
+    const commandRunner: ImageFileCommandRunner = async (command) => {
+      commands.push(command);
+      return JSON.stringify({ streams: [{ width: 100_000, height: 100_000 }] });
+    };
+
+    await expect(loadImageFile(filePath, { commandRunner })).rejects.toThrow(
+      /exceed configured limits/u,
+    );
+    expect(commands).toEqual(['ffprobe']);
+  });
+
+  it('passes timeout and abort controls to subprocess runners', async () => {
+    const filePath = await createTempImagePath();
+    const abortController = new AbortController();
+    const seenOptions: Array<{ timeoutMs?: number; signal?: AbortSignal }> = [];
+    const commandRunner: ImageFileCommandRunner = async (command, _args, options) => {
+      seenOptions.push(options ?? {});
+      if (command === 'ffprobe') {
+        return JSON.stringify({ streams: [{ width: 1, height: 1 }] });
+      }
+      return Buffer.alloc(4);
+    };
+
+    await loadImageFile(filePath, {
+      commandRunner,
+      timeoutMs: 321,
+      signal: abortController.signal,
+    });
+
+    expect(seenOptions).toHaveLength(2);
+    expect(seenOptions.every((options) =>
+      options.timeoutMs === 321 && options.signal === abortController.signal
+    )).toBe(true);
+  });
 });

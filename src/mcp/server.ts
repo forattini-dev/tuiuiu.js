@@ -19,6 +19,8 @@
 
 import * as readline from 'node:readline';
 import * as http from 'node:http';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { getVersion } from '../version.js';
 import {
   allComponents,
@@ -77,7 +79,143 @@ import type {
 export interface MCPServerOptions {
   transport?: 'stdio' | 'http' | 'sse';
   port?: number;
+  /** Network interface for HTTP/SSE (default: 127.0.0.1). */
+  host?: string;
+  /** Bearer token required by HTTP/SSE clients. */
+  authToken?: string;
+  /** Explicit browser origins allowed to call HTTP/SSE endpoints. */
+  allowedOrigins?: string[];
+  /** Maximum JSON request body size (default: 1 MiB). */
+  maxRequestBytes?: number;
+  /** Maximum time to receive a request body (default: 30s). */
+  requestTimeoutMs?: number;
+  /** Maximum simultaneous HTTP requests (default: 32). */
+  maxConcurrentRequests?: number;
+  /** Maximum live SSE sessions (default: 64). */
+  maxSseConnections?: number;
   debug?: boolean;
+}
+
+class HttpRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.toLowerCase().replace(/^\[|\]$/g, '');
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1';
+}
+
+function tokensMatch(actual: string, expected: string): boolean {
+  const actualDigest = createHash('sha256').update(actual).digest();
+  const expectedDigest = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(actualDigest, expectedDigest);
+}
+
+function writeJson(
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+): void {
+  if (res.writableEnded) return;
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(JSON.stringify(body));
+}
+
+function jsonRpcError(status: number, code: number, message: string): {
+  status: number;
+  body: JsonRpcResponse;
+} {
+  return {
+    status,
+    body: {
+      jsonrpc: '2.0',
+      id: 0,
+      error: { code, message },
+    },
+  };
+}
+
+function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
+  if (!value || typeof value !== 'object') return false;
+  const request = value as Partial<JsonRpcRequest>;
+  return request.jsonrpc === '2.0' && typeof request.method === 'string' &&
+    request.method.length > 0;
+}
+
+function readJsonRequest(
+  req: http.IncomingMessage,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<JsonRpcRequest> {
+  return new Promise((resolve, reject) => {
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      req.resume();
+      reject(new HttpRequestError(413, 'Request body too large'));
+      return;
+    }
+
+    let size = 0;
+    const chunks: Buffer[] = [];
+    let settled = false;
+    const timer = setTimeout(() => {
+      fail(new HttpRequestError(408, 'Request body timed out'));
+    }, Math.max(0, timeoutMs));
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      req.off('data', onData);
+      req.off('end', onEnd);
+      req.off('aborted', onAborted);
+      req.off('error', onError);
+    };
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      req.resume();
+      reject(error);
+    };
+    const onData = (chunk: Buffer | string) => {
+      const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      size += buffer.length;
+      if (size > maxBytes) {
+        fail(new HttpRequestError(413, 'Request body too large'));
+        return;
+      }
+      chunks.push(buffer);
+    };
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!isJsonRpcRequest(parsed)) {
+          reject(new HttpRequestError(400, 'Invalid JSON-RPC request'));
+          return;
+        }
+        resolve(parsed);
+      } catch {
+        reject(new HttpRequestError(400, 'Parse error'));
+      }
+    };
+    const onAborted = () => fail(new HttpRequestError(400, 'Request aborted'));
+    const onError = (error: Error) => fail(error);
+
+    req.on('data', onData);
+    req.once('end', onEnd);
+    req.once('aborted', onAborted);
+    req.once('error', onError);
+  });
 }
 
 // =============================================================================
@@ -1280,11 +1418,23 @@ export class MCPServer {
   private version: string = '0.0.0';
   private logSender: LogSender | null = null;
   private logger = nullLogger;
+  private networkServer: http.Server | null = null;
+  private stdioInterface: readline.Interface | null = null;
+  private sseSessions = new Map<string, http.ServerResponse>();
+  private activeRequests = 0;
+  private notificationContext =
+    new AsyncLocalStorage<(notification: JsonRpcNotification) => void>();
 
   constructor(options: MCPServerOptions = {}) {
     this.options = {
       transport: 'stdio',
       port: 3200,
+      host: '127.0.0.1',
+      allowedOrigins: [],
+      maxRequestBytes: 1024 * 1024,
+      requestTimeoutMs: 30_000,
+      maxConcurrentRequests: 32,
+      maxSseConnections: 64,
       debug: false,
       ...options,
     };
@@ -1298,10 +1448,31 @@ export class MCPServer {
   }
 
   private sendNotification(notification: JsonRpcNotification): void {
-    // Subclasses/transport implementations will override this
+    this.notificationContext.getStore()?.(notification);
+  }
+
+  private dispatchRequest(
+    request: JsonRpcRequest,
+    sender?: (notification: JsonRpcNotification) => void,
+  ): Promise<JsonRpcResponse> {
+    if (!sender) return this.handleRequest(request);
+    return this.notificationContext.run(sender, () => this.handleRequest(request));
   }
 
   async start(): Promise<void> {
+    if (this.networkServer || this.stdioInterface) {
+      throw new Error('MCP server is already running');
+    }
+    if (
+      this.options.transport !== 'stdio' &&
+      !isLoopbackHost(this.options.host!) &&
+      !this.options.authToken
+    ) {
+      throw new Error(
+        'MCP HTTP/SSE requires authToken when host is not a loopback interface',
+      );
+    }
+
     this.version = await getVersion();
     this.log(`Starting Tuiuiu MCP Server v${this.version}`);
     this.log(`Transport: ${this.options.transport}`);
@@ -1320,12 +1491,15 @@ export class MCPServer {
       input: process.stdin,
       terminal: false,
     });
+    this.stdioInterface = rl;
 
     rl.on('line', async (line) => {
       try {
         const request = JSON.parse(line) as JsonRpcRequest;
         this.log(`Request: ${request.method}`);
-        const response = await this.handleRequest(request);
+        const response = await this.dispatchRequest(request, (notification) => {
+          process.stdout.write(JSON.stringify(notification) + '\n');
+        });
         process.stdout.write(JSON.stringify(response) + '\n');
       } catch (error) {
         const errorResponse: JsonRpcResponse = {
@@ -1344,88 +1518,190 @@ export class MCPServer {
     this.log('Listening on stdio...');
   }
 
+  /** Stop accepting requests and close all transport resources. */
+  async stop(): Promise<void> {
+    this.stdioInterface?.close();
+    this.stdioInterface = null;
+
+    for (const response of this.sseSessions.values()) {
+      if (!response.writableEnded) response.end();
+    }
+    this.sseSessions.clear();
+
+    const server = this.networkServer;
+    this.networkServer = null;
+    if (!server) return;
+    const closed = new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+    server.closeAllConnections?.();
+    await closed;
+  }
+
+  /** Return the bound network address after an HTTP/SSE server starts. */
+  getAddress(): { address: string; port: number } | null {
+    const address = this.networkServer?.address();
+    if (!address || typeof address === 'string') return null;
+    return { address: address.address, port: address.port };
+  }
+
+  private authorize(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const expected = this.options.authToken;
+    if (!expected) return true;
+    const authorization = req.headers.authorization ?? '';
+    const actual = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    if (actual && tokensMatch(actual, expected)) return true;
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    writeJson(res, 401, { error: 'Unauthorized' });
+    return false;
+  }
+
+  private applyCors(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const origin = req.headers.origin;
+    if (!origin) return true;
+    if (!(this.options.allowedOrigins ?? []).includes(origin)) {
+      writeJson(res, 403, { error: 'Origin not allowed' });
+      return false;
+    }
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return true;
+  }
+
+  private async acceptRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<{ request: JsonRpcRequest; release: () => void } | null> {
+    const contentType = req.headers['content-type'] ?? '';
+    if (!contentType.toLowerCase().startsWith('application/json')) {
+      writeJson(res, 415, { error: 'Content-Type must be application/json' });
+      req.resume();
+      return null;
+    }
+    if (this.activeRequests >= this.options.maxConcurrentRequests!) {
+      writeJson(res, 503, { error: 'Too many concurrent requests' });
+      req.resume();
+      return null;
+    }
+    this.activeRequests++;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      this.activeRequests--;
+    };
+    try {
+      const request = await readJsonRequest(
+        req,
+        this.options.maxRequestBytes!,
+        this.options.requestTimeoutMs!,
+      );
+      return { request, release };
+    } catch (error) {
+      release();
+      const requestError = error instanceof HttpRequestError
+        ? error
+        : new HttpRequestError(400, 'Invalid request');
+      const rpcError = jsonRpcError(
+        requestError.status,
+        requestError.status === 413 ? -32001 : -32700,
+        requestError.message,
+      );
+      writeJson(res, rpcError.status, rpcError.body);
+      return null;
+    }
+  }
+
+  private listen(server: http.Server): Promise<void> {
+    server.requestTimeout = Math.max(1, this.options.requestTimeoutMs! + 1000);
+    server.headersTimeout = Math.max(1, this.options.requestTimeoutMs!);
+    server.maxHeadersCount = 100;
+    this.networkServer = server;
+    return new Promise((resolve, reject) => {
+      const onError = (error: Error) => {
+        this.networkServer = null;
+        reject(error);
+      };
+      server.once('error', onError);
+      server.listen(this.options.port!, this.options.host!, () => {
+        server.off('error', onError);
+        resolve();
+      });
+    });
+  }
+
   private async startHttp(): Promise<void> {
     const server = http.createServer(async (req, res) => {
-      // CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+      if (!this.applyCors(req, res)) return;
       if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
         return;
       }
+      if (!this.authorize(req, res)) return;
 
-      // Health check
       if (req.method === 'GET' && req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
+        writeJson(res, 200, {
           status: 'ok',
           name: 'tuiuiu',
           version: this.version,
           components: allComponents.length,
           hooks: allHooks.length,
           themes: allThemes.length,
-        }));
-        return;
-      }
-
-      // MCP requests
-      if (req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', async () => {
-          try {
-            const request = JSON.parse(body) as JsonRpcRequest;
-            this.log(`Request: ${request.method}`);
-            const response = await this.handleRequest(request);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(response));
-          } catch (error) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              jsonrpc: '2.0',
-              id: 0,
-              error: { code: -32700, message: 'Parse error' },
-            }));
-          }
         });
         return;
       }
 
-      res.writeHead(404);
-      res.end('Not Found');
+      if (
+        req.method === 'POST' &&
+        (req.url === '/' || req.url === '/mcp')
+      ) {
+        const accepted = await this.acceptRequest(req, res);
+        if (!accepted) return;
+        try {
+          this.log(`Request: ${accepted.request.method}`);
+          const response = await this.dispatchRequest(accepted.request);
+          writeJson(res, 200, response);
+        } catch {
+          const rpcError = jsonRpcError(500, -32603, 'Internal error');
+          writeJson(res, rpcError.status, rpcError.body);
+        } finally {
+          accepted.release();
+        }
+        return;
+      }
+
+      writeJson(res, 404, { error: 'Not Found' });
     });
 
-    const port = this.options.port!;
-    server.listen(port, () => {
-      console.log(`Tuiuiu MCP Server v${this.version}`);
-      console.log(`Listening on http://localhost:${port}`);
-      console.log(`Health: http://localhost:${port}/health`);
-    });
+    await this.listen(server);
+    const address = this.getAddress()!;
+    console.log(`Tuiuiu MCP Server v${this.version}`);
+    console.log(`Listening on http://${this.options.host}:${address.port}`);
+    console.log(`Health: http://${this.options.host}:${address.port}/health`);
   }
 
   private async startSse(): Promise<void> {
-    // Track active SSE connections for broadcasting notifications
-    const sseConnections = new Set<http.ServerResponse>();
-
     const server = http.createServer(async (req, res) => {
-      // CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+      if (!this.applyCors(req, res)) return;
       if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
         return;
       }
+      if (!this.authorize(req, res)) return;
+
+      // The request Host header is untrusted and is not needed for path routing.
+      const url = new URL(req.url ?? '/', 'http://localhost');
 
       // Health check
-      if (req.method === 'GET' && req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
+      if (req.method === 'GET' && url.pathname === '/health') {
+        writeJson(res, 200, {
           status: 'ok',
           name: 'tuiuiu',
           version: this.version,
@@ -1433,24 +1709,26 @@ export class MCPServer {
           components: allComponents.length,
           hooks: allHooks.length,
           themes: allThemes.length,
-        }));
+        });
         return;
       }
 
       // SSE endpoint - client connects here to receive server events
-      if (req.method === 'GET' && req.url === '/sse') {
+      if (req.method === 'GET' && url.pathname === '/sse') {
+        if (this.sseSessions.size >= this.options.maxSseConnections!) {
+          writeJson(res, 503, { error: 'Too many SSE connections' });
+          return;
+        }
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
+          'X-Content-Type-Options': 'nosniff',
         });
 
-        // Add to active connections
-        sseConnections.add(res);
-        this.log(`SSE client connected (${sseConnections.size} active)`);
-
-        // Send initial connection event with endpoint info
-        const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const sessionId = randomUUID();
+        this.sseSessions.set(sessionId, res);
+        this.log(`SSE client connected (${this.sseSessions.size} active)`);
         res.write(`event: endpoint\ndata: ${JSON.stringify({
           endpoint: `/message?sessionId=${sessionId}`,
           sessionId
@@ -1459,63 +1737,73 @@ export class MCPServer {
         // Keep-alive ping every 30 seconds
         const pingInterval = setInterval(() => {
           if (!res.writableEnded) {
-            res.write(': ping\n\n');
+            if (!res.write(': ping\n\n')) {
+              res.destroy();
+              this.sseSessions.delete(sessionId);
+            }
           }
         }, 30000);
 
         // Handle client disconnect
         req.on('close', () => {
-          sseConnections.delete(res);
+          if (this.sseSessions.get(sessionId) === res) {
+            this.sseSessions.delete(sessionId);
+          }
           clearInterval(pingInterval);
-          this.log(`SSE client disconnected (${sseConnections.size} active)`);
+          this.log(`SSE client disconnected (${this.sseSessions.size} active)`);
         });
 
         return;
       }
 
       // Message endpoint - client sends requests here
-      if (req.method === 'POST' && (req.url === '/message' || req.url?.startsWith('/message?'))) {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', async () => {
-          try {
-            const request = JSON.parse(body) as JsonRpcRequest;
-            this.log(`SSE Request: ${request.method}`);
-            const response = await this.handleRequest(request);
+      if (req.method === 'POST' && url.pathname === '/message') {
+        const sessionId = url.searchParams.get('sessionId');
+        const connection = sessionId ? this.sseSessions.get(sessionId) : undefined;
+        if (!connection || connection.writableEnded) {
+          writeJson(res, 404, { error: 'Unknown SSE session' });
+          return;
+        }
 
-            // Also broadcast response to all SSE connections as an event
-            const eventData = JSON.stringify(response);
-            for (const conn of sseConnections) {
-              if (!conn.writableEnded) {
-                conn.write(`event: message\ndata: ${eventData}\n\n`);
-              }
+        const accepted = await this.acceptRequest(req, res);
+        if (!accepted) return;
+        try {
+          this.log(`SSE Request: ${accepted.request.method}`);
+          const sendEvent = (notification: JsonRpcNotification) => {
+            if (!connection.write(
+              `event: message\ndata: ${JSON.stringify(notification)}\n\n`,
+            )) {
+              connection.destroy();
+              if (sessionId) this.sseSessions.delete(sessionId);
             }
-
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(response));
-          } catch (error) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              jsonrpc: '2.0',
-              id: 0,
-              error: { code: -32700, message: 'Parse error' },
-            }));
+          };
+          const response = await this.dispatchRequest(accepted.request, sendEvent);
+          if (!connection.write(
+            `event: message\ndata: ${JSON.stringify(response)}\n\n`,
+          )) {
+            connection.destroy();
+            if (sessionId) this.sseSessions.delete(sessionId);
           }
-        });
+          writeJson(res, 200, response);
+        } catch {
+          const rpcError = jsonRpcError(500, -32603, 'Internal error');
+          writeJson(res, rpcError.status, rpcError.body);
+        } finally {
+          accepted.release();
+        }
         return;
       }
 
-      res.writeHead(404);
-      res.end('Not Found');
+      writeJson(res, 404, { error: 'Not Found' });
     });
 
-    const port = this.options.port!;
-    server.listen(port, () => {
-      console.log(`Tuiuiu MCP Server v${this.version} (SSE)`);
-      console.log(`SSE endpoint: http://localhost:${port}/sse`);
-      console.log(`Message endpoint: http://localhost:${port}/message`);
-      console.log(`Health: http://localhost:${port}/health`);
-    });
+    await this.listen(server);
+    const address = this.getAddress()!;
+    const baseUrl = `http://${this.options.host}:${address.port}`;
+    console.log(`Tuiuiu MCP Server v${this.version} (SSE)`);
+    console.log(`SSE endpoint: ${baseUrl}/sse`);
+    console.log(`Message endpoint: ${baseUrl}/message`);
+    console.log(`Health: ${baseUrl}/health`);
   }
 
   private async handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {

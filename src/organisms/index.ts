@@ -207,8 +207,6 @@ export {
 export {
   // Components
   DataTable,
-  VirtualDataTable,
-  EditableDataTable,
   useDataTableState,
   // State factory
   createDataTable,
@@ -218,9 +216,6 @@ export {
   type DataTableOptions,
   type DataTableState,
   type DataTableProps,
-  type VirtualDataTableOptions,
-  type EditableColumn,
-  type EditableDataTableOptions,
 } from './data-table.js';
 
 // =============================================================================

@@ -168,6 +168,6 @@ These counters are especially useful when you are trying to preserve stable subt
 
 The perf inspector contract is covered by:
 
-- [tests/core/perf-inspector.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/perf-inspector.test.ts)
-- [tests/app/render-loop.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/app/render-loop.test.ts)
-- [tests/core/delta-render.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/delta-render.test.ts)
+- [tests/core/perf-inspector.test.ts](../../tests/core/perf-inspector.test.ts)
+- [tests/app/render-loop.test.ts](../../tests/app/render-loop.test.ts)
+- [tests/core/delta-render.test.ts](../../tests/core/delta-render.test.ts)

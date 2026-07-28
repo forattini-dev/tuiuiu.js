@@ -13,6 +13,11 @@ import type { TerminalCapabilities } from './capabilities.js';
 import { getCapabilities } from './capabilities.js';
 import type { Color } from './buffer.js';
 import { colorToAnsi } from './buffer.js';
+import {
+  sanitizeOsc777Field,
+  sanitizeOscField,
+  sanitizeTerminalLabel,
+} from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Passthrough / Multiplexer Wrapping
@@ -125,7 +130,7 @@ export function setWindowTitle(title: string, caps?: TerminalCapabilities): stri
   const c = caps ?? getCapabilities();
   if (!c.windowTitle) return '';
   // OSC 2 ; title ST
-  return passthroughWrap(`\x1b]2;${title}\x07`, c.multiplexer);
+  return passthroughWrap(`\x1b]2;${sanitizeOscField(title)}\x07`, c.multiplexer);
 }
 
 // =============================================================================
@@ -161,11 +166,15 @@ export function getClipboardQuerySequence(caps?: TerminalCapabilities): string |
  */
 export function formatHyperlink(text: string, url: string, caps?: TerminalCapabilities): string {
   const c = caps ?? getCapabilities();
+  const safeText = sanitizeTerminalLabel(text);
   if (!hyperlinksEnabled || !c.hyperlinks) {
-    return text;
+    return safeText;
   }
 
-  return passthroughWrap(`\x1b]8;;${url}\x07${text}\x1b]8;;\x07`, c.multiplexer);
+  return passthroughWrap(
+    `\x1b]8;;${sanitizeOscField(url)}\x07${safeText}\x1b]8;;\x07`,
+    c.multiplexer,
+  );
 }
 
 // =============================================================================
@@ -187,16 +196,26 @@ export function getNotificationSequence(
   switch (c.notifications) {
     case 'osc9':
       // iTerm2/WezTerm: OSC 9 ; message ST
-      return passthroughWrap(`\x1b]9;${body ? `${title}: ${body}` : title}\x07`, c.multiplexer);
+      return passthroughWrap(
+        `\x1b]9;${sanitizeOscField(body ? `${title}: ${body}` : title)}\x07`,
+        c.multiplexer,
+      );
     case 'osc99':
       // Kitty: OSC 99 ; i=1:d=0:p=title ; body ST
       if (body) {
-        return passthroughWrap(`\x1b]99;i=1:d=0:p=body;${title}\x07\x1b]99;i=1:d=1:p=body;${body}\x07`, c.multiplexer);
+        return passthroughWrap(
+          `\x1b]99;i=1:d=0:p=body;${sanitizeOscField(title)}\x07` +
+          `\x1b]99;i=1:d=1:p=body;${sanitizeOscField(body)}\x07`,
+          c.multiplexer,
+        );
       }
-      return passthroughWrap(`\x1b]99;i=1:d=0;${title}\x07`, c.multiplexer);
+      return passthroughWrap(`\x1b]99;i=1:d=0;${sanitizeOscField(title)}\x07`, c.multiplexer);
     case 'osc777':
       // Foot/Tilix: OSC 777 ; notify ; title ; body ST
-      return passthroughWrap(`\x1b]777;notify;${title};${body || ''}\x07`, c.multiplexer);
+      return passthroughWrap(
+        `\x1b]777;notify;${sanitizeOsc777Field(title)};${sanitizeOsc777Field(body || '')}\x07`,
+        c.multiplexer,
+      );
   }
 }
 

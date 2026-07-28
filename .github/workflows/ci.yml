@@ -1,359 +1,254 @@
-name: CI/CD Pipeline
+name: CI and release
 
 on:
   push:
-    branches: ['main']
+    branches: [main]
     tags: ['v*']
   pull_request:
-    branches: ['main']
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish-next:
+        description: Publish an explicit prerelease to the next tag
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   quality:
-    name: Quality Check
-    runs-on: ubuntu-latest
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [22, 24]
-
+        include:
+          - os: ubuntu-latest
+            node: 22
+          - os: ubuntu-latest
+            node: 24
+          - os: windows-latest
+            node: 24
+          - os: macos-latest
+            node: 24
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
         with:
-          version: 9
+          version: 11.9.0
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: ${{ matrix.node-version }}
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: ${{ matrix.node }}
+          cache: pnpm
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type Check & Build
-        run: |
-          pnpm run typecheck
-          pnpm run build
+      - name: Lint
+        run: pnpm lint
 
-      - name: Run Tests
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
         run: pnpm test:run
 
-  release-next:
-    name: Release Next
-    needs: quality
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main'
+      - name: Verify public contracts
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: pnpm verify:contracts
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit all dependencies
+        run: pnpm audit --audit-level high
+
+  benchmark:
+    name: Performance regression suite
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run benchmarks
+        run: pnpm test:performance
+        env:
+          TUIUIU_RUN_BENCHMARKS: 'true'
+
+  publish-npm:
+    name: Publish npm
+    needs: [quality, audit]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs['publish-next'])
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js for npm
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select release version
+        id: release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+            test "$VERSION" = "$PACKAGE_VERSION" || {
+              echo "Tag v$VERSION does not match package version $PACKAGE_VERSION" >&2
+              exit 1
+            }
+            echo "channel=latest" >> "$GITHUB_OUTPUT"
+          else
+            VERSION="$(node -p "require('./package.json').version")-next.${GITHUB_SHA::12}"
+            npm pkg set "version=$VERSION"
+            echo "channel=next" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Inspect package contents
+        run: npm pack --dry-run
+
+      - name: Publish with trusted publishing
+        run: npm publish --access public --tag "${{ steps.release.outputs.channel }}"
+
+  publish-github:
+    name: Publish GitHub package
+    needs: [quality, audit]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs['publish-next'])
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@forattini-dev'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare package identity
+        id: release
+        shell: bash
+        run: |
+          npm pkg set "name=@forattini-dev/tuiuiu.js"
+          npm pkg set "publishConfig.registry=https://npm.pkg.github.com"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+            test "$VERSION" = "$PACKAGE_VERSION" || {
+              echo "Tag v$VERSION does not match package version $PACKAGE_VERSION" >&2
+              exit 1
+            }
+            echo "channel=latest" >> "$GITHUB_OUTPUT"
+          else
+            VERSION="$(node -p "require('./package.json').version")-next.${GITHUB_SHA::12}"
+            npm pkg set "version=$VERSION"
+            echo "channel=next" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Publish to GitHub Packages
+        run: npm publish --access public --tag "${{ steps.release.outputs.channel }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+
+  github-release:
+    name: Create GitHub release
+    needs: [publish-npm, publish-github]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
-
-    steps:
-      - name: Check if version bump commit
-        id: check
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          # Get only the first line of the commit message
-          FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
-          if [[ "$FIRST_LINE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "Skipping: commit message '$FIRST_LINE' is a version bump"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        if: steps.check.outputs.skip != 'true'
-        uses: pnpm/action-setup@v5
-        with:
-          version: 9
-
-      - name: Setup Node.js (NPM Registry)
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
-
-      - name: Install Dependencies
-        if: steps.check.outputs.skip != 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Bump Version (Next)
-        if: steps.check.outputs.skip != 'true'
-        id: version
-        run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          SHA=$(git rev-parse --short HEAD)
-          BASE_VERSION=$(echo $CURRENT_VERSION | cut -d'-' -f1)
-          NEW_VERSION="$BASE_VERSION-next.$SHA"
-
-          echo "New version: $NEW_VERSION"
-          npm version $NEW_VERSION --no-git-tag-version
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Build
-        if: steps.check.outputs.skip != 'true'
-        run: pnpm run build
-
-      - name: Publish to NPM (Next)
-        if: steps.check.outputs.skip != 'true'
-        run: pnpm publish --tag next --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Setup Node.js (GitHub Packages)
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@forattini-dev'
-
-      - name: Publish to GitHub Packages (Next)
-        if: steps.check.outputs.skip != 'true'
-        run: |
-          node -e "
-            const pkg = require('./package.json');
-            pkg.name = '@forattini-dev/tuiuiu.js';
-            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
-            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-          pnpm publish --tag next --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Job Summary
-        if: steps.check.outputs.skip != 'true'
-        run: |
-          echo "## 🚀 Next Release Published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | \`${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tag** | \`next\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | [\`${GITHUB_SHA::7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Installation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "# NPM" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu.js@next" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# PNPM" >> $GITHUB_STEP_SUMMARY
-          echo "pnpm add tuiuiu.js@next" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Specific version" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu.js@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu.js?activeTab=versions)" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY
-
-      - name: Skip Summary
-        if: steps.check.outputs.skip == 'true'
-        run: |
-          echo "## ⏭️ Release Skipped" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version bump commit detected. Skipping @next release." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The stable release will be published via the tag workflow." >> $GITHUB_STEP_SUMMARY
-
-  release-stable:
-    name: Release Stable
-    needs: quality
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Create release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          version: 9
-
-      - name: Setup Node.js (NPM Registry)
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Publish to NPM (Stable)
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Setup Node.js (GitHub Packages)
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@forattini-dev'
-
-      - name: Publish to GitHub Packages (Stable)
-        run: |
-          node -e "
-            const pkg = require('./package.json');
-            pkg.name = '@forattini-dev/tuiuiu.js';
-            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
-            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-          pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate Changelog
-        id: changelog
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          CURRENT_TAG=${GITHUB_REF#refs/tags/}
-
-          echo "## What's Changed" > CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-
-          if [ -n "$PREV_TAG" ]; then
-            echo "Changes since $PREV_TAG:" >> CHANGELOG_BODY.md
-            echo "" >> CHANGELOG_BODY.md
-
-            FEATURES=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --grep="^feat" 2>/dev/null || true)
-            if [ -n "$FEATURES" ]; then
-              echo "### 🚀 Features" >> CHANGELOG_BODY.md
-              echo "$FEATURES" >> CHANGELOG_BODY.md
-              echo "" >> CHANGELOG_BODY.md
-            fi
-
-            FIXES=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --grep="^fix" 2>/dev/null || true)
-            if [ -n "$FIXES" ]; then
-              echo "### 🐛 Bug Fixes" >> CHANGELOG_BODY.md
-              echo "$FIXES" >> CHANGELOG_BODY.md
-              echo "" >> CHANGELOG_BODY.md
-            fi
-
-            DOCS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --grep="^docs" 2>/dev/null || true)
-            if [ -n "$DOCS" ]; then
-              echo "### 📚 Documentation" >> CHANGELOG_BODY.md
-              echo "$DOCS" >> CHANGELOG_BODY.md
-              echo "" >> CHANGELOG_BODY.md
-            fi
-
-            TESTS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --grep="^test" 2>/dev/null || true)
-            if [ -n "$TESTS" ]; then
-              echo "### ✅ Tests" >> CHANGELOG_BODY.md
-              echo "$TESTS" >> CHANGELOG_BODY.md
-              echo "" >> CHANGELOG_BODY.md
-            fi
-
-            CHORE=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --grep="^ci\|^chore" 2>/dev/null || true)
-            if [ -n "$CHORE" ]; then
-              echo "### 🔧 Maintenance" >> CHANGELOG_BODY.md
-              echo "$CHORE" >> CHANGELOG_BODY.md
-              echo "" >> CHANGELOG_BODY.md
-            fi
-
-            echo "### 👥 Contributors" >> CHANGELOG_BODY.md
-            CONTRIBUTORS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/compare/$PREV_TAG...$CURRENT_TAG" \
-              | jq -r '.commits[].author.login // empty' | sort -u | grep -v '^$' || true)
-            if [ -n "$CONTRIBUTORS" ]; then
-              echo "$CONTRIBUTORS" | while read -r user; do
-                if [[ ! "$user" =~ \  ]]; then
-                  echo "- @$user" >> CHANGELOG_BODY.md
-                else
-                  echo "- $user" >> CHANGELOG_BODY.md
-                fi
-              done
-            else
-              git log $PREV_TAG..HEAD --pretty=format:"- %an" | sort -u >> CHANGELOG_BODY.md
-            fi
-            echo "" >> CHANGELOG_BODY.md
-          else
-            echo "Initial release! 🎉" >> CHANGELOG_BODY.md
-          fi
-
-          echo "" >> CHANGELOG_BODY.md
-          echo "---" >> CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$CURRENT_TAG" >> CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-          echo "## 📦 Installation" >> CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-          echo "\`\`\`bash" >> CHANGELOG_BODY.md
-          echo "# NPM" >> CHANGELOG_BODY.md
-          echo "npm install tuiuiu.js@$CURRENT_TAG" >> CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-          echo "# PNPM" >> CHANGELOG_BODY.md
-          echo "pnpm add tuiuiu.js@$CURRENT_TAG" >> CHANGELOG_BODY.md
-          echo "" >> CHANGELOG_BODY.md
-          echo "# GitHub Packages" >> CHANGELOG_BODY.md
-          echo "npm install @forattini-dev/tuiuiu.js@$CURRENT_TAG --registry=https://npm.pkg.github.com" >> CHANGELOG_BODY.md
-          echo "\`\`\`" >> CHANGELOG_BODY.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: CHANGELOG_BODY.md
-          draft: false
-          prerelease: false
-          generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Job Summary
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "## 🎉 Stable Release Published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | \`$VERSION\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tag** | \`latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Git Tag** | [\`v$VERSION\`](${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Installation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "# NPM (latest)" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu.js" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# PNPM" >> $GITHUB_STEP_SUMMARY
-          echo "pnpm add tuiuiu.js" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Specific version" >> $GITHUB_STEP_SUMMARY
-          echo "npm install tuiuiu.js@$VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
-          echo "- [NPM Package](https://www.npmjs.com/package/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/npm/tuiuiu.js)" >> $GITHUB_STEP_SUMMARY
+          generate_release_notes: true

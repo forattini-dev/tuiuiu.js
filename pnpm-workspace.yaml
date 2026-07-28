@@ -1,0 +1,13 @@
+packages:
+  - '.'
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  '@napi-rs/wasm-runtime': 1.1.6
+  esbuild: ^0.28.1
+  happy-dom: ^20.11.1
+  picomatch: ^4.0.5
+  postcss: 8.5.23
+  vite: ^8.1.5

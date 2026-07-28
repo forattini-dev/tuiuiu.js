@@ -182,6 +182,19 @@ describe('createAutocomplete', () => {
   });
 
   describe('Suggestions', () => {
+    it('should navigate suggestions in both directions with wrapping', () => {
+      const state = createTagInput({ items: sampleItems });
+      state.setInput('a');
+      expect(state.suggestions().length).toBeGreaterThan(1);
+
+      state.selectPrevious();
+      expect(state.selectedIndex()).toBe(state.suggestions().length - 1);
+      state.selectNext();
+      expect(state.selectedIndex()).toBe(0);
+      state.selectNext();
+      expect(state.selectedIndex()).toBe(1);
+    });
+
     it('should filter suggestions by query', () => {
       const state = createAutocomplete({ items: sampleItems });
 

@@ -15,6 +15,7 @@ import type { VNode, TextStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
 import { getVisibleWidth } from './layout.js';
 import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
+import { readTerminalSequence } from '../utils/terminal-sanitize.js';
 import {
   CellBuffer,
   DoubleBuffer,
@@ -619,7 +620,7 @@ function getTextCommandBounds(command: DrawTextCommand): DamageRect {
   let maxLineWidth = 0;
   let lastInkRow = -1;
 
-  if (command.text.includes('\x1b[')) {
+  if (command.text.includes('\x1b')) {
     const segments = parseAnsiText(command.text);
     let row = 0;
     let col = 0;
@@ -1117,23 +1118,23 @@ function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: 
 
   let i = 0;
   while (i < text.length) {
-    // Check for ANSI escape sequence
-    if (text[i] === '\x1b' && text[i + 1] === '[') {
+    // Consume all terminal protocols, but interpret only strictly-valid SGR.
+    if (text[i] === '\x1b') {
+      const sequence = readTerminalSequence(text, i);
+      if (!sequence) {
+        i++;
+        continue;
+      }
+
       // Flush current text
       if (currentText) {
         segments.push({ text: currentText, fg: currentFg, bg: currentBg, attrs: { ...currentAttrs } });
         currentText = '';
       }
 
-      // Find end of ANSI sequence
-      let j = i + 2;
-      while (j < text.length && !/[A-Za-z]/.test(text[j]!)) {
-        j++;
-      }
-
-      if (j < text.length && text[j] === 'm') {
+      if (sequence.kind === 'sgr') {
         // Parse SGR (Select Graphic Rendition) codes
-        const codes = text.slice(i + 2, j).split(';').map(c => parseInt(c, 10) || 0);
+        const codes = sequence.value.slice(2, -1).split(';').map(c => parseInt(c, 10) || 0);
 
         for (let k = 0; k < codes.length; k++) {
           const code = codes[k]!;
@@ -1197,7 +1198,7 @@ function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: 
         }
       }
 
-      i = j + 1;
+      i = sequence.end;
       continue;
     }
 
@@ -1243,7 +1244,7 @@ function renderTextToBuffer(
   };
 
   // Check if text contains ANSI sequences
-  const hasAnsi = isPrebuilt || text.includes('\x1b[');
+  const hasAnsi = isPrebuilt || text.includes('\x1b');
 
   if (hasAnsi) {
     // Parse ANSI and render segments

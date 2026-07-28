@@ -33,9 +33,9 @@ The DEVX contract runner is intended to prove:
 
 Covered by:
 
-- [interactive-state-hooks.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/forms/interactive-state-hooks.test.ts)
-- [interactive-wave1-state.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/forms/interactive-wave1-state.test.ts)
-- [interactive-wave2-state.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/forms/interactive-wave2-state.test.ts)
+- [interactive-state-hooks.test.ts](../../tests/forms/interactive-state-hooks.test.ts)
+- [interactive-wave1-state.test.ts](../../tests/forms/interactive-wave1-state.test.ts)
+- [interactive-wave2-state.test.ts](../../tests/forms/interactive-wave2-state.test.ts)
 
 Guarantees:
 
@@ -48,10 +48,10 @@ Guarantees:
 
 Covered by:
 
-- [interactive-wave2-organisms-state.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/organisms/interactive-wave2-organisms-state.test.ts)
-- [scroll-area.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/organisms/scroll-area.test.ts)
-- [scroll-list.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/organisms/scroll-list.test.ts)
-- [data-table.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/organisms/data-table.test.ts)
+- [interactive-wave2-organisms-state.test.ts](../../tests/organisms/interactive-wave2-organisms-state.test.ts)
+- [scroll-area.test.ts](../../tests/organisms/scroll-area.test.ts)
+- [scroll-list.test.ts](../../tests/organisms/scroll-list.test.ts)
+- [data-table.test.ts](../../tests/organisms/data-table.test.ts)
 
 Guarantees:
 
@@ -63,11 +63,11 @@ Guarantees:
 
 Covered by:
 
-- [residual-interactive-devx.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/integration/residual-interactive-devx.test.ts)
-- [scroll.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/primitives/scroll.test.ts)
-- [tabs-mouse.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/layout/tabs-mouse.test.ts)
-- [legend.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/molecules/data-viz/legend.test.ts)
-- [data-viz.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/components/data-viz.test.ts)
+- [residual-interactive-devx.test.ts](../../tests/integration/residual-interactive-devx.test.ts)
+- [scroll.test.ts](../../tests/primitives/scroll.test.ts)
+- [tabs-mouse.test.ts](../../tests/layout/tabs-mouse.test.ts)
+- [legend.test.ts](../../tests/molecules/data-viz/legend.test.ts)
+- [data-viz.test.ts](../../tests/components/data-viz.test.ts)
 
 Guarantees:
 
@@ -83,9 +83,9 @@ These tests do **not** mean every historical OpenSpec change in the repository i
 
 They are specifically the contract for:
 
-- [stabilize-public-devx-contracts](/home/cyber/Work/tetis/libs/tuiuiu.js/openspec/changes/stabilize-public-devx-contracts/tasks.md)
-- [expand-rerender-safe-interactive-components](/home/cyber/Work/tetis/libs/tuiuiu.js/openspec/changes/expand-rerender-safe-interactive-components/tasks.md)
-- [stabilize-residual-interactive-devx](/home/cyber/Work/tetis/libs/tuiuiu.js/openspec/changes/stabilize-residual-interactive-devx/tasks.md)
+- [stabilize-public-devx-contracts](../../openspec/changes/stabilize-public-devx-contracts/tasks.md)
+- [expand-rerender-safe-interactive-components](../../openspec/changes/expand-rerender-safe-interactive-components/tasks.md)
+- [stabilize-residual-interactive-devx](../../openspec/changes/stabilize-residual-interactive-devx/tasks.md)
 
 ## When To Run It
 

@@ -393,6 +393,18 @@ describe('Input State Machine', () => {
       expect(newState.buffer).toBe(' world');
     });
 
+    it('should move and delete by Unicode grapheme boundaries', () => {
+      const emoji = '\u{1F44D}\u{1F3FD}';
+      const initial = createInputState(`a${emoji}`);
+      const moved = applyInputAction(initial, { type: 'move', direction: 'left' });
+      expect(moved.cursor).toBe(1);
+
+      const deleted = applyInputAction(initial, { type: 'delete', direction: 'backward' });
+      expect(deleted.buffer).toBe('a');
+      expect(deleted.cursor).toBe(1);
+      expect(() => encodeURIComponent(deleted.buffer)).not.toThrow();
+    });
+
     it('should delete line to start', () => {
       const state = { ...createInputState('hello world'), cursor: 6 };
       const newState = applyInputAction(state, { type: 'deleteLine', direction: 'toStart' });

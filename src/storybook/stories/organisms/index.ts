@@ -35,8 +35,6 @@ import {
   DashboardGrid,
   MasonryGrid,
   DataTable,
-  VirtualDataTable,
-  EditableDataTable,
   FileBrowser,
   FileDirectoryTree,
   FileList,
@@ -46,6 +44,10 @@ import {
   FileIcon,
   DirectoryIndicator,
 } from '../../../organisms/index.js';
+import {
+  VirtualDataTable,
+  EditableDataTable,
+} from '../../../experimental/index.js';
 import type { CommandItem, FileItem, VirtualListItem } from '../../../organisms/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';

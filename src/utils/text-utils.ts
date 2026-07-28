@@ -7,6 +7,13 @@
  * - Advanced color support (named, hex, RGB, ANSI256)
  */
 
+import { readGrapheme, segmentGraphemes } from './grapheme.js';
+import {
+  sanitizeOscField,
+  sanitizeTerminalText,
+  stripTerminalControls,
+} from './terminal-sanitize.js';
+
 // ANSI escape sequence constants
 const ESC = '\u001B';
 const CSI = '[';
@@ -14,16 +21,18 @@ const OSC = ']';
 const SGR_END = 'm';
 const BELL = '\u0007';
 const HYPERLINK_START = `${OSC}8;;`;
+const PRINTABLE_ASCII_RE = /^[\x20-\x7e]*$/;
+const singleCodePointWidthCache = new Map<number, number>();
+const SINGLE_CODE_POINT_WIDTH_CACHE_LIMIT = 256;
 
 // Regex patterns
-const ANSI_REGEX = /\u001B\[[0-9;]*m/g;
 const SGR_REGEX = /^\u001B\[(\d+)m/;
 
 /**
  * Strip ANSI escape codes from text
  */
 export function stripAnsi(text: string): string {
-  return text.replace(ANSI_REGEX, '');
+  return stripTerminalControls(text);
 }
 
 /**
@@ -31,28 +40,28 @@ export function stripAnsi(text: string): string {
  * Handles wide characters (CJK, emoji) as width 2
  */
 export function stringWidth(text: string): number {
+  // Rendering is overwhelmingly printable ASCII. Avoid constructing Unicode
+  // segment iterators for the common path; complex text still uses graphemes.
+  if (PRINTABLE_ASCII_RE.test(text)) {
+    return text.length;
+  }
+
+  const onlyCodePoint = text.codePointAt(0);
+  if (
+    onlyCodePoint !== undefined &&
+    text.length === (onlyCodePoint > 0xffff ? 2 : 1)
+  ) {
+    return singleCodePointWidth(onlyCodePoint);
+  }
+
   const stripped = stripAnsi(text);
+  if (PRINTABLE_ASCII_RE.test(stripped)) {
+    return stripped.length;
+  }
   let width = 0;
 
-  for (const char of stripped) {
-    const code = char.codePointAt(0) ?? 0;
-
-    // Control characters
-    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
-      continue;
-    }
-
-    // Zero-width characters (should not contribute to width)
-    if (isZeroWidthCharacter(code)) {
-      continue;
-    }
-
-    // Wide characters (CJK, emoji, etc.)
-    if (isWideCharacter(code)) {
-      width += 2;
-    } else {
-      width += 1;
-    }
+  for (const { segment } of segmentGraphemes(stripped)) {
+    width += graphemeWidth(segment);
   }
 
   return width;
@@ -72,25 +81,70 @@ export function readRenderableSymbol(text: string, startIndex: number): Renderab
     return null;
   }
 
-  const firstCode = text.codePointAt(startIndex);
-  if (firstCode === undefined) {
+  const firstCodeUnit = text.charCodeAt(startIndex);
+  if (firstCodeUnit <= 0x7f) {
+    return {
+      symbol: text[startIndex]!,
+      nextIndex: startIndex + 1,
+    };
+  }
+
+  const first = readGrapheme(text, startIndex);
+  if (!first) {
     return null;
   }
 
-  let symbol = String.fromCodePoint(firstCode);
-  let nextIndex = startIndex + (firstCode > 0xffff ? 2 : 1);
+  return {
+    symbol: first.segment,
+    nextIndex: first.end,
+  };
+}
 
-  while (nextIndex < text.length) {
-    const code = text.codePointAt(nextIndex);
-    if (code === undefined || !isZeroWidthCharacter(code)) {
-      break;
-    }
+function graphemeWidth(grapheme: string): number {
+  if (!grapheme) return 0;
 
-    symbol += String.fromCodePoint(code);
-    nextIndex += code > 0xffff ? 2 : 1;
+  const codes = [...grapheme].map((char) => char.codePointAt(0) ?? 0);
+  if (codes.length === 1) return singleCodePointWidth(codes[0]!);
+
+  if (codes.every((code) => code <= 0x1f || (code >= 0x7f && code <= 0x9f) || isZeroWidthCharacter(code))) {
+    return 0;
   }
 
-  return { symbol, nextIndex };
+  const regionalIndicators = codes.filter((code) => code >= 0x1f1e6 && code <= 0x1f1ff);
+  const emojiCluster =
+    regionalIndicators.length >= 2 ||
+    codes.includes(0xfe0f) ||
+    codes.includes(0x20e3) ||
+    /\p{Extended_Pictographic}/u.test(grapheme);
+
+  if (emojiCluster || codes.some(isWideCharacter)) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function singleCodePointWidth(code: number): number {
+  const cached = singleCodePointWidthCache.get(code);
+  if (cached !== undefined) return cached;
+
+  let width: number;
+  if (
+    code <= 0x1f ||
+    (code >= 0x7f && code <= 0x9f) ||
+    isZeroWidthCharacter(code)
+  ) {
+    width = 0;
+  } else {
+    width = isWideCharacter(code) ||
+      /\p{Extended_Pictographic}/u.test(String.fromCodePoint(code)) ? 2 : 1;
+  }
+
+  if (singleCodePointWidthCache.size >= SINGLE_CODE_POINT_WIDTH_CACHE_LIMIT) {
+    singleCodePointWidthCache.clear();
+  }
+  singleCodePointWidthCache.set(code, width);
+  return width;
 }
 
 /**
@@ -371,17 +425,17 @@ function wrapWord(rows: string[], word: string, columns: number, currentStyle: s
 
     // Skip ANSI escape sequences
     if (char === ESC) {
-      let escape = char;
+      let escapeSequence = char;
       charIndex++;
       while (charIndex < chars.length && !chars[charIndex].match(/[a-zA-Z]/)) {
-        escape += chars[charIndex];
+        escapeSequence += chars[charIndex];
         charIndex++;
       }
       if (charIndex < chars.length) {
-        escape += chars[charIndex];
+        escapeSequence += chars[charIndex];
         charIndex++;
       }
-      rows[rows.length - 1] += escape;
+      rows[rows.length - 1] += escapeSequence;
       continue;
     }
 
@@ -548,10 +602,10 @@ export function sliceAnsi(text: string, start: number, end?: number): string {
 
     // Handle ANSI escape sequences
     if (char === ESC && i + 1 < chars.length && chars[i + 1] === '[') {
-      let escape = char;
+      let escapeSequence = char;
       i++;
       while (i < chars.length) {
-        escape += chars[i];
+        escapeSequence += chars[i];
         if (chars[i].match(/[a-zA-Z]/)) {
           i++;
           break;
@@ -560,15 +614,15 @@ export function sliceAnsi(text: string, start: number, end?: number): string {
       }
 
       // Track style for preservation
-      if (escape === '\u001B[0m') {
+      if (escapeSequence === '\u001B[0m') {
         currentStyle = '';
-      } else if (escape.match(/\u001B\[\d+m/)) {
-        currentStyle = escape;
+      } else if (escapeSequence.match(/\u001B\[\d+m/)) {
+        currentStyle = escapeSequence;
       }
 
       // Include escape if we're in the visible range
       if (visible >= start) {
-        result += escape;
+        result += escapeSequence;
       }
       continue;
     }
@@ -846,8 +900,9 @@ export function colorToAnsi(color: string, type: ColorType = 'foreground'): stri
  */
 export function colorize(text: string, color: string, type: ColorType = 'foreground'): string {
   const code = colorToAnsi(color, type);
-  if (!code) return text;
-  return `${code}${text}\u001B[0m`;
+  const safeText = sanitizeTerminalText(text);
+  if (!code) return safeText;
+  return `${code}${safeText}\u001B[0m`;
 }
 
 // ============================================
@@ -875,14 +930,14 @@ const styles = {
  */
 export function style(text: string, ...styleNames: (keyof typeof styles)[]): string {
   const codes = styleNames.map(name => styles[name]).join('');
-  return `${codes}${text}${styles.reset}`;
+  return `${codes}${sanitizeTerminalText(text)}${styles.reset}`;
 }
 
 /**
  * Create a hyperlink (OSC 8)
  */
 export function hyperlink(text: string, url: string): string {
-  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
+  return `\u001B]8;;${sanitizeOscField(url)}\u0007${sanitizeTerminalText(text)}\u001B]8;;\u0007`;
 }
 
 // Export style codes for direct use

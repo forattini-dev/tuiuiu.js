@@ -12,6 +12,7 @@ import {
   clearInputHandlers,
   getInputHandlerCount,
   addInputHandler,
+  addPasteHandler,
 } from '../../src/hooks/context.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { EventEmitter } from 'node:events';
@@ -72,6 +73,7 @@ describe('useApp', () => {
   it('returns app context when within app', () => {
     const mockContext = {
       exit: vi.fn(),
+      dispose: vi.fn(),
       stdin: {} as any,
       stdout: {} as any,
       onExit: vi.fn(),
@@ -107,6 +109,7 @@ describe('initializeApp', () => {
   it('returns app context', () => {
     const ctx = initializeApp(stdin, stdout);
     expect(ctx).toHaveProperty('exit');
+    expect(ctx).toHaveProperty('dispose');
     expect(ctx).toHaveProperty('stdin');
     expect(ctx).toHaveProperty('stdout');
     expect(ctx).toHaveProperty('onExit');
@@ -127,6 +130,44 @@ describe('initializeApp', () => {
     expect(getAppContext()).not.toBeNull();
   });
 
+  it('rejects a second active app instead of corrupting global runtime state', () => {
+    initializeApp(stdin, stdout);
+
+    expect(() => initializeApp(createMockStdin(), createMockStdout())).toThrow(
+      /Only one active app/u,
+    );
+  });
+
+  it('allows a new app after direct disposal', () => {
+    const first = initializeApp(stdin, stdout);
+    first.dispose();
+
+    expect(getAppContext()).toBeNull();
+    expect(() => initializeApp(createMockStdin(), createMockStdout())).not.toThrow();
+  });
+
+  it('restores host-owned raw and paused input state', () => {
+    (stdin as NodeJS.ReadStream & { isRaw: boolean }).isRaw = true;
+    (stdin as NodeJS.ReadStream & { isPaused: () => boolean }).isPaused = () => true;
+
+    const ctx = initializeApp(stdin, stdout);
+    expect(stdin.setRawMode).not.toHaveBeenCalledWith(true);
+
+    ctx.dispose();
+
+    expect(stdin.setRawMode).toHaveBeenLastCalledWith(true);
+    expect(stdin.pause).toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ maxPasteBytes: 0 }, /maxPasteBytes/u],
+    [{ maxPasteBytes: Number.MAX_SAFE_INTEGER + 1 }, /maxPasteBytes/u],
+    [{ escapeSequenceTimeoutMs: -1 }, /escapeSequenceTimeoutMs/u],
+    [{ pasteTimeoutMs: Number.POSITIVE_INFINITY }, /pasteTimeoutMs/u],
+  ])('rejects invalid bounded-input options %#', (invalidOptions, message) => {
+    expect(() => initializeApp(stdin, stdout, invalidOptions)).toThrow(message);
+  });
+
   describe('input handling', () => {
     it('calls input handlers on keypress', () => {
       initializeApp(stdin, stdout);
@@ -142,11 +183,75 @@ describe('initializeApp', () => {
 
     it('exits on Ctrl+C', () => {
       const ctx = initializeApp(stdin, stdout);
+      const callback = vi.fn();
+      ctx.onExit(callback);
 
       // Simulate Ctrl+C (0x03)
       stdin.emit('data', Buffer.from([0x03]));
 
-      expect(mockExit).toHaveBeenCalledWith(0);
+      expect(callback).toHaveBeenCalledWith(undefined);
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it('can pass Ctrl+C through when exitOnCtrlC is disabled', () => {
+      initializeApp(stdin, stdout, { exitOnCtrlC: false });
+      const handler = vi.fn();
+      addInputHandler(handler);
+
+      stdin.emit('data', Buffer.from([0x03]));
+
+      expect(handler).toHaveBeenCalled();
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it('decodes a UTF-8 character split across stream chunks', () => {
+      initializeApp(stdin, stdout);
+      const handler = vi.fn();
+      addInputHandler(handler);
+      const emoji = Buffer.from('😀');
+
+      stdin.emit('data', emoji.subarray(0, 2));
+      stdin.emit('data', emoji.subarray(2));
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler.mock.calls[0][0]).toBe('😀');
+    });
+
+    it('parses a terminal sequence split across stream chunks', () => {
+      configureProgressive({ overrides: { focusEvents: true } });
+      initializeApp(stdin, stdout);
+
+      stdin.emit('data', Buffer.from('\x1b['));
+      expect(useTerminalFocus().focused).toBe(true);
+      stdin.emit('data', Buffer.from('O'));
+
+      expect(useTerminalFocus().focused).toBe(false);
+    });
+
+    it('drops bracketed pastes larger than maxPasteBytes', () => {
+      initializeApp(stdin, stdout, { maxPasteBytes: 4 });
+      const handler = vi.fn();
+      addPasteHandler(handler);
+
+      stdin.emit('data', Buffer.from('\x1b[200~123'));
+      stdin.emit('data', Buffer.from('45\x1b[201~'));
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('applies automatic Tab handling before a bracketed paste marker', () => {
+      initializeApp(stdin, stdout);
+      const inputHandler = vi.fn();
+      const pasteHandler = vi.fn();
+      addInputHandler(inputHandler);
+      addPasteHandler(pasteHandler);
+
+      stdin.emit('data', Buffer.from('\t\x1b[200~hello\x1b[201~'));
+
+      expect(inputHandler).not.toHaveBeenCalled();
+      expect(pasteHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'hello', isBracketed: true }),
+      );
     });
 
     it('tracks terminal focus reactively when supported', () => {
@@ -191,15 +296,22 @@ describe('initializeApp', () => {
       expect((stdout as any).getOutput()).toContain('\x1b[?1004l');
     });
 
-    it('exits with code 0 by default', () => {
+    it('does not terminate the host process by default', () => {
       const ctx = initializeApp(stdin, stdout);
+      ctx.exit();
+
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it('can terminate the process when explicitly configured', () => {
+      const ctx = initializeApp(stdin, stdout, { exitProcess: true });
       ctx.exit();
 
       expect(mockExit).toHaveBeenCalledWith(0);
     });
 
-    it('exits with code 1 on error', () => {
-      const ctx = initializeApp(stdin, stdout);
+    it('uses code 1 for an error when process exit is enabled', () => {
+      const ctx = initializeApp(stdin, stdout, { exitProcess: true });
       const error = new Error('Test error');
 
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -210,7 +322,7 @@ describe('initializeApp', () => {
     });
 
     it('only exits once', () => {
-      const ctx = initializeApp(stdin, stdout);
+      const ctx = initializeApp(stdin, stdout, { exitProcess: true });
       ctx.exit();
       ctx.exit();
 
@@ -244,6 +356,7 @@ describe('cleanupApp', () => {
   it('clears app context', () => {
     setAppContext({
       exit: vi.fn(),
+      dispose: vi.fn(),
       stdin: {} as any,
       stdout: {} as any,
       onExit: vi.fn(),

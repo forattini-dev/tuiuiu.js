@@ -5,13 +5,17 @@ import { createFrameSnapshot } from '../../../src/core/frame.js';
 import { createDeltaRenderer } from '../../../src/core/delta-render.js';
 import { renderFrameToString } from '../../../src/core/renderer.js';
 
-export const isCI = process.env.CI === 'true';
+export const isCI =
+  process.env.CI === 'true' &&
+  process.env.TUIUIU_RUN_BENCHMARKS !== 'true';
 
 export interface RuntimeBenchmarkResult {
   avgFrameMs: number;
   avgLayoutMs: number;
   avgAnsiMs: number;
   avgDeltaMs: number;
+  avgAnsiBytes: number;
+  avgDeltaBytes: number;
   drawCommands: number;
 }
 
@@ -50,21 +54,34 @@ export function createBenchmarkStdin(): NodeJS.ReadStream {
   return stdin as unknown as NodeJS.ReadStream;
 }
 
-export function createBenchmarkStdout(width: number, height: number): NodeJS.WriteStream {
+interface BenchmarkStdout extends NodeJS.WriteStream {
+  takeBenchmarkBytes(): number;
+}
+
+export function createBenchmarkStdout(width: number, height: number): BenchmarkStdout {
   const emitter = new EventEmitter();
+  let writtenBytes = 0;
   const stdout = Object.assign(emitter, {
     columns: width,
     rows: height,
     isTTY: true,
-    write() {
+    write(chunk: string | Uint8Array) {
+      writtenBytes += typeof chunk === 'string'
+        ? Buffer.byteLength(chunk)
+        : chunk.byteLength;
       return true;
+    },
+    takeBenchmarkBytes() {
+      const result = writtenBytes;
+      writtenBytes = 0;
+      return result;
     },
     on: emitter.on.bind(emitter),
     off: emitter.off.bind(emitter),
     once: emitter.once.bind(emitter),
     emit: emitter.emit.bind(emitter),
   });
-  return stdout as unknown as NodeJS.WriteStream;
+  return stdout as unknown as BenchmarkStdout;
 }
 
 export async function waitForMacrotask(): Promise<void> {
@@ -87,6 +104,8 @@ export function benchmarkRuntime(
   const layoutTimes: number[] = [];
   const ansiTimes: number[] = [];
   const deltaTimes: number[] = [];
+  const ansiBytes: number[] = [];
+  const deltaBytes: number[] = [];
   let drawCommands = 0;
 
   for (let index = 0; index < 5; index++) {
@@ -94,6 +113,7 @@ export function benchmarkRuntime(
     renderFrameToString(frame);
     delta.renderFrame(frame);
   }
+  stdout.takeBenchmarkBytes();
 
   for (let index = 0; index < iterations; index++) {
     const frameStart = performance.now();
@@ -102,12 +122,14 @@ export function benchmarkRuntime(
     layoutTimes.push(frame.metrics.phases.layoutMs ?? 0);
 
     const ansiStart = performance.now();
-    renderFrameToString(frame);
+    const ansiOutput = renderFrameToString(frame);
     ansiTimes.push(performance.now() - ansiStart);
+    ansiBytes.push(Buffer.byteLength(ansiOutput));
 
     const deltaStart = performance.now();
     delta.renderFrame(frame);
     deltaTimes.push(performance.now() - deltaStart);
+    deltaBytes.push(stdout.takeBenchmarkBytes());
 
     drawCommands = frame.metrics.structural.drawCommandCount;
   }
@@ -117,6 +139,8 @@ export function benchmarkRuntime(
     avgLayoutMs: average(layoutTimes),
     avgAnsiMs: average(ansiTimes),
     avgDeltaMs: average(deltaTimes),
+    avgAnsiBytes: average(ansiBytes),
+    avgDeltaBytes: average(deltaBytes),
     drawCommands,
   };
 }
@@ -138,6 +162,8 @@ export function benchmarkLocalizedRuntime(
   const drawCommandTimes: number[] = [];
   const ansiTimes: number[] = [];
   const deltaTimes: number[] = [];
+  const ansiBytes: number[] = [];
+  const deltaBytes: number[] = [];
   let drawCommands = 0;
 
   for (let index = 0; index < 5; index++) {
@@ -145,6 +171,7 @@ export function benchmarkLocalizedRuntime(
     renderFrameToString(frame);
     delta.renderFrame(frame);
   }
+  stdout.takeBenchmarkBytes();
 
   for (let index = 0; index < iterations; index++) {
     const frameStart = performance.now();
@@ -154,12 +181,14 @@ export function benchmarkLocalizedRuntime(
     drawCommandTimes.push(frame.metrics.phases.drawCommandMs ?? 0);
 
     const ansiStart = performance.now();
-    renderFrameToString(frame);
+    const ansiOutput = renderFrameToString(frame);
     ansiTimes.push(performance.now() - ansiStart);
+    ansiBytes.push(Buffer.byteLength(ansiOutput));
 
     const deltaStart = performance.now();
     delta.renderFrame(frame);
     deltaTimes.push(performance.now() - deltaStart);
+    deltaBytes.push(stdout.takeBenchmarkBytes());
 
     drawCommands = frame.metrics.structural.drawCommandCount;
   }
@@ -170,6 +199,8 @@ export function benchmarkLocalizedRuntime(
     avgDrawCommandMs: average(drawCommandTimes),
     avgAnsiMs: average(ansiTimes),
     avgDeltaMs: average(deltaTimes),
+    avgAnsiBytes: average(ansiBytes),
+    avgDeltaBytes: average(deltaBytes),
     drawCommands,
   };
 }

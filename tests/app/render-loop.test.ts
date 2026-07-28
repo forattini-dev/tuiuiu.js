@@ -170,6 +170,23 @@ describe('render-loop', () => {
       instance.unmount();
     });
 
+    it('keeps the rerendered root when an old signal invalidates', async () => {
+      const [oldValue, setOldValue] = createSignal('old root');
+      const instance = render(
+        () => Text({}, oldValue()),
+        { stdin, stdout, maxFps: 0, clearOnStart: false, useDeltaRenderer: false },
+      );
+
+      instance.rerender(Text({}, 'replacement root'));
+      await vi.runAllTimersAsync();
+      setOldValue('stale update');
+      await vi.runAllTimersAsync();
+
+      expect(stdout.output).toContain('replacement root');
+      expect(stdout.output).not.toContain('stale update');
+      instance.unmount();
+    });
+
     it('unmount cleans up and resolves exit promise', async () => {
       const node = Text({}, 'Test');
       const instance = render(node, { stdin, stdout });
@@ -684,7 +701,7 @@ describe('render-loop', () => {
 
     it('handles exit on Ctrl+C', () => {
       const node = Text({}, 'Test');
-      render(node, { stdin, stdout, exitOnCtrlC: true });
+      render(node, { stdin, stdout, exitOnCtrlC: true, exitProcess: true });
 
       // Ctrl+C is handled by initializeApp
       stdin.emit('data', Buffer.from([0x03]));

@@ -114,6 +114,8 @@ export interface RenderOptions {
   debug?: boolean;
   /** Exit on Ctrl+C (default: true) */
   exitOnCtrlC?: boolean;
+  /** Allow app.exit() to terminate the Node.js process (default: false) */
+  exitProcess?: boolean;
   /** Maximum FPS for render throttling (default: 30) */
   maxFps?: number;
   /** Clear screen on start (default: true) */
@@ -181,6 +183,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     stdin = process.stdin,
     debug = false,
     exitOnCtrlC = true,
+    exitProcess = false,
     maxFps = 30,
     clearOnStart = true,
     showCursor = false,
@@ -192,31 +195,36 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   } = options;
 
   // Initialize app context FIRST (before calling component functions)
-  const appContext = initializeApp(stdin, stdout, { autoTabNavigation });
+  const appContext = initializeApp(stdin, stdout, {
+    autoTabNavigation,
+    exitOnCtrlC,
+    exitProcess,
+  });
   beginAppRenderSession();
 
   // Install centralized panic hooks to restore terminal on crash
-  installPanicHooks();
-  onTerminalPanic(() => {
+  const releasePanicHooks = installPanicHooks();
+  const unregisterPanicCleanups: Array<() => void> = [];
+  unregisterPanicCleanups.push(onTerminalPanic(() => {
     if (stdin.isTTY && (stdin as any).setRawMode) {
       (stdin as any).setRawMode(false);
     }
-  });
-  onTerminalPanic(() => {
+  }));
+  unregisterPanicCleanups.push(onTerminalPanic(() => {
     stdout.write('\x1b[?1004l'); // disable focus events
-  });
-  onTerminalPanic(() => {
+  }));
+  unregisterPanicCleanups.push(onTerminalPanic(() => {
     stdout.write('\x1b[?2004l'); // disable bracketed paste
-  });
+  }));
   if (alternateScreen) {
     stdout.write(enableAlternateScreen());
-    onTerminalPanic(() => {
+    unregisterPanicCleanups.push(onTerminalPanic(() => {
       stdout.write(disableAlternateScreen());
-    });
+    }));
   }
 
   // Store the component function for re-evaluation
-  const componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
+  let componentFn = typeof nodeOrFn === 'function' ? nodeOrFn : () => nodeOrFn;
 
   let outputBackpressured = false;
   let outputCaptureDepth = 0;
@@ -559,8 +567,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   stdout.on('resize', handleResize);
 
   // Cleanup on exit
-  appContext.onExit(() => {
+  appContext.onExit((error) => {
     cleanup();
+    disposeRender();
+    if (error) {
+      rejectExit(error);
+    } else {
+      resolveExit();
+    }
   });
 
   /**
@@ -756,6 +770,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       stdout.write(disableAlternateScreen());
     }
 
+    appContext.dispose();
+    for (const unregister of unregisterPanicCleanups.splice(0)) {
+      unregister();
+    }
+    releasePanicHooks();
     resetHookState(); // Clear all hook state
     cleanupApp();
     clearCommittedFrameSnapshot();
@@ -805,10 +824,8 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   return {
     rerender: (newNode: VNode) => {
-      currentNode = newNode;
-      scheduleRenderCallback(() => {
-        doRender();
-      });
+      componentFn = () => newNode;
+      scheduleRenderCallback(evaluateAndRender);
     },
 
     unmount: () => {

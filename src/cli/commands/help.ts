@@ -28,6 +28,10 @@ MCP Transports:
 
 MCP Options:
   --port=<number>         Set server port (default: 3200)
+  --host=<address>        Bind address (default: 127.0.0.1)
+  --token=<secret>        Bearer token (prefer TUIUIU_MCP_AUTH_TOKEN)
+  --allow-origin=<origin> Allow an exact browser Origin (repeatable)
+  --max-request-bytes=<n> Maximum JSON request size (default: 1048576)
   --debug, -d             Enable debug logging to stderr
 
 Examples:
@@ -42,6 +46,9 @@ Examples:
 
   # For streaming clients (SSE)
   npx tuiuiu.js mcp --sse --port=3200
+
+  # Remote bind requires authentication
+  TUIUIU_MCP_AUTH_TOKEN=replace-me npx tuiuiu.js mcp --http --host=0.0.0.0
 
   # Run storybook
   npx tuiuiu storybook

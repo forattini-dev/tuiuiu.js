@@ -23,6 +23,8 @@ export interface ImageFileCommandOptions {
   cwd?: string;
   encoding?: CommandEncoding;
   maxBuffer?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export type ImageFileCommandRunner = (
@@ -36,6 +38,18 @@ export interface LoadImageFileOptions {
   ffmpegPath?: string;
   ffprobePath?: string;
   maxBuffer?: number;
+  /** Maximum width accepted from image metadata (default: 8192). */
+  maxWidth?: number;
+  /** Maximum height accepted from image metadata (default: 8192). */
+  maxHeight?: number;
+  /** Maximum number of decoded pixels (default: 16,777,216). */
+  maxPixels?: number;
+  /** Maximum decoded RGBA bytes (default: 64 MiB). */
+  maxDecodedBytes?: number;
+  /** Subprocess timeout in milliseconds (default: 15s). */
+  timeoutMs?: number;
+  /** Abort ffprobe/ffmpeg work. */
+  signal?: AbortSignal;
   cellSize?: Partial<CellSize>;
   commandRunner?: ImageFileCommandRunner;
 }
@@ -53,6 +67,8 @@ function defaultCommandRunner(
         cwd: options.cwd,
         encoding: options.encoding ?? 'utf8',
         maxBuffer: options.maxBuffer,
+        timeout: options.timeoutMs,
+        signal: options.signal,
       },
       (error, stdout) => {
         if (error) {
@@ -72,6 +88,47 @@ function getCommandRunner(options?: LoadImageFileOptions): ImageFileCommandRunne
 
 function resolveImagePath(imagePath: string, cwd?: string): string {
   return resolvePath(cwd ?? process.cwd(), imagePath);
+}
+
+function validateImageDimensions(
+  width: unknown,
+  height: unknown,
+  resolvedPath: string,
+  options: LoadImageFileOptions,
+): { width: number; height: number; expectedSize: number } {
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    (width as number) <= 0 ||
+    (height as number) <= 0
+  ) {
+    throw new Error(`Invalid image dimensions for ${resolvedPath}`);
+  }
+
+  const safeWidth = width as number;
+  const safeHeight = height as number;
+  const maxWidth = options.maxWidth ?? 8192;
+  const maxHeight = options.maxHeight ?? 8192;
+  const maxPixels = options.maxPixels ?? 16_777_216;
+  const maxDecodedBytes = options.maxDecodedBytes ?? 64 * 1024 * 1024;
+  const pixels = safeWidth * safeHeight;
+  const expectedSize = pixels * 4;
+
+  if (
+    safeWidth > maxWidth ||
+    safeHeight > maxHeight ||
+    !Number.isSafeInteger(pixels) ||
+    pixels > maxPixels ||
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize > maxDecodedBytes
+  ) {
+    throw new Error(
+      `Image dimensions exceed configured limits for ${resolvedPath}: ` +
+      `${safeWidth}x${safeHeight}`,
+    );
+  }
+
+  return { width: safeWidth, height: safeHeight, expectedSize };
 }
 
 async function assertReadableFile(filePath: string): Promise<void> {
@@ -101,7 +158,9 @@ export async function probeImageFile(
     {
       cwd: options.cwd,
       encoding: 'utf8',
-      maxBuffer: options.maxBuffer,
+      maxBuffer: Math.min(options.maxBuffer ?? 1024 * 1024, 1024 * 1024),
+      timeoutMs: options.timeoutMs ?? 15_000,
+      signal: options.signal,
     },
   );
   const probe = JSON.parse(String(stdout)) as {
@@ -110,14 +169,12 @@ export async function probeImageFile(
   const width = probe.streams?.[0]?.width;
   const height = probe.streams?.[0]?.height;
 
-  if (!width || !height) {
-    throw new Error(`Unable to determine image dimensions for ${resolvedPath}`);
-  }
+  const validated = validateImageDimensions(width, height, resolvedPath, options);
 
   return {
     path: resolvedPath,
-    width,
-    height,
+    width: validated.width,
+    height: validated.height,
   };
 }
 
@@ -126,7 +183,7 @@ export async function loadImageFile(
   options: LoadImageFileOptions = {},
 ): Promise<ImageData> {
   const { path: resolvedPath, width, height } = await probeImageFile(imagePath, options);
-  const expectedSize = width * height * 4;
+  const { expectedSize } = validateImageDimensions(width, height, resolvedPath, options);
   const stdout = await getCommandRunner(options)(
     options.ffmpegPath ?? 'ffmpeg',
     [
@@ -143,7 +200,9 @@ export async function loadImageFile(
     {
       cwd: options.cwd,
       encoding: 'buffer',
-      maxBuffer: options.maxBuffer ?? Math.max(expectedSize * 2, 4 * 1024 * 1024),
+      maxBuffer: options.maxBuffer ?? Math.max(expectedSize + 64 * 1024, 4 * 1024 * 1024),
+      timeoutMs: options.timeoutMs ?? 15_000,
+      signal: options.signal,
     },
   );
   const pixels = stdout instanceof Buffer ? stdout : Buffer.from(stdout);
@@ -198,8 +257,22 @@ function removeOuterQuotes(text: string): string {
  * E.g., `/path/to/my\ image.png` → `/path/to/my image.png`
  */
 function stripBackslashEscapes(text: string): string {
-  if (process.platform === 'win32') return text;
-  return text.replace(/\\(.)/g, '$1');
+  // Preserve native Windows drive and UNC paths on every host. A POSIX path
+  // pasted from a shell should still be decoded when the app runs on Windows
+  // (for example inside WSL or from a remote session).
+  if (/^[A-Za-z]:[\\/]/u.test(text) || /^\\\\[^\\]/u.test(text)) {
+    return text;
+  }
+  if (
+    text.startsWith('/') ||
+    text.startsWith('./') ||
+    text.startsWith('../') ||
+    text.startsWith('~/') ||
+    process.platform !== 'win32'
+  ) {
+    return text.replace(/\\(.)/g, '$1');
+  }
+  return text;
 }
 
 /**

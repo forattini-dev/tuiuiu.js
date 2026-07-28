@@ -13,7 +13,7 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 [![npm version](https://img.shields.io/npm/v/tuiuiu.js.svg?style=flat-square&color=F5A623)](https://www.npmjs.com/package/tuiuiu.js)
 [![npm downloads](https://img.shields.io/npm/dm/tuiuiu.js.svg?style=flat-square&color=34C759)](https://www.npmjs.com/package/tuiuiu.js)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22.12+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/npm/l/tuiuiu.js.svg?style=flat-square&color=007AFF)](https://github.com/forattini-dev/tuiuiu.js/blob/main/LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success?style=flat-square)](https://www.npmjs.com/package/tuiuiu.js)
 
@@ -30,6 +30,8 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 ```bash
 npm install tuiuiu.js
 ```
+
+Tuiuiu is ESM-only and requires Node.js 22.12 or newer.
 
 ```typescript
 import { render, Box, Text, useState, useInput, useApp, setTheme, darkTheme } from 'tuiuiu.js';
@@ -212,6 +214,7 @@ render(() =>
 | **Atoms** | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer, Tooltip |
 | **Molecules** | Select, MultiSelect, RadioGroup, Autocomplete, Table, Tabs, Tree, Calendar, CodeBlock, Markdown |
 | **Organisms** | Modal, CommandPalette, DataTable, FileManager, SplitPanel, ScrollArea, Grid, OverlayStack |
+| **Experimental** | VirtualDataTable and EditableDataTable facades |
 | **Templates** | AppShell, Page, Header, StatusBar, VStack, HStack, Center, FullScreen |
 | **Data Viz** | BarChart, LineChart, Sparkline, Heatmap, Gauge, BigText, Digits |
 | **DevTools** | Layout Inspector, Event Logger, Performance Metrics, Component Storybook |
@@ -481,6 +484,7 @@ import { Box, Text } from 'tuiuiu.js/primitives';
 import { Button, Spinner } from 'tuiuiu.js/atoms';
 import { Select, Table } from 'tuiuiu.js/molecules';
 import { Modal, DataTable } from 'tuiuiu.js/organisms';
+import { VirtualDataTable } from 'tuiuiu.js/experimental';
 import { AppShell, Page } from 'tuiuiu.js/templates';
 
 // Core systems
@@ -503,6 +507,7 @@ import { BarChart, Gauge } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/atoms` | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer |
 | `tuiuiu.js/molecules` | Select, MultiSelect, Table, Tabs, Tree, Calendar, CodeBlock |
 | `tuiuiu.js/organisms` | Modal, CommandPalette, DataTable, FileManager, SplitPanel |
+| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable facades |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack, StatusBar |
 | `tuiuiu.js/core` | createSignal, createEffect, batch, calculateLayout |
 | `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |
@@ -543,6 +548,10 @@ store.dispatch({ type: 'INCREMENT' });
 # Start the MCP server
 npx tuiuiu.js@latest mcp
 ```
+
+Network transports listen on `127.0.0.1` by default. A remote bind requires a
+bearer token; browser origins and request size must be explicitly configured.
+See the full MCP documentation before exposing a network transport.
 
 Add to your `.mcp.json` for Claude Code integration:
 

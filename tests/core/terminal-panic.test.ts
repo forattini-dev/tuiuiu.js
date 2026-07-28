@@ -103,19 +103,34 @@ describe('terminal-panic', () => {
       processOnSpy.mockRestore();
     });
 
-    it('should register handlers for exit, SIGINT, SIGTERM, uncaughtException, unhandledRejection', () => {
+    it('should observe exit and fatal errors without owning process semantics', () => {
       const processOnSpy = vi.spyOn(process, 'on');
 
       installPanicHooks();
 
       const events = processOnSpy.mock.calls.map(([event]) => event);
       expect(events).toContain('exit');
-      expect(events).toContain('SIGINT');
-      expect(events).toContain('SIGTERM');
-      expect(events).toContain('uncaughtException');
-      expect(events).toContain('unhandledRejection');
+      expect(events).toContain('uncaughtExceptionMonitor');
+      expect(events).not.toContain('SIGINT');
+      expect(events).not.toContain('SIGTERM');
+      expect(events).not.toContain('uncaughtException');
 
       processOnSpy.mockRestore();
+    });
+
+    it('should remove hooks after the last installation is released', () => {
+      const processOffSpy = vi.spyOn(process, 'off');
+      const releaseA = installPanicHooks();
+      const releaseB = installPanicHooks();
+
+      releaseA();
+      expect(processOffSpy).not.toHaveBeenCalled();
+      releaseB();
+
+      const events = processOffSpy.mock.calls.map(([event]) => event);
+      expect(events).toContain('exit');
+      expect(events).toContain('uncaughtExceptionMonitor');
+      processOffSpy.mockRestore();
     });
   });
 
@@ -128,10 +143,7 @@ describe('terminal-panic', () => {
 
       const events = processOffSpy.mock.calls.map(([event]) => event);
       expect(events).toContain('exit');
-      expect(events).toContain('SIGINT');
-      expect(events).toContain('SIGTERM');
-      expect(events).toContain('uncaughtException');
-      expect(events).toContain('unhandledRejection');
+      expect(events).toContain('uncaughtExceptionMonitor');
 
       processOffSpy.mockRestore();
     });

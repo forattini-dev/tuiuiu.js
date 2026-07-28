@@ -44,6 +44,26 @@ npx tuiuiu.js mcp --sse --port=3200
 npx tuiuiu.js mcp --debug
 ```
 
+### Network security
+
+HTTP and SSE listen only on `127.0.0.1` by default. A non-loopback
+`--host` is rejected unless a bearer token is configured. Prefer the
+environment variable so the secret is not exposed in the process list:
+
+```bash
+TUIUIU_MCP_AUTH_TOKEN='replace-with-a-long-random-token' \
+  npx tuiuiu.js mcp --http --host=0.0.0.0 --port=3200
+```
+
+Clients then send `Authorization: Bearer <token>`. Browser access is denied
+unless its exact origin is explicitly listed with a repeatable
+`--allow-origin=https://app.example.com` option. Requests are capped at 1 MiB
+by default; change that limit with `--max-request-bytes=<bytes>`.
+
+Never expose the server directly to the public internet. Put remote access
+behind TLS and an authenticated reverse proxy, and keep the built-in bearer
+token enabled as defense in depth.
+
 ---
 
 ## Quick Start
@@ -592,16 +612,16 @@ console.log('MCP server running on http://localhost:3200');
 ### Programmatic Resource Access
 
 ```typescript
-import { getResourceContents } from 'tuiuiu.js/mcp';
+import { readResource } from 'tuiuiu.js/mcp';
 
 // Get component documentation
-const buttonDocs = await getResourceContents('tuiuiu://component/Button');
+const buttonDocs = readResource('tuiuiu://component/Button');
 
 // Get theme colors
-const draculaTheme = await getResourceContents('tuiuiu://theme/dracula');
+const draculaTheme = readResource('tuiuiu://theme/dracula');
 
 // Get complete example
-const dashboardCode = await getResourceContents('tuiuiu://example/dashboard');
+const dashboardCode = readResource('tuiuiu://example/dashboard');
 ```
 
 ---

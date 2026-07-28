@@ -26,6 +26,7 @@
   - [Image Animation](/core/image-animation.md)
   - [Utilities](/core/utilities.md)
   - [MCP Server](/core/mcp.md)
+  - [Reference Comparison](/core/reference-comparison.md)
 
 - **Primitives**
   - [Box](/components/primitives/box.md)

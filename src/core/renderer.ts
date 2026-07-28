@@ -18,6 +18,7 @@ import {
   type ReservedRegion,
 } from './frame.js';
 import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
+import { readTerminalSequence } from '../utils/terminal-sanitize.js';
 import { getTheme, resolveColor } from './theme.js';
 import { clearImagesForProtocol, kittyGraphics, renderImageWithProtocol, isProtocolGraphics } from './graphics.js';
 import type { GraphicsProtocol } from './graphics.js';
@@ -141,24 +142,18 @@ export class OutputBuffer {
     while (i < text.length) {
       const char = text[i];
 
-      // Check for ANSI escape sequence
-      if (char === '\x1b' && text[i + 1] === '[') {
-        // Find end of ANSI sequence (ends with a letter)
-        let j = i + 2;
-        while (j < text.length && !/[A-Za-z]/.test(text[j])) {
-          j++;
-        }
-        if (j < text.length) {
-          // Extract the ANSI sequence
-          const ansiSeq = text.slice(i, j + 1);
-          // Update current style with this sequence
-          if (ansiSeq === '\x1b[0m' || ansiSeq === '\x1b[m') {
+      // Only SGR is styling. Every other terminal protocol is consumed without
+      // being copied into cell styles, so ordinary Text cannot move the cursor,
+      // erase the screen, or execute OSC/DCS payloads.
+      if (char === '\x1b') {
+        const sequence = readTerminalSequence(text, i);
+        if (sequence) {
+          if (sequence.kind === 'sgr' && (sequence.value === '\x1b[0m' || sequence.value === '\x1b[m')) {
             currentStyle = style; // Reset to base style
-          } else {
-            // Append to current style
-            currentStyle = (currentStyle || '') + ansiSeq;
+          } else if (sequence.kind === 'sgr') {
+            currentStyle = (currentStyle || '') + sequence.value;
           }
-          i = j + 1;
+          i = sequence.end;
           continue;
         }
       }

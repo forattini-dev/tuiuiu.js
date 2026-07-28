@@ -9,7 +9,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { writeFileSync, readFileSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,31 +40,15 @@ function execCommand(cmd: string, args: string[], options?: { encoding?: 'buffer
   });
 }
 
-function execShell(command: string, options?: { encoding?: 'buffer' | 'utf8' }): Promise<Buffer | string> {
-  return new Promise((resolve, reject) => {
-    execFile('/bin/sh', ['-c', command], {
-      encoding: options?.encoding === 'utf8' ? 'utf8' : 'buffer' as BufferEncoding,
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 5000,
-    }, (error, stdout) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(stdout as Buffer | string);
-    });
-  });
-}
-
 /** Create a temporary file path for clipboard image */
-function createTempImagePath(): string {
+function createTempImagePath(): { dir: string; file: string } {
   const dir = mkdtempSync(join(tmpdir(), 'tuiuiu-clip-'));
-  return join(dir, 'clipboard.png');
+  return { dir, file: join(dir, 'clipboard.png') };
 }
 
-/** Safely remove a temp file */
-function cleanupTempFile(path: string): void {
-  try { unlinkSync(path); } catch { /* ignore */ }
+/** Safely remove the exact temporary directory created by this module. */
+function cleanupTempImage(temp: { dir: string; file: string }): void {
+  try { rmSync(temp.dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
 // -----------------------------------------------------------------------------
@@ -73,32 +57,46 @@ function cleanupTempFile(path: string): void {
 
 async function hasClipboardImageDarwin(): Promise<boolean> {
   try {
-    await execShell("osascript -e 'the clipboard as «class PNGf»' > /dev/null 2>&1");
-    return true;
+    const result = await execCommand(
+      'osascript',
+      ['-e', 'clipboard info'],
+      { encoding: 'utf8' },
+    ) as string;
+    return result.includes('PNGf');
   } catch {
     return false;
   }
 }
 
 async function readClipboardImageDarwin(): Promise<ClipboardImageResult | null> {
-  const tempPath = createTempImagePath();
+  const temp = createTempImagePath();
   try {
-    // Save clipboard PNG to temp file via AppleScript
-    await execShell(
-      `osascript -e 'set png_data to (the clipboard as «class PNGf»)' ` +
-      `-e 'set fp to open for access POSIX file "${tempPath}" with write permission' ` +
-      `-e 'write png_data to fp' ` +
-      `-e 'close access fp'`
-    );
+    const script = [
+      'on run argv',
+      'set png_data to (the clipboard as «class PNGf»)',
+      'set fp to open for access POSIX file (item 1 of argv) with write permission',
+      'try',
+      'set eof fp to 0',
+      'write png_data to fp',
+      'on error message',
+      'try',
+      'close access fp',
+      'end try',
+      'error message',
+      'end try',
+      'close access fp',
+      'end run',
+    ].join('\n');
+    await execCommand('osascript', ['-e', script, temp.file]);
 
-    const buffer = readFileSync(tempPath);
+    const buffer = readFileSync(temp.file);
     if (buffer.length === 0) return null;
 
     return { buffer, mediaType: 'image/png' };
   } catch {
     return null;
   } finally {
-    cleanupTempFile(tempPath);
+    cleanupTempImage(temp);
   }
 }
 
@@ -108,23 +106,25 @@ async function readClipboardImageDarwin(): Promise<ClipboardImageResult | null> 
 
 async function hasClipboardImageLinux(): Promise<boolean> {
   try {
-    // Try xclip first (X11), then wl-paste (Wayland)
-    const result = await execShell(
-      'xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -q "image/" || ' +
-      'wl-paste -l 2>/dev/null | grep -q "image/"',
-      { encoding: 'utf8' }
-    );
-    return true;
-  } catch {
-    return false;
-  }
+    const targets = await execCommand(
+      'xclip',
+      ['-selection', 'clipboard', '-t', 'TARGETS', '-o'],
+      { encoding: 'utf8' },
+    ) as string;
+    if (targets.includes('image/')) return true;
+  } catch { /* try Wayland */ }
+  try {
+    const targets = await execCommand('wl-paste', ['-l'], { encoding: 'utf8' }) as string;
+    return targets.includes('image/');
+  } catch { return false; }
 }
 
 async function readClipboardImageLinux(): Promise<ClipboardImageResult | null> {
   // Try xclip (X11)
   try {
-    const buffer = await execShell(
-      'xclip -selection clipboard -t image/png -o 2>/dev/null'
+    const buffer = await execCommand(
+      'xclip',
+      ['-selection', 'clipboard', '-t', 'image/png', '-o'],
     ) as Buffer;
     if (buffer.length > 0) {
       return { buffer, mediaType: 'image/png' };
@@ -133,9 +133,7 @@ async function readClipboardImageLinux(): Promise<ClipboardImageResult | null> {
 
   // Try wl-paste (Wayland)
   try {
-    const buffer = await execShell(
-      'wl-paste --type image/png 2>/dev/null'
-    ) as Buffer;
+    const buffer = await execCommand('wl-paste', ['--type', 'image/png']) as Buffer;
     if (buffer.length > 0) {
       return { buffer, mediaType: 'image/png' };
     }
@@ -162,25 +160,33 @@ async function hasClipboardImageWin32(): Promise<boolean> {
 }
 
 async function readClipboardImageWin32(): Promise<ClipboardImageResult | null> {
-  const tempPath = createTempImagePath();
+  const temp = createTempImagePath();
   try {
+    const script = [
+      'param([string]$OutputPath)',
+      '$img = Get-Clipboard -Format Image',
+      'if ($null -ne $img) {',
+      'try { $img.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png) }',
+      'finally { $img.Dispose() }',
+      '}',
+    ].join('; ');
     await execCommand('powershell', [
       '-NoProfile',
       '-Command',
-      `$img = Get-Clipboard -Format Image; if ($img) { $img.Save('${tempPath.replace(/'/g, "''")}') }`,
+      script,
+      temp.file,
     ]);
 
-    const buffer = readFileSync(tempPath);
+    const buffer = readFileSync(temp.file);
     if (buffer.length === 0) return null;
 
-    // PowerShell saves as BMP by default — detect and keep as-is
-    // (consumers can convert if needed)
+    // Verify the bytes instead of trusting the requested filename extension.
     const mediaType = detectMediaType(buffer);
     return { buffer, mediaType };
   } catch {
     return null;
   } finally {
-    cleanupTempFile(tempPath);
+    cleanupTempImage(temp);
   }
 }
 

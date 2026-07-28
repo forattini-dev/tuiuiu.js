@@ -12,6 +12,13 @@
  */
 
 import { detectTerminalProfile } from './terminal-profile.js';
+import {
+  nextGraphemeBoundary,
+  nextWordBoundary,
+  nextWordEnd,
+  previousGraphemeBoundary,
+  previousWordBoundary,
+} from '../utils/grapheme.js';
 
 // =============================================================================
 // Types
@@ -624,14 +631,21 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
       } else if (action.direction === 'backward') {
         const count = action.count ?? 1;
         if (state.cursor > 0) {
-          const deleteFrom = Math.max(0, state.cursor - count);
+          let deleteFrom = state.cursor;
+          for (let i = 0; i < count; i++) {
+            deleteFrom = previousGraphemeBoundary(state.buffer, deleteFrom);
+          }
           newState.buffer = state.buffer.slice(0, deleteFrom) + state.buffer.slice(state.cursor);
           newState.cursor = deleteFrom;
         }
       } else {
         const count = action.count ?? 1;
         if (state.cursor < state.buffer.length) {
-          newState.buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(state.cursor + count);
+          let deleteTo = state.cursor;
+          for (let i = 0; i < count; i++) {
+            deleteTo = nextGraphemeBoundary(state.buffer, deleteTo);
+          }
+          newState.buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(deleteTo);
         }
       }
       saveHistory();
@@ -640,20 +654,11 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
 
     case 'deleteWord': {
       if (action.direction === 'backward') {
-        // Find word boundary backwards
-        let pos = state.cursor;
-        // Skip whitespace
-        while (pos > 0 && /\s/.test(state.buffer[pos - 1]!)) pos--;
-        // Skip word characters
-        while (pos > 0 && /\S/.test(state.buffer[pos - 1]!)) pos--;
+        const pos = previousWordBoundary(state.buffer, state.cursor);
         newState.buffer = state.buffer.slice(0, pos) + state.buffer.slice(state.cursor);
         newState.cursor = pos;
       } else {
-        let pos = state.cursor;
-        // Skip whitespace
-        while (pos < state.buffer.length && /\s/.test(state.buffer[pos]!)) pos++;
-        // Skip word characters
-        while (pos < state.buffer.length && /\S/.test(state.buffer[pos]!)) pos++;
+        const pos = nextWordEnd(state.buffer, state.cursor);
         newState.buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(pos);
       }
       saveHistory();
@@ -680,10 +685,10 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
 
       switch (action.direction) {
         case 'left':
-          newState.cursor = Math.max(0, state.cursor - 1);
+          newState.cursor = previousGraphemeBoundary(state.buffer, state.cursor);
           break;
         case 'right':
-          newState.cursor = Math.min(state.buffer.length, state.cursor + 1);
+          newState.cursor = nextGraphemeBoundary(state.buffer, state.cursor);
           break;
         case 'home':
           newState.cursor = 0;
@@ -692,17 +697,11 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
           newState.cursor = state.buffer.length;
           break;
         case 'wordLeft': {
-          let pos = state.cursor;
-          while (pos > 0 && /\s/.test(state.buffer[pos - 1]!)) pos--;
-          while (pos > 0 && /\S/.test(state.buffer[pos - 1]!)) pos--;
-          newState.cursor = pos;
+          newState.cursor = previousWordBoundary(state.buffer, state.cursor);
           break;
         }
         case 'wordRight': {
-          let pos = state.cursor;
-          while (pos < state.buffer.length && /\S/.test(state.buffer[pos]!)) pos++;
-          while (pos < state.buffer.length && /\s/.test(state.buffer[pos]!)) pos++;
-          newState.cursor = pos;
+          newState.cursor = nextWordBoundary(state.buffer, state.cursor);
           break;
         }
       }
@@ -716,11 +715,11 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
 
       switch (action.direction) {
         case 'left':
-          newState.cursor = Math.max(0, state.cursor - 1);
+          newState.cursor = previousGraphemeBoundary(state.buffer, state.cursor);
           newState.selectionEnd = newState.cursor;
           break;
         case 'right':
-          newState.cursor = Math.min(state.buffer.length, state.cursor + 1);
+          newState.cursor = nextGraphemeBoundary(state.buffer, state.cursor);
           newState.selectionEnd = newState.cursor;
           break;
         case 'all':
@@ -730,10 +729,8 @@ export function applyInputAction(state: InputState, action: InputAction): InputS
           break;
         case 'word': {
           // Select current word
-          let start = state.cursor;
-          let end = state.cursor;
-          while (start > 0 && /\S/.test(state.buffer[start - 1]!)) start--;
-          while (end < state.buffer.length && /\S/.test(state.buffer[end]!)) end++;
+          const start = previousWordBoundary(state.buffer, state.cursor);
+          const end = nextWordEnd(state.buffer, state.cursor);
           newState.selectionStart = start;
           newState.selectionEnd = end;
           newState.cursor = end;

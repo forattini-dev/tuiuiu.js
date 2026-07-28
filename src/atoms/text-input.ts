@@ -24,6 +24,14 @@ import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { stringWidth } from '../utils/text-utils.js';
+import {
+  clampToGraphemeBoundary,
+  nextGraphemeBoundary,
+  nextWordBoundary,
+  previousGraphemeBoundary,
+  previousWordBoundary,
+  segmentGraphemes,
+} from '../utils/grapheme.js';
 import type { BackgroundTaskHandle } from '../utils/background-executor.js';
 import type { SyncStorageAdapter } from '../primitives/store.js';
 import {
@@ -320,22 +328,26 @@ export function getVisualLines(text: string, width: number, wrap: boolean): Visu
     let lineRemaining = rawLine;
     let lineStartIndex = currentIndex;
 
-    while (lineRemaining.length > width) {
-      // Find split point
-      let splitIndex = -1;
+    while (stringWidth(lineRemaining) > width) {
+      const graphemes = segmentGraphemes(lineRemaining);
+      let usedWidth = 0;
+      let hardSplitIndex = 0;
+      let wordSplitIndex = -1;
 
-      // Look for last space within width
-      for (let i = width; i >= 1; i--) {
-        if (lineRemaining[i] === ' ' || lineRemaining[i] === '\t') {
-          splitIndex = i;
-          break;
+      for (const grapheme of graphemes) {
+        const graphemeDisplayWidth = stringWidth(grapheme.segment);
+        if (hardSplitIndex > 0 && usedWidth + graphemeDisplayWidth > width) break;
+        usedWidth += graphemeDisplayWidth;
+        hardSplitIndex = grapheme.end;
+        if (/^[\t ]$/u.test(grapheme.segment) && grapheme.index > 0) {
+          wordSplitIndex = grapheme.index;
         }
+        if (usedWidth >= width) break;
       }
 
-      // Force break if no space found
-      if (splitIndex === -1) {
-        splitIndex = width;
-      }
+      // Always consume at least one complete grapheme, even in a one-column
+      // viewport containing a wide glyph.
+      const splitIndex = wordSplitIndex > 0 ? wordSplitIndex : hardSplitIndex;
 
       const subLine = lineRemaining.slice(0, splitIndex);
       lines.push({
@@ -344,15 +356,6 @@ export function getVisualLines(text: string, width: number, wrap: boolean): Visu
         end: lineStartIndex + subLine.length
       });
 
-      // Move past the split part
-      // Note: we don't consume the space if we wrapped at it? 
-      // Standard editors usually push the space to next line or hide it at eol.
-      // For simple logic, we keep it in the string but visual wrapping is tricky.
-      // Let's stick to simple greedy char slice for now if strict preservation is needed,
-      // BUT user requested 'wrap from end' which implies word wrap.
-      // My logic above attempts word wrap.
-
-      // Adjust for next iteration
       lineRemaining = lineRemaining.slice(splitIndex);
       lineStartIndex += splitIndex;
     }
@@ -1031,9 +1034,14 @@ export function createTextInput(options: TextInputOptions = {}) {
   ) => {
     const current = value();
     const bounded = Math.max(0, Math.min(pos, current.length));
+    const graphemeClamped = clampToGraphemeBoundary(
+      current,
+      bounded,
+      options?.clampDirection ?? 'nearest',
+    );
     const clamped = clampCursorToSegmentBoundary(
       segments(),
-      bounded,
+      graphemeClamped,
       options?.clampDirection ?? 'nearest'
     );
     setCursorPosition(clamped);
@@ -1092,27 +1100,12 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
   };
 
-  // Word boundary detection
-  const isWordChar = (char: string): boolean => /[\w]/.test(char);
-
   const findPrevWordBoundary = (text: string, pos: number): number => {
-    if (pos <= 0) return 0;
-    let i = pos - 1;
-    // Skip non-word chars
-    while (i > 0 && !isWordChar(text[i])) i--;
-    // Skip word chars
-    while (i > 0 && isWordChar(text[i - 1])) i--;
-    return i;
+    return previousWordBoundary(text, pos);
   };
 
   const findNextWordBoundary = (text: string, pos: number): number => {
-    if (pos >= text.length) return text.length;
-    let i = pos;
-    // Skip word chars
-    while (i < text.length && isWordChar(text[i])) i++;
-    // Skip non-word chars
-    while (i < text.length && !isWordChar(text[i])) i++;
-    return i;
+    return nextWordBoundary(text, pos);
   };
 
   // Input handling
@@ -1175,7 +1168,7 @@ export function createTextInput(options: TextInputOptions = {}) {
         const newPos = findPrevWordBoundary(currentValue, pos);
         setCursorPositionInternal(newPos, { clampDirection: 'left' });
       } else {
-        const newPos = Math.max(0, pos - 1);
+        const newPos = previousGraphemeBoundary(currentValue, pos);
         setCursorPositionInternal(newPos, { clampDirection: 'left' });
       }
       return;
@@ -1187,7 +1180,7 @@ export function createTextInput(options: TextInputOptions = {}) {
         const newPos = findNextWordBoundary(currentValue, pos);
         setCursorPositionInternal(newPos, { clampDirection: 'right' });
       } else {
-        const newPos = Math.min(currentValue.length, pos + 1);
+        const newPos = nextGraphemeBoundary(currentValue, pos);
         setCursorPositionInternal(newPos, { clampDirection: 'right' });
       }
       return;
@@ -1289,8 +1282,12 @@ export function createTextInput(options: TextInputOptions = {}) {
           const boundary = findPrevWordBoundary(currentValue, pos);
           applyEdit({ start: boundary, end: pos }, '', { resetHistory: true });
         } else {
-          // Delete single char
-          applyEdit({ start: pos - 1, end: pos }, '', { resetHistory: true });
+          // Delete one complete Unicode grapheme
+          applyEdit(
+            { start: previousGraphemeBoundary(currentValue, pos), end: pos },
+            '',
+            { resetHistory: true },
+          );
         }
       }
       return;
@@ -1303,8 +1300,12 @@ export function createTextInput(options: TextInputOptions = {}) {
           const boundary = findNextWordBoundary(currentValue, pos);
           applyEdit({ start: pos, end: boundary }, '', { resetHistory: true });
         } else {
-          // Delete single char
-          applyEdit({ start: pos, end: pos + 1 }, '', { resetHistory: true });
+          // Delete one complete Unicode grapheme
+          applyEdit(
+            { start: pos, end: nextGraphemeBoundary(currentValue, pos) },
+            '',
+            { resetHistory: true },
+          );
         }
       }
       return;
@@ -1485,7 +1486,18 @@ export function renderTextInput(
 
   const value = state.value();
   const cursor = state.cursorPosition();
-  const displayValue = password ? maskChar.repeat(value.length) : value;
+  const valueGraphemes = segmentGraphemes(value);
+  const maskGrapheme = segmentGraphemes(maskChar)[0]?.segment ?? '*';
+  const displayValue = password ? maskGrapheme.repeat(valueGraphemes.length) : value;
+  const displayCursor = password
+    ? valueGraphemes.filter((grapheme) => grapheme.end <= cursor).length * maskGrapheme.length
+    : cursor;
+  const displayIndexToValueIndex = (displayIndex: number): number => {
+    if (!password) return displayIndex;
+    const displayGraphemes = segmentGraphemes(displayValue);
+    const completed = displayGraphemes.filter((grapheme) => grapheme.end <= displayIndex).length;
+    return valueGraphemes[completed]?.index ?? value.length;
+  };
   const isEmpty = value.length === 0;
 
   // Use passed specific wrapping options or defaults
@@ -1495,9 +1507,10 @@ export function renderTextInput(
   const showCharCount = mergedOptions.showCharCount ?? false;
 
   // Build the input display with cursor
-  const beforeCursor = displayValue.slice(0, cursor);
-  const cursorChar = displayValue[cursor] || ' ';
-  const afterCursor = displayValue.slice(cursor + 1);
+  const displayCursorEnd = nextGraphemeBoundary(displayValue, displayCursor);
+  const beforeCursor = displayValue.slice(0, displayCursor);
+  const cursorChar = displayValue.slice(displayCursor, displayCursorEnd) || ' ';
+  const afterCursor = displayValue.slice(displayCursorEnd);
 
   const showPlaceholder = isEmpty && placeholder;
 
@@ -1585,9 +1598,9 @@ export function renderTextInput(
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (cursor >= line.start && cursor <= line.end) {
+      if (displayCursor >= line.start && displayCursor <= line.end) {
         cursorLine = i;
-        cursorCol = cursor - line.start;
+        cursorCol = displayCursor - line.start;
         // Handle edge case where cursor is at the very beginning of a wrapped line
         // but logially might be at end of previous?
         // Usually cursor is at 'index' which falls into one bucket.
@@ -1633,7 +1646,7 @@ export function renderTextInput(
       const promptWidth = stringWidth(`${linePrompt} `);
       const column = event.x - contentStartX - promptWidth;
       const cursorOffset = getCursorIndexFromColumn(lineObj.text, column);
-      const nextCursor = Math.min(value.length, lineObj.start + cursorOffset);
+      const nextCursor = displayIndexToValueIndex(lineObj.start + cursorOffset);
 
       state.setCursorPosition(nextCursor, { scroll: false });
     };
@@ -1650,10 +1663,15 @@ export function renderTextInput(
 
       if (isCursorLine && isActive) {
         // Ensure cursorCol is within bounds of this line
-        const safeCol = Math.min(Math.max(0, cursorCol), line.length);
+        const safeCol = clampToGraphemeBoundary(
+          line,
+          Math.min(Math.max(0, cursorCol), line.length),
+          'left',
+        );
+        const cursorEnd = nextGraphemeBoundary(line, safeCol);
         const before = line.slice(0, safeCol);
-        const char = line[safeCol] || ' ';
-        const after = line.slice(safeCol + 1);
+        const char = line.slice(safeCol, cursorEnd) || ' ';
+        const after = line.slice(cursorEnd);
         const lineWidth = stringWidth(before + char + after);
         const padCount = padForScrollbar ? Math.max(0, contentWidth - lineWidth) : 0;
 
@@ -1722,7 +1740,7 @@ export function renderTextInput(
     const promptWidth = stringWidth(`${prompt} `);
     const column = event.x - contentStartX - promptWidth;
     const cursorOffset = getCursorIndexFromColumn(displayValue, column);
-    const nextCursor = Math.min(displayValue.length, cursorOffset);
+    const nextCursor = displayIndexToValueIndex(cursorOffset);
 
     state.setCursorPosition(nextCursor, { scroll: false });
   };

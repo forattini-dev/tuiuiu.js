@@ -266,7 +266,7 @@ Application code is still responsible for:
 - orchestrating progress/status copy and final task semantics
 - owning PTY sessions, shell processes, remote terminals, or resumable terminal transport
 
-See [examples.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/examples.md) for the concrete `rich-prompt-workbench` and `shell-session-workbench` references.
+See [examples.md](./examples.md) for the concrete `rich-prompt-workbench` and `shell-session-workbench` references.
 
 ## Developer-friendly worker API
 

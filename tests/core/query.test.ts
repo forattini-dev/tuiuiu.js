@@ -287,6 +287,24 @@ describe('Query API', () => {
       expect(result!.props.className).toContain('disabled');
     });
 
+    it(':nth-child() should support indexes, odd/even, and an+b formulas', () => {
+      const root = createTestTree();
+
+      expect(queryAll(root, '#content > .item:nth-child(2)')).toHaveLength(1);
+      expect(queryAll(root, '#content > .item:nth-child(odd)')).toHaveLength(2);
+      expect(queryAll(root, '#content > .item:nth-child(even)')).toHaveLength(1);
+      expect(queryAll(root, '#content > .item:nth-child(2n+1)')).toHaveLength(2);
+      expect(queryAll(root, '#content > .item:nth-child(2n + 1)')).toHaveLength(2);
+      expect(queryAll(root, '#content > .item:nth-child(-n+2)')).toHaveLength(2);
+    });
+
+    it(':nth-child() should reject missing and invalid formulas', () => {
+      const root = createTestTree();
+
+      expect(queryAll(root, '.item:nth-child()')).toEqual([]);
+      expect(queryAll(root, '.item:nth-child(nope)')).toEqual([]);
+    });
+
     it(':disabled should match disabled elements', () => {
       const root = createTestTree();
       const result = query(root, '.item:disabled');

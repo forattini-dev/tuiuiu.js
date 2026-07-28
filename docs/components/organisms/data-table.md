@@ -15,9 +15,13 @@ import {
   DataTable,
   useDataTableState,
   createDataTable,
+} from 'tuiuiu.js'
+
+// Explicitly experimental; contracts may change between minor releases.
+import {
   VirtualDataTable,
   EditableDataTable,
-} from 'tuiuiu.js'
+} from 'tuiuiu.js/experimental'
 ```
 
 ## Basic Usage
@@ -159,12 +163,14 @@ Sort cycles through three states:
 
 ## VirtualDataTable
 
-For large datasets with virtual scrolling:
+> **Experimental:** this component currently uses paginated `DataTable`
+> internally. It does not yet provide true windowed rendering, and `overscan`
+> and `rowHeight` are reserved for the future implementation.
 
 ```typescript
 VirtualDataTable({
   columns: [...],
-  data: largeDataset, // 10000+ rows
+  data: largeDataset,
   visibleRows: 20,
   overscan: 3,
   pageSize: 0, // Disable pagination
@@ -181,7 +187,9 @@ VirtualDataTable({
 
 ## EditableDataTable
 
-Table with inline cell editing:
+> **Experimental:** this component currently renders a read-only `DataTable`.
+> `editable`, `inputType`, `options`, `validate`, and `onCellEdit` describe the
+> planned contract but are not active behavior yet.
 
 ```typescript
 EditableDataTable({

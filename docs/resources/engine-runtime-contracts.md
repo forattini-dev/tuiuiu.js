@@ -36,9 +36,9 @@ The runtime contract runner is intended to prove:
 
 Covered by:
 
-- [frame.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/frame.test.ts)
-- [frame-commands.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/frame-commands.test.ts)
-- [render-loop.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/app/render-loop.test.ts)
+- [frame.test.ts](../../tests/core/frame.test.ts)
+- [frame-commands.test.ts](../../tests/core/frame-commands.test.ts)
+- [render-loop.test.ts](../../tests/app/render-loop.test.ts)
 
 Guarantees:
 
@@ -52,11 +52,11 @@ Guarantees:
 
 Covered by:
 
-- [frame-queries.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/frame-queries.test.ts)
-- [scroll.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/primitives/scroll.test.ts)
-- [scroll-area.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/organisms/scroll-area.test.ts)
-- [tabs-mouse.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/layout/tabs-mouse.test.ts)
-- [scroll-area-mouse.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/layout/scroll-area-mouse.test.ts)
+- [frame-queries.test.ts](../../tests/core/frame-queries.test.ts)
+- [scroll.test.ts](../../tests/primitives/scroll.test.ts)
+- [scroll-area.test.ts](../../tests/organisms/scroll-area.test.ts)
+- [tabs-mouse.test.ts](../../tests/layout/tabs-mouse.test.ts)
+- [scroll-area-mouse.test.ts](../../tests/layout/scroll-area-mouse.test.ts)
 
 Guarantees:
 
@@ -70,8 +70,8 @@ Guarantees:
 
 Covered by:
 
-- [renderer.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/renderer.test.ts)
-- [delta-render.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/core/delta-render.test.ts)
+- [renderer.test.ts](../../tests/core/renderer.test.ts)
+- [delta-render.test.ts](../../tests/core/delta-render.test.ts)
 
 Guarantees:
 
@@ -83,8 +83,8 @@ Guarantees:
 
 Covered by:
 
-- [debugger.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/dev-tools/debugger.test.ts)
-- [inspector-snapshot.test.ts](/home/cyber/Work/tetis/libs/tuiuiu.js/tests/dev-tools/inspector-snapshot.test.ts)
+- [debugger.test.ts](../../tests/dev-tools/debugger.test.ts)
+- [inspector-snapshot.test.ts](../../tests/dev-tools/inspector-snapshot.test.ts)
 
 Guarantees:
 
@@ -96,7 +96,7 @@ Guarantees:
 
 These checks validate the runtime contract defined by:
 
-- [define-engine-runtime-contracts](/home/cyber/Work/tetis/libs/tuiuiu.js/openspec/changes/define-engine-runtime-contracts/tasks.md)
+- [define-engine-runtime-contracts](../../openspec/changes/define-engine-runtime-contracts/tasks.md)
 
 They do **not** mean:
 

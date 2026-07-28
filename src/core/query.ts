@@ -33,8 +33,13 @@ interface SelectorPart {
   type?: string;           // Element type (Box, Text, etc.)
   id?: string;             // ID selector (#id)
   classes: string[];       // Class selectors (.class)
-  pseudoClasses: string[]; // Pseudo-classes (:focus, :first-child)
+  pseudoClasses: PseudoClassMatcher[]; // Pseudo-classes (:focus, :nth-child(2n+1))
   attributes: AttributeMatcher[]; // Attribute selectors [attr=value]
+}
+
+interface PseudoClassMatcher {
+  name: string;
+  argument?: string;
 }
 
 /**
@@ -91,6 +96,7 @@ function tokenizeSelector(selector: string): string[] {
   const tokens: string[] = [];
   let current = '';
   let inBracket = false;
+  let parenthesisDepth = 0;
   let inQuote: string | null = null;
 
   for (let i = 0; i < selector.length; i++) {
@@ -124,6 +130,21 @@ function tokenizeSelector(selector: string): string[] {
       continue;
     }
     if (inBracket) {
+      current += char;
+      continue;
+    }
+
+    if (char === '(') {
+      parenthesisDepth++;
+      current += char;
+      continue;
+    }
+    if (char === ')' && parenthesisDepth > 0) {
+      parenthesisDepth--;
+      current += char;
+      continue;
+    }
+    if (parenthesisDepth > 0) {
       current += char;
       continue;
     }
@@ -205,9 +226,12 @@ function parseSelectorPart(part: string): SelectorPart {
   part = part.replace(attrRegex, '');
 
   // Extract pseudo-classes :focus, :first-child
-  const pseudoRegex = /:([a-zA-Z-]+)(?:\([^)]*\))?/g;
+  const pseudoRegex = /:([a-zA-Z-]+)(?:\(([^)]*)\))?/g;
   while ((match = pseudoRegex.exec(part)) !== null) {
-    result.pseudoClasses.push(match[1]!);
+    result.pseudoClasses.push({
+      name: match[1]!.toLowerCase(),
+      argument: match[2]?.trim(),
+    });
   }
   part = part.replace(pseudoRegex, '');
 
@@ -279,6 +303,32 @@ function getNodeClasses(node: VNode): string[] {
   return [];
 }
 
+function matchesNthChild(argument: string | undefined, index: number): boolean {
+  if (!argument) return false;
+  const expression = argument.toLowerCase().replace(/\s+/g, '');
+  const position = index + 1;
+
+  if (expression === 'odd') return position % 2 === 1;
+  if (expression === 'even') return position % 2 === 0;
+  if (/^[+-]?\d+$/u.test(expression)) {
+    return position === Number(expression);
+  }
+
+  const match = /^([+-]?\d*)n(?:([+-]\d+))?$/u.exec(expression);
+  if (!match) return false;
+  const coefficientText = match[1]!;
+  const a = coefficientText === '' || coefficientText === '+'
+    ? 1
+    : coefficientText === '-'
+      ? -1
+      : Number(coefficientText);
+  const b = match[2] ? Number(match[2]) : 0;
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) return false;
+  if (a === 0) return position === b;
+  const multiple = (position - b) / a;
+  return Number.isInteger(multiple) && multiple >= 0;
+}
+
 /**
  * Check if a node matches a selector part
  */
@@ -338,7 +388,7 @@ function matchesSelectorPart(
 
   // Pseudo-class selectors
   for (const pseudo of part.pseudoClasses) {
-    switch (pseudo) {
+    switch (pseudo.name) {
       case 'first-child':
         if (context.index !== 0) return false;
         break;
@@ -349,7 +399,7 @@ function matchesSelectorPart(
         if (context.siblings.length !== 1) return false;
         break;
       case 'nth-child':
-        // TODO: Implement nth-child(n) parsing
+        if (!matchesNthChild(pseudo.argument, context.index)) return false;
         break;
       case 'focus':
         if (context.focused !== node) return false;
@@ -369,6 +419,8 @@ function matchesSelectorPart(
       case 'not-empty':
         if (node.children.length === 0) return false;
         break;
+      default:
+        return false;
     }
   }
 

@@ -239,7 +239,7 @@ export function writeStorybookCoverageDocument(): CoverageResult {
   return result;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const mode = process.argv[2] ?? 'check';
   const result = mode === 'write' ? writeStorybookCoverageDocument() : buildStorybookCoverageDocument();
   const current = readFileSync(coveragePath, 'utf8');

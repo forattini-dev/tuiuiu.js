@@ -1,0 +1,35 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "noConstantCondition": "error",
+        "noUnreachable": "error"
+      },
+      "suspicious": {
+        "noDoubleEquals": "error",
+        "noDuplicateCase": "error",
+        "noDuplicateObjectKeys": "error",
+        "noSelfCompare": "error",
+        "noShadowRestrictedNames": "error"
+      }
+    }
+  },
+  "files": {
+    "includes": [
+      "src/**/*.ts",
+      "tests/**/*.ts",
+      "scripts/**/*.ts",
+      "!src/mcp/docs/**",
+      "!src/storybook/stories/**"
+    ]
+  }
+}

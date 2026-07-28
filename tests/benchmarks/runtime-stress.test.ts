@@ -278,8 +278,12 @@ describeOrSkip('Runtime stress benchmarks', () => {
     expect(full.avgDeltaMs).toBeLessThan(STRESS_BUDGETS.fullBoard.delta);
     expect(full.avgAnsiMs).toBeLessThan(STRESS_BUDGETS.fullBoard.ansi);
 
-    expect(localized.avgDeltaMs).toBeLessThan(localized.avgAnsiMs);
+    // Delta rendering trades a small amount of local CPU for substantially
+    // less terminal I/O. Compare each resource directly instead of assuming
+    // that producing a patch must be faster than producing a single string.
+    expect(localized.avgDeltaBytes).toBeLessThan(localized.avgAnsiBytes);
     expect(localized.avgDeltaMs).toBeLessThan(full.avgDeltaMs);
+    expect(localized.avgDeltaBytes).toBeLessThan(full.avgDeltaBytes);
   });
 
   it('coalesces keyboard bursts without runaway rerenders', async () => {

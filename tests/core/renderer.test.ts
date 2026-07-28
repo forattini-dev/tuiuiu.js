@@ -43,6 +43,13 @@ describe('stringWidth', () => {
 });
 
 describe('Renderer with colors', () => {
+  it('does not emit non-SGR controls from ordinary Text', () => {
+    const output = renderOnce(Text({}, 'A\x1b[2JB\x1b]2;owned\x07C'));
+    expect(output).toContain('ABC');
+    expect(output).not.toContain('\x1b[2J');
+    expect(output).not.toContain('\x1b]2;');
+  });
+
   it('renders colored text correctly positioned', () => {
     const output = renderOnce(
       Box({ width: 20, borderStyle: 'single' },

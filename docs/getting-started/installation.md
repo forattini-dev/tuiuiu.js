@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 22.12+
 - npm, pnpm, or yarn
 
 ## Package Manager
@@ -59,6 +59,7 @@ import { Box, Text } from 'tuiuiu.js/primitives';
 import { Button, Spinner } from 'tuiuiu.js/atoms';
 import { Select, Table } from 'tuiuiu.js/molecules';
 import { Modal, DataTable } from 'tuiuiu.js/organisms';
+import { VirtualDataTable } from 'tuiuiu.js/experimental';
 import { AppShell } from 'tuiuiu.js/templates';
 
 // Core systems
@@ -82,6 +83,7 @@ import { BarChart, Gauge, FileManager } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/atoms` | Button, TextInput, Switch, Slider, Spinner, ProgressBar |
 | `tuiuiu.js/molecules` | Select, MultiSelect, Table, Tabs, Tree, Calendar |
 | `tuiuiu.js/organisms` | Modal, CommandPalette, DataTable, FileManager, SplitPanel |
+| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable facades |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack, StatusBar |
 | `tuiuiu.js/core` | Signals, layout engine, renderer |
 | `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |
@@ -89,6 +91,10 @@ import { BarChart, Gauge, FileManager } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/utils` | Text measurement, ANSI utilities |
 | `tuiuiu.js/design-system` | Complete design system |
 | `tuiuiu.js/storybook` | Storybook utilities |
+| `tuiuiu.js/mcp` | Programmatic MCP server API |
+| `tuiuiu.js/prompts` | Blocking CLI prompts |
+| `tuiuiu.js/themes` | Theme definitions and validation |
+| `tuiuiu.js/dev-tools` | Debugging and test helpers |
 
 ## Verify Installation
 

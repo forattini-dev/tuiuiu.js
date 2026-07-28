@@ -181,6 +181,13 @@ describe('Progressive Enhancement', () => {
       const result = setWindowTitle('My App', caps);
       expect(result).toContain('\x1b]2;My App\x07');
     });
+
+    it('should prevent title fields from terminating OSC early', () => {
+      const caps = makeCaps({ windowTitle: true });
+      const result = setWindowTitle('safe\x07\x1b[2Jowned', caps);
+      expect(result).not.toContain('\x07\x1b[2J');
+      expect(result.match(/\x07/g)).toHaveLength(1);
+    });
   });
 
   // ===========================================================================
@@ -251,6 +258,13 @@ describe('Progressive Enhancement', () => {
       expect(result).toContain('\x1b]8;;\x07');
     });
 
+    it('should sanitize hyperlink URL and label controls', () => {
+      const caps = makeCaps({ hyperlinks: true });
+      const result = formatHyperlink('Docs\x1b[2J', 'https://example.com/\x07\x1b[2J', caps);
+      expect(result).not.toContain('\x07\x1b[2J');
+      expect(result).not.toContain('Docs\x1b[2J');
+    });
+
     it('should allow configureProgressive to re-enable hyperlinks explicitly', () => {
       const caps = makeCaps({ hyperlinks: true });
       setHyperlinksEnabled(false);
@@ -306,6 +320,14 @@ describe('Progressive Enhancement', () => {
       const result = getNotificationSequence('Alert', 'Something', caps);
       expect(result).not.toBeNull();
       expect(result).toContain('\x1b]777;notify;Alert;Something\x07');
+    });
+
+    it('should sanitize notification terminators and OSC 777 delimiters', () => {
+      const caps = makeCaps({ notifications: 'osc777' });
+      const result = getNotificationSequence('Alert;\x07\x1b[2J', 'Body;value', caps);
+      expect(result).not.toContain('\x07\x1b[2J');
+      expect(result).toContain('Alert:  [2J;Body:value');
+      expect(result?.match(/\x07/g)).toHaveLength(1);
     });
   });
 

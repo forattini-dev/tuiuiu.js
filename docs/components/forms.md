@@ -218,7 +218,7 @@ Persisted prompt history hydrates synchronously when the controller is created, 
 
 ### Prompt Command Routing
 
-Slash commands remain application-owned prompt semantics, but the library now provides helpers to remove most of the boilerplate. See the advanced reference in [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md).
+Slash commands remain application-owned prompt semantics, but the library now provides helpers to remove most of the boilerplate. See the advanced reference in [prompt-patterns.md](../resources/prompt-patterns.md).
 
 In short:
 
@@ -228,11 +228,11 @@ In short:
 
 ### Prompt Mode Routing
 
-When one prompt needs multiple submit routes, `createPromptModeRegistry()` classifies prompt mode by prefix without pushing those semantics into `TextInput`. `inspectPrompt()` is the canonical API; `parse()` remains as a compatibility alias. See [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) for the full example.
+When one prompt needs multiple submit routes, `createPromptModeRegistry()` classifies prompt mode by prefix without pushing those semantics into `TextInput`. `inspectPrompt()` is the canonical API; `parse()` remains as a compatibility alias. See [prompt-patterns.md](../resources/prompt-patterns.md) for the full example.
 
 ### Task-Backed Completion Usage
 
-When completion sources need ranking or background work, `getItems` can return a task handle instead of awaiting the result inline. The controller cancels obsolete tasks automatically when the anchor changes or the session closes. See [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) for the full pattern.
+When completion sources need ranking or background work, `getItems` can return a task handle instead of awaiting the result inline. The controller cancels obsolete tasks automatically when the anchor changes or the session closes. See [prompt-patterns.md](../resources/prompt-patterns.md) for the full pattern.
 
 ### Completion Ranking
 
@@ -278,7 +278,7 @@ const prompt = useTextInputState({
 
 Persisted ranking hydrates synchronously when the controller is created, so the first completion session in a new process can already use prior ranking history.
 
-For the full advanced prompt stack, including background task progress and the core-vs-app-owned boundary, see [prompt-patterns.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/prompt-patterns.md) and the workbench references in [examples.md](/home/cyber/Work/tetis/libs/tuiuiu.js/docs/resources/examples.md).
+For the full advanced prompt stack, including background task progress and the core-vs-app-owned boundary, see [prompt-patterns.md](../resources/prompt-patterns.md) and the workbench references in [examples.md](../resources/examples.md).
 
 ## Select
 

@@ -144,6 +144,7 @@ describe('Tab Navigation', () => {
     });
 
     it('should blur on Escape when something is focused', () => {
+      vi.useFakeTimers();
       const appContext = initializeApp(mockStdin, mockStdout, { autoTabNavigation: true });
       const fm = getFocusManager()!;
 
@@ -155,10 +156,12 @@ describe('Tab Navigation', () => {
 
       // Press Escape (0x1b)
       dataHandler(Buffer.from([0x1b]));
+      vi.advanceTimersByTime(25);
 
       // Should blur
       expect(fm.getActiveId()).toBeUndefined();
       expect(setFocused).toHaveBeenLastCalledWith(false);
+      vi.useRealTimers();
     });
 
     it('should not consume Escape when nothing is focused', () => {
