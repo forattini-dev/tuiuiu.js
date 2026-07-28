@@ -43,6 +43,22 @@ describe('DrawCommand contract', () => {
     expect(renderFrameToString(frame)).toBe(renderToString(node, { width: 8, height: 6 }));
   });
 
+  it('snaps fractional layout geometry to terminal cell coordinates', () => {
+    const frame = createFrameSnapshot(
+      Box(
+        { width: 10, alignItems: 'center' },
+        Text({ id: 'centered', width: 3 } as any, 'abc'),
+      ),
+      { width: 10, height: 4 },
+    );
+    const command = frame.drawCommands.find(item => item.id === 'centered');
+
+    expect(command?.type).toBe('text');
+    expect(Number.isInteger(command?.x)).toBe(true);
+    expect(Number.isInteger(command?.y)).toBe(true);
+    expect(renderFrameToString(frame)).toContain('abc');
+  });
+
   it('reuses the committed draw-command array for identical stable frames', () => {
     const node = Box(
       { id: 'stable-root', width: 18, height: 5, borderStyle: 'single', padding: 1 },

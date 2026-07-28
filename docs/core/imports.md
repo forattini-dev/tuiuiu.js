@@ -45,7 +45,7 @@ import {
   Computed,      // Auto-tracking reactive VNode isolation
   ComputedText,  // Shorthand for reactive text
   Memo,          // Cache VNode subtree by deps
-  PreText,       // Pre-built ANSI passthrough
+  PreText,       // Pre-styled, validated SGR text
 } from 'tuiuiu.js';
 ```
 

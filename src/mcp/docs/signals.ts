@@ -211,16 +211,16 @@ export const signals: HookDoc[] = [
   },
   {
     name: 'PreText',
-    description: 'Render pre-built ANSI content directly without re-processing. Use when you have already built ANSI-escaped strings (common in games that render maps with per-cell styling).',
+    description: 'Render pre-styled text from validated SGR codes while ignoring component text styles. Non-SGR terminal controls are discarded.',
     signature: 'PreText(content: string, props?: Partial<TextProps>): VNode',
     params: [
-      { name: 'content', type: 'string', required: true, description: 'String with ANSI escape codes already applied' },
+      { name: 'content', type: 'string', required: true, description: 'String with validated SGR color/style codes already applied' },
       { name: 'props', type: 'Partial<TextProps>', required: false, description: 'Optional layout props (width, height)' },
     ],
-    returns: 'VNode that passes content through as-is',
+    returns: 'VNode whose SGR styles are parsed into structured cells',
     examples: [
       `// Pre-styled game row\nconst row = '\\x1b[32m███\\x1b[0m \\x1b[31m░░░\\x1b[0m';\nPreText(row)`,
-      `// Game map with pre-built ANSI\nBox({ flexDirection: 'column' },\n  ...mapRows.map(row => PreText(row))\n)`,
+      `// Game map with ANSI SGR styling\nBox({ flexDirection: 'column' },\n  ...mapRows.map(row => PreText(row))\n)`,
     ],
   },
 ];

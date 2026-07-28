@@ -223,9 +223,9 @@ Memo([], () =>
       )
     ),
 
-  story('PreText - Raw ANSI Passthrough')
+  story('PreText - Pre-styled SGR')
     .category('Guides')
-    .description('PreText renders pre-built ANSI strings directly. The renderer skips encoding — fastest path for games.')
+    .description('PreText parses validated pre-built SGR colors into cells while discarding other terminal controls.')
     .controls({
       width: defaultControls.range('Width', 40, 10, 80),
     })
@@ -253,13 +253,13 @@ Memo([], () =>
 
       return Box(
         { flexDirection: 'column', gap: 1, padding: 1 },
-        Text({ bold: true, color: 'primary' }, 'PreText — Raw ANSI'),
+        Text({ bold: true, color: 'primary' }, 'PreText — Pre-styled SGR'),
         Box(
           { flexDirection: 'column', borderStyle: 'round', borderColor: 'border' },
           ...rows.map(row => PreText(row)),
         ),
-        Text({ dim: true }, 'PreText(ansiString) — renderer passes through as-is'),
-        Text({ dim: true }, 'Use for games that build their own ANSI colors'),
+        Text({ dim: true }, 'PreText(sgrString) — validated styles, structured cells'),
+        Text({ dim: true }, 'Use for games that build their own SGR colors'),
       );
     }),
 ];

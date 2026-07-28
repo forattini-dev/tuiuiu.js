@@ -831,6 +831,24 @@ function renderDrawCommandsToBuffer(
 }
 
 /**
+ * Rasterize a committed frame into the canonical structured cell model.
+ *
+ * Both the full string renderer and the incremental renderer use this entry
+ * point so text parsing, wide-cell handling, colors, borders, reserved regions
+ * and terminal-image fallbacks cannot drift between rendering modes.
+ */
+export function renderFrameToCellBuffer(
+  frame: FrameSnapshot,
+  buffer = new CellBuffer(
+    frame.info.viewport.width,
+    frame.info.viewport.height,
+  ),
+): CellBuffer {
+  renderDrawCommandsToBuffer(frame.drawCommands, buffer, frame.reservedRegions);
+  return buffer;
+}
+
+/**
  * Render a Box command to buffer
  */
 function renderBoxToBuffer(
@@ -1109,6 +1127,71 @@ interface AnsiSegment {
   attrs: CellAttrs;
 }
 
+function parseSgrByte(value: string | undefined): number | null {
+  if (value === undefined || !/^\d{1,3}$/u.test(value)) return null;
+  const parsed = Number(value);
+  return parsed >= 0 && parsed <= 255 ? parsed : null;
+}
+
+function parseColonColor(parts: string[]): Color | null {
+  const mode = Number(parts[1]);
+  const values = parts.slice(2).filter(value => value !== '');
+
+  if (mode === 5) {
+    const ansi256 = parseSgrByte(values.at(-1));
+    return ansi256 === null ? null : { ansi256 };
+  }
+
+  if (mode === 2) {
+    const rgb = values.slice(-3).map(parseSgrByte);
+    if (rgb.length !== 3 || rgb.some(value => value === null)) return null;
+    return { r: rgb[0]!, g: rgb[1]!, b: rgb[2]! };
+  }
+
+  return null;
+}
+
+function parseSemicolonColor(
+  parameters: string[],
+  index: number,
+): { color: Color | null; consumed: number } {
+  const mode = Number(parameters[index + 1]);
+  if (mode === 5) {
+    return {
+      color: (() => {
+        const ansi256 = parseSgrByte(parameters[index + 2]);
+        return ansi256 === null ? null : { ansi256 };
+      })(),
+      consumed: 2,
+    };
+  }
+
+  if (mode === 2) {
+    const rgb = [
+      parseSgrByte(parameters[index + 2]),
+      parseSgrByte(parameters[index + 3]),
+      parseSgrByte(parameters[index + 4]),
+    ];
+    return {
+      color: rgb.some(value => value === null)
+        ? null
+        : { r: rgb[0]!, g: rgb[1]!, b: rgb[2]! },
+      consumed: 4,
+    };
+  }
+
+  return { color: null, consumed: 0 };
+}
+
+const UNDERLINE_VARIANTS: Record<number, CellAttrs['underline']> = {
+  0: false,
+  1: 'single',
+  2: 'double',
+  3: 'curly',
+  4: 'dotted',
+  5: 'dashed',
+};
+
 function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: CellAttrs = {}): AnsiSegment[] {
   const segments: AnsiSegment[] = [];
   let currentFg: Color | undefined = baseFg;
@@ -1133,14 +1216,32 @@ function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: 
       }
 
       if (sequence.kind === 'sgr') {
-        // Parse SGR (Select Graphic Rendition) codes
-        const codes = sequence.value.slice(2, -1).split(';').map(c => parseInt(c, 10) || 0);
+        const body = sequence.value.slice(2, -1);
+        const parameters = body === '' ? ['0'] : body.split(';');
 
-        for (let k = 0; k < codes.length; k++) {
-          const code = codes[k]!;
+        for (let k = 0; k < parameters.length; k++) {
+          const parameter = parameters[k]!;
+          const colonParts = parameter.split(':');
+          const code = Number(colonParts[0] || 0);
+
+          if (colonParts.length > 1) {
+            if (code === 4) {
+              const variant = Number(colonParts[1] || 0);
+              if (variant in UNDERLINE_VARIANTS) {
+                currentAttrs.underline = UNDERLINE_VARIANTS[variant];
+              }
+            } else if (code === 38 || code === 48 || code === 58) {
+              const color = parseColonColor(colonParts);
+              if (color) {
+                if (code === 38) currentFg = color;
+                else if (code === 48) currentBg = color;
+                else currentAttrs.underlineColor = color;
+              }
+            }
+            continue;
+          }
 
           if (code === 0) {
-            // Reset
             currentFg = baseFg;
             currentBg = baseBg;
             currentAttrs = { ...baseAttrs };
@@ -1152,48 +1253,57 @@ function parseAnsiText(text: string, baseFg?: Color, baseBg?: Color, baseAttrs: 
             currentAttrs.italic = true;
           } else if (code === 4) {
             currentAttrs.underline = true;
+          } else if (code === 5) {
+            currentAttrs.blink = true;
           } else if (code === 7) {
             currentAttrs.inverse = true;
+          } else if (code === 8) {
+            currentAttrs.hidden = true;
           } else if (code === 9) {
             currentAttrs.strikethrough = true;
+          } else if (code === 21) {
+            currentAttrs.underline = 'double';
+          } else if (code === 22) {
+            currentAttrs.bold = false;
+            currentAttrs.dim = false;
+          } else if (code === 23) {
+            currentAttrs.italic = false;
+          } else if (code === 24) {
+            currentAttrs.underline = false;
+          } else if (code === 25) {
+            currentAttrs.blink = false;
+          } else if (code === 27) {
+            currentAttrs.inverse = false;
+          } else if (code === 28) {
+            currentAttrs.hidden = false;
+          } else if (code === 29) {
+            currentAttrs.strikethrough = false;
           } else if (code >= 30 && code <= 37) {
-            // Standard foreground colors
             const colorNames = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
             currentFg = colorNames[code - 30];
+          } else if (code === 39) {
+            currentFg = baseFg;
           } else if (code >= 40 && code <= 47) {
-            // Standard background colors
             const colorNames = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
             currentBg = colorNames[code - 40];
+          } else if (code === 49) {
+            currentBg = baseBg;
+          } else if (code === 59) {
+            currentAttrs.underlineColor = baseAttrs.underlineColor;
           } else if (code >= 90 && code <= 97) {
-            // Bright foreground colors
             const colorNames = ['blackBright', 'redBright', 'greenBright', 'yellowBright', 'blueBright', 'magentaBright', 'cyanBright', 'whiteBright'];
             currentFg = colorNames[code - 90];
           } else if (code >= 100 && code <= 107) {
-            // Bright background colors
             const colorNames = ['blackBright', 'redBright', 'greenBright', 'yellowBright', 'blueBright', 'magentaBright', 'cyanBright', 'whiteBright'];
             currentBg = colorNames[code - 100];
-          } else if (code === 38 && codes[k + 1] === 2) {
-            // 24-bit foreground: 38;2;r;g;b
-            const r = codes[k + 2] ?? 0;
-            const g = codes[k + 3] ?? 0;
-            const b = codes[k + 4] ?? 0;
-            currentFg = { r, g, b };
-            k += 4;
-          } else if (code === 48 && codes[k + 1] === 2) {
-            // 24-bit background: 48;2;r;g;b
-            const r = codes[k + 2] ?? 0;
-            const g = codes[k + 3] ?? 0;
-            const b = codes[k + 4] ?? 0;
-            currentBg = { r, g, b };
-            k += 4;
-          } else if (code === 38 && codes[k + 1] === 5) {
-            // 256-color foreground: 38;5;n
-            currentFg = { ansi256: codes[k + 2] ?? 0 };
-            k += 2;
-          } else if (code === 48 && codes[k + 1] === 5) {
-            // 256-color background: 48;5;n
-            currentBg = { ansi256: codes[k + 2] ?? 0 };
-            k += 2;
+          } else if (code === 38 || code === 48 || code === 58) {
+            const { color, consumed } = parseSemicolonColor(parameters, k);
+            if (color) {
+              if (code === 38) currentFg = color;
+              else if (code === 48) currentBg = color;
+              else currentAttrs.underlineColor = color;
+            }
+            k += consumed;
           }
         }
       }
@@ -1222,7 +1332,7 @@ function renderTextToBuffer(
 ): void {
   const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
 
-  // PreText: content has pre-built ANSI — parse with empty base attrs
+  // PreText: parse validated ANSI SGR into structured cell attributes
   // so the embedded ANSI codes take full effect without style overlay
   const isPrebuilt = command.prebuiltAnsi === true;
 

@@ -246,21 +246,22 @@ function depsEqual(a: unknown[], b: unknown[]): boolean {
 }
 
 // =============================================================================
-// PreText - Pre-built ANSI content (skip renderer processing)
+// PreText - Pre-styled SGR content
 // =============================================================================
 
 /**
- * PreText - Render pre-built ANSI content directly.
+ * PreText - Render content with pre-built SGR styling.
  *
  * When you've already built ANSI-escaped strings (common in games),
- * PreText tells the renderer to output them as-is without re-processing.
- * This skips the ANSI encoding phase entirely.
+ * PreText ignores component-level text styling and derives structured cell
+ * styles from validated SGR sequences. Cursor movement, OSC, DCS and other
+ * terminal protocols are discarded rather than passed through.
  *
- * @param content - A string with ANSI escape codes already applied
+ * @param content - A string with SGR color/style codes already applied
  * @param props - Optional layout props (width, height)
  *
  * @example
- * // Game board with pre-built ANSI colors
+ * // Game board with ANSI SGR styling
  * const row = '\x1b[32m███\x1b[0m \x1b[31m░░░\x1b[0m';
  * PreText(row)
  *

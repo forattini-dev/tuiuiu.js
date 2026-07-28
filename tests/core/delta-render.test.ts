@@ -10,6 +10,7 @@ import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-ima
 import {
   __collectDirtyRegionsForTesting,
   createDeltaRenderer,
+  renderFrameToCellBuffer,
   resetDeltaRenderer,
   type DeltaRenderer,
 } from '../../src/core/delta-render.js';
@@ -348,6 +349,32 @@ describe('Delta Renderer', () => {
       for (const line of renderFrameToString(frame).split('\n')) {
         expect(stringWidth(line)).toBe(16);
       }
+    });
+
+    it('applies partial SGR resets and colon-form styles to canonical cells', () => {
+      const frame = createFrameSnapshot(
+        Text(
+          {},
+          '\x1b[31mR\x1b[39mN' +
+          '\x1b[1mB\x1b[22mn' +
+          '\x1b[4:3mU\x1b[24mu' +
+          '\x1b[38;5;196mC\x1b[39mx' +
+          '\x1b[48:2::1:2:3mG\x1b[49my',
+        ),
+        { width: 40, height: 4 },
+      );
+      const buffer = renderFrameToCellBuffer(frame);
+
+      expect(buffer.get(0, 0)?.fg).toBe('red');
+      expect(buffer.get(1, 0)?.fg).toBeUndefined();
+      expect(buffer.get(2, 0)?.attrs.bold).toBe(true);
+      expect(buffer.get(3, 0)?.attrs.bold).toBe(false);
+      expect(buffer.get(4, 0)?.attrs.underline).toBe('curly');
+      expect(buffer.get(5, 0)?.attrs.underline).toBe(false);
+      expect(buffer.get(6, 0)?.fg).toEqual({ ansi256: 196 });
+      expect(buffer.get(7, 0)?.fg).toBeUndefined();
+      expect(buffer.get(8, 0)?.bg).toEqual({ r: 1, g: 2, b: 3 });
+      expect(buffer.get(9, 0)?.bg).toBeUndefined();
     });
 
     it('should track render statistics', () => {

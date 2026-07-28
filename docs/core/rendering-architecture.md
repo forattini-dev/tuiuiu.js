@@ -11,7 +11,7 @@ graph TD
     A[Application Code] -->|Creates VNodes| B(Virtual DOM Tree)
     B -->|Passed to Layout Engine| C{Layout Calculation}
     C -->|Calculates x, y, w, h| D[Layout Tree]
-    D -->|Painters Algorithm| E[Output Buffer 2D Grid]
+    D -->|Painters Algorithm| E[Structured CellBuffer]
     E -->|Serialization| F[ANSI String]
     F -->|process.stdout.write| G[Terminal]
 ```
@@ -36,12 +36,15 @@ Tuiuiu uses a simplified **Flexbox** implementation. It traverses the VNode tree
 
 The result is a **Layout Tree** where every node has absolute coordinates (`x`, `y`) and dimensions.
 
-### 3. The Output Buffer (Painting)
-The renderer creates a 2D grid of cells (`OutputBuffer`) representing the terminal screen. It paints nodes onto this grid in tree order (parents then children).
+### 3. The Cell Buffer (Painting)
+The renderer creates a structured 2D grid (`CellBuffer`) representing the
+terminal screen. Full-string and incremental rendering use the same rasterizer
+and the same cells; only their serialization strategy differs.
 
 *   **Painters Algorithm**: Later nodes overwrite earlier nodes. This handles z-indexing naturally (child sits on top of parent background).
 *   **Double Buffering**: Frames are fully constructed in memory before being flushed to the screen to prevent flickering.
 *   **Clipping**: Content outside a box's bounds is clipped (hidden).
+*   **Wide-cell invariants**: Emoji and CJK glyphs own their complete footprint. Overwriting either half clears the other, so placeholders cannot become orphaned.
 
 ## Optimization Techniques
 
@@ -110,14 +113,18 @@ interface Cell {
 }
 ```
 
-### String Renderer (Legacy)
+### Full-string Serializer
 
-The legacy string-based renderer uses `log-update` principles:
+When `useDeltaRenderer: false`, Tuiuiu serializes the canonical `CellBuffer` as
+a complete ANSI frame and uses line-oriented terminal updates:
+
 1.  Compare the new frame string with the previous frame string.
 2.  Move the cursor up/down to the changed lines.
 3.  Overwrite only the changed lines.
 
-Both renderers now share the same renderable-symbol parsing rule: a visible glyph is measured and painted together with any trailing zero-width modifiers (for example variation selectors). That keeps emoji-heavy output aligned between the ANSI and delta paths.
+Because both modes rasterize through the same cell path, ANSI sanitization,
+theme resolution, wrapping, borders, reserved regions and grapheme handling
+cannot drift between full and delta output.
 
 Use `useDeltaRenderer: false` to enable this mode (useful for Static component support).
 

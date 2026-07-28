@@ -107,9 +107,11 @@ function GameView() {
 
 **Rule of thumb:** Use `Computed` when your data comes from signals. Use `Memo` when you know exactly what values should trigger a rebuild (e.g., array reference, cursor position).
 
-## `PreText` — Pre-built ANSI Content
+## `PreText` — Pre-styled SGR Content
 
-For apps that build their own ANSI-colored strings (common in games), `PreText` tells the renderer to output the content as-is without re-processing.
+For apps that build their own SGR-colored strings (common in games), `PreText`
+ignores component text styles and parses those validated styles directly into
+cells. Other terminal controls are discarded.
 
 ```typescript
 import { PreText } from 'tuiuiu.js';
@@ -119,7 +121,7 @@ const greenBlock = '\x1b[32m███\x1b[0m';
 const redBlock = '\x1b[31m░░░\x1b[0m';
 
 function MapRow(row: string) {
-  return PreText(row);  // Renderer outputs this as-is
+  return PreText(row);  // Renderer uses the row's validated SGR styles
 }
 ```
 
@@ -195,6 +197,6 @@ createEffect(() => {
 1. **Start simple.** Only optimize when you notice lag or high CPU usage.
 2. **Wrap independent sections in `Computed`.** A dashboard with header/content/footer benefits immediately.
 3. **Use `Memo([], ...)` for truly static content.** Controls help text, decorative borders, etc.
-4. **Use `PreText` in games.** Building ANSI strings yourself and passing them through is the fastest rendering path.
+4. **Memoize pre-styled game rows.** `PreText` is useful when your renderer already produces SGR-colored rows; combine it with `Memo` when those rows are stable.
 5. **Use `batch()` for multi-signal updates.** Prevents intermediate re-renders.
 6. **Profile with `useFps()`.** It shows real-time frame rate so you can see the impact of changes.

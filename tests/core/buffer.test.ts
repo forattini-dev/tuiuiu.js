@@ -187,6 +187,15 @@ describe('CellBuffer', () => {
       const cell = buffer.get(0, 0);
       expect(cell?.char).toBe(' ');
     });
+
+    it.each([
+      [-1, 1],
+      [1.5, 1],
+      [Number.NaN, 1],
+      [4_000_001, 1],
+    ])('rejects unsafe dimensions (%s, %s)', (width, height) => {
+      expect(() => new CellBuffer(width, height)).toThrow(RangeError);
+    });
   });
 
   describe('get/set', () => {
@@ -208,6 +217,15 @@ describe('CellBuffer', () => {
       buffer.set(100, 100, createCell('Y'));
       // Should not throw
     });
+
+    it('rejects fractional cell coordinates instead of indexing array properties', () => {
+      buffer.writeChar(1.5, 1, 'X');
+      buffer.set(2, 1.5, createCell('Y'));
+
+      expect(buffer.get(1.5, 1)).toBeUndefined();
+      expect(buffer.get(2, 1.5)).toBeUndefined();
+      expect(bufferToAnsi(buffer)).toBe('');
+    });
   });
 
   describe('writeChar', () => {
@@ -223,6 +241,37 @@ describe('CellBuffer', () => {
       buffer.writeChar(3, 1, '🎉'); // Emoji is 2 cells wide
       expect(buffer.get(3, 1)?.char).toBe('🎉');
       expect(buffer.get(4, 1)?.isWide).toBe(true);
+    });
+
+    it('clears a wide glyph when either half is overwritten', () => {
+      buffer.writeChar(3, 1, '🎉');
+      buffer.writeChar(4, 1, 'X');
+
+      expect(buffer.get(3, 1)?.char).toBe(' ');
+      expect(buffer.get(4, 1)?.char).toBe('X');
+      expect(buffer.get(4, 1)?.isWide).toBeUndefined();
+
+      buffer.writeChar(3, 1, '🎉');
+      buffer.writeChar(3, 1, 'Y');
+
+      expect(buffer.get(3, 1)?.char).toBe('Y');
+      expect(buffer.get(4, 1)?.char).toBe(' ');
+      expect(buffer.get(4, 1)?.isWide).toBeUndefined();
+    });
+
+    it('does not write half of a wide glyph at the right edge', () => {
+      buffer.writeChar(9, 1, '🎉');
+      expect(buffer.get(9, 1)?.char).toBe(' ');
+    });
+
+    it('creates the placeholder when setting a wide cell directly', () => {
+      buffer.set(3, 1, createCell('🎉', 'cyan'));
+      expect(buffer.get(3, 1)?.char).toBe('🎉');
+      expect(buffer.get(4, 1)).toMatchObject({
+        char: '',
+        fg: 'cyan',
+        isWide: true,
+      });
     });
   });
 
@@ -247,6 +296,23 @@ describe('CellBuffer', () => {
       expect(written).toBe(2); // Only 'He' fits
     });
 
+    it('writes grapheme clusters as one structured cell', () => {
+      const written = buffer.writeString(0, 0, 'A👩🏽‍💻B');
+
+      expect(written).toBe(4);
+      expect(buffer.get(0, 0)?.char).toBe('A');
+      expect(buffer.get(1, 0)?.char).toBe('👩🏽‍💻');
+      expect(buffer.get(2, 0)?.isWide).toBe(true);
+      expect(buffer.get(3, 0)?.char).toBe('B');
+    });
+
+    it('does not advance past an incomplete wide cell at the edge', () => {
+      const written = buffer.writeString(9, 0, '🎉');
+
+      expect(written).toBe(0);
+      expect(buffer.get(9, 0)?.char).toBe(' ');
+    });
+
     it('should skip newlines', () => {
       buffer.writeString(0, 0, 'A\nB');
       expect(buffer.get(0, 0)?.char).toBe('A');
@@ -269,6 +335,25 @@ describe('CellBuffer', () => {
       buffer.fill(-2, -2, 5, 5, cell);
       expect(buffer.get(0, 0)?.char).toBe('X');
       expect(buffer.get(2, 2)?.char).toBe('X');
+    });
+
+    it('does not leave a wide head when filling over its placeholder', () => {
+      buffer.writeChar(3, 1, '🎉');
+      buffer.fill(4, 1, 1, 1, emptyCell());
+
+      expect(buffer.get(3, 1)?.char).toBe(' ');
+      expect(buffer.get(4, 1)?.char).toBe(' ');
+      expect(buffer.get(4, 1)?.isWide).toBeUndefined();
+    });
+
+    it('tiles wide fill characters without overlapping their footprints', () => {
+      buffer.fill(0, 0, 5, 1, createCell('🎉'));
+
+      expect(buffer.get(0, 0)?.char).toBe('🎉');
+      expect(buffer.get(1, 0)?.isWide).toBe(true);
+      expect(buffer.get(2, 0)?.char).toBe('🎉');
+      expect(buffer.get(3, 0)?.isWide).toBe(true);
+      expect(buffer.get(4, 0)?.char).toBe(' ');
     });
   });
 
@@ -385,6 +470,21 @@ describe('CellBuffer', () => {
         attrs: {},
         isWide: undefined,
       });
+    });
+
+    it('preserves the placeholder when only a wide-glyph head changes', () => {
+      const target = new CellBuffer(10, 5);
+      buffer.writeChar(0, 0, '😀');
+      target.writeChar(0, 0, '🎉');
+
+      const patches = buffer.diff(target);
+      expect(patches).toHaveLength(1);
+      expect(patches[0]?.x).toBe(0);
+
+      buffer.applyPatches(patches);
+      expect(buffer.get(0, 0)?.char).toBe('🎉');
+      expect(buffer.get(1, 0)?.isWide).toBe(true);
+      expect(bufferToAnsi(buffer)).toBe('🎉');
     });
   });
 

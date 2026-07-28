@@ -41,19 +41,24 @@ near-term path is to isolate the parser, terminal session, cell buffer, and
 diff algorithm behind internal interfaces so implementations can evolve
 without changing component APIs.
 
-## Prioritized follow-up architecture
+## Architecture progress and follow-up
 
 ### 1. `TerminalSession`
 
-Extract raw mode, alternate screen, paste mode, cursor state, signals, resize,
-and input listeners into one ref-counted session object. The present safeguard
-rejects a second active app because global terminal ownership is not yet
-composable. A session abstraction should make multiple render roots on one
-terminal explicit rather than silently corrupting state.
+Implemented: raw mode, paused-input restoration, focus reporting and bracketed
+paste now have one idempotent, reference-counted owner. `RuntimeScope` also
+isolates hook, input, focus, mouse, hit-test, dirty and committed-frame state.
+
+Remaining: move capability negotiation, resize and the incremental parser under
+the session boundary. A second root remains explicitly rejected until every
+process singleton is either scoped or intentionally shared.
 
 ### 2. Byte-oriented input parser
 
-Move the incremental parser out of `use-app` into a pure state machine with:
+The stream decoder now handles arbitrary UTF-8 and bracketed-paste terminator
+splits, and generated tests cover malformed terminal input. The next extraction
+is to move the remaining incremental state out of `use-app` into a pure state
+machine with:
 
 - byte-by-byte and arbitrary-chunk equivalence tests;
 - configurable caps and deadlines;
@@ -63,17 +68,22 @@ Move the incremental parser out of `use-app` into a pure state machine with:
 
 ### 3. Real virtualized data components
 
-`VirtualDataTable` and `EditableDataTable` remain in
-`tuiuiu.js/experimental`. Promote them only after implementing true windowed
-rows, stable row identity, editable cell focus, async validation, and
-large-data performance contracts.
+`VirtualDataTable` now performs true windowed rendering, keeps cursor and
+selection indices global, exposes an external scroll controller and samples
+overscan rows without rendering them. It remains experimental while large-data
+performance contracts mature.
+
+`EditableDataTable` is still a deliberately honest read-only experimental
+facade. Editable cell focus, validation and commit/cancel semantics remain.
 
 ### 4. Cell-buffer renderer boundary
 
-Keep component layout independent from terminal emission. A cell buffer with
-grapheme, width, style, and hyperlink identity would simplify clipping,
-wide-character invalidation, synchronized output, snapshots, and alternate
-diff strategies.
+Implemented: full and delta rendering now rasterize through one structured
+`CellBuffer`. It owns grapheme clusters, wide-glyph footprints, structured
+colors and attributes. Partial SGR resets and colon-form styled underlines are
+interpreted once for both output modes.
+
+Hyperlink identity and alternate diff strategies remain useful extensions.
 
 ### 5. Capability negotiation
 
@@ -83,7 +93,8 @@ component making its own environment guesses.
 
 ### 6. Contract and fuzz testing
 
-Add property tests for parser chunk invariance, storage path containment,
-selector parsing, Unicode editing, and renderer sanitization. Retain
-cross-platform CI and keep benchmarks separate from deterministic functional
-tests.
+Generated deterministic tests now cover arbitrary input, unsafe Kitty values,
+recursive event batches, every byte split in bracketed paste, Unicode editing,
+wide-cell mutation and renderer sanitization. Storage/selector generators and
+real PTY matrices remain useful additions. Cross-platform CI and benchmarks
+stay separate from deterministic functional tests.

@@ -167,7 +167,7 @@ export interface DrawTextCommand extends DrawCommandBase {
   text: string;
   style: TextStyle;
   inheritedBackgroundColor?: string;
-  /** When true, text contains pre-built ANSI and should skip style encoding */
+  /** When true, text contains pre-built SGR and ignores component style encoding */
   prebuiltAnsi?: boolean;
 }
 
@@ -1221,6 +1221,45 @@ function buildCachedDrawCommands(
   };
 }
 
+function snapDrawCommandToCell(command: DrawCommand): DrawCommand {
+  if (command.type === 'text') {
+    const x = Math.round(command.x);
+    const y = Math.round(command.y);
+    const maxWidth = Math.max(0, Math.round(command.maxWidth));
+    return x === command.x && y === command.y && maxWidth === command.maxWidth
+      ? command
+      : { ...command, x, y, maxWidth };
+  }
+
+  const x = Math.round(command.x);
+  const y = Math.round(command.y);
+  const width = Math.max(0, Math.round(command.width));
+  const height = Math.max(0, Math.round(command.height));
+  return (
+    x === command.x &&
+    y === command.y &&
+    width === command.width &&
+    height === command.height
+  )
+    ? command
+    : { ...command, x, y, width, height };
+}
+
+function snapDrawCommandsToCells(commands: DrawCommand[]): DrawCommand[] {
+  let snapped: DrawCommand[] | null = null;
+
+  for (let index = 0; index < commands.length; index++) {
+    const command = commands[index]!;
+    const next = snapDrawCommandToCell(command);
+    if (next === command) continue;
+
+    if (!snapped) snapped = [...commands];
+    snapped[index] = next;
+  }
+
+  return snapped ?? commands;
+}
+
 function buildDrawCommands(layout: LayoutNode): DrawCommand[] {
   const cachedCommands = buildCachedDrawCommands(layout);
   const cached = drawCommandCache.get(layout);
@@ -1238,12 +1277,13 @@ function buildDrawCommands(layout: LayoutNode): DrawCommand[] {
   }
 
   const materializedCommands = materializeDrawCommands(cachedCommands.commands);
-  const materialized = cachedCommands.hasCompositor
+  const composited = cachedCommands.hasCompositor
     ? applyCompositor(
       materializedCommands,
       collectCompositorBindings(layout),
     )
     : materializedCommands;
+  const materialized = snapDrawCommandsToCells(composited);
   const entry = drawCommandCache.get(layout);
 
   if (entry) {

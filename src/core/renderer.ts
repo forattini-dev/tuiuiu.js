@@ -1,29 +1,24 @@
 /**
  * Tuiuiu Renderer - Convert VNodes to ANSI terminal output
  *
- * Uses a 2D character buffer for precise positioning
+ * Rasterizes frames through the canonical structured CellBuffer.
  */
 
-import type { VNode, LayoutNode, TextStyle, BoxStyle } from '../utils/types.js';
-import { BORDER_STYLES } from '../utils/types.js';
-import { getVisibleWidth } from './layout.js';
+import type { VNode, LayoutNode, BoxStyle } from '../utils/types.js';
 import {
   createFrameSnapshot,
   recordFramePhaseMetric,
-  type DrawBoxCommand,
-  type DrawCommand,
   type DrawTerminalImageCommand,
-  type DrawTextCommand,
   type FrameSnapshot,
-  type ReservedRegion,
 } from './frame.js';
 import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
 import { readTerminalSequence } from '../utils/terminal-sanitize.js';
-import { getTheme, resolveColor } from './theme.js';
 import { clearImagesForProtocol, kittyGraphics, renderImageWithProtocol, isProtocolGraphics } from './graphics.js';
 import type { GraphicsProtocol } from './graphics.js';
 import { passthroughWrap } from './progressive.js';
 import { getCapabilities } from './capabilities.js';
+import { CellBuffer, bufferToAnsi } from './buffer.js';
+import { renderFrameToCellBuffer } from './delta-render.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -34,8 +29,6 @@ const PRODUCTION_FRAME_OPTIONS = {
 function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
-
-const colorCodeCache = new WeakMap<object, Map<string, string | undefined>>();
 
 /**
  * Calculate the maximum bounding box of a layout tree,
@@ -63,7 +56,10 @@ interface Cell {
 }
 
 /**
- * Output buffer for rendering
+ * Legacy ANSI-string buffer.
+ *
+ * @deprecated Runtime rendering uses the structured CellBuffer from
+ * `tuiuiu.js/core`. This class remains exported for source compatibility.
  */
 export class OutputBuffer {
   private cells: Cell[][];
@@ -284,11 +280,10 @@ export function renderFrameToString(frame: FrameSnapshot, options: FrameRenderOp
   const layoutFullHeight = bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
   const viewportHeight = frame.info.viewport.height;
   const bufferHeight = fullHeight && viewportHeight < 1000 ? viewportHeight : layoutFullHeight;
-  const buffer = new OutputBuffer(frame.info.viewport.width, bufferHeight);
+  const buffer = new CellBuffer(frame.info.viewport.width, bufferHeight);
+  renderFrameToCellBuffer(frame, buffer);
 
-  renderDrawCommands(frame, buffer);
-
-  const output = buffer.toString(fullHeight);
+  const output = bufferToAnsi(buffer, fullHeight);
   const graphicsOutput = renderProtocolGraphics(frame, previousFrame);
   recordFramePhaseMetric(frame, 'ansiRenderMs', now() - renderStart);
   return graphicsOutput + output;
@@ -326,265 +321,6 @@ export function measureHeight(node: VNode, width?: number): number {
   const marginBottom = style.marginBottom ?? style.marginY ?? style.margin ?? 0;
   const bounds = getLayoutBounds(layout);
   return bounds.maxY + (typeof marginBottom === 'number' ? marginBottom : 0);
-}
-
-function renderDrawCommands(frame: FrameSnapshot, buffer: OutputBuffer): void {
-  for (const command of frame.drawCommands) {
-    switch (command.type) {
-      case 'box':
-        renderBoxCommand(command, buffer, frame.reservedRegions);
-        break;
-      case 'text':
-        renderTextCommand(command, buffer, frame.reservedRegions);
-        break;
-      case 'terminal-image':
-        renderTerminalImageCommand(command, buffer);
-        break;
-    }
-  }
-}
-
-function isReservedCell(regions: readonly ReservedRegion[], x: number, y: number): boolean {
-  return regions.some((region) =>
-    x >= region.x &&
-    x < region.x + region.width &&
-    y >= region.y &&
-    y < region.y + region.height
-  );
-}
-
-function writeReservedAware(
-  buffer: OutputBuffer,
-  regions: readonly ReservedRegion[],
-  x: number,
-  y: number,
-  char: string,
-  style?: string,
-): void {
-  if (regions.length === 0) {
-    buffer.write(x, y, char, style);
-    return;
-  }
-
-  const width = Math.max(1, stringWidth(char));
-  for (let offset = 0; offset < width; offset++) {
-    if (isReservedCell(regions, x + offset, y)) {
-      return;
-    }
-  }
-  buffer.write(x, y, char, style);
-}
-
-function fillReservedAware(
-  buffer: OutputBuffer,
-  regions: readonly ReservedRegion[],
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  char: string,
-  style?: string,
-): void {
-  if (regions.length === 0) {
-    buffer.fill(x, y, width, height, char, style);
-    return;
-  }
-
-  for (let row = y; row < y + height; row++) {
-    for (let col = x; col < x + width; col++) {
-      if (!isReservedCell(regions, col, row)) {
-        buffer.write(col, row, char, style);
-      }
-    }
-  }
-}
-
-function writeStringReservedAware(
-  buffer: OutputBuffer,
-  regions: readonly ReservedRegion[],
-  x: number,
-  y: number,
-  text: string,
-  style?: string,
-): void {
-  if (regions.length === 0) {
-    buffer.writeString(x, y, text, style);
-    return;
-  }
-
-  let col = x;
-  let index = 0;
-  let currentStyle = style;
-
-  while (index < text.length) {
-    const char = text[index]!;
-
-    if (char === '\x1b' && text[index + 1] === '[') {
-      let ansiEnd = index + 2;
-      while (ansiEnd < text.length && !/[A-Za-z]/.test(text[ansiEnd]!)) {
-        ansiEnd++;
-      }
-      if (ansiEnd < text.length) {
-        const ansiSeq = text.slice(index, ansiEnd + 1);
-        if (ansiSeq === '\x1b[0m' || ansiSeq === '\x1b[m') {
-          currentStyle = style;
-        } else {
-          currentStyle = (currentStyle || '') + ansiSeq;
-        }
-        index = ansiEnd + 1;
-        continue;
-      }
-    }
-
-    if (char === '\n') {
-      index++;
-      continue;
-    }
-
-    const symbol = readRenderableSymbol(text, index);
-    if (!symbol) {
-      break;
-    }
-
-    const symbolWidth = stringWidth(symbol.symbol);
-    if (symbolWidth > 0) {
-      writeReservedAware(buffer, regions, col, y, symbol.symbol, currentStyle);
-      col += symbolWidth;
-    }
-
-    index = symbol.nextIndex;
-  }
-}
-
-function renderBoxCommand(
-  command: DrawBoxCommand,
-  buffer: OutputBuffer,
-  reservedRegions: readonly ReservedRegion[],
-): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText, borderTextAlign } = command;
-
-  if (backgroundColor) {
-    const bgCode = getColorCode(backgroundColor, true);
-    if (bgCode) {
-      const bgStyle = `\x1b[${bgCode}m`;
-      fillReservedAware(buffer, reservedRegions, x, y, width, height, ' ', bgStyle);
-    }
-  }
-
-  if (borderStyle && borderStyle !== 'none') {
-    const borderChars = BORDER_STYLES[borderStyle] ?? BORDER_STYLES.single;
-    const borderAnsiStyle = borderColor ? getColorStyle(borderColor) : undefined;
-
-    // Resolve per-side visibility (default: all visible)
-    const showTop = borderSides?.top !== false;
-    const showBottom = borderSides?.bottom !== false;
-    const showLeft = borderSides?.left !== false;
-    const showRight = borderSides?.right !== false;
-
-    // Top edge
-    if (showTop) {
-      // Top-left corner (use corner char only if adjacent side is also visible)
-      const tlChar = showLeft ? borderChars.topLeft : borderChars.top;
-      writeReservedAware(buffer, reservedRegions, x, y, tlChar, borderAnsiStyle);
-
-      for (let i = 1; i < width - 1; i++) {
-        writeReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, borderAnsiStyle);
-      }
-
-      if (width > 1) {
-        const trChar = showRight ? borderChars.topRight : borderChars.top;
-        writeReservedAware(buffer, reservedRegions, x + width - 1, y, trChar, borderAnsiStyle);
-      }
-
-      // Border text overlay: ─── Title ───
-      if (borderText && width > 4) {
-        const maxTextLen = width - 4; // 2 for padding spaces + 2 for border chars at edges
-        const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
-        const textWithPad = ` ${truncated} `;
-        const align = borderTextAlign ?? 'center';
-        const startCol = align === 'left'
-          ? x + 1
-          : align === 'right'
-            ? x + Math.max(1, width - 1 - textWithPad.length)
-            : x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
-        for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
-          writeReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, borderAnsiStyle);
-        }
-      }
-    }
-
-    // Left & right edges
-    for (let row = 1; row < height - 1; row++) {
-      if (showLeft) {
-        writeReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, borderAnsiStyle);
-      }
-      if (showRight && width > 1) {
-        writeReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, borderAnsiStyle);
-      }
-    }
-
-    // Bottom edge
-    if (showBottom && height > 1) {
-      const blChar = showLeft ? borderChars.bottomLeft : borderChars.bottom;
-      writeReservedAware(buffer, reservedRegions, x, y + height - 1, blChar, borderAnsiStyle);
-
-      for (let i = 1; i < width - 1; i++) {
-        writeReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, borderAnsiStyle);
-      }
-
-      if (width > 1) {
-        const brChar = showRight ? borderChars.bottomRight : borderChars.bottom;
-        writeReservedAware(
-          buffer,
-          reservedRegions,
-          x + width - 1,
-          y + height - 1,
-          brChar,
-          borderAnsiStyle,
-        );
-      }
-    }
-  }
-}
-
-function renderTextCommand(
-  command: DrawTextCommand,
-  buffer: OutputBuffer,
-  reservedRegions: readonly ReservedRegion[],
-): void {
-  const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
-
-  // PreText: content already has ANSI codes — write as-is, skip style encoding
-  if (command.prebuiltAnsi) {
-    writeStringReservedAware(buffer, reservedRegions, x, y, text, undefined);
-    return;
-  }
-
-  let ansiStyle = getTextStyle(style);
-  if (inheritedBackgroundColor && !style.backgroundColor) {
-    const inheritedCode = getColorCode(inheritedBackgroundColor, true);
-    if (inheritedCode) {
-      ansiStyle = `\x1b[${inheritedCode}m${ansiStyle ?? ''}`;
-    }
-  }
-
-  const lines = wrapText(text, maxWidth, style.wrap);
-  for (let i = 0; i < lines.length; i++) {
-    writeStringReservedAware(buffer, reservedRegions, x, y + i, lines[i]!, ansiStyle);
-  }
-}
-
-function renderTerminalImageCommand(command: DrawTerminalImageCommand, buffer: OutputBuffer): void {
-  if (!command.cellRender) {
-    return;
-  }
-
-  const rendered = getTerminalImagePayload(command);
-  const lines = rendered.split('\n');
-
-  for (let row = 0; row < lines.length; row++) {
-    buffer.writeString(command.x, command.y + row, lines[row]!);
-  }
 }
 
 function getTerminalImageRenderOptions(command: DrawTerminalImageCommand) {
@@ -731,7 +467,6 @@ function buildKittyCleanupOutput(
 
   return output;
 }
-
 function renderProtocolGraphics(frame: FrameSnapshot, previousFrame: FrameSnapshot | null): string {
   const nextCommands = collectProtocolImageCommands(frame);
   if (nextCommands.length === 0 && !previousFrame) {
@@ -763,235 +498,4 @@ function renderProtocolGraphics(frame: FrameSnapshot, previousFrame: FrameSnapsh
   }
 
   return output;
-}
-
-/**
- * Get ANSI style codes for text
- */
-function getTextStyle(props: TextStyle): string | undefined {
-  const codes: string[] = [];
-
-  if (props.bold) codes.push('1');
-  if (props.dim) codes.push('2');
-  if (props.italic) codes.push('3');
-  if (props.underline) codes.push('4');
-  if (props.inverse) codes.push('7');
-  if (props.strikethrough) codes.push('9');
-
-  // Foreground color
-  if (props.color) {
-    const colorCode = getColorCode(props.color, false);
-    if (colorCode) codes.push(colorCode);
-  }
-
-  // Background color
-  if (props.backgroundColor) {
-    const colorCode = getColorCode(props.backgroundColor, true);
-    if (colorCode) codes.push(colorCode);
-  }
-
-  return codes.length > 0 ? `\x1b[${codes.join(';')}m` : undefined;
-}
-
-/**
- * Get ANSI color style string
- */
-function getColorStyle(color: string): string | undefined {
-  const code = getColorCode(color, false);
-  return code ? `\x1b[${code}m` : undefined;
-}
-
-/**
- * Get ANSI color code
- *
- * Supports:
- * - ANSI color names: 'red', 'cyan', 'whiteBright', etc.
- * - Semantic theme colors: 'primary', 'success', 'foreground', 'primaryForeground', etc.
- * - Hex colors: '#3b82f6', '#fff' (short form)
- * - RGB colors: 'rgb(255, 100, 50)'
- */
-function getColorCode(color: string, background: boolean): string | undefined {
-  const theme = getTheme() as unknown as object;
-  let cache = colorCodeCache.get(theme);
-  if (!cache) {
-    cache = new Map();
-    colorCodeCache.set(theme, cache);
-  }
-
-  const cacheKey = `${background ? 'bg' : 'fg'}:${color}`;
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
-  }
-
-  const offset = background ? 10 : 0;
-
-  // Basic ANSI colors (check these first for performance)
-  const basicColors: Record<string, number> = {
-    black: 30,
-    red: 31,
-    green: 32,
-    yellow: 33,
-    blue: 34,
-    magenta: 35,
-    cyan: 36,
-    white: 37,
-    gray: 90,
-    grey: 90,
-    blackBright: 90,
-    redBright: 91,
-    greenBright: 92,
-    yellowBright: 93,
-    blueBright: 94,
-    magentaBright: 95,
-    cyanBright: 96,
-    whiteBright: 97,
-  };
-
-  if (basicColors[color] !== undefined) {
-    const value = String(basicColors[color] + offset);
-    cache.set(cacheKey, value);
-    return value;
-  }
-
-  // Resolve semantic/theme colors to hex values
-  // This handles: 'primary', 'foreground', 'primaryForeground', 'success-500', etc.
-  const resolved = resolveColor(color);
-
-  // Check if resolved value is a basic color name (e.g., when primaryForeground resolves to 'white' or 'black')
-  if (basicColors[resolved] !== undefined) {
-    const value = String(basicColors[resolved] + offset);
-    cache.set(cacheKey, value);
-    return value;
-  }
-
-  // Hex color (after resolution)
-  if (resolved.startsWith('#')) {
-    const hex = resolved.slice(1);
-    // Handle short hex (#fff -> #ffffff)
-    const fullHex = hex.length === 3
-      ? hex[0]! + hex[0] + hex[1]! + hex[1] + hex[2]! + hex[2]
-      : hex;
-    const r = parseInt(fullHex.slice(0, 2), 16);
-    const g = parseInt(fullHex.slice(2, 4), 16);
-    const b = parseInt(fullHex.slice(4, 6), 16);
-    const value = `${background ? 48 : 38};2;${r};${g};${b}`;
-    cache.set(cacheKey, value);
-    return value;
-  }
-
-  // RGB color
-  if (resolved.startsWith('rgb')) {
-    const match = resolved.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (match) {
-      const value = `${background ? 48 : 38};2;${match[1]};${match[2]};${match[3]}`;
-      cache.set(cacheKey, value);
-      return value;
-    }
-  }
-
-  cache.set(cacheKey, undefined);
-  return undefined;
-}
-
-/**
- * Wrap text to fit width
- */
-function wrapText(text: string, maxWidth: number, mode?: TextStyle['wrap']): string[] {
-  if (maxWidth <= 0) return [text];
-
-  const lines = text.split('\n');
-  const result: string[] = [];
-
-  for (const line of lines) {
-    if (mode === 'truncate' || mode === 'truncate-end') {
-      result.push(truncate(line, maxWidth, '…'));
-    } else if (mode === 'truncate-start') {
-      result.push(truncateStart(line, maxWidth, '…'));
-    } else if (mode === 'truncate-middle') {
-      result.push(truncateMiddle(line, maxWidth, '…'));
-    } else {
-      // Default: wrap
-      result.push(...wrapLine(line, maxWidth));
-    }
-  }
-
-  return result;
-}
-
-/**
- * Wrap a single line
- */
-function wrapLine(line: string, maxWidth: number): string[] {
-  if (getVisibleWidth(line) <= maxWidth) {
-    return [line];
-  }
-
-  const words = line.split(' ');
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (getVisibleWidth(test) <= maxWidth) {
-      current = test;
-    } else {
-      if (current) lines.push(current);
-      current = word;
-    }
-  }
-
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [''];
-}
-
-/**
- * Truncate text at end (ANSI-aware)
- */
-function truncate(text: string, maxWidth: number, ellipsis: string): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  const ellipsisWidth = getVisibleWidth(ellipsis);
-  let result = '';
-  let width = 0;
-
-  for (const char of text) {
-    const charWidth = stringWidth(char);
-    if (width + charWidth + ellipsisWidth > maxWidth) break;
-    result += char;
-    width += charWidth;
-  }
-
-  return result + ellipsis;
-}
-
-/**
- * Truncate text at start (ANSI-aware)
- */
-function truncateStart(text: string, maxWidth: number, ellipsis: string): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  const ellipsisWidth = getVisibleWidth(ellipsis);
-  const chars = [...text];
-  let result = '';
-  let width = 0;
-
-  for (let i = chars.length - 1; i >= 0; i--) {
-    const charWidth = stringWidth(chars[i]);
-    if (width + charWidth + ellipsisWidth > maxWidth) break;
-    result = chars[i] + result;
-    width += charWidth;
-  }
-
-  return ellipsis + result;
-}
-
-/**
- * Truncate text in middle
- */
-function truncateMiddle(text: string, maxWidth: number, ellipsis: string): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  const ellipsisWidth = getVisibleWidth(ellipsis);
-  const available = maxWidth - ellipsisWidth;
-  const startLen = Math.ceil(available / 2);
-  const endLen = Math.floor(available / 2);
-
-  return text.slice(0, startLen) + ellipsis + text.slice(-endLen);
 }

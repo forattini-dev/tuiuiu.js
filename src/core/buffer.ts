@@ -11,12 +11,13 @@
  * 
  */
 
-import { stringWidth } from '../utils/text-utils.js';
+import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
 
 const NAMED_COLORS: Record<string, number> = {
   black: 0, red: 1, green: 2, yellow: 3,
   blue: 4, magenta: 5, cyan: 6, white: 7,
   gray: 8, grey: 8,
+  blackBright: 8,
   redBright: 9, greenBright: 10, yellowBright: 11,
   blueBright: 12, magentaBright: 13, cyanBright: 14, whiteBright: 15,
 };
@@ -31,6 +32,7 @@ const UNDERLINE_STYLE_MAP: Record<string, string> = {
 
 const ANSI_STYLE_CACHE_MAX = 512;
 const ansiStyleCache = new Map<string, string>();
+const MAX_CELL_BUFFER_CELLS = 4_000_000;
 
 // =============================================================================
 // Types
@@ -177,6 +179,17 @@ export class CellBuffer {
   readonly height: number;
 
   constructor(width: number, height: number) {
+    if (
+      !Number.isSafeInteger(width) ||
+      !Number.isSafeInteger(height) ||
+      width < 0 ||
+      height < 0 ||
+      width * height > MAX_CELL_BUFFER_CELLS
+    ) {
+      throw new RangeError(
+        `CellBuffer dimensions must be non-negative safe integers totaling at most ${MAX_CELL_BUFFER_CELLS} cells`,
+      );
+    }
     this.width = width;
     this.height = height;
     this.cells = [];
@@ -193,7 +206,7 @@ export class CellBuffer {
 
   /** Get cell at position */
   get(x: number, y: number): Cell | undefined {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+    if (Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < this.width && y >= 0 && y < this.height) {
       return this.cells[y][x];
     }
     return undefined;
@@ -201,17 +214,98 @@ export class CellBuffer {
 
   /** Set cell at position */
   set(x: number, y: number, cell: Cell): void {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+    if (Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      if (cell.isWide) {
+        const previous = x > 0 ? this.cells[y][x - 1] : undefined;
+        if (!previous || previous.isWide || stringWidth(previous.char) <= 1) {
+          this.clearWideFootprint(x, y);
+          this.cells[y][x] = emptyCell();
+          this.invalidateRow(y);
+          this.addDamage(x, y, 1, 1);
+          return;
+        }
+      }
+      const cellWidth = cell.isWide ? 1 : Math.max(1, stringWidth(cell.char));
+      if (!cell.isWide) {
+        this.clearWideFootprint(x, y);
+      }
+      if (!cell.isWide && cellWidth > 1 && x + cellWidth > this.width) {
+        this.cells[y][x] = emptyCell();
+        this.invalidateRow(y);
+        this.addDamage(x, y, 1, 1);
+        return;
+      }
       this.cells[y][x] = cell;
       this.invalidateRow(y);
+      if (!cell.isWide && cellWidth > 1 && x + cellWidth <= this.width) {
+        for (let offset = 1; offset < cellWidth; offset++) {
+          this.clearWideFootprint(x + offset, y);
+          this.cells[y][x + offset] = {
+            char: '',
+            fg: cell.fg,
+            bg: cell.bg,
+            attrs: cell.attrs,
+            isWide: true,
+          };
+        }
+      }
+      this.addDamage(x, y, Math.min(cellWidth, this.width - x), 1);
+    }
+  }
+
+  /**
+   * Clear both halves of a wide glyph when either its head or placeholder is
+   * overwritten. A terminal cell buffer must never retain an orphaned half.
+   */
+  private clearWideFootprint(x: number, y: number): void {
+    if (
+      !Number.isInteger(x) ||
+      !Number.isInteger(y) ||
+      x < 0 ||
+      x >= this.width ||
+      y < 0 ||
+      y >= this.height
+    ) return;
+
+    const cell = this.cells[y][x];
+    if (cell.isWide) {
+      this.cells[y][x] = emptyCell();
+      this.invalidateRow(y);
       this.addDamage(x, y, 1, 1);
+
+      if (x > 0) {
+        const previous = this.cells[y][x - 1]!;
+        if (!previous.isWide && stringWidth(previous.char) > 1) {
+          this.cells[y][x - 1] = emptyCell();
+          this.addDamage(x - 1, y, 1, 1);
+        }
+      }
+      return;
+    }
+
+    const footprint = stringWidth(cell.char);
+    if (footprint <= 1) return;
+
+    this.cells[y][x] = emptyCell();
+    this.invalidateRow(y);
+    this.addDamage(x, y, 1, 1);
+    for (let offset = 1; offset < footprint && x + offset < this.width; offset++) {
+      if (this.cells[y][x + offset]?.isWide) {
+        this.cells[y][x + offset] = emptyCell();
+        this.addDamage(x + offset, y, 1, 1);
+      }
     }
   }
 
   /** Write a character at position */
   writeChar(x: number, y: number, char: string, fg?: Color, bg?: Color, attrs: CellAttrs = {}): void {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+    if (Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < this.width && y >= 0 && y < this.height) {
       const charWidth = stringWidth(char);
+      if (charWidth <= 0 || x + charWidth > this.width) return;
+
+      for (let offset = 0; offset < charWidth; offset++) {
+        this.clearWideFootprint(x + offset, y);
+      }
       this.cells[y][x] = { char, fg, bg, attrs };
       this.invalidateRow(y);
       this.addDamage(x, y, charWidth, 1);
@@ -225,13 +319,22 @@ export class CellBuffer {
 
   /** Write a string starting at position */
   writeString(x: number, y: number, text: string, fg?: Color, bg?: Color, attrs: CellAttrs = {}): number {
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return 0;
     let col = x;
-    for (const char of text) {
-      if (char === '\n') continue;
+    let index = 0;
+
+    while (index < text.length) {
+      const symbol = readRenderableSymbol(text, index);
+      if (!symbol) break;
+      index = symbol.nextIndex;
+
+      if (symbol.symbol === '\n') continue;
       if (col >= this.width) break;
 
-      const charWidth = stringWidth(char);
-      this.writeChar(col, y, char, fg, bg, attrs);
+      const charWidth = stringWidth(symbol.symbol);
+      if (charWidth <= 0) continue;
+      if (col + charWidth > this.width) break;
+      this.writeChar(col, y, symbol.symbol, fg, bg, attrs);
       col += charWidth;
     }
     return col - x; // Return number of columns written
@@ -239,11 +342,22 @@ export class CellBuffer {
 
   /** Fill a single row with the same cell data */
   fillRow(x: number, y: number, width: number, char: string, fg?: Color, bg?: Color, attrs: CellAttrs = {}): void {
-    if (y < 0 || y >= this.height || width <= 0) return;
+    if (
+      !Number.isInteger(x) ||
+      !Number.isInteger(y) ||
+      !Number.isInteger(width) ||
+      y < 0 ||
+      y >= this.height ||
+      width <= 0
+    ) return;
 
     if (stringWidth(char) !== 1) {
-      for (let col = 0; col < width; col++) {
-        this.writeChar(x + col, y, char, fg, bg, attrs);
+      const charWidth = stringWidth(char);
+      if (charWidth <= 0) return;
+      const start = Math.max(0, x);
+      const end = Math.min(this.width, x + width);
+      for (let col = start; col + charWidth <= end; col += charWidth) {
+        this.writeChar(col, y, char, fg, bg, attrs);
       }
       return;
     }
@@ -253,6 +367,7 @@ export class CellBuffer {
     if (x2 <= x1) return;
 
     for (let col = x1; col < x2; col++) {
+      this.clearWideFootprint(col, y);
       this.cells[y][col] = { char, fg, bg, attrs };
     }
 
@@ -262,6 +377,12 @@ export class CellBuffer {
 
   /** Fill a rectangle with a cell */
   fill(x: number, y: number, width: number, height: number, cell: Cell): void {
+    if (
+      !Number.isInteger(x) ||
+      !Number.isInteger(y) ||
+      !Number.isInteger(width) ||
+      !Number.isInteger(height)
+    ) return;
     const x1 = Math.max(0, x);
     const y1 = Math.max(0, y);
     const x2 = Math.min(this.width, x + width);
@@ -280,6 +401,7 @@ export class CellBuffer {
 
     for (let row = y1; row < y2; row++) {
       for (let col = x1; col < x2; col++) {
+        this.clearWideFootprint(col, row);
         this.cells[row][col] = { char: cell.char, fg: cell.fg, bg: cell.bg, attrs: cell.attrs };
       }
       this.invalidateRow(row);
@@ -320,6 +442,12 @@ export class CellBuffer {
 
   /** Add a damage rectangle */
   addDamage(x: number, y: number, width: number, height: number): void {
+    if (
+      !Number.isInteger(x) ||
+      !Number.isInteger(y) ||
+      !Number.isInteger(width) ||
+      !Number.isInteger(height)
+    ) return;
     // Clamp to buffer bounds
     const x1 = Math.max(0, x);
     const y1 = Math.max(0, y);
@@ -934,8 +1062,10 @@ export function cellToAnsi(cell: Cell): string {
 
 /**
  * Convert a CellBuffer to ANSI string (optimized for output)
+ *
+ * @param fullHeight Preserve trailing empty rows when true.
  */
-export function bufferToAnsi(buffer: CellBuffer): string {
+export function bufferToAnsi(buffer: CellBuffer, fullHeight = false): string {
   const lines: string[] = [];
 
   for (const { cells } of buffer.rows()) {
@@ -981,8 +1111,10 @@ export function bufferToAnsi(buffer: CellBuffer): string {
   }
 
   // Remove trailing empty lines
-  while (lines.length > 0 && lines[lines.length - 1] === '') {
-    lines.pop();
+  if (!fullHeight) {
+    while (lines.length > 0 && lines[lines.length - 1] === '') {
+      lines.pop();
+    }
   }
 
   return lines.join('\n');

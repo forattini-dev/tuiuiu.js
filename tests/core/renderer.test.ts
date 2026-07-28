@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { renderOnce, Box, Text } from '../../src/index.js';
+import { renderOnce, Box, OutputBuffer, PreText, Text } from '../../src/index.js';
 import { stringWidth, stripAnsi, colorize } from '../../src/utils/text-utils.js';
 
 describe('stringWidth', () => {
@@ -42,10 +42,70 @@ describe('stringWidth', () => {
   });
 });
 
+describe('legacy OutputBuffer compatibility', () => {
+  it('writes, fills and serializes styled cells', () => {
+    const buffer = new OutputBuffer(6, 3);
+    buffer.write(0, 0, 'A', '\x1b[31m');
+    buffer.fill(1, 0, 2, 1, 'B', '\x1b[34m');
+
+    const output = buffer.toString();
+    expect(stripAnsi(output)).toBe('ABB');
+    expect(output).toContain('\x1b[31m');
+    expect(output).toContain('\x1b[34m');
+    expect(buffer.toString(true).split('\n')).toHaveLength(3);
+  });
+
+  it('parses only SGR while writing strings and handles resets and newlines', () => {
+    const buffer = new OutputBuffer(12, 2);
+    buffer.writeString(
+      0,
+      0,
+      'A\x1b[31mR\x1b[0mN\nB\x1b[2JC\x1b]2;owned\x07D',
+      '\x1b[1m',
+    );
+
+    const output = buffer.toString();
+    expect(stripAnsi(output)).toContain('ARNBCD');
+    expect(output).toContain('\x1b[31m');
+    expect(output).not.toContain('\x1b[2J');
+    expect(output).not.toContain('\x1b]2;');
+  });
+
+  it('clears both halves when overwriting a wide glyph', () => {
+    const buffer = new OutputBuffer(6, 1);
+    buffer.write(1, 0, '😀');
+    buffer.write(2, 0, 'X');
+    expect(buffer.toString()).toBe('  X');
+
+    buffer.write(1, 0, '😀');
+    buffer.write(1, 0, 'Y');
+    expect(buffer.toString()).toBe(' Y');
+  });
+
+  it('ignores writes outside its bounds', () => {
+    const buffer = new OutputBuffer(2, 1);
+    buffer.write(-1, 0, 'X');
+    buffer.write(2, 0, 'Y');
+    buffer.fill(4, 4, 2, 2, 'Z');
+    expect(buffer.toString()).toBe('');
+  });
+});
+
 describe('Renderer with colors', () => {
   it('does not emit non-SGR controls from ordinary Text', () => {
     const output = renderOnce(Text({}, 'A\x1b[2JB\x1b]2;owned\x07C'));
     expect(output).toContain('ABC');
+    expect(output).not.toContain('\x1b[2J');
+    expect(output).not.toContain('\x1b]2;');
+  });
+
+  it('does not treat PreText as an unsafe terminal-control passthrough', () => {
+    const output = renderOnce(
+      PreText('A\x1b[31mR\x1b[39mN\x1b[2JB\x1b]2;owned\x07C'),
+    );
+
+    expect(stripAnsi(output)).toContain('ARNBC');
+    expect(output).toContain('\x1b[31m');
     expect(output).not.toContain('\x1b[2J');
     expect(output).not.toContain('\x1b]2;');
   });
