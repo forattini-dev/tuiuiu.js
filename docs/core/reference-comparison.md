@@ -73,8 +73,10 @@ selection indices global, exposes an external scroll controller and samples
 overscan rows without rendering them. It remains experimental while large-data
 performance contracts mature.
 
-`EditableDataTable` is still a deliberately honest read-only experimental
-facade. Editable cell focus, validation and commit/cancel semantics remain.
+`EditableDataTable` now provides editable-cell focus, grapheme-safe text
+editing, typed number/select values, validation, and explicit commit/cancel
+semantics. It remains controlled and experimental while larger keyboard and
+accessibility contracts mature.
 
 ### 4. Cell-buffer renderer boundary
 

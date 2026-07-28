@@ -925,16 +925,25 @@ export const dataTableStories: Story[] = [
 
   story('EditableDataTable - Basic')
     .category('Organisms')
-    .description('Editable columns (uses DataTable for now)')
+    .description('Keyboard-driven inline text and number editing')
     .render(() =>
       EditableDataTable({
         columns: [
           { key: 'name', header: 'Name', editable: false },
           { key: 'role', header: 'Role', editable: true },
-          { key: 'score', header: 'Score', editable: true, align: 'right' },
+          {
+            key: 'score',
+            header: 'Score',
+            editable: true,
+            inputType: 'number',
+            align: 'right',
+          },
         ],
         data: tableRows,
         selectionMode: 'none',
+        onCellEdit: () => {
+          // The Storybook fixture is immutable; applications update their store.
+        },
       })
     ),
 ];

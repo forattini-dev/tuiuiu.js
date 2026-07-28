@@ -84,7 +84,8 @@ const explicitNotes: Record<string, string> = {
   'Organisms::AutoGrid': 'Responsive item arrays are not controllable.',
   'Organisms::DashboardGrid': 'Dashboard widget arrays are not controllable.',
   'Organisms::MasonryGrid': 'Masonry card arrays are not controllable.',
-  'Organisms::EditableDataTable': 'Editing callbacks and inline editors are not controllable.',
+  'Organisms::EditableDataTable':
+    'Inline editing is interactive; callback results are not persisted by the static story.',
   'Organisms::FileDirectoryTree': 'File tree datasets are not controllable.',
   'Organisms::FileList': 'File item datasets are not controllable.',
   'Organisms::PathBreadcrumbs': 'Path segments are not controllable.',

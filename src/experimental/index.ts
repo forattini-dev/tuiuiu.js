@@ -6,6 +6,7 @@
  */
 
 export {
+  createEditableDataTable,
   createVirtualDataTable,
   VirtualDataTable,
   EditableDataTable,
@@ -14,4 +15,6 @@ export {
   type VirtualDataTableState,
   type EditableColumn,
   type EditableDataTableOptions,
+  type EditableDataTableCell,
+  type EditableDataTableState,
 } from '../organisms/data-table.js';

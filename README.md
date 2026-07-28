@@ -214,7 +214,7 @@ render(() =>
 | **Atoms** | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer, Tooltip |
 | **Molecules** | Select, MultiSelect, RadioGroup, Autocomplete, Table, Tabs, Tree, Calendar, CodeBlock, Markdown |
 | **Organisms** | Modal, CommandPalette, DataTable, FileManager, SplitPanel, ScrollArea, Grid, OverlayStack |
-| **Experimental** | VirtualDataTable and EditableDataTable facades |
+| **Experimental** | Windowed and inline-editable DataTable variants |
 | **Templates** | AppShell, Page, Header, StatusBar, VStack, HStack, Center, FullScreen |
 | **Data Viz** | BarChart, LineChart, Sparkline, Heatmap, Gauge, BigText, Digits |
 | **DevTools** | Layout Inspector, Event Logger, Performance Metrics, Component Storybook |
@@ -507,7 +507,7 @@ import { BarChart, Gauge } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/atoms` | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer |
 | `tuiuiu.js/molecules` | Select, MultiSelect, Table, Tabs, Tree, Calendar, CodeBlock |
 | `tuiuiu.js/organisms` | Modal, CommandPalette, DataTable, FileManager, SplitPanel |
-| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable facades |
+| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable APIs |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack, StatusBar |
 | `tuiuiu.js/core` | createSignal, createEffect, batch, calculateLayout |
 | `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |

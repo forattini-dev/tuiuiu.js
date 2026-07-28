@@ -138,6 +138,7 @@ import {
 
 // Unstable APIs use the explicit experimental entry point.
 import {
+  createEditableDataTable,
   createVirtualDataTable,
   VirtualDataTable,
   EditableDataTable,

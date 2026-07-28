@@ -945,21 +945,24 @@ ScrollList({
   {
     name: 'EditableDataTable',
     category: 'organisms',
-    description: 'Experimental read-only facade for a future editable table. Inline editing callbacks are not implemented yet. Import from tuiuiu.js/experimental.',
+    description: 'Experimental controlled table with inline text, number, and select editors, validation, and keyboard commit/cancel behavior. Import from tuiuiu.js/experimental.',
     props: [
       { name: 'data', type: 'T[]', required: true, description: 'Array of row data objects' },
       { name: 'columns', type: 'EditableColumn<T>[]', required: true, description: 'Column definitions with edit configuration' },
-      { name: 'height', type: 'number', required: true, description: 'Visible height in rows' },
-      { name: 'onCellEdit', type: '(row: T, key: string, value: any) => void', required: false, description: 'Cell edit callback' },
+      { name: 'state', type: 'EditableDataTableState<T>', required: false, description: 'External editable table controller' },
+      { name: 'onCellEdit', type: '(rowKey: string, column: string, value: any, row: T) => void', required: false, description: 'Controlled cell edit callback' },
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation and editing' },
     ],
     examples: [
       `import { EditableDataTable } from 'tuiuiu.js/experimental'
 
-// Currently renders read-only while the editing contract is experimental.
 EditableDataTable({
   data: users(),
-  columns: [{ key: 'name', header: 'Name', editable: true }],
+  columns: [
+    { key: 'name', header: 'Name', editable: true },
+    { key: 'age', header: 'Age', editable: true, inputType: 'number' },
+  ],
+  onCellEdit: (rowKey, column, value) => updateUser(rowKey, { [column]: value }),
 })`,
     ],
     relatedComponents: ['DataTable'],

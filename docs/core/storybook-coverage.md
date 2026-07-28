@@ -170,7 +170,7 @@ Notes:
 | MasonryGrid | [x] | [x] | Masonry card arrays are not controllable. |
 | DataTable | [x] | [x] |  |
 | VirtualDataTable | [x] | [x] |  |
-| EditableDataTable | [x] | [x] | Editing callbacks and inline editors are not controllable. |
+| EditableDataTable | [x] | [x] | Inline editing is interactive; callback results are not persisted by the static story. |
 | FileBrowser | [x] | [x] |  |
 | FileDirectoryTree | [x] | [x] | File tree datasets are not controllable. |
 | FileList | [x] | [x] | File item datasets are not controllable. |

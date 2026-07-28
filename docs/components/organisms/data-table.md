@@ -199,9 +199,9 @@ widths are less likely to jump without rendering those extra rows.
 
 ## EditableDataTable
 
-> **Experimental:** this component currently renders a read-only `DataTable`.
-> `editable`, `inputType`, `options`, `validate`, and `onCellEdit` describe the
-> planned contract but are not active behavior yet.
+> **Experimental:** inline editing is implemented, but this API can still
+> change between minor versions. Data is controlled: apply `onCellEdit` to your
+> store and provide the updated `data` on the next render.
 
 ```typescript
 EditableDataTable({
@@ -226,6 +226,22 @@ EditableDataTable({
 })
 ```
 
+Keyboard behavior:
+
+- Arrow keys move the row or editable-column focus.
+- Enter opens the focused editor and commits an active edit.
+- Escape cancels the draft.
+- Tab or Shift+Tab commits and moves to the next or previous editable column.
+- Select editors cycle with arrow keys.
+- Page Up and Page Down change pages outside edit mode.
+
+Text editing moves and deletes by Unicode grapheme cluster. Number editors emit
+finite numbers rather than strings. A failed `validate` result leaves the
+editor open and renders its message.
+
+Use `createEditableDataTable(options)` and pass the resulting `state` when
+focus, draft, validation, or commit actions need to be controlled externally.
+
 ### EditableColumn Props
 
 | Prop | Type | Description |
@@ -234,6 +250,8 @@ EditableDataTable({
 | `inputType` | `'text' \| 'number' \| 'select'` | Input type |
 | `options` | `{ value, label }[]` | Options for select |
 | `validate` | `(value, row) => boolean \| string` | Validation |
+| `state` | `EditableDataTableState` | External editable-table controller |
+| `onCellEdit` | `(rowKey, column, value, row) => void` | Controlled data update callback |
 
 ## Examples
 

@@ -6,11 +6,12 @@ import * as experimental from '../src/experimental/index.js';
 import * as organisms from '../src/organisms/index.js';
 
 describe('public package boundaries', () => {
-  it('keeps unfinished data-table facades out of the stable organism barrel', () => {
+  it('keeps evolving data-table variants out of the stable organism barrel', () => {
     expect(organisms).toHaveProperty('DataTable');
     expect(organisms).not.toHaveProperty('VirtualDataTable');
     expect(organisms).not.toHaveProperty('EditableDataTable');
     expect(experimental).toHaveProperty('VirtualDataTable');
+    expect(experimental).toHaveProperty('createEditableDataTable');
     expect(experimental).toHaveProperty('EditableDataTable');
   });
 

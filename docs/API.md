@@ -519,8 +519,13 @@ Use `createVirtualDataTable()` for imperative `scrollTo()` and `scrollBy()`.
 
 #### `EditableDataTable(props: EditableDataTableOptions): VNode`
 
-Experimental read-only facade. Its inline editing contract is reserved but not
-implemented yet.
+Experimental controlled table with inline `text`, `number`, and `select`
+editors. Arrow keys move cell focus, Enter starts or commits an edit, Escape
+cancels it, and Tab commits and advances. Validation errors keep the editor
+open. Use `createEditableDataTable()` when an external controller is needed.
+
+`onCellEdit(rowKey, column, value, row)` receives validated, typed values. The
+callback owns the data update; pass the updated `data` on the next render.
 
 #### `Calendar(props: CalendarProps): VNode`
 

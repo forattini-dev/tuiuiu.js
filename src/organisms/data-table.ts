@@ -15,8 +15,13 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
-import { warnOnce } from '../core/dev-warnings.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import {
+  clampToGraphemeBoundary,
+  nextGraphemeBoundary,
+  previousGraphemeBoundary,
+} from '../utils/grapheme.js';
+import { stringWidth } from '../utils/text-utils.js';
 import { Table, type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
 // =============================================================================
@@ -416,6 +421,14 @@ export interface DataTableProps<T = Record<string, any>> extends DataTableOption
   };
   /** @internal The owner already synchronized the external state options. */
   stateOptionsManaged?: boolean;
+  /** @internal Cell focus supplied by higher-level table variants. */
+  cellFocus?: {
+    rowKey: string;
+    column: string;
+    editing?: boolean;
+    value?: string;
+    cursorPosition?: number;
+  } | null;
 }
 
 /**
@@ -465,6 +478,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     state: externalState,
     viewport,
     stateOptionsManaged = false,
+    cellFocus = null,
   } = props;
 
   const state = externalState && stateOptionsManaged
@@ -616,11 +630,12 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
       }
     }
 
-    // Add cursor/selection styling info
-    rowData._isCursor = isCursor;
-    rowData._isSelected = isSelected;
-
-    return rowData;
+    return {
+      row: rowData,
+      rowKey,
+      isCursor,
+      isSelected,
+    };
   });
 
   // Build table rows manually for custom styling
@@ -643,10 +658,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
       })
     ),
     // Rows
-    ...displayData.map((row, rowIdx) => {
-      const isCursor = row._isCursor;
-      const isSelectedRow = row._isSelected;
-
+    ...displayData.map(({ row, rowKey, isCursor, isSelected: isSelectedRow }) => {
       return Box(
         {
           flexDirection: 'row',
@@ -656,7 +668,21 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
         ...displayColumns.map((col, colIdx) => {
           const width = columnWidths[colIdx] ?? 15;
           let value = row[col.key];
-          if (col.format) {
+          const isFocusedCell =
+            cellFocus?.rowKey === rowKey &&
+            cellFocus.column === col.key;
+          if (isFocusedCell && cellFocus.editing) {
+            const draft = cellFocus.value ?? '';
+            const cursorPosition = clampToGraphemeBoundary(
+              draft,
+              cellFocus.cursorPosition ?? draft.length,
+            );
+            const cursorGlyph = isAscii ? '|' : '│';
+            value =
+              draft.slice(0, cursorPosition) +
+              cursorGlyph +
+              draft.slice(cursorPosition);
+          } else if (col.format) {
             value = col.format(value, row);
           }
           const strValue = String(value ?? '').slice(0, width);
@@ -664,7 +690,14 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 
           return Box(
             { width, marginRight: 1 },
-            Text({ color }, strValue.padEnd(width))
+            Text(
+              {
+                color,
+                inverse: isFocusedCell,
+                underline: isFocusedCell && !cellFocus?.editing,
+              },
+              strValue.padEnd(width),
+            )
           );
         })
       );
@@ -939,8 +972,391 @@ export interface EditableColumn<T> extends DataTableColumn<T> {
 export interface EditableDataTableOptions<T> extends Omit<DataTableOptions<T>, 'columns'> {
   /** Editable columns */
   columns: EditableColumn<T>[];
+  /** Pre-created editable table state */
+  state?: EditableDataTableState<T>;
   /** On cell edit callback */
   onCellEdit?: (rowKey: string, column: string, value: any, row: T) => void;
+}
+
+export interface EditableDataTableCell {
+  rowKey: string;
+  column: string;
+}
+
+export interface EditableDataTableState<T = Record<string, any>> {
+  /** Underlying table controller for sorting, filtering, selection, and rows. */
+  tableState: DataTableState<T>;
+  /** Index in the complete columns array, or -1 when no column is editable. */
+  activeColumnIndex: () => number;
+  /** Key of the active editable column. */
+  activeColumn: () => string | null;
+  /** Row key under the keyboard cursor. */
+  activeRowKey: () => string | null;
+  /** Cell captured when editing began. */
+  editingCell: () => EditableDataTableCell | null;
+  /** Whether input is currently editing a cell. */
+  isEditing: () => boolean;
+  /** String representation shown in the inline editor. */
+  draftValue: () => string;
+  /** UTF-16 cursor offset, always aligned to a grapheme boundary. */
+  cursorPosition: () => number;
+  /** Current validation error, if any. */
+  validationError: () => string | null;
+  /** Move focus through editable columns, wrapping at the edges. */
+  moveColumn: (delta: number) => void;
+  /** Move the table cursor and cancel any active edit. */
+  moveRow: (delta: number) => void;
+  /** Begin editing the active cell. */
+  startEditing: () => boolean;
+  /** Discard the draft and leave edit mode. */
+  cancelEditing: () => void;
+  /** Validate, emit onCellEdit, and leave edit mode on success. */
+  commitEditing: () => boolean;
+  /** Replace the draft and move the cursor to its end. */
+  setDraftValue: (value: string) => void;
+  /** Insert text at the current grapheme-safe cursor. */
+  insertText: (value: string) => void;
+  /** Delete the grapheme before the cursor. */
+  backspace: () => void;
+  /** Delete the grapheme after the cursor. */
+  deleteForward: () => void;
+  /** Move the editor cursor without entering a grapheme cluster. */
+  moveEditCursor: (direction: 'left' | 'right' | 'home' | 'end') => void;
+  /** Cycle a select editor by a signed delta. */
+  moveSelectOption: (delta: number) => void;
+  /** Synchronize changing component options while preserving the controller. */
+  updateOptions: (options: EditableDataTableOptions<T>) => void;
+}
+
+interface EditableRowContext<T> {
+  row: T;
+  rowKey: string;
+}
+
+function stripInlineControls(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '');
+}
+
+/**
+ * Create an imperative controller for inline table editing.
+ *
+ * Data remains controlled by the caller. A successful commit invokes
+ * `onCellEdit`; the parent supplies the updated `data` on its next render.
+ */
+export function createEditableDataTable<T = Record<string, any>>(
+  options: EditableDataTableOptions<T>
+): EditableDataTableState<T> {
+  let runtimeOptions = options;
+  let capturedRow: T | null = null;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const toDataTableOptions = (
+    next: EditableDataTableOptions<T>
+  ): DataTableOptions<T> => {
+    const {
+      state: _state,
+      onCellEdit: _onCellEdit,
+      ...tableOptions
+    } = next;
+    return tableOptions;
+  };
+
+  const tableState = createDataTable(toDataTableOptions(options));
+  const firstEditableColumn = () =>
+    runtimeOptions.columns.findIndex((column) => column.editable);
+  const [activeColumnIndex, setActiveColumnIndex] = createSignal(
+    firstEditableColumn(),
+  );
+  const [editingCell, setEditingCell] =
+    createSignal<EditableDataTableCell | null>(null);
+  const [draftValue, setDraft] = createSignal('');
+  const [cursorPosition, setCursorPosition] = createSignal(0);
+  const [validationError, setValidationError] =
+    createSignal<string | null>(null);
+  const [selectedOptionIndex, setSelectedOptionIndex] = createSignal(-1);
+
+  const editableColumnIndices = (): number[] => {
+    optionsVersion();
+    const indices: number[] = [];
+    runtimeOptions.columns.forEach((column, index) => {
+      if (column.editable) indices.push(index);
+    });
+    return indices;
+  };
+
+  const activeColumn = (): string | null => {
+    optionsVersion();
+    return runtimeOptions.columns[activeColumnIndex()]?.key ?? null;
+  };
+
+  const getActiveRow = (): EditableRowContext<T> | null => {
+    const rowIndex = tableState.cursorIndex();
+    const row = tableState.pageData()[rowIndex];
+    if (row === undefined) return null;
+    const pageSize = runtimeOptions.pageSize ?? 10;
+    const globalIndex =
+      (pageSize > 0 ? tableState.currentPage() * pageSize : 0) + rowIndex;
+    return {
+      row,
+      rowKey: tableState.getRowKey(row, globalIndex),
+    };
+  };
+
+  const activeRowKey = () => getActiveRow()?.rowKey ?? null;
+
+  const cancelEditing = () => {
+    capturedRow = null;
+    setEditingCell(null);
+    setDraft('');
+    setCursorPosition(0);
+    setSelectedOptionIndex(-1);
+    setValidationError(null);
+  };
+
+  const setDraftValue = (value: string) => {
+    const cleanValue = stripInlineControls(value);
+    setDraft(cleanValue);
+    setCursorPosition(cleanValue.length);
+    setValidationError(null);
+  };
+
+  const startEditing = (): boolean => {
+    const rowContext = getActiveRow();
+    const column = runtimeOptions.columns[activeColumnIndex()];
+    if (!rowContext || !column?.editable) return false;
+
+    const rawValue = (rowContext.row as Record<string, any>)[column.key];
+    let displayValue = String(rawValue ?? '');
+    let optionIndex = -1;
+    if (column.inputType === 'select') {
+      const choices = column.options ?? [];
+      optionIndex = choices.findIndex((option) => Object.is(option.value, rawValue));
+      if (optionIndex < 0 && choices.length > 0) optionIndex = 0;
+      displayValue = choices[optionIndex]?.label ?? '';
+    }
+
+    capturedRow = rowContext.row;
+    setEditingCell({
+      rowKey: rowContext.rowKey,
+      column: column.key,
+    });
+    setDraft(displayValue);
+    setCursorPosition(displayValue.length);
+    setSelectedOptionIndex(optionIndex);
+    setValidationError(null);
+    return true;
+  };
+
+  const resolveCandidateValue = (
+    column: EditableColumn<T>,
+  ): { ok: true; value: any } | { ok: false; error: string } => {
+    if (column.inputType === 'number') {
+      const draft = draftValue().trim();
+      if (draft.length === 0) {
+        return { ok: false, error: 'Enter a valid number' };
+      }
+      const numberValue = Number(draft);
+      if (!Number.isFinite(numberValue)) {
+        return { ok: false, error: 'Enter a valid number' };
+      }
+      return { ok: true, value: numberValue };
+    }
+
+    if (column.inputType === 'select') {
+      const option = column.options?.[selectedOptionIndex()];
+      return option
+        ? { ok: true, value: option.value }
+        : { ok: false, error: 'Select an available option' };
+    }
+
+    return { ok: true, value: draftValue() };
+  };
+
+  const commitEditing = (): boolean => {
+    const cell = editingCell();
+    const row = capturedRow;
+    const column = runtimeOptions.columns.find(
+      (candidate) => candidate.key === cell?.column,
+    );
+    if (!cell || !row || !column?.editable) {
+      cancelEditing();
+      return false;
+    }
+
+    const candidate = resolveCandidateValue(column);
+    if (candidate.ok === false) {
+      setValidationError(candidate.error);
+      return false;
+    }
+
+    if (column.validate) {
+      try {
+        const result = column.validate(candidate.value, row);
+        if (result !== true) {
+          setValidationError(
+            typeof result === 'string' ? result : 'Invalid value',
+          );
+          return false;
+        }
+      } catch (error) {
+        setValidationError(
+          error instanceof Error && error.message
+            ? error.message
+            : 'Validation failed',
+        );
+        return false;
+      }
+    }
+
+    runtimeOptions.onCellEdit?.(
+      cell.rowKey,
+      column.key,
+      candidate.value,
+      row,
+    );
+    cancelEditing();
+    return true;
+  };
+
+  const moveColumn = (delta: number) => {
+    if (editingCell()) return;
+    const indices = editableColumnIndices();
+    if (indices.length === 0) {
+      setActiveColumnIndex(-1);
+      return;
+    }
+    const currentPosition = Math.max(
+      0,
+      indices.indexOf(activeColumnIndex()),
+    );
+    const normalizedDelta = Number.isFinite(delta) ? Math.trunc(delta) : 0;
+    const nextPosition =
+      ((currentPosition + normalizedDelta) % indices.length + indices.length) %
+      indices.length;
+    setActiveColumnIndex(indices[nextPosition]!);
+  };
+
+  const moveRow = (delta: number) => {
+    cancelEditing();
+    tableState.moveCursor(delta);
+  };
+
+  const insertText = (value: string) => {
+    const cell = editingCell();
+    if (!cell) return;
+    const column = runtimeOptions.columns.find(
+      (candidate) => candidate.key === cell.column,
+    );
+    if (column?.inputType === 'select') return;
+    const cleanValue = stripInlineControls(value);
+    if (!cleanValue) return;
+    const draft = draftValue();
+    const cursor = clampToGraphemeBoundary(draft, cursorPosition());
+    const next = draft.slice(0, cursor) + cleanValue + draft.slice(cursor);
+    setDraft(next);
+    setCursorPosition(cursor + cleanValue.length);
+    setValidationError(null);
+  };
+
+  const backspace = () => {
+    const draft = draftValue();
+    const cursor = clampToGraphemeBoundary(draft, cursorPosition());
+    const previous = previousGraphemeBoundary(draft, cursor);
+    if (previous === cursor) return;
+    setDraft(draft.slice(0, previous) + draft.slice(cursor));
+    setCursorPosition(previous);
+    setValidationError(null);
+  };
+
+  const deleteForward = () => {
+    const draft = draftValue();
+    const cursor = clampToGraphemeBoundary(draft, cursorPosition());
+    const next = nextGraphemeBoundary(draft, cursor);
+    if (next === cursor) return;
+    setDraft(draft.slice(0, cursor) + draft.slice(next));
+    setValidationError(null);
+  };
+
+  const moveEditCursor = (
+    direction: 'left' | 'right' | 'home' | 'end',
+  ) => {
+    const draft = draftValue();
+    const cursor = clampToGraphemeBoundary(draft, cursorPosition());
+    if (direction === 'home') {
+      setCursorPosition(0);
+    } else if (direction === 'end') {
+      setCursorPosition(draft.length);
+    } else if (direction === 'left') {
+      setCursorPosition(previousGraphemeBoundary(draft, cursor));
+    } else {
+      setCursorPosition(nextGraphemeBoundary(draft, cursor));
+    }
+  };
+
+  const moveSelectOption = (delta: number) => {
+    const cell = editingCell();
+    const column = runtimeOptions.columns.find(
+      (candidate) => candidate.key === cell?.column,
+    );
+    const choices = column?.options ?? [];
+    if (column?.inputType !== 'select' || choices.length === 0) return;
+    const current = Math.max(0, selectedOptionIndex());
+    const normalizedDelta = Number.isFinite(delta) ? Math.trunc(delta) : 0;
+    const next =
+      ((current + normalizedDelta) % choices.length + choices.length) %
+      choices.length;
+    setSelectedOptionIndex(next);
+    setDraft(choices[next]!.label);
+    setCursorPosition(choices[next]!.label.length);
+    setValidationError(null);
+  };
+
+  return {
+    tableState,
+    activeColumnIndex,
+    activeColumn,
+    activeRowKey,
+    editingCell,
+    isEditing: () => editingCell() !== null,
+    draftValue,
+    cursorPosition,
+    validationError,
+    moveColumn,
+    moveRow,
+    startEditing,
+    cancelEditing,
+    commitEditing,
+    setDraftValue,
+    insertText,
+    backspace,
+    deleteForward,
+    moveEditCursor,
+    moveSelectOption,
+    updateOptions: (next) => {
+      runtimeOptions = next;
+      setOptionsVersion((version) => version + 1);
+      tableState.updateOptions(toDataTableOptions(next));
+
+      const indices = editableColumnIndices();
+      const currentCell = editingCell();
+      if (!indices.includes(activeColumnIndex())) {
+        setActiveColumnIndex(indices[0] ?? -1);
+        cancelEditing();
+      } else if (
+        currentCell &&
+        (
+          activeRowKey() !== currentCell.rowKey ||
+          !runtimeOptions.columns.some(
+            (column) =>
+              column.key === currentCell.column &&
+              column.editable,
+          )
+        )
+      ) {
+        cancelEditing();
+      }
+    },
+  };
 }
 
 /**
@@ -949,14 +1365,152 @@ export interface EditableDataTableOptions<T> extends Omit<DataTableOptions<T>, '
 export function EditableDataTable<T = Record<string, any>>(
   props: EditableDataTableOptions<T>
 ): VNode {
-  warnOnce(
-    'editable-data-table-stub',
-    'EditableDataTable is not yet fully implemented — it renders a read-only DataTable. ' +
-    'Inline cell editing will be added in a future release.',
+  const {
+    state: externalState,
+    onCellEdit: _onCellEdit,
+    columns,
+    showSearch = true,
+    isActive = true,
+    ...dataTableProps
+  } = props;
+  const state = useFactoryState(externalState, props, createEditableDataTable);
+
+  useInput(
+    (input, key) => {
+      if (state.isEditing()) {
+        const column = columns[state.activeColumnIndex()];
+        if (key.escape) {
+          state.cancelEditing();
+        } else if (key.return) {
+          state.commitEditing();
+        } else if (key.tab) {
+          if (state.commitEditing()) {
+            state.moveColumn(key.shift ? -1 : 1);
+          }
+        } else if (column?.inputType === 'select') {
+          if (key.leftArrow || key.upArrow) {
+            state.moveSelectOption(-1);
+          } else if (key.rightArrow || key.downArrow) {
+            state.moveSelectOption(1);
+          }
+        } else if (key.leftArrow) {
+          state.moveEditCursor('left');
+        } else if (key.rightArrow) {
+          state.moveEditCursor('right');
+        } else if (key.home) {
+          state.moveEditCursor('home');
+        } else if (key.end) {
+          state.moveEditCursor('end');
+        } else if (key.backspace) {
+          state.backspace();
+        } else if (key.delete) {
+          state.deleteForward();
+        } else if (input && !key.ctrl && !key.meta) {
+          state.insertText(input);
+        }
+        return true;
+      }
+
+      const isSearching = showSearch && state.tableState.filterText().length > 0;
+      if (key.upArrow) {
+        state.moveRow(-1);
+      } else if (key.downArrow) {
+        state.moveRow(1);
+      } else if (key.leftArrow) {
+        state.moveColumn(-1);
+      } else if (key.rightArrow) {
+        state.moveColumn(1);
+      } else if (key.pageUp) {
+        state.tableState.prevPage();
+      } else if (key.pageDown) {
+        state.tableState.nextPage();
+      } else if (key.return) {
+        state.startEditing();
+      } else if (input === ' ') {
+        state.tableState.selectCurrent();
+      } else if (input === 'a' && key.ctrl) {
+        state.tableState.selectAll();
+      } else if (input === 'd' && key.ctrl) {
+        state.tableState.deselectAll();
+      } else if (key.backspace && showSearch) {
+        state.tableState.setFilter(
+          state.tableState.filterText().slice(0, -1),
+        );
+      } else if (!isSearching && input === 's') {
+        const sortable = columns.filter((column) => column.sortable);
+        if (sortable.length > 0) {
+          const current = state.tableState.sortColumn();
+          const currentIndex = sortable.findIndex(
+            (column) => column.key === current,
+          );
+          state.tableState.sort(
+            sortable[(currentIndex + 1) % sortable.length]!.key,
+          );
+        }
+      } else if (
+        input &&
+        showSearch &&
+        !key.ctrl &&
+        !key.meta
+      ) {
+        state.tableState.setFilter(
+          state.tableState.filterText() + stripInlineControls(input),
+        );
+      } else {
+        return false;
+      }
+      return true;
+    },
+    {
+      isActive,
+      priority: 'normal',
+      stopPropagation: true,
+    },
   );
 
-  return DataTable({
-    ...props,
-    columns: props.columns,
-  });
+  const activeRowKey = state.activeRowKey();
+  const activeColumn = state.activeColumn();
+  const editingCell = state.editingCell();
+  const validationError = state.validationError();
+  const displayColumns = columns.map((column) =>
+    state.isEditing() && column.key === editingCell?.column
+      ? {
+          ...column,
+          minWidth: Math.max(
+            column.minWidth ?? 0,
+            stringWidth(state.draftValue()) + 1,
+          ),
+        }
+      : column,
+  );
+
+  return Box(
+    { flexDirection: 'column' },
+    DataTable({
+      ...dataTableProps,
+      columns: displayColumns,
+      showSearch,
+      isActive: false,
+      state: state.tableState,
+      stateOptionsManaged: true,
+      cellFocus:
+        activeRowKey && activeColumn
+          ? {
+              rowKey: editingCell?.rowKey ?? activeRowKey,
+              column: editingCell?.column ?? activeColumn,
+              editing: state.isEditing(),
+              value: state.draftValue(),
+              cursorPosition: state.cursorPosition(),
+            }
+          : null,
+    }),
+    validationError
+      ? Text({ color: 'danger', bold: true }, `Error: ${validationError}`)
+      : Text(
+          { color: 'mutedForeground', dim: true },
+          state.isEditing()
+            ? 'Enter: commit  Esc: cancel  Tab: commit and move'
+            : 'Arrows: move cell  Enter: edit  Space: select  PgUp/PgDn: page',
+        ),
+  );
 }
