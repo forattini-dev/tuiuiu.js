@@ -69,6 +69,7 @@
  */
 
 import { createSignal } from '../primitives/signal.js';
+import { getRuntimeResource } from '../core/runtime-scope.js';
 import { useInput } from './use-input.js';
 import type { Key } from './types.js';
 
@@ -239,23 +240,33 @@ export function matchesHotkey(
 // Scope Management
 // =============================================================================
 
-const [currentScope, setCurrentScope] = createSignal<string>('global');
+interface HotkeyScopeRuntimeState {
+  read: () => string;
+  write: (scope: string) => void;
+  stack: string[];
+}
 
-// Scope stack for nested scopes (modals within modals, etc.)
-const scopeStack: string[] = [];
+const HOTKEY_SCOPE_STATE = Symbol('tuiuiu.hotkey-scope-state');
+
+function getHotkeyScopeRuntimeState(): HotkeyScopeRuntimeState {
+  return getRuntimeResource(HOTKEY_SCOPE_STATE, () => {
+    const [read, write] = createSignal<string>('global');
+    return { read, write, stack: [] };
+  });
+}
 
 /**
  * Get the current active scope
  */
 export function getHotkeyScope(): string {
-  return currentScope();
+  return getHotkeyScopeRuntimeState().read();
 }
 
 /**
  * Set the current active scope
  */
 export function setHotkeyScope(scope: string): void {
-  setCurrentScope(scope);
+  getHotkeyScopeRuntimeState().write(scope);
 }
 
 /**
@@ -282,8 +293,9 @@ export function setHotkeyScope(scope: string): void {
  * ```
  */
 export function pushHotkeyScope(scope: string): void {
-  scopeStack.push(currentScope());
-  setCurrentScope(scope);
+  const state = getHotkeyScopeRuntimeState();
+  state.stack.push(state.read());
+  state.write(scope);
 }
 
 /**
@@ -294,9 +306,10 @@ export function pushHotkeyScope(scope: string): void {
  * @returns The scope that was popped
  */
 export function popHotkeyScope(): string {
-  const popped = currentScope();
-  const previous = scopeStack.pop() ?? 'global';
-  setCurrentScope(previous);
+  const state = getHotkeyScopeRuntimeState();
+  const popped = state.read();
+  const previous = state.stack.pop() ?? 'global';
+  state.write(previous);
   return popped;
 }
 
@@ -306,7 +319,7 @@ export function popHotkeyScope(): string {
  * Useful for debugging nested scope issues.
  */
 export function getHotkeyScopeDepth(): number {
-  return scopeStack.length;
+  return getHotkeyScopeRuntimeState().stack.length;
 }
 
 /**
@@ -315,8 +328,9 @@ export function getHotkeyScopeDepth(): number {
  * Use with caution - mainly for testing or error recovery.
  */
 export function resetHotkeyScope(): void {
-  scopeStack.length = 0;
-  setCurrentScope('global');
+  const state = getHotkeyScopeRuntimeState();
+  state.stack.length = 0;
+  state.write('global');
 }
 
 // =============================================================================
@@ -329,7 +343,11 @@ interface RegisteredHotkey {
   options: HotkeyOptions;
 }
 
-const hotkeyRegistry: RegisteredHotkey[] = [];
+const HOTKEY_REGISTRY = Symbol('tuiuiu.hotkey-registry');
+
+function getHotkeyRegistry(): RegisteredHotkey[] {
+  return getRuntimeResource(HOTKEY_REGISTRY, () => []);
+}
 
 /**
  * Register a hotkey handler
@@ -350,13 +368,14 @@ export function registerHotkey(
     },
   };
 
-  hotkeyRegistry.push(entry);
+  const registry = getHotkeyRegistry();
+  registry.push(entry);
 
   // Return unregister function
   return () => {
-    const index = hotkeyRegistry.indexOf(entry);
+    const index = registry.indexOf(entry);
     if (index > -1) {
-      hotkeyRegistry.splice(index, 1);
+      registry.splice(index, 1);
     }
   };
 }
@@ -365,9 +384,9 @@ export function registerHotkey(
  * Check if a key event matches any registered hotkey and trigger it
  */
 export function triggerHotkey(input: string, key: Key): boolean {
-  const scope = currentScope();
+  const scope = getHotkeyScope();
 
-  for (const entry of hotkeyRegistry) {
+  for (const entry of getHotkeyRegistry()) {
     // Check scope
     const entryScope = entry.options.scope || 'global';
     if (entryScope !== 'global' && entryScope !== scope) {
@@ -394,7 +413,7 @@ export function getRegisteredHotkeys(): Array<{
   description: string;
   scope: string;
 }> {
-  return hotkeyRegistry.map(entry => ({
+  return getHotkeyRegistry().map(entry => ({
     keys: entry.bindings
       .map(b => {
         const parts: string[] = [];
@@ -440,7 +459,7 @@ export function useHotkeys(
   // Use the input hook to listen for key events
   useInput((input, key) => {
     // Check scope
-    const activeScope = currentScope();
+    const activeScope = getHotkeyScope();
     if (scope !== 'global' && scope !== activeScope) {
       return;
     }

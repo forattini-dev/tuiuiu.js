@@ -86,7 +86,7 @@ describe('useSubscription hook', () => {
 
       // Simulate cleanup by resetting hook state
       resetHookState();
-      // Note: cleanupSubscription would be called by the render loop
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -80,6 +80,8 @@ export interface DataTableOptions<T = Record<string, any>> {
   onSelect?: (rows: T[]) => void;
   onSort?: (column: string, direction: SortDirection) => void;
   onPageChange?: (page: number) => void;
+  /** Called when the keyboard cursor changes (index within the active page). */
+  onCursorChange?: (index: number) => void;
   /** Is active */
   isActive?: boolean;
 }
@@ -240,6 +242,7 @@ export function createDataTable<T = Record<string, any>>(
     setFilterText(text);
     setCurrentPage(0);
     setCursorIndex(0);
+    runtimeOptions.onCursorChange?.(0);
   };
 
   const nextPage = () => {
@@ -249,6 +252,7 @@ export function createDataTable<T = Record<string, any>>(
       return newPage;
     });
     setCursorIndex(0);
+    runtimeOptions.onCursorChange?.(0);
   };
 
   const prevPage = () => {
@@ -258,6 +262,7 @@ export function createDataTable<T = Record<string, any>>(
       return newPage;
     });
     setCursorIndex(0);
+    runtimeOptions.onCursorChange?.(0);
   };
 
   const goToPage = (page: number) => {
@@ -265,8 +270,14 @@ export function createDataTable<T = Record<string, any>>(
     if (clamped !== currentPage()) {
       setCurrentPage(clamped);
       setCursorIndex(0);
+      runtimeOptions.onCursorChange?.(0);
       runtimeOptions.onPageChange?.(clamped);
     }
+  };
+
+  const getPageStartIndex = () => {
+    const pageSize = runtimeOptions.pageSize ?? 10;
+    return pageSize > 0 ? currentPage() * pageSize : 0;
   };
 
   const selectRow = (key: string) => {
@@ -281,8 +292,9 @@ export function createDataTable<T = Record<string, any>>(
     setSelectedKeys(newKeys);
 
     // Use the known new keys for onSelect (not the signal which may be stale)
+    const pageStart = getPageStartIndex();
     const selected = pageData().filter((row, i) =>
-      newKeys.has(getRowKey(row, i))
+      newKeys.has(getRowKey(row, pageStart + i))
     );
     runtimeOptions.onSelect?.(selected);
   };
@@ -306,7 +318,8 @@ export function createDataTable<T = Record<string, any>>(
   const selectAll = () => {
     const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode !== 'multiple') return;
-    const keys = pageData().map((row, i) => getRowKey(row, i));
+    const pageStart = getPageStartIndex();
+    const keys = pageData().map((row, i) => getRowKey(row, pageStart + i));
     setSelectedKeys(new Set(keys));
     runtimeOptions.onSelect?.(pageData());
   };
@@ -318,14 +331,19 @@ export function createDataTable<T = Record<string, any>>(
 
   const moveCursor = (delta: number) => {
     const page = pageData();
-    setCursorIndex((i) => Math.max(0, Math.min(page.length - 1, i + delta)));
+    const previous = cursorIndex();
+    const next = Math.max(0, Math.min(Math.max(0, page.length - 1), previous + delta));
+    setCursorIndex(next);
+    if (next !== previous) {
+      runtimeOptions.onCursorChange?.(next);
+    }
   };
 
   const selectCurrent = () => {
     const page = pageData();
     const row = page[cursorIndex()];
     if (row) {
-      const key = getRowKey(row, cursorIndex());
+      const key = getRowKey(row, getPageStartIndex() + cursorIndex());
       toggleRow(key);
     }
   };
@@ -367,6 +385,7 @@ export function createDataTable<T = Record<string, any>>(
       const maxCursor = Math.max(0, pageData().length - 1);
       if (cursorIndex() > maxCursor) {
         setCursorIndex(maxCursor);
+        runtimeOptions.onCursorChange?.(maxCursor);
       }
     },
   };
@@ -383,6 +402,20 @@ export function useDataTableState<T = Record<string, any>>(options: DataTableOpt
 export interface DataTableProps<T = Record<string, any>> extends DataTableOptions<T> {
   /** Pre-created state */
   state?: DataTableState<T>;
+  /**
+   * Render only a window of the active page while keeping cursor and selection
+   * indices relative to the full page.
+   *
+   * @internal Prefer VirtualDataTable unless composing a custom virtualizer.
+   */
+  viewport?: {
+    start: number;
+    size: number;
+    overscan?: number;
+    rowHeight?: number;
+  };
+  /** @internal The owner already synchronized the external state options. */
+  stateOptionsManaged?: boolean;
 }
 
 /**
@@ -430,9 +463,13 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     isActive = true,
     availableWidth,
     state: externalState,
+    viewport,
+    stateOptionsManaged = false,
   } = props;
 
-  const state = useFactoryState(externalState, props, createDataTable);
+  const state = externalState && stateOptionsManaged
+    ? externalState
+    : useFactoryState(externalState, props, createDataTable);
   const isAscii = getRenderMode() === 'ascii';
   const chars = getChars();
 
@@ -487,7 +524,19 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     { isActive }
   );
 
-  const page = state.pageData();
+  const fullPage = state.pageData();
+  const viewportStart = viewport
+    ? Math.max(0, Math.min(Math.trunc(viewport.start), fullPage.length))
+    : 0;
+  const viewportSize = viewport
+    ? Math.max(0, Math.trunc(viewport.size))
+    : fullPage.length;
+  const viewportEnd = Math.min(fullPage.length, viewportStart + viewportSize);
+  const overscan = viewport ? Math.max(0, Math.trunc(viewport.overscan ?? 0)) : 0;
+  const measurementStart = Math.max(0, viewportStart - overscan);
+  const measurementEnd = Math.min(fullPage.length, viewportEnd + overscan);
+  const page = fullPage.slice(viewportStart, viewportEnd);
+  const measurementPage = fullPage.slice(measurementStart, measurementEnd);
   const cursor = state.cursorIndex();
   const selected = state.selectedKeys();
   const sortCol = state.sortColumn();
@@ -495,6 +544,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   const filter = state.filterText();
   const currentPageNum = state.currentPage();
   const totalPagesNum = state.totalPages();
+  const pageStartIndex = pageSize > 0 ? currentPageNum * pageSize : 0;
 
   // Build search bar
   let searchNode: VNode | null = null;
@@ -542,7 +592,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   const effectiveAvailableWidth = availableWidth ?? getTerminalWidth();
   const columnWidths = calculateColumnWidths(
     displayColumns,
-    page as Record<string, any>[],
+    measurementPage as Record<string, any>[],
     undefined, // maxWidth
     0,         // padding (we handle marginRight separately)
     effectiveAvailableWidth
@@ -550,9 +600,10 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 
   // Build data with selection and cursor
   const displayData = page.map((row, i) => {
-    const rowKey = state.getRowKey(row, i);
+    const pageIndex = viewportStart + i;
+    const rowKey = state.getRowKey(row, pageStartIndex + pageIndex);
     const isSelected = selected.has(rowKey);
-    const isCursor = i === cursor;
+    const isCursor = pageIndex === cursor;
 
     const rowData = { ...(row as Record<string, any>) };
 
@@ -599,6 +650,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
       return Box(
         {
           flexDirection: 'row',
+          height: viewport?.rowHeight,
           backgroundColor: isCursor ? colorCursor : isSelectedRow ? colorSelected : undefined,
         },
         ...displayColumns.map((col, colIdx) => {
@@ -639,7 +691,12 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     { marginTop: 1 },
     Text(
       { color: 'mutedForeground', dim: true },
-      isAscii
+      viewport
+        ? `${fullPage.length === 0 ? 0 : viewportStart + 1}-${viewportEnd} / ${fullPage.length} rows  ` +
+          (isAscii
+            ? 'jk: nav  Enter/Space: select  s: sort  Ctrl+A: all'
+            : '↓↑: nav  ↵/␣: select  s: sort  ^A: all')
+        : isAscii
         ? 'jk: nav  hl: page  Enter/Space: select  s: sort  Ctrl+A: all'
         : '↓↑: nav  ←→: page  ↵/␣: select  s: sort  ^A: all'
     )
@@ -661,10 +718,164 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 export interface VirtualDataTableOptions<T> extends DataTableOptions<T> {
   /** Visible row count */
   visibleRows?: number;
-  /** Row height (for scrolling calculation) */
+  /** Fixed height of each rendered row */
   rowHeight?: number;
-  /** Overscan rows (render extra for smooth scrolling) */
+  /** Extra rows sampled above and below the viewport for stable width measurement */
   overscan?: number;
+  /** Initial logical row at the top of the viewport */
+  initialScrollOffset?: number;
+  /** Pre-created virtual table state */
+  state?: VirtualDataTableState<T>;
+  /** Called when the logical scroll offset changes */
+  onScroll?: (offset: number) => void;
+}
+
+export interface VirtualDataTableRange {
+  /** First visible row (inclusive). */
+  start: number;
+  /** Last visible row (exclusive). */
+  end: number;
+  /** First row sampled for measurement (inclusive). */
+  overscanStart: number;
+  /** Last row sampled for measurement (exclusive). */
+  overscanEnd: number;
+}
+
+export interface VirtualDataTableState<T = Record<string, any>> {
+  /** Full DataTable controller. Its pageSize is always zero. */
+  tableState: DataTableState<T>;
+  /** Logical row at the top of the viewport. */
+  scrollOffset: () => number;
+  /** Current visible and overscan ranges. */
+  visibleRange: () => VirtualDataTableRange;
+  /** Scroll so the requested row is at the top when possible. */
+  scrollTo: (index: number) => void;
+  /** Scroll by a number of logical rows. */
+  scrollBy: (delta: number) => void;
+  /** Make a cursor index visible without moving it unnecessarily. */
+  ensureCursorVisible: (index: number) => void;
+  /** Synchronize changing component options while preserving state. */
+  updateOptions: (options: VirtualDataTableOptions<T>) => void;
+}
+
+function finiteInteger(value: number | undefined, fallback: number, minimum: number): number {
+  return Number.isFinite(value)
+    ? Math.max(minimum, Math.trunc(value!))
+    : fallback;
+}
+
+/**
+ * Create an imperative virtual DataTable controller.
+ *
+ * The underlying DataTable always owns the complete filtered/sorted dataset.
+ * Only rendering is windowed, so cursor, selection, sorting and filtering keep
+ * stable global row indices.
+ */
+export function createVirtualDataTable<T = Record<string, any>>(
+  options: VirtualDataTableOptions<T>
+): VirtualDataTableState<T> {
+  let runtimeOptions = options;
+  let tableState!: DataTableState<T>;
+  const [optionsVersion, setOptionsVersion] = createSignal(0);
+
+  const initialVisibleRows = finiteInteger(options.visibleRows, 20, 1);
+  const initialMaxOffset = Math.max(0, options.data.length - initialVisibleRows);
+  const initialOffset = Math.min(
+    finiteInteger(options.initialScrollOffset, 0, 0),
+    initialMaxOffset
+  );
+  const [scrollOffset, setScrollOffset] = createSignal(initialOffset);
+
+  const visibleRows = () => {
+    optionsVersion();
+    return finiteInteger(runtimeOptions.visibleRows, 20, 1);
+  };
+
+  const overscanRows = () => {
+    optionsVersion();
+    return finiteInteger(runtimeOptions.overscan, 3, 0);
+  };
+
+  const maxScrollOffset = () =>
+    Math.max(0, tableState.pageData().length - visibleRows());
+
+  const scrollTo = (index: number) => {
+    const previous = scrollOffset();
+    const normalized = Number.isFinite(index) ? Math.trunc(index) : previous;
+    const next = Math.max(0, Math.min(normalized, maxScrollOffset()));
+    if (next === previous) return;
+    setScrollOffset(next);
+    runtimeOptions.onScroll?.(next);
+  };
+
+  const ensureCursorVisible = (index: number) => {
+    const offset = scrollOffset();
+    const count = visibleRows();
+    if (index < offset) {
+      scrollTo(index);
+    } else if (index >= offset + count) {
+      scrollTo(index - count + 1);
+    }
+  };
+
+  const toDataTableOptions = (
+    next: VirtualDataTableOptions<T>
+  ): DataTableOptions<T> => {
+    const {
+      visibleRows: _visibleRows,
+      rowHeight: _rowHeight,
+      overscan: _overscan,
+      initialScrollOffset: _initialScrollOffset,
+      state: _state,
+      onScroll: _onScroll,
+      onCursorChange,
+      ...dataTableOptions
+    } = next;
+
+    return {
+      ...dataTableOptions,
+      pageSize: 0,
+      showPagination: false,
+      onCursorChange: (index) => {
+        ensureCursorVisible(index);
+        onCursorChange?.(index);
+      },
+    };
+  };
+
+  tableState = createDataTable(toDataTableOptions(options));
+
+  const state: VirtualDataTableState<T> = {
+    tableState,
+    scrollOffset,
+    visibleRange: () => {
+      optionsVersion();
+      const total = tableState.pageData().length;
+      const start = Math.min(scrollOffset(), Math.max(0, total - visibleRows()));
+      const end = Math.min(total, start + visibleRows());
+      const overscan = overscanRows();
+      return {
+        start,
+        end,
+        overscanStart: Math.max(0, start - overscan),
+        overscanEnd: Math.min(total, end + overscan),
+      };
+    },
+    scrollTo,
+    scrollBy: (delta) => {
+      const normalized = Number.isFinite(delta) ? Math.trunc(delta) : 0;
+      scrollTo(scrollOffset() + normalized);
+    },
+    ensureCursorVisible,
+    updateOptions: (next) => {
+      runtimeOptions = next;
+      setOptionsVersion((version) => version + 1);
+      tableState.updateOptions(toDataTableOptions(next));
+      scrollTo(scrollOffset());
+    },
+  };
+
+  return state;
 }
 
 /**
@@ -675,28 +886,38 @@ export interface VirtualDataTableOptions<T> extends DataTableOptions<T> {
  *   columns: [...],
  *   data: largeDataset, // 10000+ rows
  *   visibleRows: 20,
- *   pageSize: 0, // Disable pagination, use virtual scroll
+ *   overscan: 3,
  * })
  */
 export function VirtualDataTable<T = Record<string, any>>(
   props: VirtualDataTableOptions<T>
 ): VNode {
-  warnOnce(
-    'virtual-data-table-stub',
-    'VirtualDataTable is not yet fully implemented — it uses regular DataTable with pagination. ' +
-    'True virtual scrolling with overscan will be added in a future release.',
-  );
-
   const {
-    visibleRows = 20,
+    visibleRows: requestedVisibleRows = 20,
+    rowHeight: requestedRowHeight = 1,
     overscan = 3,
-    ...rest
+    initialScrollOffset: _initialScrollOffset,
+    onScroll: _onScroll,
+    state: externalState,
+    ...dataTableProps
   } = props;
+  const state = useFactoryState(externalState, props, createVirtualDataTable);
+  const visibleRows = finiteInteger(requestedVisibleRows, 20, 1);
+  const rowHeight = finiteInteger(requestedRowHeight, 1, 1);
+  const range = state.visibleRange();
 
   return DataTable({
-    ...rest,
-    pageSize: visibleRows,
-    showPagination: true,
+    ...dataTableProps,
+    pageSize: 0,
+    showPagination: false,
+    state: state.tableState,
+    stateOptionsManaged: true,
+    viewport: {
+      start: range.start,
+      size: visibleRows,
+      overscan,
+      rowHeight,
+    },
   });
 }
 

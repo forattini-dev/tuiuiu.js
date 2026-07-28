@@ -15,6 +15,12 @@
 import type { VNode, LayoutNode, MouseEventData, MouseEventHandler, MouseButton } from '../utils/types.js';
 import { parseMouseEvent, enableMouseTracking, disableMouseTracking, type MouseEvent as RawMouseEvent } from '../hooks/use-mouse.js';
 import { getGraphicsCapabilities, type CellSize } from './graphics.js';
+import {
+  deleteRuntimeResource,
+  getRuntimeResource,
+  peekRuntimeResource,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -441,29 +447,28 @@ class HitTestRegistry {
 }
 
 // =============================================================================
-// Singleton Instance
+// Runtime-scoped instance
 // =============================================================================
 
-let registryInstance: HitTestRegistry | null = null;
+const HIT_TEST_REGISTRY = Symbol('tuiuiu.hit-test-registry');
 
 /**
- * Get the global hit test registry
+ * Get the hit test registry for the active runtime.
  */
-export function getHitTestRegistry(): HitTestRegistry {
-  if (!registryInstance) {
-    registryInstance = new HitTestRegistry();
-  }
-  return registryInstance;
+export function getHitTestRegistry(scope?: RuntimeScope): HitTestRegistry {
+  return getRuntimeResource(
+    HIT_TEST_REGISTRY,
+    () => new HitTestRegistry(),
+    scope,
+  );
 }
 
 /**
  * Reset the registry (for testing)
  */
-export function resetHitTestRegistry(): void {
-  if (registryInstance) {
-    registryInstance.disable();
-  }
-  registryInstance = null;
+export function resetHitTestRegistry(scope?: RuntimeScope): void {
+  peekRuntimeResource<HitTestRegistry>(HIT_TEST_REGISTRY, scope)?.disable();
+  deleteRuntimeResource(HIT_TEST_REGISTRY, scope);
 }
 
 // =============================================================================

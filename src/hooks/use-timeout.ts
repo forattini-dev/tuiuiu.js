@@ -23,6 +23,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 
 export interface UseTimeoutOptions {
@@ -112,6 +113,7 @@ export function useTimeout(
     };
 
     setHookState(hookIndex, data);
+    registerHookCleanup(data.cancel, hookIndex);
 
     // Start if enabled
     if (enabled) {

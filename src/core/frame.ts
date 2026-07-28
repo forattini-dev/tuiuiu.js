@@ -31,6 +31,10 @@ import {
 } from './dirty.js';
 import { fingerprintValue } from './structural-fingerprint.js';
 import type { BorderStyleName, BoxStyle, LayoutNode, TextStyle, VNode } from '../utils/types.js';
+import {
+  getRuntimeResource,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 export interface FrameInput {
   width: number;
@@ -256,7 +260,19 @@ export interface FrameSnapshot {
 }
 
 let nextFrameId = 1;
-let committedFrameSnapshot: FrameSnapshot | null = null;
+interface FrameRuntimeState {
+  committedFrameSnapshot: FrameSnapshot | null;
+}
+
+const FRAME_RUNTIME_STATE = Symbol('tuiuiu.frame-runtime-state');
+
+function getFrameRuntimeState(scope?: RuntimeScope): FrameRuntimeState {
+  return getRuntimeResource(
+    FRAME_RUNTIME_STATE,
+    () => ({ committedFrameSnapshot: null }),
+    scope,
+  );
+}
 const DRAW_FINGERPRINT_IGNORE_KEYS = new Set(['__terminalImage', '__compositor']);
 const BOX_DRAW_KEYS = new Set([
   'id',
@@ -1385,20 +1401,23 @@ export function createFrameSnapshot(
   return frame;
 }
 
-export function setCommittedFrameSnapshot(frame: FrameSnapshot | null): void {
-  committedFrameSnapshot = frame;
+export function setCommittedFrameSnapshot(
+  frame: FrameSnapshot | null,
+  scope?: RuntimeScope,
+): void {
+  getFrameRuntimeState(scope).committedFrameSnapshot = frame;
 }
 
-export function getCommittedFrameSnapshot(): FrameSnapshot | null {
-  return committedFrameSnapshot;
+export function getCommittedFrameSnapshot(scope?: RuntimeScope): FrameSnapshot | null {
+  return getFrameRuntimeState(scope).committedFrameSnapshot;
 }
 
-export function getCommittedFrameQueries(): FrameQueries | null {
-  return committedFrameSnapshot?.queries ?? null;
+export function getCommittedFrameQueries(scope?: RuntimeScope): FrameQueries | null {
+  return getCommittedFrameSnapshot(scope)?.queries ?? null;
 }
 
-export function clearCommittedFrameSnapshot(): void {
-  committedFrameSnapshot = null;
+export function clearCommittedFrameSnapshot(scope?: RuntimeScope): void {
+  getFrameRuntimeState(scope).committedFrameSnapshot = null;
 }
 
 export function recordFramePhaseMetric(

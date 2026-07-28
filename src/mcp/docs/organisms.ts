@@ -390,21 +390,28 @@ DataTable({
   {
     name: 'VirtualDataTable',
     category: 'organisms',
-    description: 'Experimental DataTable facade. Currently paginates visible rows; true virtual scrolling is not implemented. Import from tuiuiu.js/experimental.',
+    description: 'Experimental windowed DataTable for large datasets. It renders only visible rows while preserving global cursor and selection indices. Import from tuiuiu.js/experimental.',
     props: [
       { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions' },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Row data' },
-      { name: 'visibleRows', type: 'number', required: false, default: '20', description: 'Rows per fallback page' },
-      { name: 'rowHeight', type: 'number', required: false, default: '1', description: 'Row height' },
+      { name: 'visibleRows', type: 'number', required: false, default: '20', description: 'Rows in the rendered window' },
+      { name: 'rowHeight', type: 'number', required: false, default: '1', description: 'Fixed rendered row height' },
+      { name: 'overscan', type: 'number', required: false, default: '3', description: 'Nearby rows sampled for stable width measurement' },
+      { name: 'initialScrollOffset', type: 'number', required: false, default: '0', description: 'Initial logical row offset' },
+      { name: 'state', type: 'VirtualDataTableState', required: false, description: 'External state from createVirtualDataTable()' },
+      { name: 'onScroll', type: '(offset: number) => void', required: false, description: 'Called when the logical offset changes' },
     ],
     examples: [
-      `import { VirtualDataTable } from 'tuiuiu.js/experimental'
+      `import { createVirtualDataTable, VirtualDataTable } from 'tuiuiu.js/experimental'
 
-VirtualDataTable({
+const state = createVirtualDataTable({
   columns: columns,
   data: largeDataset,
   visibleRows: 30,
-})`,
+})
+
+VirtualDataTable({ columns, data: largeDataset, state })
+state.scrollTo(500)`,
     ],
   },
 

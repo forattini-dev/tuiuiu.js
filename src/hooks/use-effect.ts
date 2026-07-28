@@ -11,6 +11,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 
 interface EffectHookData {
@@ -76,6 +77,7 @@ export function useEffect(fn: () => void | (() => void)): () => void {
     // Update the data with actual effect and dispose
     data.effect = effect;
     data.dispose = dispose;
+    registerHookCleanup(dispose, hookIndex);
 
     return dispose;
   } else {

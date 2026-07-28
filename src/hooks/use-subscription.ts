@@ -25,6 +25,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 
 export interface UseSubscriptionOptions<T> {
@@ -91,6 +92,7 @@ export function useSubscription<T>(
     };
 
     setHookState(hookIndex, data);
+    registerHookCleanup(() => stopSubscription(data), hookIndex);
 
     if (enabled) {
       startSubscription(data);

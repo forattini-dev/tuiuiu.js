@@ -13,8 +13,15 @@ import {
   setHookState,
   getHookStateByIndex,
   getAppContext,
+  registerHookCleanup,
 } from './context.js';
 import { onTerminalPanic } from '../core/terminal-panic.js';
+import {
+  bindRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from '../core/runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -69,13 +76,38 @@ const X10_MOUSE_ENABLE = '\x1b[?1000h';
 /** Disable basic X10 mouse mode */
 const X10_MOUSE_DISABLE = '\x1b[?1000l';
 
-// Track if mouse is globally enabled to avoid multiple enable/disable
-let mouseTrackingEnabled = false;
-let mouseTrackingRefCount = 0;
-let mouseOutputStream: NodeJS.WriteStream | null = null;
+interface ClickState {
+  lastClick: { x: number; y: number; time: number; button: MouseButton } | null;
+}
 
-function getMouseOutputStream(): NodeJS.WriteStream {
-  const appContext = getAppContext();
+interface MouseRuntimeState {
+  trackingEnabled: boolean;
+  trackingRefCount: number;
+  outputStream: NodeJS.WriteStream | null;
+  clickState: ClickState;
+  panicRegistered: boolean;
+  unregisterPanic: (() => void) | null;
+}
+
+const MOUSE_RUNTIME_STATE = Symbol('tuiuiu.mouse-runtime-state');
+
+function getMouseRuntimeState(scope?: RuntimeScope): MouseRuntimeState {
+  return getRuntimeResource(
+    MOUSE_RUNTIME_STATE,
+    () => ({
+      trackingEnabled: false,
+      trackingRefCount: 0,
+      outputStream: null,
+      clickState: { lastClick: null },
+      panicRegistered: false,
+      unregisterPanic: null,
+    }),
+    scope,
+  );
+}
+
+function getMouseOutputStream(scope?: RuntimeScope): NodeJS.WriteStream {
+  const appContext = getAppContext(scope);
   return (appContext?.stdout ?? process.stdout) as NodeJS.WriteStream;
 }
 
@@ -232,13 +264,15 @@ export function isMouseEvent(data: string): boolean {
 /**
  * Enable mouse tracking in the terminal
  */
-export function enableMouseTracking(): void {
-  mouseTrackingRefCount++;
-  if (!mouseTrackingEnabled) {
-    mouseTrackingEnabled = true;
-    registerMousePanicCleanup();
-    const stream = getMouseOutputStream();
-    mouseOutputStream = stream;
+export function enableMouseTracking(scope?: RuntimeScope): void {
+  const resolvedScope = getRuntimeScope(scope);
+  const state = getMouseRuntimeState(resolvedScope);
+  state.trackingRefCount++;
+  if (!state.trackingEnabled) {
+    state.trackingEnabled = true;
+    registerMousePanicCleanup(resolvedScope);
+    const stream = getMouseOutputStream(resolvedScope);
+    state.outputStream = stream;
     if (isTTYStream(stream)) {
       stream.write(SGR_MOUSE_ENABLE);
     }
@@ -248,49 +282,48 @@ export function enableMouseTracking(): void {
 /**
  * Disable mouse tracking in the terminal
  */
-export function disableMouseTracking(): void {
-  mouseTrackingRefCount = Math.max(0, mouseTrackingRefCount - 1);
-  if (mouseTrackingRefCount === 0 && mouseTrackingEnabled) {
-    mouseTrackingEnabled = false;
-    const stream = mouseOutputStream ?? getMouseOutputStream();
+export function disableMouseTracking(scope?: RuntimeScope): void {
+  const resolvedScope = getRuntimeScope(scope);
+  const state = getMouseRuntimeState(resolvedScope);
+  state.trackingRefCount = Math.max(0, state.trackingRefCount - 1);
+  if (state.trackingRefCount === 0 && state.trackingEnabled) {
+    state.trackingEnabled = false;
+    const stream = state.outputStream ?? getMouseOutputStream(resolvedScope);
     if (isTTYStream(stream)) {
       stream.write(SGR_MOUSE_DISABLE);
     }
-    mouseOutputStream = null;
+    state.outputStream = null;
   }
 }
 
 /**
  * Force disable mouse tracking (cleanup)
  */
-export function forceDisableMouseTracking(): void {
-  mouseTrackingRefCount = 0;
-  if (mouseTrackingEnabled) {
-    mouseTrackingEnabled = false;
-    const stream = mouseOutputStream ?? getMouseOutputStream();
+export function forceDisableMouseTracking(scope?: RuntimeScope): void {
+  const resolvedScope = getRuntimeScope(scope);
+  const state = getMouseRuntimeState(resolvedScope);
+  state.trackingRefCount = 0;
+  if (state.trackingEnabled) {
+    state.trackingEnabled = false;
+    const stream = state.outputStream ?? getMouseOutputStream(resolvedScope);
     if (isTTYStream(stream)) {
       stream.write(SGR_MOUSE_DISABLE);
     }
-    mouseOutputStream = null;
+    state.outputStream = null;
   }
 }
 
 /**
  * Check if mouse tracking is currently enabled
  */
-export function isMouseTrackingEnabled(): boolean {
-  return mouseTrackingEnabled;
+export function isMouseTrackingEnabled(scope?: RuntimeScope): boolean {
+  return getMouseRuntimeState(scope).trackingEnabled;
 }
 
 // =============================================================================
 // Double-click Detection
 // =============================================================================
 
-interface ClickState {
-  lastClick: { x: number; y: number; time: number; button: MouseButton } | null;
-}
-
-const clickState: ClickState = { lastClick: null };
 const DOUBLE_CLICK_THRESHOLD = 300; // ms
 const DOUBLE_CLICK_DISTANCE = 2; // pixels
 
@@ -303,6 +336,7 @@ function detectDoubleClick(event: MouseEvent): MouseEvent {
   }
 
   const now = Date.now();
+  const clickState = getMouseRuntimeState().clickState;
   const last = clickState.lastClick;
 
   if (
@@ -392,6 +426,17 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
       enableMouseTracking();
       data.trackingEnabled = true;
     }
+    registerHookCleanup(() => {
+      if (data.handlerId !== null) {
+        removeMouseHandlerById(data.handlerId);
+        data.handlerId = null;
+      }
+      if (data.trackingEnabled) {
+        disableMouseTracking();
+        data.trackingEnabled = false;
+      }
+      data.registered = false;
+    }, hookIndex);
   } else {
     // Subsequent render - update handler reference and active state
     const prevRegistered = hookData.registered;
@@ -435,33 +480,35 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
 // Cleanup on process exit (via centralized terminal-panic)
 // =============================================================================
 
-let panicRegistered = false;
-let unregisterPanic: (() => void) | null = null;
-
 /**
  * Register mouse cleanup with centralized panic handler.
  * Called when mouse tracking is first enabled.
  */
-function registerMousePanicCleanup(): void {
-  if (panicRegistered) return;
-  panicRegistered = true;
-  unregisterPanic = onTerminalPanic(forceDisableMouseTracking);
+function registerMousePanicCleanup(scope: RuntimeScope): void {
+  const state = getMouseRuntimeState(scope);
+  if (state.panicRegistered) return;
+  state.panicRegistered = true;
+  state.unregisterPanic = onTerminalPanic(
+    bindRuntimeScope(scope, () => forceDisableMouseTracking(scope)),
+  );
 }
 
 /**
  * Remove mouse exit handlers (useful for tests)
  */
-export function removeMouseExitHandlers(): void {
-  if (unregisterPanic) {
-    unregisterPanic();
-    unregisterPanic = null;
+export function removeMouseExitHandlers(scope?: RuntimeScope): void {
+  const state = getMouseRuntimeState(scope);
+  if (state.unregisterPanic) {
+    state.unregisterPanic();
+    state.unregisterPanic = null;
   }
-  panicRegistered = false;
+  state.panicRegistered = false;
 }
 
 /**
  * Reset mouse module state (for testing purposes only).
  */
-export function resetMouseState(): void {
-  forceDisableMouseTracking();
+export function resetMouseState(scope?: RuntimeScope): void {
+  forceDisableMouseTracking(scope);
+  getMouseRuntimeState(scope).clickState.lastClick = null;
 }

@@ -33,6 +33,7 @@ import {
   getHookStateByIndex,
   addMouseHandler,
   removeMouseHandlerById,
+  registerHookCleanup,
 } from './context.js';
 import {
   enableMouseTracking,
@@ -218,6 +219,7 @@ export function useLocalMouse(
       enableMouseTracking();
       data.trackingEnabled = true;
     }
+    registerHookCleanup(() => cleanupLocalMouse(data), hookIndex);
   } else {
     // Subsequent render - update references
     const prevRegistered = hookData.registered;

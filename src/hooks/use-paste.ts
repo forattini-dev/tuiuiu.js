@@ -12,6 +12,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 import type { PasteHandler, PasteEvent, InputPriority, UseInputOptions } from './types.js';
 
@@ -82,6 +83,13 @@ export function usePaste(
     if (isActive) {
       data.handlerId = addPasteHandler(wrapper, { priority, stopPropagation });
     }
+    registerHookCleanup(() => {
+      if (data.handlerId !== null) {
+        removePasteHandlerById(data.handlerId);
+        data.handlerId = null;
+      }
+      data.registered = false;
+    }, hookIndex);
   } else {
     const prevRegistered = hookData.registered;
     hookData.handler = handler;

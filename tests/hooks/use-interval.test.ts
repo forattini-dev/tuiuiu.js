@@ -327,6 +327,19 @@ describe('useInterval hook', () => {
   });
 
   describe('cleanup', () => {
+    it('stops the interval when hook state is reset', () => {
+      const callback = vi.fn();
+
+      beginRender();
+      useInterval(callback, 100);
+      endRender();
+
+      resetHookState();
+      vi.advanceTimersByTime(500);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
     it('should provide cleanupInterval function', async () => {
       const { cleanupInterval } = await import(
         '../../src/hooks/use-interval.js'

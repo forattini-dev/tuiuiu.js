@@ -1,32 +1,66 @@
 import { createSignal } from '../primitives/signal.js';
+import {
+  getRuntimeResource,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 type TerminalFocusListener = (focused: boolean) => void;
 
-const [terminalFocusedSignal, setTerminalFocusedSignal] = createSignal(true);
-const terminalFocusListeners = new Set<TerminalFocusListener>();
-
-export function readTerminalFocus(): boolean {
-  return terminalFocusedSignal();
+interface TerminalFocusRuntimeState {
+  read: () => boolean;
+  write: (focused: boolean) => void;
+  listeners: Set<TerminalFocusListener>;
 }
 
-export function setTerminalFocusState(focused: boolean): void {
-  if (terminalFocusedSignal() === focused) {
+const TERMINAL_FOCUS_STATE = Symbol('tuiuiu.terminal-focus-state');
+
+function createTerminalFocusRuntimeState(): TerminalFocusRuntimeState {
+  const [read, write] = createSignal(true);
+  return {
+    read,
+    write,
+    listeners: new Set(),
+  };
+}
+
+function getTerminalFocusRuntimeState(scope?: RuntimeScope): TerminalFocusRuntimeState {
+  return getRuntimeResource(
+    TERMINAL_FOCUS_STATE,
+    createTerminalFocusRuntimeState,
+    scope,
+  );
+}
+
+export function readTerminalFocus(scope?: RuntimeScope): boolean {
+  return getTerminalFocusRuntimeState(scope).read();
+}
+
+export function setTerminalFocusState(
+  focused: boolean,
+  scope?: RuntimeScope,
+): void {
+  const state = getTerminalFocusRuntimeState(scope);
+  if (state.read() === focused) {
     return;
   }
 
-  setTerminalFocusedSignal(focused);
-  for (const listener of terminalFocusListeners) {
+  state.write(focused);
+  for (const listener of state.listeners) {
     listener(focused);
   }
 }
 
-export function onTerminalFocusChange(listener: TerminalFocusListener): () => void {
-  terminalFocusListeners.add(listener);
+export function onTerminalFocusChange(
+  listener: TerminalFocusListener,
+  scope?: RuntimeScope,
+): () => void {
+  const state = getTerminalFocusRuntimeState(scope);
+  state.listeners.add(listener);
   return () => {
-    terminalFocusListeners.delete(listener);
+    state.listeners.delete(listener);
   };
 }
 
-export function resetTerminalFocusState(): void {
-  setTerminalFocusState(true);
+export function resetTerminalFocusState(scope?: RuntimeScope): void {
+  setTerminalFocusState(true, scope);
 }

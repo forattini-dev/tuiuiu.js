@@ -212,12 +212,34 @@ export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
   const match = seq.match(/^\x1b\[(?:(\d+)(?::(\d+))?(?::(\d+))?)?(?:;(\d+)(?::(\d+))?)?(?:;(.+))?u$/);
   if (!match) return null;
 
-  const keyCode = parseInt(match[1] || '0', 10);
-  const shiftedKey = match[2] ? parseInt(match[2], 10) : undefined;
-  const baseKey = match[3] ? parseInt(match[3], 10) : undefined;
-  const modifierBits = parseInt(match[4] || '1', 10) - 1;
-  const eventTypeBits = parseInt(match[5] || '1', 10);
+  const parseInteger = (value: string | undefined, fallback?: number): number | null => {
+    if (value === undefined) return fallback ?? null;
+    if (!/^\d+$/u.test(value)) return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  };
+  const isCodePoint = (value: number): boolean =>
+    value >= 0 &&
+    value <= 0x10ffff &&
+    !(value >= 0xd800 && value <= 0xdfff);
+
+  const keyCode = parseInteger(match[1], 0);
+  const shiftedKey = parseInteger(match[2]);
+  const baseKey = parseInteger(match[3]);
+  const encodedModifiers = parseInteger(match[4], 1);
+  const eventTypeBits = parseInteger(match[5], 1);
   const textCodes = match[6];
+  if (
+    keyCode === null ||
+    encodedModifiers === null ||
+    encodedModifiers < 1 ||
+    eventTypeBits === null ||
+    (shiftedKey !== null && !isCodePoint(shiftedKey)) ||
+    (baseKey !== null && !isCodePoint(baseKey))
+  ) {
+    return null;
+  }
+  const modifierBits = encodedModifiers - 1;
 
   // Parse modifiers
   const modifiers: KeyModifiers = {
@@ -239,18 +261,22 @@ export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
   // Parse text
   let text = '';
   if (textCodes) {
-    text = textCodes
-      .split(':')
-      .map((code) => String.fromCodePoint(parseInt(code, 10)))
-      .join('');
+    const codePoints = textCodes.split(':').map((code) => parseInteger(code));
+    if (
+      codePoints.length === 0 ||
+      codePoints.some((code): code is null => code === null || !isCodePoint(code))
+    ) {
+      return null;
+    }
+    text = codePoints.map((code) => String.fromCodePoint(code!)).join('');
   } else if (keyCode >= 32 && keyCode < 127) {
     text = String.fromCharCode(keyCode);
   }
 
   return {
     keyCode,
-    baseKey,
-    shiftedKey,
+    baseKey: baseKey ?? undefined,
+    shiftedKey: shiftedKey ?? undefined,
     text,
     eventType,
     modifiers,
@@ -800,11 +826,20 @@ export function getSelectedText(state: InputState): string | null {
  * Parse raw terminal input into structured events
  */
 export function parseInput(input: string | Buffer): ParsedInput {
-  const raw = input.toString();
+  return parseInputAtDepth(input.toString(), 0);
+}
+
+const MAX_NESTED_INPUT_EVENTS = 256;
+
+function parseInputAtDepth(raw: string, depth: number): ParsedInput {
   const result: ParsedInput = {
     raw,
     keys: [],
   };
+  if (depth >= MAX_NESTED_INPUT_EVENTS) {
+    result.unknown = raw;
+    return result;
+  }
 
   // Check for bracketed paste first
   if (hasBracketedPaste(raw)) {
@@ -816,7 +851,7 @@ export function parseInput(input: string | Buffer): ParsedInput {
       };
       // Process remaining input
       if (extracted.remaining) {
-        const remainingResult = parseInput(extracted.remaining);
+        const remainingResult = parseInputAtDepth(extracted.remaining, depth + 1);
         result.keys = remainingResult.keys;
         result.mouse = remainingResult.mouse;
         result.focus = remainingResult.focus;
@@ -830,7 +865,10 @@ export function parseInput(input: string | Buffer): ParsedInput {
     if (focusEvent) {
       result.focus = focusEvent;
       if (raw.length > FOCUS_IN.length) {
-        const remainingResult = parseInput(raw.slice(FOCUS_IN.length));
+        const remainingResult = parseInputAtDepth(
+          raw.slice(FOCUS_IN.length),
+          depth + 1,
+        );
         result.keys = remainingResult.keys;
         result.mouse = remainingResult.mouse;
         result.paste = remainingResult.paste;

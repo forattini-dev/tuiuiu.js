@@ -513,11 +513,14 @@ DataTable({
 
 #### `VirtualDataTable(props: VirtualDataTableOptions): VNode`
 
-Virtualized table for large datasets.
+Windowed table for large datasets. It renders only `visibleRows` while keeping
+sorting, filtering, selection, and cursor state over the complete dataset.
+Use `createVirtualDataTable()` for imperative `scrollTo()` and `scrollBy()`.
 
 #### `EditableDataTable(props: EditableDataTableOptions): VNode`
 
-Table with inline editing.
+Experimental read-only facade. Its inline editing contract is reserved but not
+implemented yet.
 
 #### `Calendar(props: CalendarProps): VNode`
 

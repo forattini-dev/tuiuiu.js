@@ -114,8 +114,8 @@ describe('State Cleanup Hooks', () => {
       useHotkeyScope('modal');
       expect(pushCalls).toEqual(['modal']);
 
-      // Nested scope
-      resetHookState();
+      // A second mounted hook is nested. resetHookState() would unmount the
+      // first scope and must therefore pop it before another root is mounted.
       useHotkeyScope('dialog');
       expect(pushCalls).toEqual(['modal', 'dialog']);
     });

@@ -9,7 +9,13 @@
 
 import { onTerminalFocusChange } from '../core/terminal-focus.js';
 import { hasClipboardImage } from '../core/clipboard-image.js';
-import { getHookState, getCurrentHookIndex, setHookState, getHookStateByIndex } from './context.js';
+import {
+  getHookState,
+  getCurrentHookIndex,
+  setHookState,
+  getHookStateByIndex,
+  registerHookCleanup,
+} from './context.js';
 
 export interface UseClipboardImageHintOptions {
   /** Whether the hint is enabled (default: true) */
@@ -92,6 +98,14 @@ export function useClipboardImageHint(options: UseClipboardImageHintOptions = {}
         }, CHECK_DEBOUNCE_MS);
       });
     }
+    registerHookCleanup(() => {
+      data.cleanup?.();
+      data.cleanup = null;
+      if (data.timeoutId !== null) {
+        clearTimeout(data.timeoutId);
+        data.timeoutId = null;
+      }
+    }, hookIndex);
   } else {
     // Subsequent render — update enabled state
     if (!enabled && hookData.cleanup) {

@@ -247,6 +247,18 @@ describe('Hook Persistence', () => {
       expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
+    it('calls cleanup when the root hook state is reset', () => {
+      const cleanup = vi.fn();
+
+      beginRender();
+      useEffect(() => cleanup);
+      endRender();
+
+      resetHookState();
+
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+
     it('supports multiple useEffect calls', () => {
       const effect1 = vi.fn();
       const effect2 = vi.fn();

@@ -83,7 +83,7 @@ import { BarChart, Gauge, FileManager } from 'tuiuiu.js/design-system';
 | `tuiuiu.js/atoms` | Button, TextInput, Switch, Slider, Spinner, ProgressBar |
 | `tuiuiu.js/molecules` | Select, MultiSelect, Table, Tabs, Tree, Calendar |
 | `tuiuiu.js/organisms` | Modal, CommandPalette, DataTable, FileManager, SplitPanel |
-| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable facades |
+| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable APIs |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack, StatusBar |
 | `tuiuiu.js/core` | Signals, layout engine, renderer |
 | `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |

@@ -136,8 +136,12 @@ import {
   Wizard,        // Multi-step wizard
 } from 'tuiuiu.js';
 
-// Unstable facades use the explicit experimental entry point.
-import { VirtualDataTable, EditableDataTable } from 'tuiuiu.js/experimental';
+// Unstable APIs use the explicit experimental entry point.
+import {
+  createVirtualDataTable,
+  VirtualDataTable,
+  EditableDataTable,
+} from 'tuiuiu.js/experimental';
 ```
 
 ## App lifecycle
@@ -170,7 +174,7 @@ console.log(c.green.bold('Success!'));
 | `tuiuiu.js/atoms` | Button, Spinner, TextInput, etc. |
 | `tuiuiu.js/molecules` | Select, Tabs, Table, etc. |
 | `tuiuiu.js/organisms` | Modal, DataTable, FileBrowser, CommandPalette |
-| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable facades |
+| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable APIs |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack |
 | `tuiuiu.js/hooks` | All hooks |
 | `tuiuiu.js/app` | render, renderOnce |

@@ -9,6 +9,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 import { parseKeypress, type Key } from '../core/hotkeys.js';
 import type { InputHandler, InputEvent, InputPriority, UseInputOptions } from './types.js';
@@ -91,6 +92,13 @@ export function useInput(
     if (isActive) {
       data.handlerId = addInputHandler(wrapper, { priority, stopPropagation });
     }
+    registerHookCleanup(() => {
+      if (data.handlerId !== null) {
+        removeInputHandlerById(data.handlerId);
+        data.handlerId = null;
+      }
+      data.registered = false;
+    }, hookIndex);
   } else {
     // Subsequent render - update handler reference and active state
     const prevRegistered = hookData.registered;

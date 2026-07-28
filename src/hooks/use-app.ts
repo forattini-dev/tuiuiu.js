@@ -6,14 +6,11 @@ import { StringDecoder } from 'node:string_decoder';
 import { batch } from '../primitives/signal.js';
 import { getCapabilities } from '../core/capabilities.js';
 import {
-  enableFocusEvents,
-  disableFocusEvents,
   parseFocusEvent,
-  enableBracketedPaste,
-  disableBracketedPaste,
   PASTE_START,
   PASTE_END,
 } from '../core/input.js';
+import { createTerminalSession } from '../core/terminal-session.js';
 import {
   getAppContext,
   setAppContext,
@@ -22,14 +19,26 @@ import {
   emitMouseEvent,
   clearInputHandlers,
   clearPasteHandlers,
+  clearMouseHandlers,
   setFocusManager,
+  getRuntimeScopeForApp,
 } from './context.js';
 import { parseKeypress } from './use-input.js';
-import { parseMouseEvent, isMouseEvent } from './use-mouse.js';
+import {
+  forceDisableMouseTracking,
+  isMouseEvent,
+  parseMouseEvent,
+  removeMouseExitHandlers,
+} from './use-mouse.js';
 import { getHitTestRegistry } from '../core/hit-test.js';
 import { readTerminalFocus, resetTerminalFocusState, setTerminalFocusState } from '../core/terminal-focus.js';
 import { FocusZoneManagerAdapter } from './use-focus.js';
 import type { AppContext } from './types.js';
+import {
+  bindRuntimeScope,
+  createRuntimeScope,
+  unregisterRuntimeScope,
+} from '../core/runtime-scope.js';
 
 export type { AppContext };
 
@@ -159,9 +168,8 @@ export function initializeApp(
   if (!Number.isFinite(pasteTimeoutMs) || pasteTimeoutMs < 0) {
     throw new Error('[tuiuiu] pasteTimeoutMs must be a non-negative number');
   }
+  const runtimeScope = createRuntimeScope();
   const outputIsTTY = 'isTTY' in stdout ? !!(stdout as NodeJS.WriteStream & { isTTY?: boolean }).isTTY : true;
-  const initialRawMode = Boolean(stdin.isRaw);
-  const inputWasPaused = typeof stdin.isPaused === 'function' && stdin.isPaused();
 
   const exitCallbacks = new Set<(error?: Error) => void>();
   let isExiting = false;
@@ -169,59 +177,26 @@ export function initializeApp(
   let autoTabNavigation = initialAutoTab;
   let appContext: AppContext;
   const focusTrackingEnabled = Boolean(stdin.isTTY && outputIsTTY && getCapabilities().focusEvents);
+  const terminalSession = createTerminalSession({
+    stdin,
+    stdout,
+    focusEvents: focusTrackingEnabled,
+    bracketedPaste: true,
+  });
+  const setRawMode = terminalSession.setRawMode;
+  const isRawModeEnabled = terminalSession.isRawModeEnabled;
 
-  // Raw mode reference counting
-  let rawModeEnabledCount = 0;
-
-  /**
-   * Set raw mode with reference counting
-   *
-   * Multiple components can request raw mode. Raw mode is enabled when
-   * count > 0 and disabled when count reaches 0.
-   */
-  const setRawMode = (enabled: boolean): void => {
-    if (!stdin.isTTY || !stdin.setRawMode) return;
-
-    if (enabled) {
-      rawModeEnabledCount++;
-      if (rawModeEnabledCount === 1) {
-        // First request - enable raw mode
-        if (!initialRawMode) stdin.setRawMode(true);
-      }
-    } else {
-      rawModeEnabledCount = Math.max(0, rawModeEnabledCount - 1);
-      if (rawModeEnabledCount === 0) {
-        // Last release - restore the state owned by the host process.
-        stdin.setRawMode(initialRawMode);
-      }
-    }
-  };
-
-  const isRawModeEnabled = (): boolean => {
-    return rawModeEnabledCount > 0;
-  };
-
-  // Setup initial raw mode for input (count as 1 reference)
-  setRawMode(true);
-  stdin.resume();
-  resetTerminalFocusState();
-
-  if (focusTrackingEnabled && typeof stdout.write === 'function') {
-    stdout.write(enableFocusEvents());
-  }
-
-  // Enable bracketed paste mode for paste detection
-  if (typeof stdout.write === 'function') {
-    stdout.write(enableBracketedPaste());
-  }
+  terminalSession.start();
+  resetTerminalFocusState(runtimeScope);
 
   // Initialize focus manager (using modern FocusZoneManagerAdapter)
   const focusManager = new FocusZoneManagerAdapter();
-  setFocusManager(focusManager);
+  setFocusManager(focusManager, runtimeScope);
 
   // Bracketed paste state machine
   let pasteBuffer: string | null = null;
   let pasteOverflowed = false;
+  let pasteTerminatorPrefix = '';
   let pasteTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingInput = '';
   let pendingInputTimer: ReturnType<typeof setTimeout> | null = null;
@@ -243,6 +218,7 @@ export function initializeApp(
     pasteTimer = setTimeout(() => {
       pasteBuffer = null;
       pasteOverflowed = false;
+      pasteTerminatorPrefix = '';
       pasteTimer = null;
     }, Math.max(0, pasteTimeoutMs));
   };
@@ -264,6 +240,46 @@ export function initializeApp(
     });
   };
 
+  const terminalPrefixAtEnd = (input: string): number => {
+    const maxLength = Math.min(input.length, PASTE_END.length - 1);
+    for (let length = maxLength; length > 0; length--) {
+      if (input.endsWith(PASTE_END.slice(0, length))) return length;
+    }
+    return 0;
+  };
+
+  /**
+   * Consume input while a bracketed paste is active.
+   *
+   * A terminal may split ESC[201~ at any byte boundary. Keep only the short
+   * suffix that could still become the terminator; all other text can be
+   * appended to the bounded paste buffer immediately.
+   */
+  const consumeActivePaste = (input: string): string | null => {
+    const candidate = pasteTerminatorPrefix + input;
+    pasteTerminatorPrefix = '';
+    const endIdx = candidate.indexOf(PASTE_END);
+
+    if (endIdx === -1) {
+      const prefixLength = terminalPrefixAtEnd(candidate);
+      const contentEnd = candidate.length - prefixLength;
+      appendPaste(candidate.slice(0, contentEnd));
+      pasteTerminatorPrefix = candidate.slice(contentEnd);
+      armPasteTimer();
+      return null;
+    }
+
+    appendPaste(candidate.slice(0, endIdx));
+    if (!pasteOverflowed && pasteBuffer !== null) {
+      emitBoundedPaste(pasteBuffer, true);
+    }
+    pasteBuffer = null;
+    pasteOverflowed = false;
+    pasteTerminatorPrefix = '';
+    clearPasteTimer();
+    return candidate.slice(endIdx + PASTE_END.length);
+  };
+
   // Handle decoded, complete input.
   const processRawInput = (decodedInput: string): void => {
     let rawInput = decodedInput;
@@ -271,20 +287,9 @@ export function initializeApp(
     // --- Bracketed paste accumulation ---
     // If we're in the middle of collecting a bracketed paste, keep buffering
     if (pasteBuffer !== null) {
-      const endIdx = rawInput.indexOf(PASTE_END);
-      if (endIdx === -1) {
-        appendPaste(rawInput);
-        armPasteTimer();
-        return;
-      }
-      appendPaste(rawInput.slice(0, endIdx));
-      if (!pasteOverflowed) {
-        emitBoundedPaste(pasteBuffer, true);
-      }
-      pasteBuffer = null;
-      pasteOverflowed = false;
-      clearPasteTimer();
-      rawInput = rawInput.slice(endIdx + PASTE_END.length);
+      const remaining = consumeActivePaste(rawInput);
+      if (remaining === null) return;
+      rawInput = remaining;
       if (rawInput.length === 0) return;
     }
 
@@ -299,23 +304,14 @@ export function initializeApp(
           processRawInput(before);
         }
 
-        // Look for paste end in the same chunk
         const afterStart = rawInput.slice(pasteStartIdx + PASTE_START.length);
-        const endIdx = afterStart.indexOf(PASTE_END);
-        if (endIdx !== -1) {
-          // Complete paste in one chunk
-          const pasteText = afterStart.slice(0, endIdx);
-          emitBoundedPaste(pasteText, true);
-          rawInput = afterStart.slice(endIdx + PASTE_END.length);
-          continue;
-        } else {
-          // Paste spans multiple data events - start bounded buffering.
-          pasteBuffer = '';
-          pasteOverflowed = false;
-          appendPaste(afterStart);
-          armPasteTimer();
-          return;
-        }
+        pasteBuffer = '';
+        pasteOverflowed = false;
+        pasteTerminatorPrefix = '';
+        const remaining = consumeActivePaste(afterStart);
+        if (remaining === null) return;
+        rawInput = remaining;
+        continue;
       }
 
       // Heuristic paste detection for terminals without bracketed paste
@@ -408,7 +404,7 @@ export function initializeApp(
   };
 
   // Decode UTF-8 across chunks, and hold only an incomplete terminal sequence.
-  const handleData = (data: Buffer | string): void => {
+  const handleData = bindRuntimeScope(runtimeScope, (data: Buffer | string): void => {
     if (disposed) return;
     const decoded = typeof data === 'string' ? data : decoder.write(data);
     const combined = pendingInput + decoded;
@@ -424,7 +420,7 @@ export function initializeApp(
       pendingInput = pending;
       pendingInputTimer = setTimeout(flushPendingInput, Math.max(0, escapeSequenceTimeoutMs));
     }
-  };
+  });
 
   stdin.on('data', handleData);
 
@@ -443,24 +439,18 @@ export function initializeApp(
     pasteOverflowed = false;
     decoder.end();
 
-    rawModeEnabledCount = 0;
-    if (stdin.isTTY && stdin.setRawMode) {
-      stdin.setRawMode(initialRawMode);
+    terminalSession.dispose();
+    resetTerminalFocusState(runtimeScope);
+    clearInputHandlers(runtimeScope);
+    clearPasteHandlers(runtimeScope);
+    clearMouseHandlers(runtimeScope);
+    forceDisableMouseTracking(runtimeScope);
+    removeMouseExitHandlers(runtimeScope);
+    setFocusManager(null, runtimeScope);
+    if (getAppContext(runtimeScope) === appContext) {
+      setAppContext(null, runtimeScope);
     }
-    if (inputWasPaused && typeof stdin.pause === 'function') stdin.pause();
-    if (focusTrackingEnabled && typeof stdout.write === 'function') {
-      stdout.write(disableFocusEvents());
-    }
-    if (typeof stdout.write === 'function') {
-      stdout.write(disableBracketedPaste());
-    }
-    resetTerminalFocusState();
-    clearInputHandlers();
-    clearPasteHandlers();
-    setFocusManager(null);
-    if (getAppContext() === appContext) {
-      setAppContext(null);
-    }
+    unregisterRuntimeScope(runtimeScope);
   };
 
   const exit = (error?: Error) => {
@@ -500,10 +490,10 @@ export function initializeApp(
     },
     setRawMode,
     get rawModeEnabledCount() {
-      return rawModeEnabledCount;
+      return terminalSession.rawModeEnabledCount;
     },
     isRawModeEnabled,
-    isTerminalFocused: () => readTerminalFocus(),
+    isTerminalFocused: () => readTerminalFocus(runtimeScope),
     enqueueExternalUpdate: (update) => {
       batch(() => {
         update();
@@ -513,7 +503,7 @@ export function initializeApp(
     hasPendingExternalUpdates: () => false,
   };
 
-  setAppContext(appContext);
+  setAppContext(appContext, runtimeScope);
 
   return appContext;
 }
@@ -521,16 +511,20 @@ export function initializeApp(
 /**
  * Cleanup app context
  */
-export function cleanupApp(): void {
-  const appContext = getAppContext();
+export function cleanupApp(targetAppContext?: AppContext): void {
+  const scope = targetAppContext
+    ? getRuntimeScopeForApp(targetAppContext) ?? undefined
+    : undefined;
+  const appContext = targetAppContext ?? getAppContext(scope);
   if (typeof appContext?.dispose === 'function') {
     appContext.dispose();
   }
-  clearInputHandlers();
-  clearPasteHandlers();
-  setFocusManager(null);
-  setAppContext(null);
-  resetTerminalFocusState();
+  clearInputHandlers(scope);
+  clearPasteHandlers(scope);
+  clearMouseHandlers(scope);
+  setFocusManager(null, scope);
+  setAppContext(null, scope);
+  resetTerminalFocusState(scope);
 }
 
 /**

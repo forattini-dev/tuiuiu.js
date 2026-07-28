@@ -23,6 +23,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 
 export interface UseIntervalOptions {
@@ -108,6 +109,7 @@ export function useInterval(
     };
 
     setHookState(hookIndex, data);
+    registerHookCleanup(data.stop, hookIndex);
 
     // Start if enabled
     if (enabled) {

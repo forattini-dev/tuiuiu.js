@@ -217,6 +217,28 @@ describe('initializeApp', () => {
       expect(handler.mock.calls[0][0]).toBe('😀');
     });
 
+    it('recognizes bracketed paste across every byte split', () => {
+      const payload = 'linha 😀\nsegunda linha';
+      const packet = Buffer.from(`\x1b[200~${payload}\x1b[201~`);
+
+      for (let split = 0; split <= packet.length; split++) {
+        const activeStdin = createMockStdin();
+        const activeStdout = createMockStdout();
+        const ctx = initializeApp(activeStdin, activeStdout);
+        const handler = vi.fn();
+        addPasteHandler(handler);
+
+        activeStdin.emit('data', packet.subarray(0, split));
+        activeStdin.emit('data', packet.subarray(split));
+
+        expect(handler, `split at byte ${split}`).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0]?.[0]).toEqual(
+          expect.objectContaining({ text: payload, isBracketed: true }),
+        );
+        ctx.dispose();
+      }
+    });
+
     it('parses a terminal sequence split across stream chunks', () => {
       configureProgressive({ overrides: { focusEvents: true } });
       initializeApp(stdin, stdout);

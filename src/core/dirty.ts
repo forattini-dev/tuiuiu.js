@@ -6,6 +6,11 @@
 
 import type { VNode, LayoutNode, BoxStyle } from '../utils/types.js';
 import { fingerprintValue } from './structural-fingerprint.js';
+import {
+  deleteRuntimeResource,
+  getRuntimeResource,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 export const enum DirtyFlags {
   NONE = 0,
@@ -333,17 +338,18 @@ class DirtyRegistry {
   }
 }
 
-let registryInstance: DirtyRegistry | null = null;
+const DIRTY_REGISTRY = Symbol('tuiuiu.dirty-registry');
 
-export function getDirtyRegistry(): DirtyRegistry {
-  if (!registryInstance) {
-    registryInstance = new DirtyRegistry();
-  }
-  return registryInstance;
+export function getDirtyRegistry(scope?: RuntimeScope): DirtyRegistry {
+  return getRuntimeResource(
+    DIRTY_REGISTRY,
+    () => new DirtyRegistry(),
+    scope,
+  );
 }
 
-export function resetDirtyRegistry(): void {
-  registryInstance = null;
+export function resetDirtyRegistry(scope?: RuntimeScope): void {
+  deleteRuntimeResource(DIRTY_REGISTRY, scope);
 }
 
 export function beginDirtyFrame(rootNode: VNode): void {

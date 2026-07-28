@@ -366,6 +366,19 @@ describe('useTimeout hook', () => {
   });
 
   describe('cleanup', () => {
+    it('cancels the timeout when hook state is reset', () => {
+      const callback = vi.fn();
+
+      beginRender();
+      useTimeout(callback, 100);
+      endRender();
+
+      resetHookState();
+      vi.advanceTimersByTime(500);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
     it('should provide cleanupTimeout function', async () => {
       const { cleanupTimeout } = await import(
         '../../src/hooks/use-timeout.js'

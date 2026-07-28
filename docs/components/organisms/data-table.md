@@ -19,6 +19,7 @@ import {
 
 // Explicitly experimental; contracts may change between minor releases.
 import {
+  createVirtualDataTable,
   VirtualDataTable,
   EditableDataTable,
 } from 'tuiuiu.js/experimental'
@@ -163,27 +164,38 @@ Sort cycles through three states:
 
 ## VirtualDataTable
 
-> **Experimental:** this component currently uses paginated `DataTable`
-> internally. It does not yet provide true windowed rendering, and `overscan`
-> and `rowHeight` are reserved for the future implementation.
+> **Experimental:** this component uses real windowed rendering while its API
+> remains eligible for changes between minor versions.
 
 ```typescript
-VirtualDataTable({
+const state = createVirtualDataTable({
   columns: [...],
   data: largeDataset,
   visibleRows: 20,
   overscan: 3,
-  pageSize: 0, // Disable pagination
+  initialScrollOffset: 100,
 })
+
+VirtualDataTable({ state, columns: [...], data: largeDataset })
+
+state.scrollTo(500)
 ```
+
+The underlying `DataTable` keeps the full filtered and sorted dataset, but only
+the visible row window is converted into row nodes. Cursor and selection indices
+remain global. Overscan samples nearby rows when calculating column widths, so
+widths are less likely to jump without rendering those extra rows.
 
 ### VirtualDataTable Props
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `visibleRows` | `number` | `20` | Visible row count |
-| `rowHeight` | `number` | - | Row height for scrolling |
-| `overscan` | `number` | `3` | Extra rows to render |
+| `rowHeight` | `number` | `1` | Fixed rendered height of each row |
+| `overscan` | `number` | `3` | Nearby rows sampled for width measurement |
+| `initialScrollOffset` | `number` | `0` | Initial logical row at the top |
+| `state` | `VirtualDataTableState` | - | External virtual table controller |
+| `onScroll` | `(offset) => void` | - | Called when the logical offset changes |
 
 ## EditableDataTable
 

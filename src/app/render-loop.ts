@@ -9,14 +9,18 @@ import { renderToString, renderFrameToString } from '../core/renderer.js';
 import { batch, createEffect } from '../primitives/signal.js';
 import {
   initializeApp,
-  cleanupApp,
   enableMouseTracking,
   disableMouseTracking,
   setClearScreen,
   setExternalUpdateIngress,
 } from '../hooks/index.js';
 import { enableAlternateScreen, disableAlternateScreen } from '../core/input.js';
-import { beginRender, endRender, resetHookState } from '../hooks/context.js';
+import {
+  beginRender,
+  endRender,
+  getRuntimeScopeForApp,
+  resetHookState,
+} from '../hooks/context.js';
 import { createLogUpdate, type LogUpdate } from '../utils/log-update.js';
 import { createUpdateBatcher } from '../utils/batcher.js';
 import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.js';
@@ -37,6 +41,10 @@ import { beginAppRenderSession, endAppRenderSession } from '../core/dev-warnings
 import { recordCommittedFrame } from '../core/perf-inspector.js';
 import { configureMotionRuntime } from '../core/motion-runtime.js';
 import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
+import {
+  destroyRuntimeScope,
+  runInRuntimeScope,
+} from '../core/runtime-scope.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -200,6 +208,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     exitOnCtrlC,
     exitProcess,
   });
+  const resolvedRuntimeScope = getRuntimeScopeForApp(appContext);
+  if (!resolvedRuntimeScope) {
+    appContext.dispose();
+    throw new Error('[tuiuiu] Failed to create the app runtime scope');
+  }
+  const runtimeScope = resolvedRuntimeScope;
   beginAppRenderSession();
 
   // Install centralized panic hooks to restore terminal on crash
@@ -437,10 +451,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     pendingVNodeEvalMs = performance.now() - evalStart;
   };
 
-  const evaluateAndRender = () => {
+  const evaluateAndRender = () => runInRuntimeScope(runtimeScope, () => {
     evaluateTree();
     doRender();
-  };
+  });
 
   /**
    * Schedule a render callback (with throttling and latest-state wins semantics)
@@ -567,7 +581,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   stdout.on('resize', handleResize);
 
   // Cleanup on exit
-  appContext.onExit((error) => {
+  appContext.onExit((error) => runInRuntimeScope(runtimeScope, () => {
     cleanup();
     disposeRender();
     if (error) {
@@ -575,7 +589,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     } else {
       resolveExit();
     }
-  });
+  }));
 
   /**
    * Perform actual render
@@ -728,6 +742,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
    * Cleanup resources
    */
   function cleanup(): void {
+    return runInRuntimeScope(runtimeScope, cleanupRuntime);
+  }
+
+  function cleanupRuntime(): void {
     if (isUnmounted) return;
     isUnmounted = true;
 
@@ -770,15 +788,15 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       stdout.write(disableAlternateScreen());
     }
 
+    resetHookState(runtimeScope); // Clear all hook state and owned resources
     appContext.dispose();
     for (const unregister of unregisterPanicCleanups.splice(0)) {
       unregister();
     }
     releasePanicHooks();
-    resetHookState(); // Clear all hook state
-    cleanupApp();
     clearCommittedFrameSnapshot();
     endAppRenderSession();
+    destroyRuntimeScope(runtimeScope);
   }
 
   // Create reactive render effect
@@ -823,12 +841,12 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   }
 
   return {
-    rerender: (newNode: VNode) => {
+    rerender: (newNode: VNode) => runInRuntimeScope(runtimeScope, () => {
       componentFn = () => newNode;
       scheduleRenderCallback(evaluateAndRender);
-    },
+    }),
 
-    unmount: () => {
+    unmount: () => runInRuntimeScope(runtimeScope, () => {
       cleanup();
       disposeRender();
 
@@ -838,11 +856,11 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       }
 
       resolveExit();
-    },
+    }),
 
     waitUntilExit: () => exitPromise,
 
-    clear: () => {
+    clear: () => runInRuntimeScope(runtimeScope, () => {
       if (!debug) {
         if (renderTimer) {
           clearTimeout(renderTimer);
@@ -863,7 +881,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
           doRender();
         }
       }
-    },
+    }),
   };
 }
 

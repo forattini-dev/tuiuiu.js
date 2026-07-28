@@ -23,6 +23,7 @@ import {
   getCurrentHookIndex,
   setHookState,
   getHookStateByIndex,
+  registerHookCleanup,
 } from './context.js';
 
 export interface UseAsyncDataOptions {
@@ -141,6 +142,7 @@ export function useAsyncData<T>(
     };
 
     setHookState(hookIndex, hookDataNew);
+    registerHookCleanup(() => cleanupAsyncData(hookDataNew), hookIndex);
 
     if (enabled) {
       doFetch();

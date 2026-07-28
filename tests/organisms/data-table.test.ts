@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createDataTable,
+  createVirtualDataTable,
   DataTable,
   VirtualDataTable,
   EditableDataTable,
@@ -22,6 +23,7 @@ import {
   type DataTableOptions,
   type DataTableState,
 } from '../../src/organisms/data-table.js';
+import { renderToString } from '../../src/core/renderer.js';
 
 // =============================================================================
 // Test Data
@@ -559,6 +561,20 @@ describe('Row Selection', () => {
       state.toggleRow('1');
       expect(state.selectedKeys().has('1')).toBe(false);
     });
+
+    it('uses global fallback keys across pages', () => {
+      const state = createDataTable({
+        columns: testColumns,
+        data: testUsers,
+        pageSize: 2,
+        selectionMode: 'single',
+      });
+
+      state.goToPage(1);
+      state.selectCurrent();
+
+      expect(state.selectedKeys()).toEqual(new Set(['2']));
+    });
   });
 
   describe('multiple selection mode', () => {
@@ -780,14 +796,83 @@ describe('VirtualDataTable component', () => {
     expect(result.type).toBe('box');
   });
 
-  it('should use visibleRows as pageSize', () => {
+  it('renders only the visible window instead of paginating the dataset', () => {
+    const data = Array.from({ length: 100 }, (_, index) => ({
+      id: index,
+      name: `User-${String(index).padStart(3, '0')}`,
+      age: index,
+      email: `user-${index}@test.com`,
+      active: true,
+    }));
+    const state = createVirtualDataTable({
+      columns: testColumns,
+      data,
+      visibleRows: 3,
+      initialScrollOffset: 40,
+      showSearch: false,
+      selectionMode: 'none',
+    });
     const result = VirtualDataTable({
+      columns: testColumns,
+      data,
+      visibleRows: 3,
+      overscan: 5,
+      showSearch: false,
+      selectionMode: 'none',
+      state,
+    });
+    const output = renderToString(result, 100);
+
+    expect(output).toContain('User-040');
+    expect(output).toContain('User-041');
+    expect(output).toContain('User-042');
+    expect(output).not.toContain('User-039');
+    expect(output).not.toContain('User-043');
+    expect(output).toContain('41-43 / 100 rows');
+  });
+
+  it('keeps cursor indices global and scrolls only when it leaves the viewport', () => {
+    const onScroll = vi.fn();
+    const state = createVirtualDataTable({
+      columns: testColumns,
+      data: testUsers,
+      visibleRows: 2,
+      showSearch: false,
+      onScroll,
+    });
+
+    expect(state.visibleRange()).toEqual({
+      start: 0,
+      end: 2,
+      overscanStart: 0,
+      overscanEnd: 5,
+    });
+
+    state.tableState.moveCursor(1);
+    expect(state.scrollOffset()).toBe(0);
+
+    state.tableState.moveCursor(1);
+    expect(state.tableState.cursorIndex()).toBe(2);
+    expect(state.scrollOffset()).toBe(1);
+    expect(onScroll).toHaveBeenLastCalledWith(1);
+
+    state.tableState.selectCurrent();
+    expect(state.tableState.selectedKeys().has('2')).toBe(true);
+  });
+
+  it('clamps scrolling after filtering shrinks the dataset', () => {
+    const state = createVirtualDataTable({
       columns: testColumns,
       data: testUsers,
       visibleRows: 2,
     });
 
-    expect(result).toBeDefined();
+    state.scrollTo(3);
+    expect(state.scrollOffset()).toBe(3);
+
+    state.tableState.setFilter('alice');
+    expect(state.scrollOffset()).toBe(0);
+    expect(state.visibleRange().end).toBe(1);
   });
 });
 
