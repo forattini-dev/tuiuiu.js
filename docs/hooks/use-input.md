@@ -30,6 +30,12 @@ The `Key` object provides boolean flags for special keys:
 | **Modifiers** | `ctrl`, `shift`, `meta` |
 | **Navigation** | `pageUp`, `pageDown`, `home`, `end`, `tab` |
 | **Editing** | `backspace`, `delete`, `return` (Enter), `escape` |
+| **Enhanced protocols** | `eventType` (`press`, `repeat`, or `release`) |
+
+UTF-8, partial escape sequences, and bracketed-paste markers are framed
+incrementally, so stream chunk boundaries do not change the resulting input.
+The parser accepts legacy sequences, Kitty CSI-u, and xterm
+`modifyOtherKeys`.
 
 ## Options
 

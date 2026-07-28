@@ -2,14 +2,13 @@
  * useApp - Application context and lifecycle management
  */
 
-import { StringDecoder } from 'node:string_decoder';
 import { batch } from '../primitives/signal.js';
 import { getCapabilities } from '../core/capabilities.js';
+import { parseFocusEvent } from '../core/input.js';
 import {
-  parseFocusEvent,
-  PASTE_START,
-  PASTE_END,
-} from '../core/input.js';
+  createTerminalInputStream,
+  type TerminalInputStreamEvent,
+} from '../core/input-stream.js';
 import { createTerminalSession } from '../core/terminal-session.js';
 import {
   getAppContext,
@@ -67,6 +66,8 @@ export interface InitAppOptions {
   exitProcess?: boolean;
   /** Maximum accepted paste size in UTF-8 bytes (default: 1 MiB) */
   maxPasteBytes?: number;
+  /** Maximum incomplete terminal sequence retained between chunks (default: 4 KiB) */
+  maxPendingEscapeBytes?: number;
   /** Time to wait for the rest of a split escape sequence (default: 25ms) */
   escapeSequenceTimeoutMs?: number;
   /** Time to wait for a bracketed paste terminator (default: 30s) */
@@ -77,64 +78,6 @@ export interface ExternalUpdateIngress {
   enqueue: (update: () => void) => void;
   flush: () => void;
   isPending: () => boolean;
-}
-
-function incompleteEscapeStart(input: string): number {
-  let cursor = 0;
-
-  while (cursor < input.length) {
-    const start = input.indexOf('\x1b', cursor);
-    if (start === -1) return -1;
-    if (start + 1 >= input.length) return start;
-
-    const introducer = input[start + 1];
-    if (introducer === '[') {
-      let end = start + 2;
-      while (end < input.length) {
-        const code = input.charCodeAt(end);
-        if (code >= 0x40 && code <= 0x7e) break;
-        end++;
-      }
-      if (end >= input.length) return start;
-      cursor = end + 1;
-      continue;
-    }
-
-    if (introducer === ']' || introducer === 'P' || introducer === '^' || introducer === '_') {
-      let end = start + 2;
-      let complete = false;
-      while (end < input.length) {
-        if (introducer === ']' && input.charCodeAt(end) === 0x07) {
-          end++;
-          complete = true;
-          break;
-        }
-        if (input[end] === '\x1b' && input[end + 1] === '\\') {
-          end += 2;
-          complete = true;
-          break;
-        }
-        end++;
-      }
-      if (!complete) return start;
-      cursor = end;
-      continue;
-    }
-
-    if (introducer === 'O' && start + 2 >= input.length) return start;
-    cursor = Math.min(input.length, start + (introducer === 'O' ? 3 : 2));
-  }
-
-  return -1;
-}
-
-function splitIncompleteInput(input: string): { complete: string; pending: string } {
-  const start = incompleteEscapeStart(input);
-  if (start === -1) return { complete: input, pending: '' };
-  return {
-    complete: input.slice(0, start),
-    pending: input.slice(start),
-  };
 }
 
 /**
@@ -156,11 +99,15 @@ export function initializeApp(
     exitOnCtrlC = true,
     exitProcess = false,
     maxPasteBytes = 1024 * 1024,
+    maxPendingEscapeBytes = 4096,
     escapeSequenceTimeoutMs = 25,
     pasteTimeoutMs = 30_000,
   } = options;
   if (!Number.isSafeInteger(maxPasteBytes) || maxPasteBytes < 1) {
     throw new Error('[tuiuiu] maxPasteBytes must be a positive safe integer');
+  }
+  if (!Number.isSafeInteger(maxPendingEscapeBytes) || maxPendingEscapeBytes < 1) {
+    throw new Error('[tuiuiu] maxPendingEscapeBytes must be a positive safe integer');
   }
   if (!Number.isFinite(escapeSequenceTimeoutMs) || escapeSequenceTimeoutMs < 0) {
     throw new Error('[tuiuiu] escapeSequenceTimeoutMs must be a non-negative number');
@@ -193,18 +140,12 @@ export function initializeApp(
   const focusManager = new FocusZoneManagerAdapter();
   setFocusManager(focusManager, runtimeScope);
 
-  // Bracketed paste state machine
-  let pasteBuffer: string | null = null;
-  let pasteOverflowed = false;
-  let pasteTerminatorPrefix = '';
+  const inputStream = createTerminalInputStream({
+    maxPasteBytes,
+    maxPendingEscapeBytes,
+  });
   let pasteTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingInput = '';
   let pendingInputTimer: ReturnType<typeof setTimeout> | null = null;
-  const decoder = new StringDecoder('utf8');
-
-  // Heuristic paste detection: input longer than this with no escape
-  // sequences is likely a paste in terminals without bracketed paste support
-  const PASTE_HEURISTIC_THRESHOLD = 32;
 
   const clearPasteTimer = (): void => {
     if (pasteTimer) {
@@ -216,111 +157,17 @@ export function initializeApp(
   const armPasteTimer = (): void => {
     clearPasteTimer();
     pasteTimer = setTimeout(() => {
-      pasteBuffer = null;
-      pasteOverflowed = false;
-      pasteTerminatorPrefix = '';
+      inputStream.abortPaste();
       pasteTimer = null;
     }, Math.max(0, pasteTimeoutMs));
-  };
-
-  const appendPaste = (text: string): void => {
-    if (pasteBuffer === null || pasteOverflowed) return;
-    if (Buffer.byteLength(pasteBuffer, 'utf8') + Buffer.byteLength(text, 'utf8') > maxPasteBytes) {
-      pasteBuffer = '';
-      pasteOverflowed = true;
-      return;
-    }
-    pasteBuffer += text;
-  };
-
-  const emitBoundedPaste = (text: string, bracketed: boolean): void => {
-    if (Buffer.byteLength(text, 'utf8') > maxPasteBytes) return;
-    batch(() => {
-      emitPaste(text, bracketed);
-    });
-  };
-
-  const terminalPrefixAtEnd = (input: string): number => {
-    const maxLength = Math.min(input.length, PASTE_END.length - 1);
-    for (let length = maxLength; length > 0; length--) {
-      if (input.endsWith(PASTE_END.slice(0, length))) return length;
-    }
-    return 0;
-  };
-
-  /**
-   * Consume input while a bracketed paste is active.
-   *
-   * A terminal may split ESC[201~ at any byte boundary. Keep only the short
-   * suffix that could still become the terminator; all other text can be
-   * appended to the bounded paste buffer immediately.
-   */
-  const consumeActivePaste = (input: string): string | null => {
-    const candidate = pasteTerminatorPrefix + input;
-    pasteTerminatorPrefix = '';
-    const endIdx = candidate.indexOf(PASTE_END);
-
-    if (endIdx === -1) {
-      const prefixLength = terminalPrefixAtEnd(candidate);
-      const contentEnd = candidate.length - prefixLength;
-      appendPaste(candidate.slice(0, contentEnd));
-      pasteTerminatorPrefix = candidate.slice(contentEnd);
-      armPasteTimer();
-      return null;
-    }
-
-    appendPaste(candidate.slice(0, endIdx));
-    if (!pasteOverflowed && pasteBuffer !== null) {
-      emitBoundedPaste(pasteBuffer, true);
-    }
-    pasteBuffer = null;
-    pasteOverflowed = false;
-    pasteTerminatorPrefix = '';
-    clearPasteTimer();
-    return candidate.slice(endIdx + PASTE_END.length);
   };
 
   // Handle decoded, complete input.
   const processRawInput = (decodedInput: string): void => {
     let rawInput = decodedInput;
 
-    // --- Bracketed paste accumulation ---
-    // If we're in the middle of collecting a bracketed paste, keep buffering
-    if (pasteBuffer !== null) {
-      const remaining = consumeActivePaste(rawInput);
-      if (remaining === null) return;
-      rawInput = remaining;
-      if (rawInput.length === 0) return;
-    }
-
     // Loop through input to handle batched events (mouse + keys)
     while (rawInput.length > 0) {
-      // Check for bracketed paste start
-      const pasteStartIdx = rawInput.indexOf(PASTE_START);
-      if (pasteStartIdx !== -1) {
-        // Process any input before the paste marker
-        const before = rawInput.slice(0, pasteStartIdx);
-        if (before.length > 0) {
-          processRawInput(before);
-        }
-
-        const afterStart = rawInput.slice(pasteStartIdx + PASTE_START.length);
-        pasteBuffer = '';
-        pasteOverflowed = false;
-        pasteTerminatorPrefix = '';
-        const remaining = consumeActivePaste(afterStart);
-        if (remaining === null) return;
-        rawInput = remaining;
-        continue;
-      }
-
-      // Heuristic paste detection for terminals without bracketed paste
-      // Large input without escape sequences is likely a paste
-      if (rawInput.length > PASTE_HEURISTIC_THRESHOLD && !rawInput.includes('\x1b')) {
-        emitBoundedPaste(rawInput, false);
-        return;
-      }
-
       const focusEvent = parseFocusEvent(rawInput.slice(0, 3));
       if (focusEvent) {
         batch(() => {
@@ -395,31 +242,53 @@ export function initializeApp(
     }
   };
 
-  const flushPendingInput = (): void => {
-    pendingInputTimer = null;
-    if (!pendingInput || disposed) return;
-    const input = pendingInput;
-    pendingInput = '';
-    processRawInput(input);
+  const dispatchStreamEvents = (
+    events: TerminalInputStreamEvent[],
+  ): void => {
+    for (const event of events) {
+      if (disposed) return;
+      if (event.type === 'paste') {
+        batch(() => {
+          emitPaste(event.text, event.bracketed);
+        });
+      } else {
+        processRawInput(event.input);
+      }
+    }
   };
 
-  // Decode UTF-8 across chunks, and hold only an incomplete terminal sequence.
-  const handleData = bindRuntimeScope(runtimeScope, (data: Buffer | string): void => {
+  const synchronizeStreamTimers = (): void => {
     if (disposed) return;
-    const decoded = typeof data === 'string' ? data : decoder.write(data);
-    const combined = pendingInput + decoded;
-    pendingInput = '';
     if (pendingInputTimer) {
       clearTimeout(pendingInputTimer);
       pendingInputTimer = null;
     }
-
-    const { complete, pending } = splitIncompleteInput(combined);
-    if (complete) processRawInput(complete);
-    if (pending) {
-      pendingInput = pending;
-      pendingInputTimer = setTimeout(flushPendingInput, Math.max(0, escapeSequenceTimeoutMs));
+    if (inputStream.status.pendingEscapeBytes > 0) {
+      pendingInputTimer = setTimeout(
+        flushPendingInput,
+        Math.max(0, escapeSequenceTimeoutMs),
+      );
     }
+
+    if (inputStream.status.pasteActive) {
+      armPasteTimer();
+    } else {
+      clearPasteTimer();
+    }
+  };
+
+  const flushPendingInput = (): void => {
+    pendingInputTimer = null;
+    if (disposed) return;
+    dispatchStreamEvents(inputStream.flushPendingInput());
+    synchronizeStreamTimers();
+  };
+
+  // Decode UTF-8 and frame terminal input independently of stream chunking.
+  const handleData = bindRuntimeScope(runtimeScope, (data: Buffer | string): void => {
+    if (disposed) return;
+    dispatchStreamEvents(inputStream.push(data));
+    synchronizeStreamTimers();
   });
 
   stdin.on('data', handleData);
@@ -434,10 +303,7 @@ export function initializeApp(
       pendingInputTimer = null;
     }
     clearPasteTimer();
-    pendingInput = '';
-    pasteBuffer = null;
-    pasteOverflowed = false;
-    decoder.end();
+    inputStream.dispose();
 
     terminalSession.dispose();
     resetTerminalFocusState(runtimeScope);

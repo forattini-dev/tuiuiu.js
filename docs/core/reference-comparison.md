@@ -49,22 +49,21 @@ Implemented: raw mode, paused-input restoration, focus reporting and bracketed
 paste now have one idempotent, reference-counted owner. `RuntimeScope` also
 isolates hook, input, focus, mouse, hit-test, dirty and committed-frame state.
 
-Remaining: move capability negotiation, resize and the incremental parser under
-the session boundary. A second root remains explicitly rejected until every
-process singleton is either scoped or intentionally shared.
+Remaining: move capability negotiation and resize under the session boundary.
+A second root remains explicitly rejected until every process singleton is
+either scoped or intentionally shared.
 
 ### 2. Byte-oriented input parser
 
-The stream decoder now handles arbitrary UTF-8 and bracketed-paste terminator
-splits, and generated tests cover malformed terminal input. The next extraction
-is to move the remaining incremental state out of `use-app` into a pure state
-machine with:
+Implemented: `TerminalInputStream` now owns UTF-8 decoding, partial CSI/SS3/
+OSC/DCS retention, bracketed-paste framing, and bounded paste/escape buffers.
+`use-app` only schedules the configured deadlines and dispatches the resulting
+events. Byte-boundary, randomized chunk-equivalence, malformed input, overflow,
+abort, Kitty, mouse, focus, and mixed-protocol fixtures cover the boundary.
 
-- byte-by-byte and arbitrary-chunk equivalence tests;
-- configurable caps and deadlines;
-- Kitty keyboard and modifyOtherKeys coverage;
-- protocol fixtures shared by app and prompt input;
-- fuzz and property tests over malformed sequences.
+Remaining: share more protocol fixtures with the readline-based prompt package
+where their input models overlap, and validate real PTYs in the OS/terminal CI
+matrix.
 
 ### 3. Real virtualized data components
 

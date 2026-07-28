@@ -95,6 +95,11 @@ interface RenderOptions {
   stdin?: NodeJS.ReadStream;      // Input stream (default: process.stdin)
   debug?: boolean;                // Debug mode - prints each render separately
   exitOnCtrlC?: boolean;          // Exit on Ctrl+C (default: true)
+  exitProcess?: boolean;          // Allow app.exit() to end the process (default: false)
+  maxPasteBytes?: number;         // Maximum paste payload (default: 1 MiB)
+  maxPendingEscapeBytes?: number; // Maximum buffered partial escape (default: 4 KiB)
+  escapeSequenceTimeoutMs?: number; // Ambiguous escape deadline (default: 25ms)
+  pasteTimeoutMs?: number;        // Unterminated paste deadline (default: 30s)
   maxFps?: number;                // Maximum FPS for throttling (default: 30)
   clearOnStart?: boolean;         // Clear screen on start (default: true)
   showCursor?: boolean;           // Show cursor (default: false)

@@ -162,6 +162,7 @@ describe('initializeApp', () => {
   it.each([
     [{ maxPasteBytes: 0 }, /maxPasteBytes/u],
     [{ maxPasteBytes: Number.MAX_SAFE_INTEGER + 1 }, /maxPasteBytes/u],
+    [{ maxPendingEscapeBytes: 0 }, /maxPendingEscapeBytes/u],
     [{ escapeSequenceTimeoutMs: -1 }, /escapeSequenceTimeoutMs/u],
     [{ pasteTimeoutMs: Number.POSITIVE_INFINITY }, /pasteTimeoutMs/u],
   ])('rejects invalid bounded-input options %#', (invalidOptions, message) => {
@@ -201,6 +202,35 @@ describe('initializeApp', () => {
       stdin.emit('data', Buffer.from([0x03]));
 
       expect(handler).toHaveBeenCalled();
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it('dispatches Kitty CSI-u modifiers through the real app path', () => {
+      initializeApp(stdin, stdout, { exitOnCtrlC: false });
+      const handler = vi.fn();
+      addInputHandler(handler);
+
+      stdin.emit('data', Buffer.from('\x1b[97;6u'));
+
+      expect(handler).toHaveBeenCalledWith(
+        'a',
+        expect.objectContaining({
+          ctrl: true,
+          shift: true,
+          eventType: 'press',
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('recognizes Ctrl+C reported through Kitty CSI-u', () => {
+      const ctx = initializeApp(stdin, stdout);
+      const callback = vi.fn();
+      ctx.onExit(callback);
+
+      stdin.emit('data', Buffer.from('\x1b[99;5u'));
+
+      expect(callback).toHaveBeenCalledWith(undefined);
       expect(mockExit).not.toHaveBeenCalled();
     });
 
@@ -248,6 +278,67 @@ describe('initializeApp', () => {
       stdin.emit('data', Buffer.from('O'));
 
       expect(useTerminalFocus().focused).toBe(false);
+    });
+
+    it('flushes an ambiguous Escape key after its configured deadline', () => {
+      vi.useFakeTimers();
+      try {
+        initializeApp(stdin, stdout, {
+          escapeSequenceTimeoutMs: 5,
+        });
+        const handler = vi.fn();
+        addInputHandler(handler);
+
+        stdin.emit('data', Buffer.from('\x1b'));
+        expect(handler).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(5);
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0]?.[1]).toEqual(
+          expect.objectContaining({ escape: true }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('drops an unterminated paste after its configured deadline', () => {
+      vi.useFakeTimers();
+      try {
+        initializeApp(stdin, stdout, {
+          pasteTimeoutMs: 5,
+        });
+        const pasteHandler = vi.fn();
+        const inputHandler = vi.fn();
+        addPasteHandler(pasteHandler);
+        addInputHandler(inputHandler);
+
+        stdin.emit('data', Buffer.from('\x1b[200~secret'));
+        vi.advanceTimersByTime(5);
+        stdin.emit('data', Buffer.from('x'));
+
+        expect(pasteHandler).not.toHaveBeenCalled();
+        expect(inputHandler).toHaveBeenCalledWith(
+          'x',
+          expect.any(Object),
+          expect.any(Object),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not retain escape sequences beyond maxPendingEscapeBytes', () => {
+      initializeApp(stdin, stdout, {
+        maxPendingEscapeBytes: 4,
+        escapeSequenceTimeoutMs: 60_000,
+      });
+      const handler = vi.fn();
+      addInputHandler(handler);
+
+      stdin.emit('data', Buffer.from('\x1b]abcdef'));
+
+      expect(handler).toHaveBeenCalled();
     });
 
     it('drops bracketed pastes larger than maxPasteBytes', () => {

@@ -94,6 +94,12 @@ useInput((input, key) => {
 | `home`, `end`, `pageUp`, `pageDown` | Navigation helpers |
 | `f1` - `f12` | Function keys |
 | `ctrl`, `shift`, `meta`, `option` | Modifiers |
+| `eventType` | Enhanced-protocol phase: `press`, `repeat`, or `release` |
+
+The input stream decodes UTF-8 across arbitrary chunks and recognizes legacy
+terminal keys, Kitty CSI-u reports, and xterm `modifyOtherKeys`. Enhanced
+protocols preserve their modifier bits; Kitty event phases are exposed through
+the optional `eventType` field.
 
 ---
 

@@ -312,6 +312,59 @@ describe('parseKeypress', () => {
     });
   });
 
+  describe('enhanced keyboard protocols', () => {
+    it('parses Kitty character modifiers and event phases', () => {
+      const pressed = parseKeypress('\x1b[97;6u');
+      expect(pressed).toMatchObject({
+        input: 'a',
+        length: 7,
+        key: {
+          ctrl: true,
+          shift: true,
+          eventType: 'press',
+        },
+      });
+
+      const released = parseKeypress('\x1b[97;1:3u');
+      expect(released.key.eventType).toBe('release');
+    });
+
+    it('preserves Kitty associated text for insertion', () => {
+      const result = parseKeypress('\x1b[97;2;65u');
+
+      expect(result.input).toBe('A');
+      expect(result.key.shift).toBe(true);
+    });
+
+    it('maps Kitty C0 functional keys', () => {
+      expect(parseKeypress('\x1b[27u').key.escape).toBe(true);
+      expect(parseKeypress('\x1b[13u').key.return).toBe(true);
+      expect(parseKeypress('\x1b[9u').key.tab).toBe(true);
+      expect(parseKeypress('\x1b[127u').key.backspace).toBe(true);
+    });
+
+    it('parses xterm modifyOtherKeys characters and controls', () => {
+      const ctrlA = parseKeypress('\x1b[27;5;97~');
+      expect(ctrlA.input).toBe('a');
+      expect(ctrlA.key.ctrl).toBe(true);
+      expect(ctrlA.key.eventType).toBe('press');
+
+      const altTab = parseKeypress('\x1b[27;3;9~');
+      expect(altTab.key.tab).toBe(true);
+      expect(altTab.key.meta).toBe(true);
+      expect(altTab.key.option).toBe(true);
+    });
+
+    it('does not throw for invalid enhanced protocol integers', () => {
+      expect(() =>
+        parseKeypress('\x1b[999999999999999999999999u'),
+      ).not.toThrow();
+      expect(() =>
+        parseKeypress('\x1b[27;999;1114112~'),
+      ).not.toThrow();
+    });
+  });
+
   describe('regular characters', () => {
     it('should parse lowercase letter', () => {
       const result = parseKeypress('a');

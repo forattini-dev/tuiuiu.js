@@ -124,6 +124,14 @@ export interface RenderOptions {
   exitOnCtrlC?: boolean;
   /** Allow app.exit() to terminate the Node.js process (default: false) */
   exitProcess?: boolean;
+  /** Maximum accepted paste size in UTF-8 bytes (default: 1 MiB) */
+  maxPasteBytes?: number;
+  /** Maximum incomplete terminal sequence retained between chunks (default: 4 KiB) */
+  maxPendingEscapeBytes?: number;
+  /** Time to wait for the rest of a split escape sequence (default: 25ms) */
+  escapeSequenceTimeoutMs?: number;
+  /** Time to wait for a bracketed paste terminator (default: 30s) */
+  pasteTimeoutMs?: number;
   /** Maximum FPS for render throttling (default: 30) */
   maxFps?: number;
   /** Clear screen on start (default: true) */
@@ -192,6 +200,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     debug = false,
     exitOnCtrlC = true,
     exitProcess = false,
+    maxPasteBytes,
+    maxPendingEscapeBytes,
+    escapeSequenceTimeoutMs,
+    pasteTimeoutMs,
     maxFps = 30,
     clearOnStart = true,
     showCursor = false,
@@ -207,6 +219,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     autoTabNavigation,
     exitOnCtrlC,
     exitProcess,
+    maxPasteBytes,
+    maxPendingEscapeBytes,
+    escapeSequenceTimeoutMs,
+    pasteTimeoutMs,
   });
   const resolvedRuntimeScope = getRuntimeScopeForApp(appContext);
   if (!resolvedRuntimeScope) {

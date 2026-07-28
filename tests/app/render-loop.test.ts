@@ -93,6 +93,16 @@ describe('render-loop', () => {
   });
 
   describe('render', () => {
+    it('forwards bounded input options to app initialization', () => {
+      expect(() =>
+        render(Text({}, 'Invalid input bounds'), {
+          stdin,
+          stdout,
+          maxPendingEscapeBytes: 0,
+        }),
+      ).toThrow(/maxPendingEscapeBytes/u);
+    });
+
     it('returns TuiInstance with expected methods', () => {
       const node = Text({}, 'Hello');
       const instance = render(node, { stdin, stdout });

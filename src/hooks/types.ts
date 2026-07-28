@@ -2,41 +2,9 @@
  * Hook types - Shared type definitions
  */
 
-/** Key information from useInput */
-export interface Key {
-  upArrow: boolean;
-  downArrow: boolean;
-  leftArrow: boolean;
-  rightArrow: boolean;
-  pageUp: boolean;
-  pageDown: boolean;
-  home: boolean;
-  end: boolean;
-  insert: boolean;
-  return: boolean;
-  escape: boolean;
-  tab: boolean;
-  backspace: boolean;
-  delete: boolean;
-  clear: boolean;
-  ctrl: boolean;
-  shift: boolean;
-  meta: boolean;
-  option: boolean; // macOS Option key
-  // Function keys
-  f1: boolean;
-  f2: boolean;
-  f3: boolean;
-  f4: boolean;
-  f5: boolean;
-  f6: boolean;
-  f7: boolean;
-  f8: boolean;
-  f9: boolean;
-  f10: boolean;
-  f11: boolean;
-  f12: boolean;
-}
+import type { Key } from '../core/hotkeys.js';
+
+export type { Key };
 
 /** Extended input event metadata (backward-compatible 3rd param) */
 export interface InputEvent {

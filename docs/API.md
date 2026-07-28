@@ -101,7 +101,12 @@ await waitUntilExit();
 - `stdout?: NodeJS.WriteStream` - Output stream (default: process.stdout)
 - `stdin?: NodeJS.ReadStream` - Input stream (default: process.stdin)
 - `debug?: boolean` - Enable debug mode
-- `exitOnError?: boolean` - Exit on component error
+- `exitOnCtrlC?: boolean` - Let Ctrl+C request app exit (default: true)
+- `exitProcess?: boolean` - Allow `app.exit()` to terminate Node (default: false)
+- `maxPasteBytes?: number` - Maximum paste payload in UTF-8 bytes (default: 1 MiB)
+- `maxPendingEscapeBytes?: number` - Maximum retained partial escape sequence (default: 4 KiB)
+- `escapeSequenceTimeoutMs?: number` - Deadline for ambiguous escape sequences (default: 25ms)
+- `pasteTimeoutMs?: number` - Deadline for an unterminated bracketed paste (default: 30s)
 
 #### `renderOnce(vnode: VNode): string`
 
