@@ -14,6 +14,12 @@ import { Box, Text } from '../primitives/nodes.js';
 import { getContrastColor } from './theme.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -284,19 +290,53 @@ export function ErrorOverview(props: { error: Error }): VNode {
 }
 
 // =============================================================================
-// Error Boundary State
+// Runtime Error Boundary State
 // =============================================================================
 
-/** Global error state */
-let currentError: Error | null = null;
-let errorHandlers: ((error: Error) => void)[] = [];
+interface ErrorBoundaryRuntimeState {
+  currentError: Error | null;
+  errorHandlers: Array<(error: Error) => void>;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
+
+const ERROR_BOUNDARY_STATE = Symbol('tuiuiu.error-boundary-state');
+
+function createErrorBoundaryState(
+  currentError: Error | null = null,
+): ErrorBoundaryRuntimeState {
+  const state: ErrorBoundaryRuntimeState = {
+    currentError,
+    errorHandlers: [],
+    [RUNTIME_RESOURCE_DISPOSE]() {
+      state.currentError = null;
+      state.errorHandlers = [];
+    },
+  };
+  return state;
+}
+
+function getErrorBoundaryState(): ErrorBoundaryRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    ERROR_BOUNDARY_STATE,
+    () => createErrorBoundaryState(
+      scope.id === 0
+        ? null
+        : getDefaultRuntimeResource(
+            ERROR_BOUNDARY_STATE,
+            () => createErrorBoundaryState(),
+          ).currentError,
+    ),
+  );
+}
 
 /**
  * Set the current error (triggers error display)
  */
 export function setError(error: Error): void {
-  currentError = error;
-  for (const handler of errorHandlers) {
+  const state = getErrorBoundaryState();
+  state.currentError = error;
+  for (const handler of state.errorHandlers) {
     handler(error);
   }
 }
@@ -305,23 +345,24 @@ export function setError(error: Error): void {
  * Clear the current error
  */
 export function clearError(): void {
-  currentError = null;
+  getErrorBoundaryState().currentError = null;
 }
 
 /**
  * Get the current error
  */
 export function getError(): Error | null {
-  return currentError;
+  return getErrorBoundaryState().currentError;
 }
 
 /**
  * Register an error handler
  */
 export function onError(handler: (error: Error) => void): () => void {
-  errorHandlers.push(handler);
+  const state = getErrorBoundaryState();
+  state.errorHandlers.push(handler);
   return () => {
-    errorHandlers = errorHandlers.filter((h) => h !== handler);
+    state.errorHandlers = state.errorHandlers.filter((h) => h !== handler);
   };
 }
 
@@ -332,6 +373,7 @@ export function withErrorBoundary(render: () => VNode): () => VNode {
   return () => {
     try {
       // If there's a current error, show it
+      const currentError = getError();
       if (currentError) {
         return ErrorOverview({ error: currentError });
       }
@@ -390,6 +432,7 @@ export function withSilentErrorBoundary(render: () => VNode): () => VNode {
 }
 
 export function resetErrorBoundary(): void {
-  currentError = null;
-  errorHandlers = [];
+  const state = getErrorBoundaryState();
+  state.currentError = null;
+  state.errorHandlers = [];
 }

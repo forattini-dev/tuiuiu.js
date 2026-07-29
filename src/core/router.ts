@@ -7,6 +7,11 @@
 
 import { createSignal } from '../primitives/signal.js';
 import { EventEmitter } from './events.js';
+import {
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+} from './runtime-scope.js';
 import type { Screen, ScreenComponent } from './screen.js';
 
 // =============================================================================
@@ -417,6 +422,42 @@ export class Router extends EventEmitter<RouterEvents> {
     if (options.initialPath) {
       this.replace(options.initialPath);
     }
+  }
+
+  clone(): Router {
+    const cloneRoutes = (routes: RouteDefinition[]): RouteDefinition[] =>
+      routes.map(route => ({
+        ...route,
+        children: route.children ? cloneRoutes(route.children) : undefined,
+      }));
+    const clone = new Router({
+      routes: cloneRoutes(this.routes),
+      beforeEach: this.beforeEachGuard,
+      afterEach: this.afterEachHook,
+      hashMode: this.hashMode,
+    });
+    const cloneLocation = (location: RouteLocation): RouteLocation =>
+      clone.resolve({
+        path: location.path,
+        query: { ...location.query },
+        hash: location.hash,
+      }) ?? {
+        ...location,
+        params: { ...location.params },
+        query: { ...location.query },
+        matched: [...location.matched],
+      };
+
+    clone.history = this.history.map(entry => ({
+      ...entry,
+      location: cloneLocation(entry.location),
+    }));
+    clone.historyIndex = this.historyIndex;
+    clone.maxHistorySize = this.maxHistorySize;
+    if (this.currentRoute) {
+      clone._currentRoute[1](cloneLocation(this.currentRoute));
+    }
+    return clone;
   }
 
   /**
@@ -866,30 +907,46 @@ export function createRouter(options: RouterOptions): Router {
 }
 
 // =============================================================================
-// Global Router Instance
+// Runtime Router Instance
 // =============================================================================
 
-let globalRouter: Router | null = null;
+interface RouterRuntimeState {
+  router: Router | null;
+}
+
+const ROUTER_STATE = Symbol('tuiuiu.router-state');
+
+function getRouterState(): RouterRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(ROUTER_STATE, () => ({
+    router: scope.id === 0
+      ? null
+      : getDefaultRuntimeResource<RouterRuntimeState>(
+          ROUTER_STATE,
+          () => ({ router: null }),
+        ).router?.clone() ?? null,
+  }));
+}
 
 /**
- * Get the global router instance
+ * Get the current runtime router instance
  */
 export function getRouter(): Router | null {
-  return globalRouter;
+  return getRouterState().router;
 }
 
 /**
- * Set the global router instance
+ * Set the current runtime router instance
  */
 export function setRouter(router: Router): void {
-  globalRouter = router;
+  getRouterState().router = router;
 }
 
 /**
- * Reset the global router
+ * Reset the current runtime router
  */
 export function resetRouter(): void {
-  globalRouter = null;
+  getRouterState().router = null;
 }
 
 // =============================================================================
@@ -912,9 +969,9 @@ export function resetRouter(): void {
  * ```
  */
 export function useRoute(router?: Router): () => RouteLocation | null {
-  const r = router ?? globalRouter;
+  const r = router ?? getRouter();
   if (!r) {
-    throw new Error('No router provided and no global router set');
+    throw new Error('No router provided and no runtime router set');
   }
   return r.route;
 }
@@ -943,9 +1000,9 @@ export function useNavigate(router?: Router): {
   canGoBack: () => boolean;
   canGoForward: () => boolean;
 } {
-  const r = router ?? globalRouter;
+  const r = router ?? getRouter();
   if (!r) {
-    throw new Error('No router provided and no global router set');
+    throw new Error('No router provided and no runtime router set');
   }
 
   return {

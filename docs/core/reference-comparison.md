@@ -52,6 +52,12 @@ capability, theme, motion, tick, overlay, graphics and performance state.
 Capability caches and resize listeners follow the output stream that owns the
 session.
 
+The convenience event bus, error boundary, focus zones, command and keybinding
+registries, router, screen stack, transition manager and legacy delta-renderer
+singleton are runtime-owned as well. Declarative command, keybinding, router
+and screen defaults created before `render()` are cloned into each app; later
+mutations, listeners, history and recent-command state remain local.
+
 Multiple roots are supported when each owns a distinct stdin/stdout pair.
 Sharing either terminal stream concurrently is rejected because raw mode,
 input consumption and cursor placement cannot have two independent owners.

@@ -12,6 +12,11 @@
  */
 
 import type { VNode } from '../utils/types.js';
+import {
+  deleteRuntimeResource,
+  getRuntimeResource,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -420,24 +425,24 @@ export interface ChangeEventData<T = unknown> {
 }
 
 // =============================================================================
-// Event Bus (Global)
+// Event Bus (Runtime-scoped)
 // =============================================================================
 
 /**
- * Global event bus for cross-component communication
+ * Runtime-owned event bus for cross-component communication
  */
-class EventBus extends EventEmitter {
-  private static instance: EventBus | null = null;
+const EVENT_BUS = Symbol('tuiuiu.event-bus');
 
+class EventBus extends EventEmitter {
   private constructor() {
     super();
   }
 
   static getInstance(): EventBus {
-    if (!EventBus.instance) {
-      EventBus.instance = new EventBus();
-    }
-    return EventBus.instance;
+    return getRuntimeResource(
+      EVENT_BUS,
+      () => new EventBus(),
+    );
   }
 
   /**
@@ -448,17 +453,18 @@ class EventBus extends EventEmitter {
   }
 
   /**
-   * Reset the singleton (for testing)
+   * Reset the current runtime bus (for testing)
    */
   static reset(): void {
-    if (EventBus.instance) {
-      EventBus.instance.removeAllListeners();
-    }
-    EventBus.instance = null;
+    deleteRuntimeResource(EVENT_BUS);
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.removeAllListeners();
   }
 }
 
-/** Get the global event bus */
+/** Get the current runtime event bus */
 export function getEventBus(): EventBus {
   return EventBus.getInstance();
 }

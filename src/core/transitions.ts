@@ -10,6 +10,13 @@
 
 import { createSignal } from '../primitives/signal.js';
 import {
+  deleteRuntimeResource,
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
+import {
   createHarmonicaSpring,
   useAnimation,
   easingFunctions,
@@ -385,6 +392,19 @@ export class ScreenTransitionManager {
     this.defaultBackward = options.defaultBackward ?? DEFAULT_BACKWARD_TRANSITION;
   }
 
+  clone(): ScreenTransitionManager {
+    return new ScreenTransitionManager({
+      width: this.width,
+      height: this.height,
+      defaultForward: { ...this.defaultForward },
+      defaultBackward: { ...this.defaultBackward },
+    });
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.stop();
+  }
+
   /**
    * Get current transition state signal
    */
@@ -573,29 +593,37 @@ export function createScreenTransitionManager(
 }
 
 // =============================================================================
-// Global Instance
+// Runtime Instance
 // =============================================================================
 
-let globalTransitionManager: ScreenTransitionManager | null = null;
+const TRANSITION_MANAGER = Symbol('tuiuiu.transition-manager');
 
-/**
- * Get the global transition manager instance
- */
-export function getTransitionManager(): ScreenTransitionManager {
-  if (!globalTransitionManager) {
-    globalTransitionManager = createScreenTransitionManager();
+function createTransitionManager(): ScreenTransitionManager {
+  const scope = getRuntimeScope();
+  if (scope.id === 0) {
+    return createScreenTransitionManager();
   }
-  return globalTransitionManager;
+  return getDefaultRuntimeResource(
+    TRANSITION_MANAGER,
+    () => createScreenTransitionManager(),
+  ).clone();
 }
 
 /**
- * Reset the global transition manager
+ * Get the current runtime transition manager instance
+ */
+export function getTransitionManager(): ScreenTransitionManager {
+  return getRuntimeResource(
+    TRANSITION_MANAGER,
+    createTransitionManager,
+  );
+}
+
+/**
+ * Reset the current runtime transition manager
  */
 export function resetTransitionManager(): void {
-  if (globalTransitionManager) {
-    globalTransitionManager.stop();
-  }
-  globalTransitionManager = null;
+  deleteRuntimeResource(TRANSITION_MANAGER);
 }
 
 // =============================================================================

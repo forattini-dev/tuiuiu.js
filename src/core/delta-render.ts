@@ -54,6 +54,11 @@ import {
   recordFrameStructuralMetric,
 } from './frame.js';
 import { recordCommittedFrame } from './perf-inspector.js';
+import {
+  deleteRuntimeResource,
+  getRuntimeResource,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -1397,29 +1402,45 @@ function parseColor(color: string): Color {
 }
 
 // =============================================================================
-// Singleton Instance
+// Runtime-owned Convenience Instance
 // =============================================================================
 
-let deltaRendererInstance: DeltaRenderer | null = null;
+interface DeltaRendererRuntimeState {
+  renderer: DeltaRenderer | null;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
+
+const DELTA_RENDERER_STATE = Symbol('tuiuiu.delta-renderer-state');
+
+function getDeltaRendererState(): DeltaRendererRuntimeState {
+  return getRuntimeResource(DELTA_RENDERER_STATE, () => {
+    const state: DeltaRendererRuntimeState = {
+      renderer: null,
+      [RUNTIME_RESOURCE_DISPOSE]() {
+        state.renderer?.cleanup();
+        state.renderer = null;
+      },
+    };
+    return state;
+  });
+}
 
 /**
- * Get the global delta renderer instance
+ * Get the current runtime delta renderer instance
  */
 export function getDeltaRenderer(options?: DeltaRenderOptions): DeltaRenderer {
-  if (!deltaRendererInstance) {
-    deltaRendererInstance = createDeltaRenderer(options);
+  const state = getDeltaRendererState();
+  if (!state.renderer) {
+    state.renderer = createDeltaRenderer(options);
   }
-  return deltaRendererInstance;
+  return state.renderer;
 }
 
 /**
  * Reset the delta renderer (for testing)
  */
 export function resetDeltaRenderer(): void {
-  if (deltaRendererInstance) {
-    deltaRendererInstance.cleanup();
-  }
-  deltaRendererInstance = null;
+  deleteRuntimeResource(DELTA_RENDERER_STATE);
 }
 
 export function __collectDirtyRegionsForTesting(

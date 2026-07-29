@@ -11,6 +11,13 @@ import {
   formatKeyString,
   type KeyBindingOptions,
 } from './keybindings.js';
+import {
+  deleteRuntimeResource,
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 // ============================================================================
 // Types
@@ -280,6 +287,22 @@ export class CommandRegistry {
   private maxRecent: number = 10;
   private listeners: Set<() => void> = new Set();
 
+  clone(): CommandRegistry {
+    const clone = new CommandRegistry();
+    clone.commands = new Map(
+      [...this.commands].map(([id, command]) => [id, { ...command }]),
+    );
+    clone.recentCommands = [...this.recentCommands];
+    clone.maxRecent = this.maxRecent;
+    return clone;
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.commands.clear();
+    this.recentCommands = [];
+    this.listeners.clear();
+  }
+
   /**
    * Register a command
    */
@@ -299,7 +322,7 @@ export class CommandRegistry {
       const registry = getKeyBindingRegistry();
       registry.register({
         key: options.keybinding,
-        action: async () => { await this.execute(id); },
+        action: async () => { await executeCommand(id); },
         description: options.label,
         commandId: id,
       });
@@ -473,26 +496,37 @@ export class CommandRegistry {
 }
 
 // ============================================================================
-// Global Registry
+// Runtime Registry
 // ============================================================================
 
-let globalRegistry: CommandRegistry | null = null;
+const COMMAND_REGISTRY = Symbol('tuiuiu.command-registry');
 
-/**
- * Get the global command registry
- */
-export function getCommandRegistry(): CommandRegistry {
-  if (!globalRegistry) {
-    globalRegistry = new CommandRegistry();
+function createCommandRegistry(): CommandRegistry {
+  const scope = getRuntimeScope();
+  if (scope.id === 0) {
+    return new CommandRegistry();
   }
-  return globalRegistry;
+  return getDefaultRuntimeResource(
+    COMMAND_REGISTRY,
+    () => new CommandRegistry(),
+  ).clone();
 }
 
 /**
- * Reset the global registry (for testing)
+ * Get the current runtime command registry
+ */
+export function getCommandRegistry(): CommandRegistry {
+  return getRuntimeResource(
+    COMMAND_REGISTRY,
+    createCommandRegistry,
+  );
+}
+
+/**
+ * Reset the current runtime registry (for testing)
  */
 export function resetCommandRegistry(): void {
-  globalRegistry = null;
+  deleteRuntimeResource(COMMAND_REGISTRY);
   resetCommandIdCounter();
 }
 
@@ -501,14 +535,14 @@ export function resetCommandRegistry(): void {
 // ============================================================================
 
 /**
- * Register a command in the global registry
+ * Register a command in the current runtime registry
  */
 export function registerCommand(options: CommandOptions): string {
   return getCommandRegistry().register(options);
 }
 
 /**
- * Unregister a command from the global registry
+ * Unregister a command from the current runtime registry
  */
 export function unregisterCommand(id: string): boolean {
   return getCommandRegistry().unregister(id);
@@ -522,7 +556,7 @@ export function executeCommand(id: string): Promise<boolean> {
 }
 
 /**
- * Search commands in the global registry
+ * Search commands in the current runtime registry
  */
 export function searchGlobalCommands(query: string, maxResults?: number): FuzzyMatch[] {
   return getCommandRegistry().search(query, maxResults);

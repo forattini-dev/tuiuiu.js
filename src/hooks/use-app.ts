@@ -168,7 +168,10 @@ export function initializeApp(
   resetTerminalFocusState(runtimeScope);
 
   // Initialize focus manager (using modern FocusZoneManagerAdapter)
-  const focusManager = new FocusZoneManagerAdapter();
+  const focusManager = runInRuntimeScope(
+    runtimeScope,
+    () => new FocusZoneManagerAdapter(),
+  );
   setFocusManager(focusManager, runtimeScope);
 
   const inputStream = createTerminalInputStream({

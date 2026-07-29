@@ -7,6 +7,13 @@
 
 import { createSignal, batch } from '../primitives/signal.js';
 import { EventEmitter } from './events.js';
+import {
+  deleteRuntimeResource,
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 /**
  * Internal signal accessor type for storing signal getters/setters
@@ -160,6 +167,11 @@ export class ScreenManager extends EventEmitter {
   private currentIndex: number = -1;
   private transitioning: boolean = false;
   private transitionDirection: TransitionDirection = 'none';
+  private disposed = false;
+  private pendingDelays = new Set<{
+    timer: ReturnType<typeof setTimeout>;
+    resolve: () => void;
+  }>();
 
   // Signals for reactive updates
   private _current: SignalAccessor<Screen | null>;
@@ -193,6 +205,39 @@ export class ScreenManager extends EventEmitter {
     if (this.options.initialScreen) {
       this.push(this.options.initialScreen);
     }
+  }
+
+  clone(): ScreenManager {
+    const clone = new ScreenManager({
+      defaultKeepAlive: this.options.defaultKeepAlive,
+      escapeGoesBack: this.options.escapeGoesBack,
+      maxStackSize: this.options.maxStackSize,
+      transitionDuration: this.options.transitionDuration,
+    });
+    clone.stack = this.stack.map(entry => ({
+      ...entry,
+      state: entry.state ? { ...entry.state } : undefined,
+    }));
+    clone.currentIndex = this.currentIndex;
+    batch(() => {
+      clone._current.set(clone.stack[clone.currentIndex]?.screen ?? null);
+      clone._stack.set([...clone.stack]);
+    });
+    return clone;
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.disposed = true;
+    for (const pending of this.pendingDelays) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+    }
+    this.pendingDelays.clear();
+    this.stack = [];
+    this.currentIndex = -1;
+    this.transitioning = false;
+    this.transitionDirection = 'none';
+    this.removeAllListeners();
   }
 
   // ===========================================================================
@@ -283,7 +328,7 @@ export class ScreenManager extends EventEmitter {
     direction: TransitionDirection,
     options?: { animate?: boolean }
   ): Promise<boolean> {
-    if (this.transitioning) {
+    if (this.disposed || this.transitioning) {
       return false;
     }
 
@@ -348,6 +393,9 @@ export class ScreenManager extends EventEmitter {
     const duration = animate ? this.options.transitionDuration : 0;
 
     await this.delay(duration);
+    if (this.disposed) {
+      return false;
+    }
 
     this.transitioning = false;
     this.transitionDirection = 'none';
@@ -429,7 +477,17 @@ export class ScreenManager extends EventEmitter {
 
   private delay(ms: number): Promise<void> {
     if (ms <= 0) return Promise.resolve();
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => {
+      const pending = {
+        timer: undefined as unknown as ReturnType<typeof setTimeout>,
+        resolve,
+      };
+      pending.timer = setTimeout(() => {
+        this.pendingDelays.delete(pending);
+        resolve();
+      }, ms);
+      this.pendingDelays.add(pending);
+    });
   }
 
   /**
@@ -650,26 +708,37 @@ export class ScreenManager extends EventEmitter {
 }
 
 // =============================================================================
-// Global Screen Manager
+// Runtime Screen Manager
 // =============================================================================
 
-let globalScreenManager: ScreenManager | null = null;
+const SCREEN_MANAGER = Symbol('tuiuiu.screen-manager');
 
-/**
- * Get the global screen manager
- */
-export function getScreenManager(): ScreenManager {
-  if (!globalScreenManager) {
-    globalScreenManager = new ScreenManager();
+function createGlobalScreenManager(): ScreenManager {
+  const scope = getRuntimeScope();
+  if (scope.id === 0) {
+    return new ScreenManager();
   }
-  return globalScreenManager;
+  return getDefaultRuntimeResource(
+    SCREEN_MANAGER,
+    () => new ScreenManager(),
+  ).clone();
 }
 
 /**
- * Reset the global screen manager (for testing)
+ * Get the current runtime screen manager
+ */
+export function getScreenManager(): ScreenManager {
+  return getRuntimeResource(
+    SCREEN_MANAGER,
+    createGlobalScreenManager,
+  );
+}
+
+/**
+ * Reset the current runtime screen manager (for testing)
  */
 export function resetScreenManager(): void {
-  globalScreenManager = null;
+  deleteRuntimeResource(SCREEN_MANAGER);
 }
 
 /**
@@ -698,28 +767,28 @@ export function createScreen<P = unknown>(
 }
 
 /**
- * Push a screen to the global manager
+ * Push a screen to the current runtime manager
  */
 export async function pushScreen(screen: Screen): Promise<boolean> {
   return getScreenManager().push(screen);
 }
 
 /**
- * Pop the current screen from the global manager
+ * Pop the current screen from the current runtime manager
  */
 export async function popScreen(): Promise<boolean> {
   return getScreenManager().pop();
 }
 
 /**
- * Replace the current screen in the global manager
+ * Replace the current screen in the current runtime manager
  */
 export async function replaceScreen(screen: Screen): Promise<boolean> {
   return getScreenManager().replace(screen);
 }
 
 /**
- * Go back in the global manager
+ * Go back in the current runtime manager
  */
 export async function goBack(): Promise<boolean> {
   return getScreenManager().goBack();

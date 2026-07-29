@@ -5,6 +5,13 @@
  * Supports vim/emacs modes, conflict detection, and hierarchical contexts.
  */
 
+import {
+  deleteRuntimeResource,
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 // ============================================================================
 // Types
@@ -230,6 +237,42 @@ export class KeyBindingRegistry {
 
   constructor() {
     this.initModePresets();
+  }
+
+  clone(): KeyBindingRegistry {
+    const clone = new KeyBindingRegistry();
+    const clonedBindings = new Map(
+      [...this.bindings].map(([id, binding]) => [
+        id,
+        {
+          ...binding,
+          combo: {
+            ...binding.combo,
+            modifiers: { ...binding.combo.modifiers },
+          },
+        },
+      ]),
+    );
+    clone.bindings = clonedBindings;
+    clone.contextStack = [...this.contextStack];
+    clone.mode = this.mode;
+    clone.modeBindings = new Map(
+      [...this.modeBindings].map(([mode, bindings]) => [
+        mode,
+        bindings
+          .map(binding => clonedBindings.get(binding.id))
+          .filter((binding): binding is KeyBinding => binding !== undefined),
+      ]),
+    );
+    return clone;
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.bindings.clear();
+    this.contextStack = ['global'];
+    this.modeBindings.clear();
+    this.listeners.clear();
+    this.mode = 'default';
   }
 
   /**
@@ -564,26 +607,37 @@ export class KeyBindingRegistry {
 }
 
 // ============================================================================
-// Global Registry
+// Runtime Registry
 // ============================================================================
 
-let globalRegistry: KeyBindingRegistry | null = null;
+const KEY_BINDING_REGISTRY = Symbol('tuiuiu.key-binding-registry');
 
-/**
- * Get the global key binding registry
- */
-export function getKeyBindingRegistry(): KeyBindingRegistry {
-  if (!globalRegistry) {
-    globalRegistry = new KeyBindingRegistry();
+function createKeyBindingRegistry(): KeyBindingRegistry {
+  const scope = getRuntimeScope();
+  if (scope.id === 0) {
+    return new KeyBindingRegistry();
   }
-  return globalRegistry;
+  return getDefaultRuntimeResource(
+    KEY_BINDING_REGISTRY,
+    () => new KeyBindingRegistry(),
+  ).clone();
 }
 
 /**
- * Reset the global registry (for testing)
+ * Get the current runtime key binding registry
+ */
+export function getKeyBindingRegistry(): KeyBindingRegistry {
+  return getRuntimeResource(
+    KEY_BINDING_REGISTRY,
+    createKeyBindingRegistry,
+  );
+}
+
+/**
+ * Reset the current runtime registry (for testing)
  */
 export function resetKeyBindingRegistry(): void {
-  globalRegistry = null;
+  deleteRuntimeResource(KEY_BINDING_REGISTRY);
   resetBindingIdCounter();
 }
 
@@ -592,7 +646,7 @@ export function resetKeyBindingRegistry(): void {
 // ============================================================================
 
 /**
- * Register a global key binding
+ * Register a key binding in the current runtime
  */
 export function registerKeybinding(options: KeyBindingOptions): string {
   return getKeyBindingRegistry().register(options);
@@ -620,7 +674,7 @@ export function getKeyMode(): KeyMode {
 }
 
 /**
- * Handle a key event through the global registry
+ * Handle a key event through the current runtime registry
  */
 export async function handleKeyEvent(
   key: string,

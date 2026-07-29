@@ -12,6 +12,11 @@
  */
 
 import type { VNode } from '../utils/types.js';
+import {
+  deleteRuntimeResource,
+  getRuntimeResource,
+  RUNTIME_RESOURCE_DISPOSE,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -98,14 +103,13 @@ export interface FocusZoneEventData {
 }
 
 // =============================================================================
-// Focus Zone Manager (Singleton)
+// Focus Zone Manager (Runtime-scoped)
 // =============================================================================
 
 let zoneIdCounter = 0;
+const FOCUS_ZONE_MANAGER = Symbol('tuiuiu.focus-zone-manager');
 
 class FocusZoneManager {
-  private static instance: FocusZoneManager | null = null;
-
   /** All registered zones */
   private zones: Map<string, FocusZoneState> = new Map();
   /** Focus stack for modal patterns */
@@ -127,14 +131,22 @@ class FocusZoneManager {
   }
 
   static getInstance(): FocusZoneManager {
-    if (!FocusZoneManager.instance) {
-      FocusZoneManager.instance = new FocusZoneManager();
-    }
-    return FocusZoneManager.instance;
+    return getRuntimeResource(
+      FOCUS_ZONE_MANAGER,
+      () => new FocusZoneManager(),
+    );
   }
 
   static reset(): void {
-    FocusZoneManager.instance = null;
+    deleteRuntimeResource(FOCUS_ZONE_MANAGER);
+  }
+
+  [RUNTIME_RESOURCE_DISPOSE](): void {
+    this.zones.clear();
+    this.stack = [];
+    this.activeZoneId = null;
+    this.rootZoneId = null;
+    this.listeners.clear();
   }
 
   // ===========================================================================
