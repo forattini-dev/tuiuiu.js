@@ -12,7 +12,7 @@ pnpm install
 
 The generated project is TypeScript, ESM, uses the compact
 `tuiuiu.js/minimal` entry, and refuses to overwrite a non-empty directory.
-Pass `--jsx` to opt into the [JSX runtime](/getting-started/jsx.md).
+Components are composed with typed function calls.
 
 ## 2. Create Your First App
 

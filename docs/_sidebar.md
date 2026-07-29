@@ -4,7 +4,6 @@
   - [Introduction](/)
   - [Installation](/getting-started/installation.md)
   - [Quick Start](/getting-started/quick-start.md)
-  - [Optional JSX Runtime](/getting-started/jsx.md)
 
 - **Core Concepts**
   - [Signals & Reactivity](/core/signals.md)

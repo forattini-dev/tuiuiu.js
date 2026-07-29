@@ -80,6 +80,26 @@ function assertPackageExports(): void {
   }
 }
 
+function assertNoJsxRuntimeIsPublished(): void {
+  const packageJson = JSON.parse(
+    readFileSync(path.join(rootDir, 'package.json'), 'utf8')
+  ) as { exports?: PackageExports };
+  const forbiddenSubpaths = ['./jsx-runtime', './jsx-dev-runtime'];
+  const packageExports = packageJson.exports ?? {};
+  const exposed = forbiddenSubpaths.filter((subpath) =>
+    Object.prototype.hasOwnProperty.call(packageExports, subpath)
+  );
+  if (exposed.length > 0) {
+    fail(`Unsupported JSX runtime entry points are public: ${exposed.join(', ')}`);
+  }
+
+  const staleArtifacts = readdirSync(distDir)
+    .filter((entry) => /^jsx(?:-dev)?-runtime\./.test(entry));
+  if (staleArtifacts.length > 0) {
+    fail(`Unsupported JSX runtime artifacts are present in dist: ${staleArtifacts.join(', ')}`);
+  }
+}
+
 function assertExampleManifestAndScripts(): void {
   const packageJson = JSON.parse(
     readFileSync(path.join(rootDir, 'package.json'), 'utf8')
@@ -175,6 +195,18 @@ function assertDocsDoNotReferenceKnownBadPatterns(): void {
     {
       pattern: 'via.placeholder.com',
       message: 'Found a documentation color sample that depends on the retired placeholder service.',
+    },
+    {
+      pattern: '--jsx',
+      message: 'Found documentation advertising the unsupported JSX scaffold option.',
+    },
+    {
+      pattern: 'jsxImportSource',
+      message: 'Found documentation advertising a JSX import source.',
+    },
+    {
+      pattern: 'tuiuiu.js/jsx-runtime',
+      message: 'Found documentation advertising an unsupported JSX runtime.',
     },
   ];
 
@@ -310,6 +342,7 @@ function compileExamples(): void {
 }
 
 assertPackageExports();
+assertNoJsxRuntimeIsPublished();
 assertExampleManifestAndScripts();
 assertDocsDoNotReferenceKnownBadPatterns();
 assertLocalMarkdownLinksResolve();

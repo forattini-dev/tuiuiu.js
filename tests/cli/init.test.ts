@@ -28,16 +28,16 @@ afterEach(async () => {
 });
 
 describe('tuiuiu init', () => {
-  it('parses a target and the JSX opt-in', () => {
-    expect(parseInitArgs(['my-app', '--jsx'])).toEqual({
+  it('parses a target directory', () => {
+    expect(parseInitArgs(['my-app'])).toEqual({
       directory: 'my-app',
-      jsx: true,
       help: false,
     });
   });
 
   it('rejects unknown options and multiple targets', () => {
     expect(() => parseInitArgs(['--force'])).toThrow('Unknown init option');
+    expect(() => parseInitArgs(['--jsx'])).toThrow('Unknown init option');
     expect(() => parseInitArgs(['one', 'two'])).toThrow('only one target');
   });
 
@@ -50,25 +50,14 @@ describe('tuiuiu init', () => {
     });
 
     const packageJson = JSON.parse(await readFile(path.join(target, 'package.json'), 'utf8'));
+    const tsconfig = JSON.parse(await readFile(path.join(target, 'tsconfig.json'), 'utf8'));
     const entry = await readFile(path.join(target, 'src', 'index.ts'), 'utf8');
     expect(packageJson.dependencies['tuiuiu.js']).toBe('^1.2.3');
+    expect(tsconfig.compilerOptions).not.toHaveProperty('jsx');
+    expect(tsconfig.compilerOptions).not.toHaveProperty('jsxImportSource');
+    expect(tsconfig.include).toEqual(['src/**/*.ts']);
     expect(entry).toContain('renderInline');
     expect(entry).not.toContain('<Box');
-  });
-
-  it('creates a project configured for the optional JSX runtime', async () => {
-    const cwd = await createTemporaryDirectory();
-    const target = await scaffoldProject({
-      ...parseInitArgs(['jsx-demo', '--jsx']),
-      cwd,
-      version: '1.2.3',
-    });
-
-    const tsconfig = JSON.parse(await readFile(path.join(target, 'tsconfig.json'), 'utf8'));
-    const entry = await readFile(path.join(target, 'src', 'index.tsx'), 'utf8');
-    expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
-    expect(tsconfig.compilerOptions.jsxImportSource).toBe('tuiuiu.js');
-    expect(entry).toContain('<Box');
   });
 
   it('refuses to overwrite a non-empty target', async () => {
