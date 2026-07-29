@@ -82,9 +82,7 @@ describe('Width Inheritance', () => {
   });
 
   describe('TextInput fullWidth', () => {
-    // TODO: This test documents desired behavior. The current layout engine
-    // doesn't fully support flexGrow in row layouts with fixed-width siblings.
-    it.skip('should expand TextInput to fill parent in row layout', () => {
+    it('should expand TextInput to fill parent in row layout', () => {
       const ti = createTextInput({ initialValue: 'test' });
       const inputNode = renderTextInput(ti, { fullWidth: true });
 
@@ -324,8 +322,7 @@ describe('Width Inheritance', () => {
   });
 
   describe('Form with multiple fullWidth inputs', () => {
-    // TODO: Same issue as above - flexGrow with fixed-width siblings in row layout
-    it.skip('should render a complete form with proper widths', () => {
+    it('should render a complete form with proper widths', () => {
       const nameInput = createTextInput({ initialValue: '' });
       const emailInput = createTextInput({ initialValue: '' });
 
