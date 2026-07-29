@@ -26,6 +26,7 @@ import {
   getRuntimeScope,
   type RuntimeScope,
 } from './runtime-scope.js';
+import { parseMouseProtocol, type MouseProtocolEvent } from './mouse-protocol.js';
 
 // =============================================================================
 // Types
@@ -383,136 +384,36 @@ export function disableMouseTracking(): string {
  * Supports X10, normal, SGR, and urxvt formats
  */
 export function parseMouseEvent(seq: string): MouseEvent | null {
-  // SGR format: CSI < Cb ; Cx ; Cy M/m
-  const sgrMatch = seq.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
-  if (sgrMatch) {
-    const cb = parseInt(sgrMatch[1]!, 10);
-    const x = parseInt(sgrMatch[2]!, 10);
-    const y = parseInt(sgrMatch[3]!, 10);
-    const isRelease = sgrMatch[4] === 'm';
-
-    return parseSGRMouse(cb, x, y, isRelease);
-  }
-
-  // SGR pixel format: CSI < Cb ; Px ; Py M/m
-  const pixelMatch = seq.match(/^\x1b\[<(\d+);(\d+);(\d+);(\d+);(\d+)([Mm])$/);
-  if (pixelMatch) {
-    const cb = parseInt(pixelMatch[1]!, 10);
-    const px = parseInt(pixelMatch[2]!, 10);
-    const py = parseInt(pixelMatch[3]!, 10);
-    const cx = parseInt(pixelMatch[4]!, 10);
-    const cy = parseInt(pixelMatch[5]!, 10);
-    const isRelease = pixelMatch[6] === 'm';
-
-    const event = parseSGRMouse(cb, cx, cy, isRelease);
-    if (event) {
-      event.pixelX = px;
-      event.pixelY = py;
-    }
-    return event;
-  }
-
-  // X10/Normal format: CSI M Cb Cx Cy
-  const x10Match = seq.match(/^\x1b\[M([\x00-\xff])([\x00-\xff])([\x00-\xff])$/);
-  if (x10Match) {
-    const cb = x10Match[1]!.charCodeAt(0) - 32;
-    const x = x10Match[2]!.charCodeAt(0) - 32;
-    const y = x10Match[3]!.charCodeAt(0) - 32;
-
-    return parseX10Mouse(cb, x, y);
-  }
-
-  // urxvt format: CSI Cb ; Cx ; Cy M
-  const urxvtMatch = seq.match(/^\x1b\[(\d+);(\d+);(\d+)M$/);
-  if (urxvtMatch) {
-    const cb = parseInt(urxvtMatch[1]!, 10) - 32;
-    const x = parseInt(urxvtMatch[2]!, 10);
-    const y = parseInt(urxvtMatch[3]!, 10);
-
-    return parseX10Mouse(cb, x, y);
-  }
-
-  return null;
+  const result = parseMouseProtocol(seq);
+  if (!result || result.length !== seq.length) return null;
+  return toLegacyMouseEvent(result.event);
 }
 
-function parseSGRMouse(cb: number, x: number, y: number, isRelease: boolean): MouseEvent {
-  const button = cb & 0b11;
-  const shift = !!(cb & 0b100);
-  const alt = !!(cb & 0b1000);
-  const ctrl = !!(cb & 0b10000);
-  const motion = !!(cb & 0b100000);
-  const wheel = !!(cb & 0b1000000);
-
-  let mouseButton: MouseButton;
-  let eventType: MouseEventType;
-
-  if (wheel) {
-    mouseButton = button === 0 ? 'wheelUp' : 'wheelDown';
-    eventType = 'wheel';
-  } else if (button === 0) {
-    mouseButton = 'left';
-    eventType = isRelease ? 'up' : motion ? 'drag' : 'down';
-  } else if (button === 1) {
-    mouseButton = 'middle';
-    eventType = isRelease ? 'up' : motion ? 'drag' : 'down';
-  } else if (button === 2) {
-    mouseButton = 'right';
-    eventType = isRelease ? 'up' : motion ? 'drag' : 'down';
-  } else {
-    mouseButton = 'none';
-    eventType = motion ? 'move' : 'down';
-  }
+function toLegacyMouseEvent(event: MouseProtocolEvent): MouseEvent {
+  const isWheel = event.button === 'scroll-up' || event.button === 'scroll-down';
+  const type: MouseEventType = isWheel
+    ? 'wheel'
+    : event.action === 'click'
+      ? 'down'
+      : event.action === 'release'
+        ? 'up'
+        : event.action;
+  const button: MouseButton = event.button === 'scroll-up'
+    ? 'wheelUp'
+    : event.button === 'scroll-down'
+      ? 'wheelDown'
+      : event.button;
 
   return {
-    type: eventType,
-    button: mouseButton,
-    x: x - 1,
-    y: y - 1,
-    ctrl,
-    alt,
-    shift,
-    meta: false,
-  };
-}
-
-function parseX10Mouse(cb: number, x: number, y: number): MouseEvent {
-  const button = cb & 0b11;
-  const shift = !!(cb & 0b100);
-  const alt = !!(cb & 0b1000);
-  const ctrl = !!(cb & 0b10000);
-  const motion = !!(cb & 0b100000);
-
-  let mouseButton: MouseButton;
-  let eventType: MouseEventType;
-
-  if (button === 0) {
-    mouseButton = 'left';
-    eventType = motion ? 'drag' : 'down';
-  } else if (button === 1) {
-    mouseButton = 'middle';
-    eventType = motion ? 'drag' : 'down';
-  } else if (button === 2) {
-    mouseButton = 'right';
-    eventType = motion ? 'drag' : 'down';
-  } else if (button === 3) {
-    mouseButton = 'none';
-    eventType = motion ? 'move' : 'up';
-  } else if ((cb & 0b1000000) !== 0) {
-    mouseButton = (cb & 1) === 0 ? 'wheelUp' : 'wheelDown';
-    eventType = 'wheel';
-  } else {
-    mouseButton = 'none';
-    eventType = 'move';
-  }
-
-  return {
-    type: eventType,
-    button: mouseButton,
-    x: x - 1,
-    y: y - 1,
-    ctrl,
-    alt,
-    shift,
+    type,
+    button,
+    x: event.x,
+    y: event.y,
+    pixelX: event.pixelX,
+    pixelY: event.pixelY,
+    ctrl: event.modifiers.ctrl,
+    alt: event.modifiers.alt,
+    shift: event.modifiers.shift,
     meta: false,
   };
 }

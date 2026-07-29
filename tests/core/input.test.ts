@@ -265,6 +265,29 @@ describe('Mouse Input', () => {
       expect(event!.y).toBe(4);
     });
 
+    it('should parse pixel and urxvt formats through the canonical decoder', () => {
+      expect(parseMouseEvent('\x1b[<0;120;240;10;20M')).toMatchObject({
+        type: 'down',
+        button: 'left',
+        x: 9,
+        y: 19,
+        pixelX: 120,
+        pixelY: 240,
+      });
+      expect(parseMouseEvent('\x1b[32;10;20M')).toMatchObject({
+        type: 'down',
+        button: 'left',
+        x: 9,
+        y: 19,
+      });
+    });
+
+    it('rejects invalid coordinates, unsafe values, and trailing input', () => {
+      expect(parseMouseEvent('\x1b[<0;0;1M')).toBeNull();
+      expect(parseMouseEvent('\x1b[<0;1;1Msuffix')).toBeNull();
+      expect(parseMouseEvent(`\x1b[<${'9'.repeat(400)};1;1M`)).toBeNull();
+    });
+
     it('should return null for non-mouse sequences', () => {
       expect(parseMouseEvent('\x1b[A')).toBeNull();
       expect(parseMouseEvent('hello')).toBeNull();

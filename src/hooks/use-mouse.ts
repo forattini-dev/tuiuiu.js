@@ -23,34 +23,24 @@ import {
   getRuntimeScope,
   type RuntimeScope,
 } from '../core/runtime-scope.js';
+import {
+  parseMouseProtocol,
+  startsWithMouseProtocol,
+  type MouseProtocolAction,
+  type MouseProtocolButton,
+  type MouseProtocolEvent,
+  type MouseProtocolResult,
+} from '../core/mouse-protocol.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type MouseButton = 'left' | 'right' | 'middle' | 'scroll-up' | 'scroll-down' | 'none';
-export type MouseAction = 'click' | 'double-click' | 'drag' | 'release' | 'move';
-
-export interface MouseEvent {
-  /** Column position (0-indexed) */
-  x: number;
-  /** Row position (0-indexed) */
-  y: number;
-  /** Which button was pressed/released */
-  button: MouseButton;
-  /** Type of mouse action */
+export type MouseButton = MouseProtocolButton;
+export type MouseAction = MouseProtocolAction | 'double-click';
+export type MouseEvent = Omit<MouseProtocolEvent, 'action'> & {
   action: MouseAction;
-  /** Modifier keys held during the event */
-  modifiers: {
-    ctrl: boolean;
-    shift: boolean;
-    alt: boolean;
-  };
-  /** Pixel X coordinate (only available in pixel mouse mode) */
-  pixelX?: number;
-  /** Pixel Y coordinate (only available in pixel mouse mode) */
-  pixelY?: number;
-}
+};
 
 export type MouseHandler = (event: MouseEvent) => void;
 
@@ -104,146 +94,20 @@ function isTTYStream(stream: NodeJS.WriteStream): boolean {
   return 'isTTY' in stream && !!(stream as any).isTTY;
 }
 
-// =============================================================================
-// Mouse Event Parsing
-// =============================================================================
-
-/**
- * SGR mouse event format: \x1b[<button;x;yM (press) or \x1b[<button;x;ym (release)
- * Button encoding:
- *   0 = left, 1 = middle, 2 = right
- *   +4 = shift, +8 = meta/alt, +16 = ctrl
- *   +32 = motion (drag)
- *   64 = scroll up, 65 = scroll down
- */
-const SGR_MOUSE_RE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
-
-/**
- * X10 mouse event format: \x1b[M<button><x><y>
- * Coordinates are encoded as character codes starting at 33 (!)
- */
-const X10_MOUSE_RE = /^\x1b\[M([\x00-\xff])([\x00-\xff])([\x00-\xff])/;
-
-/**
- * Parse SGR mouse event
- */
-function parseSGRMouse(match: RegExpMatchArray): MouseEvent | null {
-  const buttonCode = parseInt(match[1]!, 10);
-  const x = parseInt(match[2]!, 10) - 1; // Convert to 0-indexed
-  const y = parseInt(match[3]!, 10) - 1;
-  const isRelease = match[4] === 'm';
-
-  // Decode modifiers
-  const modifiers = {
-    shift: !!(buttonCode & 4),
-    alt: !!(buttonCode & 8),
-    ctrl: !!(buttonCode & 16),
-  };
-
-  // Decode button (lower 2 bits, but also check for scroll)
-  const baseButton = buttonCode & 3;
-  const isMotion = !!(buttonCode & 32);
-  const isScroll = buttonCode >= 64 && buttonCode <= 67;
-
-  let button: MouseButton;
-  let action: MouseAction;
-
-  if (isScroll) {
-    button = (buttonCode & 1) ? 'scroll-down' : 'scroll-up';
-    action = 'click';
-  } else {
-    switch (baseButton) {
-      case 0: button = 'left'; break;
-      case 1: button = 'middle'; break;
-      case 2: button = 'right'; break;
-      default: button = 'none'; break;
-    }
-
-    if (isMotion && baseButton === 3) {
-      button = 'none';
-      action = 'move';
-    } else if (isRelease) {
-      action = 'release';
-    } else if (isMotion) {
-      action = 'drag';
-    } else {
-      action = 'click';
-    }
-  }
-
-  return { x, y, button, action, modifiers };
-}
-
-/**
- * Parse X10 mouse event (legacy format)
- */
-function parseX10Mouse(match: RegExpMatchArray): MouseEvent | null {
-  const buttonByte = match[1]!.charCodeAt(0);
-  const x = match[2]!.charCodeAt(0) - 33; // 33 = '!'
-  const y = match[3]!.charCodeAt(0) - 33;
-
-  // Decode modifiers
-  const modifiers = {
-    shift: !!(buttonByte & 4),
-    alt: !!(buttonByte & 8),
-    ctrl: !!(buttonByte & 16),
-  };
-
-  // Decode button
-  const baseButton = buttonByte & 3;
-  const isMotion = !!(buttonByte & 32);
-  const isRelease = baseButton === 3;
-
-  let button: MouseButton;
-  let action: MouseAction;
-
-  if (isRelease) {
-    button = 'none';
-    action = 'release';
-  } else {
-    switch (baseButton) {
-      case 0: button = 'left'; break;
-      case 1: button = 'middle'; break;
-      case 2: button = 'right'; break;
-      default: button = 'none'; break;
-    }
-    action = isMotion ? 'drag' : 'click';
-  }
-
-  return { x, y, button, action, modifiers };
-}
-
-export interface MouseEventResult {
-  event: MouseEvent;
-  length: number;
-}
+export type MouseEventResult = MouseProtocolResult;
 
 /**
  * Parse raw input and extract mouse event if present
  */
 export function parseMouseEvent(data: string): MouseEventResult | null {
-  // Try SGR format first (more precise)
-  const sgrMatch = SGR_MOUSE_RE.exec(data);
-  if (sgrMatch) {
-    const event = parseSGRMouse(sgrMatch);
-    return event ? { event, length: sgrMatch[0].length } : null;
-  }
-
-  // Fall back to X10 format
-  const x10Match = X10_MOUSE_RE.exec(data);
-  if (x10Match) {
-    const event = parseX10Mouse(x10Match);
-    return event ? { event, length: x10Match[0].length } : null;
-  }
-
-  return null;
+  return parseMouseProtocol(data);
 }
 
 /**
  * Check if a string contains a mouse event sequence
  */
 export function isMouseEvent(data: string): boolean {
-  return SGR_MOUSE_RE.test(data) || X10_MOUSE_RE.test(data);
+  return startsWithMouseProtocol(data);
 }
 
 // =============================================================================
