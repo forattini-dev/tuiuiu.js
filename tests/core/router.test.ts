@@ -1110,5 +1110,183 @@ describe('Router', () => {
       expect(location?.path).toBe('/users/123');
       expect(router.currentRoute).toBeNull();
     });
+
+    it('should parse query and hash from string navigation targets', async () => {
+      const router = createRouter({
+        routes: [
+          { path: '/users', name: 'users', component: UserListComponent },
+        ],
+      });
+
+      const result = await router.push('/users?sort=name&tag=a&tag=b#results');
+
+      expect(result.success).toBe(true);
+      expect(router.currentRoute).toMatchObject({
+        path: '/users',
+        name: 'users',
+        query: { sort: 'name', tag: ['a', 'b'] },
+        hash: 'results',
+        fullPath: '/users?sort=name&tag=a&tag=b#results',
+      });
+    });
+
+    it('should encode named params and decode matched params', () => {
+      const router = createRouter({
+        routes: [
+          { path: '/users/:id', name: 'user', component: UserDetailComponent },
+        ],
+      });
+
+      const location = router.resolve({
+        name: 'user',
+        params: { id: 'a/b?tab=1' },
+      });
+
+      expect(location?.path).toBe('/users/a%2Fb%3Ftab%3D1');
+      expect(location?.params.id).toBe('a/b?tab=1');
+    });
+
+    it('should support relative child paths and dynamic nested routes', async () => {
+      const router = createRouter({
+        routes: [
+          {
+            path: '/settings',
+            name: 'settings',
+            component: SettingsComponent,
+            children: [
+              {
+                path: 'profile',
+                name: 'profile',
+                component: ProfileSettingsComponent,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect((await router.push({ name: 'profile' })).success).toBe(true);
+      expect(router.currentRoute?.path).toBe('/settings/profile');
+
+      router.addRoute(
+        {
+          path: 'security',
+          name: 'security',
+          component: ProfileSettingsComponent,
+        },
+        'settings'
+      );
+
+      expect((await router.push('/settings/security')).success).toBe(true);
+      expect(router.currentRoute?.name).toBe('security');
+    });
+
+    it('should run guards and hooks before committing history navigation', async () => {
+      let blockHome = false;
+      const guard = vi.fn((to: { path: string }) => (
+        !blockHome || to.path !== '/'
+      ));
+      const afterEach = vi.fn();
+      const router = createRouter({
+        routes: [
+          { path: '/', component: HomeComponent },
+          { path: '/a', component: UserListComponent },
+        ],
+        beforeEach: guard,
+        afterEach,
+      });
+
+      await router.push('/');
+      await router.push('/a');
+      blockHome = true;
+      guard.mockClear();
+      afterEach.mockClear();
+
+      const result = await router.back();
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Navigation cancelled by guard',
+      });
+      expect(router.currentRoute?.path).toBe('/a');
+      expect(router.getHistoryIndex()).toBe(1);
+      expect(guard).toHaveBeenCalledOnce();
+      expect(afterEach).not.toHaveBeenCalled();
+    });
+
+    it('should preserve replace semantics through redirects', async () => {
+      const router = createRouter({
+        routes: [
+          { path: '/', component: HomeComponent },
+          { path: '/old', redirect: '/new', component: HomeComponent },
+          { path: '/new', component: UserListComponent },
+        ],
+      });
+
+      await router.push('/');
+      const result = await router.replace('/old');
+
+      expect(result.success).toBe(true);
+      expect(router.currentRoute?.path).toBe('/new');
+      expect(router.getHistory()).toHaveLength(1);
+    });
+
+    it('should expose completion of initial async navigation', async () => {
+      const beforeEach = vi.fn(async () => {
+        await Promise.resolve();
+        return true;
+      });
+      const router = createRouter({
+        routes: [{ path: '/', component: HomeComponent }],
+        initialPath: '/',
+        beforeEach,
+      });
+
+      expect((await router.ready).success).toBe(true);
+      expect(router.currentRoute?.path).toBe('/');
+      expect(beforeEach).toHaveBeenCalledOnce();
+    });
+
+    it('should remove descendant names with a parent route', () => {
+      const router = createRouter({
+        routes: [
+          {
+            path: '/settings',
+            name: 'settings',
+            component: SettingsComponent,
+            children: [
+              {
+                path: 'profile',
+                name: 'profile',
+                component: ProfileSettingsComponent,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(router.removeRoute('settings')).toBe(true);
+      expect(router.hasRoute('settings')).toBe(false);
+      expect(router.hasRoute('profile')).toBe(false);
+    });
+
+    it('should reject ambiguous or invalid dynamic route registration', () => {
+      const router = createRouter({
+        routes: [
+          { path: '/', name: 'home', component: HomeComponent },
+        ],
+      });
+
+      expect(() => router.addRoute({
+        path: '/other',
+        name: 'home',
+        component: UserListComponent,
+      })).toThrow('Duplicate route name: home');
+      expect(() => router.addRoute({
+        path: 'child',
+        name: 'child',
+        component: UserListComponent,
+      }, 'missing')).toThrow('Parent route not found: missing');
+      expect(router.getRoutes()).toHaveLength(1);
+    });
   });
 });

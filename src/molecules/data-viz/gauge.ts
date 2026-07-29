@@ -565,10 +565,12 @@ export function DialGauge(options: GaugeOptions): VNode {
   const percentage = normalized * 100;
   const barColor = getZoneColor(percentage, resolvedZones, color);
   const isAscii = getRenderMode() === 'ascii';
+  if (!Number.isInteger(width) || width < 3) {
+    throw new RangeError('DialGauge width must be an integer of at least 3');
+  }
 
   // Build dial segments
-  const segments = 10;
-  const filledSegments = Math.round(normalized * segments);
+  const segments = width;
 
   const segmentChars = isAscii ? '-' : '━';
   const pointerChar = isAscii ? '^' : '▲';
@@ -578,17 +580,6 @@ export function DialGauge(options: GaugeOptions): VNode {
   //    ╱       ╲
   //   0        100
   const pointerPos = Math.round(normalized * (segments - 1));
-  let dialLine = '';
-
-  for (let i = 0; i < segments; i++) {
-    if (i === pointerPos) {
-      dialLine += pointerChar;
-    } else {
-      const segPct = (i / segments) * 100;
-      const segColor = getZoneColor(segPct, resolvedZones, color);
-      dialLine += segmentChars;
-    }
-  }
 
   const valueStr = formatValue
     ? formatValue(value)

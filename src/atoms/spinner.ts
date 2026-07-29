@@ -19,7 +19,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { getTheme } from '../core/theme.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getRenderMode } from '../core/capabilities.js';
 
 /** Available spinner styles - 60+ options */
 export type SpinnerStyle =
@@ -821,7 +821,7 @@ let _standaloneSpinnerStart = 0;
  * Simple standalone spinner component
  */
 export function Spinner(options: SpinnerOptions & { isActive?: boolean }): VNode {
-  const { isActive = true, ...rest } = options;
+  const { isActive = true } = options;
 
   if (!isActive) {
     _standaloneSpinnerStart = 0;

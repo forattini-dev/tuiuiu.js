@@ -374,7 +374,7 @@ describe('FormField', () => {
     });
 
     it('should work with Switch', () => {
-      const switchState = createSwitch({ on: false });
+      const switchState = createSwitch({ initialValue: false });
 
       const result = FormField({
         label: 'Notifications',
@@ -746,7 +746,7 @@ describe('Real-world scenarios', () => {
         FormField({
           label: 'Email Notifications',
           error: 'This field is required',
-          children: Switch({ state: createSwitch({ on: false }) }),
+          children: Switch({ state: createSwitch({ initialValue: false }) }),
         }),
         FormField({
           label: 'Frequency',

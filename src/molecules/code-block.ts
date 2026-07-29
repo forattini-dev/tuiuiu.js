@@ -234,15 +234,6 @@ function highlightCode(code: string, language: Language, theme: CodeTheme): VNod
     });
   }
 
-  // Simple tokenization (not a full parser, but good enough for display)
-  let remaining = code;
-  let lastIndex = 0;
-
-  // Helper to add plain text
-  const addPlain = (text: string) => {
-    if (text) tokens.push({ text, color: 'foreground' });
-  };
-
   // Process string literals first (they can contain keywords)
   const stringMatches: Array<{ index: number; text: string; color: string }> = [];
   if (rules.stringPattern) {

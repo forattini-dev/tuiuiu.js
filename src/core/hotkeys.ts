@@ -419,9 +419,32 @@ export function parseKeypress(data: Buffer | string): { input: string; key: Key;
  * isHotkey('esc', key)
  */
 export function isHotkey(pattern: string, key: Key, input?: string): boolean {
-  const parts = pattern.toLowerCase().split('+');
-  const targetKey = parts.pop()!;
+  const normalizedPattern = pattern.trim().toLowerCase();
+  let parts: string[];
+  let targetKey: string;
+
+  if (normalizedPattern === '+') {
+    parts = [];
+    targetKey = '+';
+  } else if (normalizedPattern.endsWith('++')) {
+    parts = normalizedPattern.slice(0, -2).split('+').filter(Boolean);
+    targetKey = '+';
+  } else {
+    parts = normalizedPattern.split('+');
+    targetKey = parts.pop() ?? '';
+  }
   const modifiers = new Set(parts);
+  const knownModifiers = new Set([
+    'ctrl',
+    'shift',
+    'meta',
+    'alt',
+    'option',
+    'opt',
+  ]);
+  if (!targetKey || parts.some(part => !knownModifiers.has(part))) {
+    return false;
+  }
 
   // Check modifiers
   if (modifiers.has('ctrl') && !key.ctrl) return false;
@@ -433,11 +456,7 @@ export function isHotkey(pattern: string, key: Key, input?: string): boolean {
   // If pattern says 'ctrl+c', and user presses 'ctrl+shift+c', should it match?
   // Usually strict matching is preferred for explicit hotkeys.
   if (key.ctrl && !modifiers.has('ctrl')) return false;
-  if (key.shift && !modifiers.has('shift')) {
-    // Special case: shifted characters (e.g. 'A' produces shift=true)
-    // If pattern is just 'a', allow 'shift+a' if input is 'a' or 'A'? 
-    // Standardizing on lowercase for matching.
-  }
+  if (key.shift && !modifiers.has('shift')) return false;
   if (key.meta && !modifiers.has('meta') && !modifiers.has('alt')) return false;
   if (key.option && !modifiers.has('option') && !modifiers.has('opt')) return false;
 
@@ -460,7 +479,8 @@ export function isHotkey(pattern: string, key: Key, input?: string): boolean {
     case 'home': return key.home;
     case 'end': return key.end;
     case 'space': return input === ' ';
-    case 'plus': return input === '+'; // Edge case "ctrl++" -> modifiers=[ctrl], key="+"
+    case 'plus':
+    case '+': return input === '+';
   }
 
   // Function keys

@@ -339,6 +339,23 @@ describe('calculateCellPosition', () => {
     });
   });
 
+  it('should resolve negative grid lines from the end of the track list', () => {
+    const position = calculateCellPosition(
+      { column: '-3 / -1' },
+      emptyAreas,
+      4,
+      3,
+      { row: 1, column: 1 },
+    );
+
+    expect(position).toEqual({
+      row: 1,
+      column: 3,
+      rowSpan: 1,
+      columnSpan: 2,
+    });
+  });
+
   it('should place item with span', () => {
     const position = calculateCellPosition({ column: 'span 2' }, emptyAreas, 3, 3, {
       row: 1,
@@ -879,10 +896,10 @@ describe('Integration', () => {
         ),
         main: AutoGrid(
           { minColumnWidth: 30, gap: 2 },
-          Box({ border: true }, Text({}, 'Card 1')),
-          Box({ border: true }, Text({}, 'Card 2')),
-          Box({ border: true }, Text({}, 'Card 3')),
-          Box({ border: true }, Text({}, 'Card 4'))
+          Box({ borderStyle: 'single' }, Text({}, 'Card 1')),
+          Box({ borderStyle: 'single' }, Text({}, 'Card 2')),
+          Box({ borderStyle: 'single' }, Text({}, 'Card 3')),
+          Box({ borderStyle: 'single' }, Text({}, 'Card 4'))
         ),
         footer: Text({ dim: true }, '© 2025'),
       }

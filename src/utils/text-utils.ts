@@ -17,17 +17,9 @@ import {
 
 // ANSI escape sequence constants
 const ESC = '\u001B';
-const CSI = '[';
-const OSC = ']';
-const SGR_END = 'm';
-const BELL = '\u0007';
-const HYPERLINK_START = `${OSC}8;;`;
 const PRINTABLE_ASCII_RE = /^[\x20-\x7e]*$/;
 const singleCodePointWidthCache = new Map<number, number>();
 const SINGLE_CODE_POINT_WIDTH_CACHE_LIMIT = 256;
-
-// Regex patterns
-const SGR_REGEX = /^\u001B\[(\d+)m/;
 
 /**
  * Strip ANSI escape codes from text
@@ -739,8 +731,19 @@ function truncateMiddle(
   const available = columns - ellipsisWidth;
   const startWidth = Math.ceil(available / 2);
   const endWidth = Math.floor(available / 2);
-  const start = sliceAnsi(text, 0, startWidth);
-  const end = sliceAnsi(text, stringWidth(text) - endWidth);
+  let start = sliceAnsi(text, 0, startWidth);
+  let end = sliceAnsi(text, stringWidth(text) - endWidth);
+
+  if (preferSpace) {
+    const startSpace = start.lastIndexOf(' ');
+    if (startSpace !== -1 && start.length - startSpace < 4) {
+      start = start.slice(0, startSpace);
+    }
+    const endSpace = end.indexOf(' ');
+    if (endSpace !== -1 && endSpace < 4) {
+      end = end.slice(endSpace + 1);
+    }
+  }
 
   return start + ellipsis + end;
 }

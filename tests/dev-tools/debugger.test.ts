@@ -43,11 +43,11 @@ import {
   // Debug panel
   getDebugPanelData,
 } from '../../src/dev-tools/index.js';
-import type { VNode } from '../../src/utils/types.js';
+import type { VNode, VNodeType } from '../../src/utils/types.js';
 
 // Helper to create test VNodes
 function createNode(
-  type: string,
+  type: VNodeType,
   props: Record<string, unknown> = {},
   children: VNode[] = []
 ): VNode {

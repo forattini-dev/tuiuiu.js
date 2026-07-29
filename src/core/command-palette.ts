@@ -7,9 +7,7 @@
 import { createSignal } from '../primitives/signal.js';
 import {
   getKeyBindingRegistry,
-  parseKeyCombo,
   formatKeyString,
-  type KeyBindingOptions,
 } from './keybindings.js';
 import {
   deleteRuntimeResource,

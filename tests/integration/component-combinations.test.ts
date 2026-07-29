@@ -37,7 +37,6 @@ import {
   Accordion,
   ScrollArea,
   Grid,
-  GridCell,
   Tree,
   // Visual
   BigText,
@@ -105,7 +104,7 @@ describe('Integration: Component Combinations', () => {
         Box(
           { flexDirection: 'row' },
           Badge({ label: 'LIVE', color: 'green' }),
-          Text({ marginLeft: 1 }, 'System Status')
+          Box({ marginLeft: 1 }, Text({}, 'System Status'))
         ),
         BarChart({
           data: [
@@ -139,18 +138,18 @@ describe('Integration: Component Combinations', () => {
               { label: 'Dark', value: 'dark' },
               { label: 'Light', value: 'light' },
             ],
-            selected: 'dark',
+            initialValue: 'dark',
           })
         ),
         Box(
           { marginTop: 1 },
           Text({}, 'Notifications: '),
-          Switch({ value: true })
+          Switch({ initialValue: true })
         ),
         Box(
           { marginTop: 1 },
           Text({}, 'Volume: '),
-          Slider({ value: 50, min: 0, max: 100, width: 20 })
+          Slider({ initialValue: 50, min: 0, max: 100, width: 20 })
         )
       );
       const output = renderToString(form, 50, 20);
@@ -171,8 +170,8 @@ describe('Integration: Component Combinations', () => {
             { label: 'Python', value: 'py' },
             { label: 'Rust', value: 'rust' },
           ],
-          selected: ['ts'],
-          fuzzySearch: true,
+          initialValue: ['ts'],
+          searchable: true,
         })
       );
       const output = renderToString(form, 40, 15);
@@ -190,7 +189,7 @@ describe('Integration: Component Combinations', () => {
       const layout = Tabs({
         tabs: [
           {
-            id: 'overview',
+            key: 'overview',
             label: 'Overview',
             content: Box(
               {},
@@ -198,7 +197,7 @@ describe('Integration: Component Combinations', () => {
             ),
           },
           {
-            id: 'details',
+            key: 'details',
             label: 'Details',
             content: Box(
               {},
@@ -216,7 +215,7 @@ describe('Integration: Component Combinations', () => {
       const layout = Accordion({
         sections: [
           {
-            id: 'stats',
+            key: 'stats',
             title: 'Statistics',
             content: Box(
               {},
@@ -224,16 +223,16 @@ describe('Integration: Component Combinations', () => {
             ),
           },
           {
-            id: 'config',
+            key: 'config',
             title: 'Configuration',
             content: Box(
               {},
-              Switch({ value: true }),
-              Text({ marginLeft: 1 }, 'Enabled')
+              Switch({ initialValue: true }),
+              Box({ marginLeft: 1 }, Text({}, 'Enabled'))
             ),
           },
         ],
-        defaultExpanded: ['stats'],
+        initialExpanded: 'stats',
       });
       const output = renderToString(layout, 40, 15);
       expect(output).toContain('Statistics');
@@ -288,15 +287,14 @@ describe('Integration: Component Combinations', () => {
     it('renders a data table with sorting', () => {
       const table = DataTable({
         columns: [
-          { key: 'name', header: 'Name', width: 15 },
-          { key: 'value', header: 'Value', width: 10 },
+          { key: 'name', header: 'Name', width: 15, sortable: true },
+          { key: 'value', header: 'Value', width: 10, sortable: true },
         ],
         data: [
           { name: 'Alpha', value: 100 },
           { name: 'Beta', value: 200 },
           { name: 'Gamma', value: 150 },
         ],
-        sortable: true,
       });
       const output = renderToString(table, 40, 15);
       expect(output).toContain('Name');
@@ -307,10 +305,10 @@ describe('Integration: Component Combinations', () => {
     it('renders a calendar with events', () => {
       // Just verify the Calendar component can be created and returns a VNode
       const cal = Calendar({
-        date: new Date(2025, 0, 15),
+        initialDate: new Date(2025, 0, 15),
         events: [
-          { date: new Date(2025, 0, 10), label: 'Meeting' },
-          { date: new Date(2025, 0, 20), label: 'Deadline' },
+          { date: '2025-01-10', label: 'Meeting' },
+          { date: '2025-01-20', label: 'Deadline' },
         ],
       });
       expect(cal).not.toBeNull();

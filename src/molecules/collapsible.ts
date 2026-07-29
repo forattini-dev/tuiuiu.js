@@ -242,7 +242,12 @@ export function Collapsible(props: CollapsibleProps): VNode {
     : null;
 
   return Box(
-    { flexDirection: 'column' },
+    {
+      flexDirection: 'column',
+      borderLeft: borderColor !== undefined,
+      borderColor,
+      paddingLeft: borderColor !== undefined ? 1 : undefined,
+    },
     header,
     content
   );
@@ -302,7 +307,7 @@ export interface AccordionState {
  * Create an Accordion state manager
  */
 export function createAccordion(options: AccordionOptions): AccordionState {
-  const { sections, initialExpanded } = options;
+  const { initialExpanded } = options;
   let runtimeOptions = options;
 
   const [expanded, setExpanded] = createSignal<Set<string>>(

@@ -22,6 +22,11 @@ export interface EffectOptions {
   autoBatch?: boolean;
 }
 
+export interface DisposableAccessor<T> {
+  (): T;
+  dispose(): void;
+}
+
 // Global tracking for auto-dependency detection
 let currentEffect: Effect | null = null;
 const batchQueue: Set<Effect> = new Set();
@@ -170,8 +175,24 @@ function flushMicrotaskQueue(): void {
   microtaskQueued = false;
   const effects = [...microtaskQueue];
   microtaskQueue.clear();
+  runAllEffects(effects, effect => effect.run());
+}
+
+function runAllEffects(
+  effects: Iterable<Effect>,
+  run: (effect: Effect) => void
+): void {
+  const errors: unknown[] = [];
   for (const effect of effects) {
-    effect.run(); // run() directly — avoids re-entering microtask path
+    try {
+      run(effect);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(errors, 'Multiple reactive effects failed');
   }
 }
 
@@ -188,13 +209,13 @@ export class Effect {
   /** Scratch set used during tracking to detect dep changes */
   private _nextDeps: Set<Signal<any>> | null = null;
   private _cleanups: CleanupFn[] = [];
-  private _returnCleanup: CleanupFn | void = undefined;
+  private _returnCleanup: CleanupFn | undefined;
   private running = false;
   private disposed = false;
   private scheduled = false;
 
   constructor(
-    private fn: () => CleanupFn | void,
+    private fn: () => unknown,
     private options: EffectOptions = {}
   ) {
     this.run();
@@ -219,9 +240,14 @@ export class Effect {
         return;
       }
       this.scheduled = true;
-      scheduler(() => {
-        this.run();
-      });
+      try {
+        scheduler(() => {
+          this.run();
+        });
+      } catch (error) {
+        this.scheduled = false;
+        throw error;
+      }
       return;
     }
 
@@ -259,7 +285,13 @@ export class Effect {
       const prevEffect = currentEffect;
       currentEffect = this;
       try {
-        this._returnCleanup = this.fn();
+        const result = this.fn();
+        this._returnCleanup = typeof result === 'function'
+          ? result as CleanupFn
+          : undefined;
+      } catch (error) {
+        this._nextDeps = null;
+        throw error;
       } finally {
         currentEffect = prevEffect;
         cleanupCollector = prevCollector;
@@ -301,29 +333,45 @@ export class Effect {
   }
 
   private _runCleanups(): void {
-    // Return-value cleanup
+    const cleanups: CleanupFn[] = [];
     if (this._returnCleanup) {
-      this._returnCleanup();
+      cleanups.push(this._returnCleanup);
       this._returnCleanup = undefined;
     }
-    // onCleanup-registered cleanups
-    if (this._cleanups.length > 0) {
-      for (const fn of this._cleanups) {
-        fn();
+    cleanups.push(...this._cleanups.splice(0));
+
+    const errors: unknown[] = [];
+    for (const cleanup of cleanups) {
+      try {
+        cleanup();
+      } catch (error) {
+        errors.push(error);
       }
-      this._cleanups.length = 0;
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, 'Multiple reactive cleanups failed');
     }
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    microtaskQueue.delete(this);
+    batchQueue.delete(this);
 
-    this._runCleanups();
-    for (const dep of this.dependencies) {
-      dep.unsubscribe(this);
+    let cleanupError: unknown;
+    try {
+      this._runCleanups();
+    } catch (error) {
+      cleanupError = error;
+    } finally {
+      for (const dep of this.dependencies) {
+        dep.unsubscribe(this);
+      }
+      this.dependencies.clear();
     }
-    this.dependencies.clear();
+    if (cleanupError !== undefined) throw cleanupError;
   }
 }
 
@@ -349,7 +397,7 @@ export function createSignal<T>(initialValue: T): [() => T, (value: T | ((prev: 
 /**
  * Create a reactive effect that auto-tracks dependencies
  */
-export function createEffect(fn: () => CleanupFn | void, options: EffectOptions = {}): () => void {
+export function createEffect(fn: () => unknown, options: EffectOptions = {}): () => void {
   const effect = new Effect(fn, options);
   return () => effect.dispose();
 }
@@ -357,14 +405,14 @@ export function createEffect(fn: () => CleanupFn | void, options: EffectOptions 
 /**
  * Computed value - derives from other signals
  */
-export function createMemo<T>(fn: () => T): () => T {
+export function createMemo<T>(fn: () => T): DisposableAccessor<T> {
   const [value, setValue] = allowInternalSignalCreationDuringRender(() => createSignal<T>(undefined as T));
 
-  createEffect(() => {
+  const dispose = createEffect(() => {
     setValue(fn());
   });
 
-  return value;
+  return Object.assign(value, { dispose });
 }
 
 /**
@@ -382,9 +430,7 @@ export function batch(fn: () => void): void {
     if (!wasBatching) {
       const effects = [...batchQueue];
       batchQueue.clear();
-      for (const effect of effects) {
-        effect.notify();
-      }
+      runAllEffects(effects, effect => effect.notify());
     }
   }
 }
@@ -464,18 +510,25 @@ export function createRef<T>(initialValue: T): { current: T } {
  * // deferredSearch will lag behind search slightly,
  * // keeping the UI responsive during rapid updates
  */
-export function createDeferred<T>(source: () => T): () => T {
+export function createDeferred<T>(source: () => T): DisposableAccessor<T> {
   const [deferred, setDeferred] = allowInternalSignalCreationDuringRender(() => createSignal<T>(source()));
+  let active = true;
 
-  createEffect(() => {
+  const disposeEffect = createEffect(() => {
     const value = source();
     // Schedule update with lower priority
     queueMicrotask(() => {
-      setDeferred(value);
+      if (active) setDeferred(value);
     });
   });
 
-  return deferred;
+  return Object.assign(deferred, {
+    dispose() {
+      if (!active) return;
+      active = false;
+      disposeEffect();
+    },
+  });
 }
 
 /**
@@ -505,19 +558,19 @@ export function resetIdCounter(): void {
  * // count() === 5
  * // prevCount() === 0
  */
-export function createPrevious<T>(source: () => T): () => T | undefined {
+export function createPrevious<T>(source: () => T): DisposableAccessor<T | undefined> {
   const [previous, setPrevious] = createSignal<T | undefined>(undefined);
+  let currentValue = source();
 
-  createEffect(() => {
-    const currentValue = source();
-    // Use untrack to avoid creating dependency on previous
-    const prevValue = untrack(previous);
-    if (prevValue !== currentValue) {
+  const dispose = createEffect(() => {
+    const nextValue = source();
+    if (!Object.is(nextValue, currentValue)) {
       setPrevious(currentValue);
+      currentValue = nextValue;
     }
   });
 
-  return previous;
+  return Object.assign(previous, { dispose });
 }
 
 /**
@@ -528,12 +581,16 @@ export function createPrevious<T>(source: () => T): () => T | undefined {
  * const [position, setPosition] = createSignal({ x: 0, y: 0 });
  * const throttledPosition = createThrottled(position, 100); // 100ms
  */
-export function createThrottled<T>(source: () => T, delay: number): () => T {
+export function createThrottled<T>(
+  source: () => T,
+  delay: number
+): DisposableAccessor<T> {
+  validateReactiveDelay(delay);
   const [throttled, setThrottled] = createSignal<T>(source());
   let lastUpdate = 0;
   let pending: NodeJS.Timeout | null = null;
 
-  createEffect(() => {
+  const disposeEffect = createEffect(() => {
     const value = source();
     const now = Date.now();
     const elapsed = now - lastUpdate;
@@ -547,10 +604,19 @@ export function createThrottled<T>(source: () => T, delay: number): () => T {
         lastUpdate = Date.now();
         pending = null;
       }, delay - elapsed);
+      pending.unref?.();
     }
   });
 
-  return throttled;
+  return Object.assign(throttled, {
+    dispose() {
+      disposeEffect();
+      if (pending) {
+        clearTimeout(pending);
+        pending = null;
+      }
+    },
+  });
 }
 
 /**
@@ -561,11 +627,15 @@ export function createThrottled<T>(source: () => T, delay: number): () => T {
  * const [search, setSearch] = createSignal('');
  * const debouncedSearch = createDebounced(search, 300);
  */
-export function createDebounced<T>(source: () => T, delay: number): () => T {
+export function createDebounced<T>(
+  source: () => T,
+  delay: number
+): DisposableAccessor<T> {
+  validateReactiveDelay(delay);
   const [debounced, setDebounced] = createSignal<T>(source());
   let timeout: NodeJS.Timeout | null = null;
 
-  createEffect(() => {
+  const disposeEffect = createEffect(() => {
     const value = source();
 
     if (timeout) {
@@ -574,8 +644,24 @@ export function createDebounced<T>(source: () => T, delay: number): () => T {
 
     timeout = setTimeout(() => {
       setDebounced(value);
+      timeout = null;
     }, delay);
+    timeout.unref?.();
   });
 
-  return debounced;
+  return Object.assign(debounced, {
+    dispose() {
+      disposeEffect();
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+    },
+  });
+}
+
+function validateReactiveDelay(delay: number): void {
+  if (!Number.isFinite(delay) || delay < 0) {
+    throw new RangeError('Reactive delay must be a finite non-negative number');
+  }
 }

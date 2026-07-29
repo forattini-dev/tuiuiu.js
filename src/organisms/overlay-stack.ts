@@ -48,12 +48,18 @@
 import { Box } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
+import { stringWidth } from '../utils/text-utils.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export type OverlayPriority = 'low' | 'normal' | 'high' | 'critical';
+export type OverlayPosition = 'center' | 'top' | 'bottom' | {
+  x: number;
+  y: number;
+};
 
 export interface OverlayConfig {
   /** Unique identifier */
@@ -72,6 +78,10 @@ export interface OverlayConfig {
   backdropChar?: string;
   /** Backdrop color */
   backdropColor?: string;
+  /** Position of the overlay component inside its full-screen layer */
+  position?: OverlayPosition;
+  /** Automatically close this overlay after the given number of milliseconds */
+  autoCloseMs?: number;
   /** Callback when overlay is opened */
   onOpen?: () => void;
   /** Callback when overlay is closed */
@@ -87,6 +97,8 @@ export interface OverlayEntry extends OverlayConfig {
   pushedAt: number;
   /** Priority as number for sorting */
   priorityValue: number;
+  /** Monotonic insertion order used when timestamps are equal */
+  order: number;
 }
 
 export interface OverlayStackState {
@@ -116,6 +128,8 @@ export interface OverlayStackState {
   size: () => number;
   /** Subscribe to changes */
   subscribe: (callback: () => void) => () => void;
+  /** Close all overlays, clear timers, and remove subscribers */
+  dispose: () => void;
 }
 
 // =============================================================================
@@ -128,6 +142,41 @@ const PRIORITY_VALUES: Record<OverlayPriority, number> = {
   high: 3,
   critical: 4,
 };
+
+function validateOverlayConfig(config: OverlayConfig): void {
+  if (!config.id || config.id.trim().length === 0) {
+    throw new TypeError('Overlay id must be a non-empty string');
+  }
+  if (
+    config.autoCloseMs !== undefined
+    && (!Number.isFinite(config.autoCloseMs) || config.autoCloseMs < 0)
+  ) {
+    throw new RangeError('autoCloseMs must be a finite non-negative number');
+  }
+  if (config.backdropChar !== undefined) {
+    const graphemes = segmentGraphemes(config.backdropChar);
+    if (
+      graphemes.length !== 1
+      || stringWidth(graphemes[0]!.segment) !== 1
+    ) {
+      throw new RangeError(
+        'backdropChar must contain exactly one single-cell grapheme',
+      );
+    }
+  }
+  if (typeof config.position === 'object') {
+    if (
+      !Number.isFinite(config.position.x)
+      || !Number.isFinite(config.position.y)
+      || config.position.x < 0
+      || config.position.y < 0
+    ) {
+      throw new RangeError(
+        'Custom overlay position must use finite non-negative coordinates',
+      );
+    }
+  }
+}
 
 // =============================================================================
 // Implementation
@@ -142,12 +191,53 @@ export function createOverlayStack(): OverlayStackState {
 
   const stack: OverlayEntry[] = [];
   const subscribers = new Set<() => void>();
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  let nextOrder = 0;
+  let disposed = false;
 
   const notify = () => {
     triggerUpdate();
-    for (const callback of subscribers) {
-      callback();
+    const errors: unknown[] = [];
+    for (const callback of [...subscribers]) {
+      try {
+        callback();
+      } catch (error) {
+        errors.push(error);
+      }
     }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'One or more overlay subscribers failed');
+    }
+  };
+
+  const assertActive = () => {
+    if (disposed) {
+      throw new Error('This overlay stack has been disposed');
+    }
+  };
+
+  const clearEntryTimer = (id: string) => {
+    const timer = timers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timers.delete(id);
+    }
+  };
+
+  const scheduleAutoClose = (entry: OverlayEntry) => {
+    clearEntryTimer(entry.id);
+    if (entry.autoCloseMs === undefined) return;
+    if (!Number.isFinite(entry.autoCloseMs) || entry.autoCloseMs < 0) {
+      throw new RangeError('autoCloseMs must be a finite non-negative number');
+    }
+    if (entry.autoCloseMs === 0) return;
+
+    const timer = setTimeout(() => {
+      timers.delete(entry.id);
+      api.close(entry.id);
+    }, entry.autoCloseMs);
+    timer.unref?.();
+    timers.set(entry.id, timer);
   };
 
   const sortStack = () => {
@@ -156,11 +246,11 @@ export function createOverlayStack(): OverlayStackState {
       if (a.priorityValue !== b.priorityValue) {
         return a.priorityValue - b.priorityValue;
       }
-      return a.pushedAt - b.pushedAt;
+      return a.order - b.order;
     });
   };
 
-  return {
+  const api: OverlayStackState = {
     all: () => {
       version(); // Subscribe
       return [...stack];
@@ -187,6 +277,8 @@ export function createOverlayStack(): OverlayStackState {
     },
 
     push: (config: OverlayConfig) => {
+      assertActive();
+      validateOverlayConfig(config);
       // Don't allow duplicate IDs
       if (stack.some(entry => entry.id === config.id)) {
         console.warn(`Overlay with id '${config.id}' already exists`);
@@ -198,20 +290,27 @@ export function createOverlayStack(): OverlayStackState {
         priority: config.priority || 'normal',
         priorityValue: PRIORITY_VALUES[config.priority || 'normal'],
         pushedAt: Date.now(),
+        order: nextOrder++,
         closeOnEscape: config.closeOnEscape ?? true,
         closeOnClickOutside: config.closeOnClickOutside ?? false,
         showBackdrop: config.showBackdrop ?? true,
         backdropChar: config.backdropChar ?? ' ',
         backdropColor: config.backdropColor ?? undefined,
+        position: config.position ?? 'center',
       };
 
       stack.push(entry);
       sortStack();
-      entry.onOpen?.();
-      notify();
+      try {
+        scheduleAutoClose(entry);
+        entry.onOpen?.();
+      } finally {
+        notify();
+      }
     },
 
     pop: () => {
+      assertActive();
       if (stack.length === 0) return null;
 
       const entry = stack[stack.length - 1]!;
@@ -222,12 +321,17 @@ export function createOverlayStack(): OverlayStackState {
       }
 
       stack.pop();
-      entry.onClose?.();
-      notify();
+      clearEntryTimer(entry.id);
+      try {
+        entry.onClose?.();
+      } finally {
+        notify();
+      }
       return entry;
     },
 
     close: (id: string) => {
+      assertActive();
       const index = stack.findIndex(entry => entry.id === id);
       if (index === -1) return false;
 
@@ -239,48 +343,105 @@ export function createOverlayStack(): OverlayStackState {
       }
 
       stack.splice(index, 1);
-      entry.onClose?.();
-      notify();
+      clearEntryTimer(entry.id);
+      try {
+        entry.onClose?.();
+      } finally {
+        notify();
+      }
       return true;
     },
 
     closeAll: () => {
-      // Close from top to bottom
-      while (stack.length > 0) {
-        const entry = stack.pop()!;
-        entry.onClose?.();
+      assertActive();
+      const errors: unknown[] = [];
+      let changed = false;
+      // Work from a snapshot so a veto cannot trap closeAll in an infinite loop.
+      for (const entry of [...stack].reverse()) {
+        try {
+          if (entry.beforeClose && !entry.beforeClose()) continue;
+          const index = stack.indexOf(entry);
+          if (index === -1) continue;
+          stack.splice(index, 1);
+          clearEntryTimer(entry.id);
+          changed = true;
+          entry.onClose?.();
+        } catch (error) {
+          errors.push(error);
+        }
       }
-      notify();
+      if (changed) {
+        try {
+          notify();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length > 0) {
+        throw new AggregateError(errors, 'One or more overlays failed to close');
+      }
     },
 
     replace: (id: string, config: OverlayConfig) => {
+      assertActive();
+      validateOverlayConfig(config);
       const index = stack.findIndex(entry => entry.id === id);
       if (index === -1) return false;
 
       const oldEntry = stack[index]!;
+      if (oldEntry.beforeClose && !oldEntry.beforeClose()) return false;
+      if (config.id !== id && stack.some(entry => entry.id === config.id)) {
+        throw new Error(`Overlay with id '${config.id}' already exists`);
+      }
 
       const newEntry: OverlayEntry = {
         ...config,
         priority: config.priority || 'normal',
         priorityValue: PRIORITY_VALUES[config.priority || 'normal'],
         pushedAt: oldEntry.pushedAt, // Keep original position
+        order: oldEntry.order,
         closeOnEscape: config.closeOnEscape ?? true,
         closeOnClickOutside: config.closeOnClickOutside ?? false,
         showBackdrop: config.showBackdrop ?? true,
+        backdropChar: config.backdropChar ?? ' ',
+        backdropColor: config.backdropColor ?? undefined,
+        position: config.position ?? 'center',
       };
 
+      clearEntryTimer(oldEntry.id);
       stack[index] = newEntry;
       sortStack();
-      notify();
+      const errors: unknown[] = [];
+      try {
+        oldEntry.onClose?.();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        scheduleAutoClose(newEntry);
+        newEntry.onOpen?.();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        notify();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length > 0) {
+        throw new AggregateError(errors, `Overlay '${id}' was replaced with lifecycle errors`);
+      }
       return true;
     },
 
     bringToTop: (id: string) => {
+      assertActive();
       const index = stack.findIndex(entry => entry.id === id);
       if (index === -1) return false;
 
       const entry = stack[index]!;
       entry.pushedAt = Date.now();
+      entry.order = nextOrder++;
       sortStack();
       notify();
       return true;
@@ -292,12 +453,24 @@ export function createOverlayStack(): OverlayStackState {
     },
 
     subscribe: (callback: () => void) => {
+      assertActive();
       subscribers.add(callback);
       return () => {
         subscribers.delete(callback);
       };
     },
+    dispose: () => {
+      if (disposed) return;
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+      stack.length = 0;
+      subscribers.clear();
+      disposed = true;
+      triggerUpdate();
+    },
   };
+
+  return api;
 }
 
 // =============================================================================
@@ -354,6 +527,7 @@ export function OverlayContainer(props: OverlayContainerProps): VNode {
             width: 'fill',
             height: 'fill',
             backgroundColor: backdrop ? undefined : (entry.backdropColor ?? 'black'),
+            __fillChar: backdrop ? undefined : entry.backdropChar,
             onClick: entry.closeOnClickOutside
               ? () => stack.close(entry.id)
               : undefined,
@@ -367,17 +541,23 @@ export function OverlayContainer(props: OverlayContainerProps): VNode {
     // in stack order, so later/higher-priority overlays cover earlier ones.
     const component = entry.component();
     if (component) {
+      const position = entry.position ?? 'center';
+      const customPosition = typeof position === 'object';
       children.push(
         Box(
           {
             key: `${entry.id}-content`,
             position: 'absolute',
-            top: 0,
-            left: 0,
+            top: customPosition ? position.y : 0,
+            left: customPosition ? position.x : 0,
             width: 'fill',
             height: 'fill',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: position === 'bottom'
+              ? 'flex-end'
+              : position === 'center'
+                ? 'center'
+                : 'flex-start',
           },
           component,
         ),
@@ -457,6 +637,11 @@ export function createModalOverlay(options: {
   id: string;
   component: () => VNode | null;
   closeOnEscape?: boolean;
+  closeOnClickOutside?: boolean;
+  showBackdrop?: boolean;
+  backdropChar?: string;
+  backdropColor?: string;
+  position?: OverlayPosition;
   onClose?: () => void;
 }): OverlayConfig {
   return {
@@ -464,7 +649,11 @@ export function createModalOverlay(options: {
     component: options.component,
     priority: 'normal',
     closeOnEscape: options.closeOnEscape ?? true,
-    showBackdrop: true,
+    closeOnClickOutside: options.closeOnClickOutside ?? false,
+    showBackdrop: options.showBackdrop ?? true,
+    backdropChar: options.backdropChar,
+    backdropColor: options.backdropColor,
+    position: options.position ?? 'center',
     onClose: options.onClose,
   };
 }
@@ -478,30 +667,26 @@ export function createToastOverlay(options: {
   duration?: number;
   onClose?: () => void;
 }): OverlayConfig & { autoClose: () => void } {
-  let timeoutId: NodeJS.Timeout | null = null;
-
+  if (
+    options.duration !== undefined
+    && (!Number.isFinite(options.duration) || options.duration < 0)
+  ) {
+    throw new RangeError('Toast duration must be a finite non-negative number');
+  }
   const config: OverlayConfig = {
     id: options.id,
     component: options.component,
     priority: 'low',
     closeOnEscape: false,
     showBackdrop: false,
-    onClose: () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      options.onClose?.();
-    },
+    autoCloseMs: options.duration,
+    onClose: options.onClose,
   };
 
+  // Kept for source compatibility. The stack now owns and starts the timer
+  // when this config is pushed, so callers no longer need to invoke it.
   const autoClose = () => {
-    if (options.duration && options.duration > 0) {
-      timeoutId = setTimeout(() => {
-        // This will be called by the stack manager
-        config.onClose?.();
-      }, options.duration);
-    }
+    // Intentionally empty.
   };
 
   return { ...config, autoClose };

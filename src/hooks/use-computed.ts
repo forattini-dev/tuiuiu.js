@@ -11,7 +11,13 @@
 
 import { createMemo } from '../primitives/signal.js';
 import { allowInternalSignalCreationDuringRender } from '../core/dev-warnings.js';
-import { getHookState, getCurrentHookIndex, setHookState, getHookStateByIndex } from './context.js';
+import {
+  getHookState,
+  getCurrentHookIndex,
+  setHookState,
+  getHookStateByIndex,
+  registerHookCleanup,
+} from './context.js';
 import type { VNode } from '../utils/types.js';
 
 interface ComputedHookData {
@@ -57,6 +63,7 @@ export function useComputed(fn: () => VNode | null): VNode | null {
     );
 
     setHookState(hookIndex, { memo, fn });
+    registerHookCleanup(memo.dispose, hookIndex);
     return memo();
   }
 

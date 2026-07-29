@@ -873,7 +873,6 @@ export function TagInput<T = string>(props: TagInputProps<T>): VNode {
   } = props;
 
   const state = useFactoryState(externalState, props, createTagInput);
-  const chars = getChars();
 
   // Setup keyboard handling
   useInput(
@@ -931,10 +930,11 @@ export function TagInput<T = string>(props: TagInputProps<T>): VNode {
   // Suggestions
   let suggestionsNode: VNode | null = null;
   if (suggs.length > 0) {
+    const selectedIndex = state.selectedIndex();
     const suggItems = suggs.map((item, i) =>
       Box(
         { paddingX: 1 },
-        Text({ color: i === 0 ? colorActive : 'mutedForeground' }, item.label)
+        Text({ color: i === selectedIndex ? colorActive : 'mutedForeground' }, item.label)
       )
     );
     suggestionsNode = Box(

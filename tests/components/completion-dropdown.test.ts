@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 import { CompletionDropdown } from '../../src/atoms/completion-dropdown.js';
 import type { TextInputCompletionState, TextInputCompletionItem } from '../../src/atoms/text-input.js';
 
@@ -156,6 +157,45 @@ describe('CompletionDropdown', () => {
     const output = renderToString(node!, 60);
     expect(output).toContain('Engineer');
     expect(output).toContain('Designer');
+  });
+
+  it('renders item icons only when enabled', () => {
+    const state = readyState([
+      { id: '1', label: '@alice', icon: '★' },
+    ]);
+
+    const withIcons = renderToString(
+      CompletionDropdown({ state: makeState(state), showIcons: true })!,
+      40,
+    );
+    const withoutIcons = renderToString(
+      CompletionDropdown({ state: makeState(state), showIcons: false })!,
+      40,
+    );
+
+    expect(withIcons).toContain('★');
+    expect(withoutIcons).not.toContain('★');
+  });
+
+  it('fits long labels to the configured dropdown width', () => {
+    const state = readyState([
+      { id: '1', label: 'a-very-long-completion-label', detail: 'detail' },
+    ]);
+    const node = CompletionDropdown({ state: makeState(state), width: 16 })!;
+    const output = renderToString(node, 40);
+    const plainOutput = stripAnsi(output);
+
+    expect(plainOutput).toContain('…');
+    expect(plainOutput.split('\n').every(line => stringWidth(line) <= 16)).toBe(true);
+  });
+
+  it('rejects unusable dimensions', () => {
+    const state = readyState([{ id: '1', label: 'item' }]);
+
+    expect(() => CompletionDropdown({ state: makeState(state), maxVisible: 0 }))
+      .toThrow(/maxVisible/);
+    expect(() => CompletionDropdown({ state: makeState(state), width: 4 }))
+      .toThrow(/width/);
   });
 
   it('renders selection highlight on selected item', () => {

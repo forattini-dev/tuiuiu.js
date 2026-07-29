@@ -345,6 +345,10 @@ describe('calculateHistogramBins', () => {
     const bins = calculateHistogramBins([], 5);
     expect(bins).toEqual([]);
   });
+
+  it('rejects an invalid bin count', () => {
+    expect(() => calculateHistogramBins([1, 2], 0)).toThrow(/positive integer/);
+  });
 });
 
 describe('histogram', () => {
@@ -373,6 +377,19 @@ describe('histogram', () => {
   it('should handle empty data', () => {
     const result = histogram({ data: [] });
     expect(result).toEqual([]);
+  });
+
+  it('uses the requested width', () => {
+    const result = histogram({
+      data: [1, 2, 3, 4],
+      bins: 4,
+      width: 20,
+      height: 2,
+      showLabels: false,
+    });
+
+    expect(result.every(line => stringWidth(line) === 20)).toBe(true);
+    expect(() => histogram({ data: [1, 2], bins: 2, width: 1 })).toThrow(/width/);
   });
 });
 

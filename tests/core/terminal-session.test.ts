@@ -117,6 +117,18 @@ describe('TerminalSession', () => {
     expect(streams.resume).not.toHaveBeenCalled();
   });
 
+  it('does not write terminal mode sequences to a non-TTY output', () => {
+    const streams = createStreams();
+    (streams.stdout as NodeJS.WriteStream & { isTTY: boolean }).isTTY = false;
+    const session = createTerminalSession(streams);
+
+    session.start();
+    session.dispose();
+
+    expect(streams.writes).toEqual([]);
+    expect(streams.rawChanges).toEqual([true, false]);
+  });
+
   it('attempts every terminal restoration step when one of them throws', () => {
     const streams = createStreams({ paused: true });
     const stdin = streams.stdin as NodeJS.ReadStream & {
@@ -127,12 +139,13 @@ describe('TerminalSession', () => {
     };
     const originalSetRawMode = stdin.setRawMode.bind(stdin);
 
-    stdin.setRawMode = (value: boolean) => {
+    stdin.setRawMode = ((value: boolean) => {
       originalSetRawMode(value);
       if (!value) {
         throw new Error('raw restore failed');
       }
-    };
+      return stdin;
+    }) as typeof stdin.setRawMode;
     stdout.write = (value: string) => {
       streams.writes.push(value);
       if (value === '\x1b[?1004l') {

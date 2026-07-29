@@ -60,6 +60,36 @@ describe('compositor pipeline', () => {
     expect(frame.drawCommands.find((command) => command.id === 'faded')).toBeUndefined();
   });
 
+  it('approximates scale with a centered compositor clip', () => {
+    const frame = createFrameSnapshot(
+      Box(
+        {
+          id: 'scaled-box',
+          width: 10,
+          height: 6,
+          borderStyle: 'single',
+          __compositor: {
+            key: 'scale-comp',
+            transforms: [{ kind: 'scale', scale: 0.5 }],
+          },
+        } as any,
+        Text({ id: 'scaled-text' } as any, 'abcdefghij'),
+      ),
+      { width: 20, height: 10 },
+    );
+
+    const command = frame.drawCommands.find(
+      candidate => candidate.id === 'scaled-box',
+    );
+    expect(command?.clip).toEqual({
+      x: 2,
+      y: 1,
+      width: 5,
+      height: 3,
+    });
+    expect(frame.layout).toMatchObject({ x: 0, y: 0, width: 10, height: 6 });
+  });
+
   it('clips text with reveal transforms', () => {
     const frame = createFrameSnapshot(
       Text({

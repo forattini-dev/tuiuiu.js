@@ -20,6 +20,7 @@ describe('MCP Logging', () => {
       expect(typeof logger.critical).toBe('function');
       expect(typeof logger.alert).toBe('function');
       expect(typeof logger.emergency).toBe('function');
+      expect(typeof logger.setLevel).toBe('function');
       expect(typeof logger.toolCall).toBe('function');
       expect(typeof logger.toolResult).toBe('function');
       expect(typeof logger.promptGet).toBe('function');
@@ -86,6 +87,18 @@ describe('MCP Logging', () => {
       logger.error('error message');
 
       expect(sender).toHaveBeenCalledTimes(2); // warning + error
+    });
+
+    it('should update the minimum level at runtime', () => {
+      const sender = vi.fn();
+      const logger = createMCPLogger(sender, { minLevel: 'warning' });
+
+      logger.info('hidden');
+      logger.setLevel('debug');
+      logger.debug('visible');
+
+      expect(logger.getLevel()).toBe('debug');
+      expect(sender).toHaveBeenCalledTimes(1);
     });
 
     it('should log toolCall correctly', () => {

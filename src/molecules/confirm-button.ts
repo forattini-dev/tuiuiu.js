@@ -17,7 +17,6 @@
 
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { getTheme } from '../core/theme.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { Button, type ButtonVariant, type ButtonSize } from '../atoms/button.js';
 
@@ -194,7 +193,6 @@ export interface ConfirmButtonProps {
  * ```
  */
 export function ConfirmButton(props: ConfirmButtonProps): VNode {
-  const theme = getTheme();
   const {
     state,
     label,

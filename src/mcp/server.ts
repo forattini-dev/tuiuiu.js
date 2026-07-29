@@ -17,7 +17,6 @@
  * - HTTP (for web integrations)
  */
 
-import * as readline from 'node:readline';
 import * as http from 'node:http';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -44,7 +43,6 @@ import {
 import {
   getPromptCompletions,
   getResourceCompletions,
-  getToolCompletions,
 } from './completions.js';
 import { formatSymbolDocSections, getSymbolDoc, searchSymbolDocs } from './symbol-docs.js';
 import { formatValidationResult, validateTuiuiuCode } from './validate-code.js';
@@ -54,6 +52,7 @@ import {
   type LogSender,
   type MCPLogNotification,
 } from './logging.js';
+import { ErrorCodes } from './types.js';
 import type {
   JsonRpcRequest,
   JsonRpcResponse,
@@ -62,14 +61,9 @@ import type {
   MCPToolResult,
   MCPToolHandler,
   MCPInitializeResult,
-  MCPResource,
-  MCPResourceTemplate,
-  MCPPrompt,
-  MCPPromptResult,
   MCPCompletionResult,
   ComponentDoc,
   HookDoc,
-  ErrorCodes,
 } from './types.js';
 
 // =============================================================================
@@ -93,6 +87,10 @@ export interface MCPServerOptions {
   maxConcurrentRequests?: number;
   /** Maximum live SSE sessions (default: 64). */
   maxSseConnections?: number;
+  /** Input stream used by the stdio transport (default: process.stdin). */
+  stdioInput?: NodeJS.ReadableStream;
+  /** Output stream used by the stdio transport (default: process.stdout). */
+  stdioOutput?: NodeJS.WritableStream;
   debug?: boolean;
 }
 
@@ -100,6 +98,7 @@ class HttpRequestError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly rpcCode: number = ErrorCodes.PARSE_ERROR,
   ) {
     super(message);
   }
@@ -137,7 +136,7 @@ function jsonRpcError(status: number, code: number, message: string): {
     status,
     body: {
       jsonrpc: '2.0',
-      id: 0,
+      id: null,
       error: { code, message },
     },
   };
@@ -146,8 +145,63 @@ function jsonRpcError(status: number, code: number, message: string): {
 function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
   if (!value || typeof value !== 'object') return false;
   const request = value as Partial<JsonRpcRequest>;
-  return request.jsonrpc === '2.0' && typeof request.method === 'string' &&
-    request.method.length > 0;
+  const validId = request.id === undefined ||
+    typeof request.id === 'string' ||
+    (typeof request.id === 'number' && Number.isFinite(request.id));
+  const validParams = request.params === undefined ||
+    Array.isArray(request.params) ||
+    (typeof request.params === 'object' && request.params !== null);
+  return request.jsonrpc === '2.0' &&
+    typeof request.method === 'string' &&
+    request.method.length > 0 &&
+    validId &&
+    validParams;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function validateServerOptions(options: MCPServerOptions): void {
+  if (!['stdio', 'http', 'sse'].includes(options.transport!)) {
+    throw new TypeError(`Unsupported MCP transport: ${String(options.transport)}`);
+  }
+  if (!Number.isInteger(options.port) || options.port! < 0 || options.port! > 65_535) {
+    throw new RangeError('MCP port must be an integer between 0 and 65535');
+  }
+  if (typeof options.host !== 'string' || options.host.trim().length === 0) {
+    throw new TypeError('MCP host cannot be empty');
+  }
+  if (options.authToken !== undefined && options.authToken.length === 0) {
+    throw new TypeError('MCP authToken cannot be empty');
+  }
+
+  for (const name of [
+    'maxRequestBytes',
+    'requestTimeoutMs',
+    'maxConcurrentRequests',
+    'maxSseConnections',
+  ] as const) {
+    const value = options[name];
+    if (!Number.isInteger(value) || value! < 1) {
+      throw new RangeError(`MCP ${name} must be a positive integer`);
+    }
+  }
+
+  for (const origin of options.allowedOrigins ?? []) {
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new TypeError(`Invalid allowed origin: ${origin}`);
+    }
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      origin !== parsed.origin
+    ) {
+      throw new TypeError(`Allowed origin must be an exact HTTP(S) origin: ${origin}`);
+    }
+  }
 }
 
 function readJsonRequest(
@@ -156,10 +210,19 @@ function readJsonRequest(
   timeoutMs: number,
 ): Promise<JsonRpcRequest> {
   return new Promise((resolve, reject) => {
-    const declaredLength = Number(req.headers['content-length']);
-    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    const contentLength = req.headers['content-length'];
+    const declaredLength = contentLength === undefined ? undefined : Number(contentLength);
+    if (
+      declaredLength !== undefined &&
+      (!Number.isInteger(declaredLength) || declaredLength < 0)
+    ) {
       req.resume();
-      reject(new HttpRequestError(413, 'Request body too large'));
+      reject(new HttpRequestError(400, 'Invalid Content-Length', ErrorCodes.INVALID_REQUEST));
+      return;
+    }
+    if (declaredLength !== undefined && declaredLength > maxBytes) {
+      req.resume();
+      reject(new HttpRequestError(413, 'Request body too large', -32001));
       return;
     }
 
@@ -200,7 +263,11 @@ function readJsonRequest(
       try {
         const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (!isJsonRpcRequest(parsed)) {
-          reject(new HttpRequestError(400, 'Invalid JSON-RPC request'));
+          reject(new HttpRequestError(
+            400,
+            'Invalid JSON-RPC request',
+            ErrorCodes.INVALID_REQUEST,
+          ));
           return;
         }
         resolve(parsed);
@@ -1419,7 +1486,27 @@ export class MCPServer {
   private logSender: LogSender | null = null;
   private logger = nullLogger;
   private networkServer: http.Server | null = null;
-  private stdioInterface: readline.Interface | null = null;
+  private stdioInput: NodeJS.ReadableStream | null = null;
+  private stdioOutput: NodeJS.WritableStream | null = null;
+  private stdioParts: Buffer[] = [];
+  private stdioBytes = 0;
+  private discardingOversizedLine = false;
+  private stdioActiveRequests = 0;
+  private stdioInputEnded = false;
+  private readonly onStdioData = (chunk: Buffer | string): void => {
+    this.consumeStdioChunk(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  };
+  private readonly onStdioEnd = (): void => {
+    if (!this.discardingOversizedLine && this.stdioBytes > 0) {
+      this.processStdioLine(Buffer.concat(this.stdioParts, this.stdioBytes));
+    }
+    this.resetStdioFrame();
+    this.finishStdioInput();
+  };
+  private readonly onStdioError = (error: Error): void => {
+    this.log(`stdio input error: ${error.message}`);
+    this.finishStdioInput();
+  };
   private sseSessions = new Map<string, http.ServerResponse>();
   private activeRequests = 0;
   private notificationContext =
@@ -1438,6 +1525,7 @@ export class MCPServer {
       debug: false,
       ...options,
     };
+    validateServerOptions(this.options);
   }
 
   private log(message: string): void {
@@ -1460,7 +1548,7 @@ export class MCPServer {
   }
 
   async start(): Promise<void> {
-    if (this.networkServer || this.stdioInterface) {
+    if (this.networkServer || this.stdioInput || this.stdioOutput) {
       throw new Error('MCP server is already running');
     }
     if (
@@ -1487,41 +1575,145 @@ export class MCPServer {
   }
 
   private async startStdio(): Promise<void> {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      terminal: false,
-    });
-    this.stdioInterface = rl;
-
-    rl.on('line', async (line) => {
-      try {
-        const request = JSON.parse(line) as JsonRpcRequest;
-        this.log(`Request: ${request.method}`);
-        const response = await this.dispatchRequest(request, (notification) => {
-          process.stdout.write(JSON.stringify(notification) + '\n');
-        });
-        process.stdout.write(JSON.stringify(response) + '\n');
-      } catch (error) {
-        const errorResponse: JsonRpcResponse = {
-          jsonrpc: '2.0',
-          id: 0,
-          error: {
-            code: -32700,
-            message: 'Parse error',
-            data: error instanceof Error ? error.message : String(error),
-          },
-        };
-        process.stdout.write(JSON.stringify(errorResponse) + '\n');
-      }
-    });
+    this.stdioInputEnded = false;
+    this.stdioInput = this.options.stdioInput ?? process.stdin;
+    this.stdioOutput = this.options.stdioOutput ?? process.stdout;
+    this.stdioInput.on('data', this.onStdioData);
+    this.stdioInput.once('end', this.onStdioEnd);
+    this.stdioInput.once('error', this.onStdioError);
+    this.stdioInput.resume();
 
     this.log('Listening on stdio...');
   }
 
+  private resetStdioFrame(): void {
+    this.stdioParts = [];
+    this.stdioBytes = 0;
+  }
+
+  private detachStdioInput(): void {
+    const input = this.stdioInput;
+    if (input) {
+      input.off('data', this.onStdioData);
+      input.off('end', this.onStdioEnd);
+      input.off('error', this.onStdioError);
+      input.pause();
+    }
+    this.stdioInput = null;
+    this.discardingOversizedLine = false;
+    this.resetStdioFrame();
+  }
+
+  private finishStdioInput(): void {
+    this.stdioInputEnded = true;
+    this.detachStdioInput();
+    if (this.stdioActiveRequests === 0) {
+      this.stdioOutput = null;
+    }
+  }
+
+  private detachStdio(): void {
+    this.detachStdioInput();
+    this.stdioOutput = null;
+    this.stdioInputEnded = false;
+  }
+
+  private writeStdio(message: JsonRpcResponse | JsonRpcNotification): void {
+    this.stdioOutput?.write(`${JSON.stringify(message)}\n`);
+  }
+
+  private writeStdioError(
+    id: string | number | null,
+    code: number,
+    message: string,
+  ): void {
+    this.writeStdio({
+      jsonrpc: '2.0',
+      id,
+      error: { code, message },
+    });
+  }
+
+  private consumeStdioChunk(chunk: Buffer): void {
+    let offset = 0;
+    while (offset < chunk.length) {
+      const newline = chunk.indexOf(0x0a, offset);
+      const end = newline === -1 ? chunk.length : newline;
+      const segment = chunk.subarray(offset, end);
+
+      if (!this.discardingOversizedLine) {
+        if (this.stdioBytes + segment.length > this.options.maxRequestBytes!) {
+          this.writeStdioError(null, -32001, 'Request body too large');
+          this.resetStdioFrame();
+          this.discardingOversizedLine = newline === -1;
+        } else {
+          if (segment.length > 0) {
+            this.stdioParts.push(segment);
+            this.stdioBytes += segment.length;
+          }
+          if (newline !== -1) {
+            const line = Buffer.concat(this.stdioParts, this.stdioBytes);
+            this.resetStdioFrame();
+            this.processStdioLine(
+              line.length > 0 && line[line.length - 1] === 0x0d
+                ? line.subarray(0, line.length - 1)
+                : line,
+            );
+          }
+        }
+      } else if (newline !== -1) {
+        this.discardingOversizedLine = false;
+      }
+
+      if (newline === -1) break;
+      offset = newline + 1;
+    }
+  }
+
+  private processStdioLine(line: Buffer): void {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line.toString('utf8'));
+    } catch {
+      this.writeStdioError(null, ErrorCodes.PARSE_ERROR, 'Parse error');
+      return;
+    }
+    if (!isJsonRpcRequest(parsed)) {
+      this.writeStdioError(null, ErrorCodes.INVALID_REQUEST, 'Invalid JSON-RPC request');
+      return;
+    }
+
+    const request = parsed;
+    const isNotification = request.id === undefined;
+    if (this.stdioActiveRequests >= this.options.maxConcurrentRequests!) {
+      if (!isNotification) {
+        this.writeStdioError(request.id!, -32000, 'Too many concurrent requests');
+      }
+      return;
+    }
+
+    this.stdioActiveRequests++;
+    this.log(`Request: ${request.method}`);
+    void this.dispatchRequest(request, notification => this.writeStdio(notification))
+      .then(response => {
+        if (!isNotification) this.writeStdio(response);
+      })
+      .catch(() => {
+        if (!isNotification) {
+          this.writeStdioError(request.id!, ErrorCodes.INTERNAL_ERROR, 'Internal error');
+        }
+      })
+      .finally(() => {
+        this.stdioActiveRequests--;
+        if (this.stdioInputEnded && this.stdioActiveRequests === 0) {
+          this.stdioOutput = null;
+        }
+      });
+  }
+
   /** Stop accepting requests and close all transport resources. */
   async stop(): Promise<void> {
-    this.stdioInterface?.close();
-    this.stdioInterface = null;
+    this.detachStdio();
 
     for (const response of this.sseSessions.values()) {
       if (!response.writableEnded) response.end();
@@ -1606,10 +1798,10 @@ export class MCPServer {
       release();
       const requestError = error instanceof HttpRequestError
         ? error
-        : new HttpRequestError(400, 'Invalid request');
+        : new HttpRequestError(400, 'Invalid request', ErrorCodes.INVALID_REQUEST);
       const rpcError = jsonRpcError(
         requestError.status,
-        requestError.status === 413 ? -32001 : -32700,
+        requestError.rpcCode,
         requestError.message,
       );
       writeJson(res, rpcError.status, rpcError.body);
@@ -1666,7 +1858,12 @@ export class MCPServer {
         try {
           this.log(`Request: ${accepted.request.method}`);
           const response = await this.dispatchRequest(accepted.request);
-          writeJson(res, 200, response);
+          if (accepted.request.id === undefined) {
+            res.writeHead(202, { 'Cache-Control': 'no-store' });
+            res.end();
+          } else {
+            writeJson(res, 200, response);
+          }
         } catch {
           const rpcError = jsonRpcError(500, -32603, 'Internal error');
           writeJson(res, rpcError.status, rpcError.body);
@@ -1778,13 +1975,18 @@ export class MCPServer {
             }
           };
           const response = await this.dispatchRequest(accepted.request, sendEvent);
-          if (!connection.write(
-            `event: message\ndata: ${JSON.stringify(response)}\n\n`,
-          )) {
-            connection.destroy();
-            if (sessionId) this.sseSessions.delete(sessionId);
+          if (accepted.request.id !== undefined) {
+            if (!connection.write(
+              `event: message\ndata: ${JSON.stringify(response)}\n\n`,
+            )) {
+              connection.destroy();
+              if (sessionId) this.sseSessions.delete(sessionId);
+            }
+            writeJson(res, 200, response);
+          } else {
+            res.writeHead(202, { 'Cache-Control': 'no-store' });
+            res.end();
           }
-          writeJson(res, 200, response);
         } catch {
           const rpcError = jsonRpcError(500, -32603, 'Internal error');
           writeJson(res, rpcError.status, rpcError.body);
@@ -1808,6 +2010,17 @@ export class MCPServer {
 
   private async handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
     const { method, params, id } = request;
+    if (params !== undefined && !isRecord(params)) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'MCP method params must be an object',
+        },
+      };
+    }
+    const objectParams = params ?? {};
 
     switch (method) {
       // ─────────────────────────────────────────────────────────────────────────
@@ -1834,7 +2047,7 @@ export class MCPServer {
         };
 
       case 'tools/call':
-        return this.handleToolCall(id, params as Record<string, unknown>);
+        return this.handleToolCall(id, objectParams);
 
       // ─────────────────────────────────────────────────────────────────────────
       // Resources
@@ -1858,7 +2071,7 @@ export class MCPServer {
         };
 
       case 'resources/read':
-        return this.handleResourceRead(id, params as Record<string, unknown>);
+        return this.handleResourceRead(id, objectParams);
 
       // ─────────────────────────────────────────────────────────────────────────
       // Prompts
@@ -1871,19 +2084,43 @@ export class MCPServer {
         };
 
       case 'prompts/get':
-        return this.handlePromptGet(id, params as Record<string, unknown>);
+        return this.handlePromptGet(id, objectParams);
 
       // ─────────────────────────────────────────────────────────────────────────
       // Completions
       // ─────────────────────────────────────────────────────────────────────────
       case 'completion/complete':
-        return this.handleCompletion(id, params as Record<string, unknown>);
+        return this.handleCompletion(id, objectParams);
 
       // ─────────────────────────────────────────────────────────────────────────
       // Logging
       // ─────────────────────────────────────────────────────────────────────────
       case 'logging/setLevel':
-        // Client requesting to set log level
+        if (
+          typeof objectParams.level !== 'string' ||
+          ![
+            'debug',
+            'info',
+            'notice',
+            'warning',
+            'error',
+            'critical',
+            'alert',
+            'emergency',
+          ].includes(objectParams.level)
+        ) {
+          return {
+            jsonrpc: '2.0',
+            id: id ?? null,
+            error: {
+              code: ErrorCodes.INVALID_PARAMS,
+              message: 'logging/setLevel requires a valid level',
+            },
+          };
+        }
+        this.logger.setLevel(
+          objectParams.level as Parameters<typeof this.logger.setLevel>[0],
+        );
         return { jsonrpc: '2.0', id: id ?? 0, result: {} };
 
       default:
@@ -1953,8 +2190,28 @@ For creating apps, try prompts like:
     id: string | number | undefined,
     params: Record<string, unknown>
   ): Promise<JsonRpcResponse<MCPToolResult>> {
-    const toolName = params.name as string;
-    const toolArgs = (params.arguments || {}) as Record<string, unknown>;
+    if (typeof params.name !== 'string' || params.name.length === 0) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'tools/call requires a non-empty string name',
+        },
+      };
+    }
+    if (params.arguments !== undefined && !isRecord(params.arguments)) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'tools/call arguments must be an object',
+        },
+      };
+    }
+    const toolName = params.name;
+    const toolArgs = params.arguments ?? {};
 
     const handler = toolHandlers[toolName];
     if (!handler) {
@@ -1994,7 +2251,17 @@ For creating apps, try prompts like:
     id: string | number | undefined,
     params: Record<string, unknown>
   ): JsonRpcResponse {
-    const uri = params.uri as string;
+    if (typeof params.uri !== 'string' || params.uri.length === 0) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'resources/read requires a non-empty string uri',
+        },
+      };
+    }
+    const uri = params.uri;
     this.logger.resourceRead(uri);
 
     // Use the new resource system
@@ -2061,8 +2328,34 @@ For creating apps, try prompts like:
     id: string | number | undefined,
     params: Record<string, unknown>
   ): JsonRpcResponse {
-    const promptName = params.name as string;
-    const promptArgs = (params.arguments || {}) as Record<string, string>;
+    if (typeof params.name !== 'string' || params.name.length === 0) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'prompts/get requires a non-empty string name',
+        },
+      };
+    }
+    if (
+      params.arguments !== undefined &&
+      (
+        !isRecord(params.arguments) ||
+        Object.values(params.arguments).some(value => typeof value !== 'string')
+      )
+    ) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'prompts/get arguments must be an object of strings',
+        },
+      };
+    }
+    const promptName = params.name;
+    const promptArgs = (params.arguments ?? {}) as Record<string, string>;
 
     this.logger.promptGet(promptName, promptArgs);
 
@@ -2096,6 +2389,22 @@ For creating apps, try prompts like:
     id: string | number | undefined,
     params: Record<string, unknown>
   ): JsonRpcResponse<{ completion: MCPCompletionResult }> {
+    if (
+      !isRecord(params.ref) ||
+      typeof params.ref.type !== 'string' ||
+      !isRecord(params.argument) ||
+      typeof params.argument.name !== 'string' ||
+      typeof params.argument.value !== 'string'
+    ) {
+      return {
+        jsonrpc: '2.0',
+        id: id ?? null,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: 'completion/complete requires valid ref and argument objects',
+        },
+      };
+    }
     const ref = params.ref as { type: string; name?: string; uri?: string };
     const argument = params.argument as { name: string; value: string };
 

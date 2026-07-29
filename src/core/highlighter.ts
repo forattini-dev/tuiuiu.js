@@ -2480,11 +2480,6 @@ export function tokenize(source: string, languageName: string): Token[] {
   let pos = 0;
 
   // Build keyword sets for fast lookup
-  const allKeywords = new Set([
-    ...(lang.controlKeywords || []),
-    ...(lang.declarationKeywords || []),
-    ...(lang.operatorKeywords || []),
-  ]);
   const controlKeywords = new Set(lang.controlKeywords || []);
   const declarationKeywords = new Set(lang.declarationKeywords || []);
   const operatorKeywords = new Set(lang.operatorKeywords || []);

@@ -233,7 +233,12 @@ function ComparativesMode(props: PreviewProps): VNode {
   const displayVariants = variants.slice(0, 4);
 
   return Box(
-    { flexDirection: 'column', padding: 1 },
+    {
+      flexDirection: 'column',
+      padding: 1,
+      borderStyle: isFocused ? 'single' : 'none',
+      borderColor: isFocused ? theme.palette.primary[500] : undefined,
+    },
     // Header
     Box(
       { marginBottom: 1 },
@@ -243,7 +248,7 @@ function ComparativesMode(props: PreviewProps): VNode {
     // Grid of variants
     Box(
       { flexDirection: 'column', gap: 1 },
-      ...displayVariants.map((variant, idx) =>
+      ...displayVariants.map(variant =>
         Box(
           {
             flexDirection: 'column',
@@ -285,7 +290,12 @@ function DocsMode(props: PreviewProps): VNode {
   const controls = Object.entries(story.controls || {});
 
   return Box(
-    { flexDirection: 'column', padding: 1 },
+    {
+      flexDirection: 'column',
+      padding: 1,
+      borderStyle: isFocused ? 'single' : 'none',
+      borderColor: isFocused ? theme.palette.primary[500] : undefined,
+    },
     // Header
     Box(
       { marginBottom: 1 },
@@ -349,7 +359,7 @@ function DocsMode(props: PreviewProps): VNode {
  */
 export function Preview(props: PreviewProps): VNode {
   const theme = getTheme();
-  const { navigator, controlValues, isFocused = false } = props;
+  const { navigator, isFocused = false } = props;
   const state = navigator.state();
 
   return Box(
@@ -439,6 +449,7 @@ export function ModeSwitcher(props: {
           {
             color: currentMode === mode ? getModeColor(mode) : theme.foreground.muted,
             bold: currentMode === mode,
+            dim: !isFocused && currentMode !== mode,
           },
           `[${key.toUpperCase()}] ${label}`
         )

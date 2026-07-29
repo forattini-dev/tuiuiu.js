@@ -35,59 +35,13 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getRenderMode } from '../core/capabilities.js';
 import { warnIfUnexpectedPropProvided } from '../core/dev-warnings.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 import { createSignal } from '../primitives/signal.js';
-import {
-  padTextToWidth,
-  stringWidth,
-  truncateText,
-} from '../utils/text-utils.js';
-
-/**
- * Border styles for modals - Unicode
- */
-/** Get border chars from centralized capability system */
-function getBorderChars() {
-  const chars = getChars();
-  const base = {
-    topLeft: chars.border.topLeft,
-    topRight: chars.border.topRight,
-    bottomLeft: chars.border.bottomLeft,
-    bottomRight: chars.border.bottomRight,
-    horizontal: chars.border.horizontal,
-    vertical: chars.border.vertical,
-  };
-  const round = {
-    ...base,
-    topLeft: chars.borderRound.topLeft,
-    topRight: chars.borderRound.topRight,
-    bottomLeft: chars.borderRound.bottomLeft,
-    bottomRight: chars.borderRound.bottomRight,
-  };
-  return {
-    single: base,
-    double: {
-      topLeft: '╔',
-      topRight: '╗',
-      bottomLeft: '╚',
-      bottomRight: '╝',
-      horizontal: '═',
-      vertical: '║',
-    },
-    round,
-    heavy: {
-      topLeft: '┏',
-      topRight: '┓',
-      bottomLeft: '┗',
-      bottomRight: '┛',
-      horizontal: '━',
-      vertical: '┃',
-    },
-  };
-}
+import { stringWidth } from '../utils/text-utils.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 /** Icons for Toast and AlertBox - with ASCII fallbacks */
 const ICONS_UNICODE = {
@@ -154,30 +108,30 @@ export interface ModalProps {
 /**
  * Get modal dimensions based on size
  */
-function getModalDimensions(size: ModalSize): { width: number; height: number } {
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-  const normalize = (width: number, height: number) => ({
-    width: Number.isFinite(width) ? Math.max(2, Math.trunc(width)) : 2,
-    height: Number.isFinite(height) ? Math.max(1, Math.trunc(height)) : 1,
-  });
-
+function getModalDimensions(
+  size: ModalSize,
+): { width: number | 'fill'; height: number | 'fill' } {
   if (typeof size === 'object') {
-    return normalize(size.width, size.height);
+    if (
+      !Number.isFinite(size.width)
+      || !Number.isFinite(size.height)
+      || size.width < 2
+      || size.height < 2
+    ) {
+      throw new RangeError(
+        'Custom modal size must use finite dimensions of at least 2x2',
+      );
+    }
+    return {
+      width: Math.trunc(size.width),
+      height: Math.trunc(size.height),
+    };
   }
 
-  switch (size) {
-    case 'small':
-      return normalize(Math.min(40, termWidth - 4), Math.min(10, termHeight - 4));
-    case 'medium':
-      return normalize(Math.min(60, termWidth - 4), Math.min(16, termHeight - 4));
-    case 'large':
-      return normalize(Math.min(80, termWidth - 4), Math.min(22, termHeight - 4));
-    case 'fullscreen':
-      return normalize(termWidth - 2, termHeight - 2);
-    default:
-      return normalize(Math.min(60, termWidth - 4), Math.min(16, termHeight - 4));
-  }
+  if (size === 'small') return { width: 40, height: 10 };
+  if (size === 'large') return { width: 80, height: 22 };
+  if (size === 'fullscreen') return { width: 'fill', height: 'fill' };
+  return { width: 60, height: 16 };
 }
 
 /**
@@ -228,118 +182,138 @@ export function Modal(props: ModalProps): VNode {
   } = props;
 
   const { width, height } = getModalDimensions(size);
-  const borderChars = getBorderChars();
-  const chars = borderStyle !== 'none' ? borderChars[borderStyle] || borderChars.single : null;
-  const borderColumns = chars ? 2 : 0;
-  const safePadding = Number.isFinite(padding)
-    ? Math.max(
-        0,
-        Math.min(Math.trunc(padding), Math.floor((width - borderColumns) / 2)),
-      )
-    : 0;
-  const contentWidth = Math.max(0, width - borderColumns - safePadding * 2);
-
-  const isAscii = getRenderMode() === 'ascii';
-  const closeButtonChar = isAscii ? '[X]' : ' × ';
-
-  const rows: VNode[] = [];
-
-  // Top border with title and optional close button
-  if (chars) {
-    const closeButtonLen = showCloseButton && onClose
-      ? stringWidth(closeButtonChar)
-      : 0;
-    const titleContent = title
-      ? truncateText(title, Math.max(0, width - 4 - closeButtonLen), {
-          truncationCharacter: '',
-        })
-      : '';
-    const titleText = titleContent ? ` ${titleContent} ` : '';
-    const titleLen = stringWidth(titleText);
-    const remainingWidth = width - 2 - titleLen - closeButtonLen;
-    const leftPadding = Math.max(0, Math.floor(remainingWidth / 2));
-    const rightPadding = Math.max(0, remainingWidth - leftPadding);
-
-    const titleBarParts: VNode[] = [
-      Text({ color: borderColor }, chars.topLeft),
-      Text({ color: borderColor }, chars.horizontal.repeat(leftPadding)),
-      title ? Text({ color: titleColor, bold: true }, titleText) : Text({}, ''),
-      Text({ color: borderColor }, chars.horizontal.repeat(rightPadding)),
-    ];
-
-    // Add close button if enabled
-    if (showCloseButton && onClose) {
-      titleBarParts.push(
-        Box(
-          { onClick: onClose },
-          Text({ color: theme.accents.critical }, closeButtonChar)
-        )
-      );
-    }
-
-    titleBarParts.push(Text({ color: borderColor }, chars.topRight));
-
-    rows.push(Box({ flexDirection: 'row' }, ...titleBarParts));
+  if (!Number.isFinite(padding) || padding < 0) {
+    throw new RangeError('Modal padding must be a finite non-negative number');
+  }
+  const safePadding = Math.trunc(padding);
+  const backdropGraphemes = segmentGraphemes(backdropChar);
+  if (
+    backdropGraphemes.length !== 1
+    || stringWidth(backdropGraphemes[0]!.segment) !== 1
+  ) {
+    throw new RangeError(
+      'Modal backdropChar must contain exactly one single-cell grapheme',
+    );
+  }
+  if (
+    typeof position === 'object'
+    && (
+      !Number.isFinite(position.x)
+      || !Number.isFinite(position.y)
+      || position.x < 0
+      || position.y < 0
+    )
+  ) {
+    throw new RangeError(
+      'Custom modal position must use finite non-negative coordinates',
+    );
   }
 
-  // Content area
-  const paddingStr = ' '.repeat(safePadding);
-  rows.push(
+  const panelChildren: VNode[] = [];
+  if (showCloseButton && onClose) {
+    panelChildren.push(
+      Box(
+        {
+          alignSelf: 'flex-end',
+          onClick: onClose,
+          'aria-label': 'Close modal',
+          role: 'button',
+        },
+        Text(
+          { color: theme.accents.critical, bold: true },
+          getRenderMode() === 'ascii' ? '[X]' : '×',
+        ),
+      ),
+    );
+  }
+  panelChildren.push(
     Box(
-      { flexDirection: 'row' },
-      chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
-      Text({}, paddingStr),
-      Box({ width: contentWidth, flexDirection: 'column' }, content),
-      Text({}, paddingStr),
-      chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
-    )
+      { flexDirection: 'column', flexGrow: 1, overflow: 'hidden' },
+      content,
+    ),
+  );
+  if (showCloseHint && closeHint) {
+    panelChildren.push(
+      Text(
+        {
+          color: theme.foreground.muted,
+          dim: true,
+          wrap: 'truncate-end',
+        },
+        closeHint,
+      ),
+    );
+  }
+  if (footer) panelChildren.push(footer);
+
+  const panel = Box(
+    {
+      width,
+      height,
+      minWidth: 2,
+      minHeight: 2,
+      maxWidth: typeof width === 'number' ? width : undefined,
+      maxHeight: typeof height === 'number' ? height : undefined,
+      flexDirection: 'column',
+      padding: safePadding,
+      overflow: 'hidden',
+      borderStyle,
+      borderColor,
+      borderText: title,
+      borderTextColor: titleColor,
+      borderTextBold: true,
+      borderTextAlign: 'center',
+      role: 'dialog',
+      'aria-label': title,
+    },
+    ...panelChildren,
   );
 
-  // Close hint
-  if (showCloseHint && closeHint) {
-    const fittedHint = truncateText(closeHint, contentWidth, {
-      truncationCharacter: '',
-    });
-    rows.push(
-      Box(
-        { flexDirection: 'row' },
-        chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
-        Text({}, paddingStr),
-        Text(
-          { color: theme.foreground.muted, dim: true },
-          padTextToWidth(fittedHint, contentWidth),
-        ),
-        Text({}, paddingStr),
-        chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
-      )
+  const customPosition = typeof position === 'object';
+  const layer = Box(
+    {
+      position: 'absolute',
+      top: customPosition ? Math.trunc(position.y) : 0,
+      left: customPosition ? Math.trunc(position.x) : 0,
+      width: customPosition ? width : 'fill',
+      height: customPosition ? height : 'fill',
+      alignItems: customPosition ? 'flex-start' : 'center',
+      justifyContent: position === 'bottom'
+        ? 'flex-end'
+        : position === 'center'
+          ? 'center'
+          : 'flex-start',
+    },
+    panel,
+  );
+
+  const layers: VNode[] = [];
+  if (backdrop) {
+    layers.push(
+      Box({
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: 'fill',
+        height: 'fill',
+        backgroundColor: 'black',
+        __fillChar: backdropGraphemes[0]!.segment,
+        onClick: closeOnBackdrop && onClose ? onClose : undefined,
+        'aria-label': 'Modal backdrop',
+      }),
     );
   }
+  layers.push(layer);
 
-  // Footer
-  if (footer) {
-    rows.push(
-      Box(
-        { flexDirection: 'row' },
-        chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
-        Text({}, paddingStr),
-        Box({ width: contentWidth, flexDirection: 'column' }, footer),
-        Text({}, paddingStr),
-        chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
-      )
-    );
-  }
-
-  // Bottom border
-  if (chars) {
-    rows.push(
-      Text(
-        { color: borderColor },
-        chars.bottomLeft + chars.horizontal.repeat(width - 2) + chars.bottomRight
-      )
-    );
-  }
-
-  return Box({ flexDirection: 'column', width, minHeight: height }, ...rows);
+  return Box(
+    {
+      position: 'relative',
+      width: 'fill',
+      height: 'fill',
+      overflow: 'hidden',
+    },
+    ...layers,
+  );
 }
 
 /**
@@ -387,7 +361,7 @@ export interface ConfirmDialogProps {
  * // Handle input
  * useInput((_, key) => {
  *   if (key.leftArrow || key.rightArrow) dialog.toggle();
- *   if (key.return) dialog.confirm();
+ *   if (key.return) dialog.activateSelected();
  *   if (key.escape) dialog.cancel();
  * });
  * ```
@@ -468,6 +442,13 @@ export function createConfirmDialog(options: {
   onCancel?: () => void;
 }) {
   const [selected, setSelected] = createSignal(0);
+  const activateSelected = () => {
+    if (selected() === 1) {
+      options.onConfirm?.();
+    } else {
+      options.onCancel?.();
+    }
+  };
 
   return {
     get props(): ConfirmDialogProps {
@@ -494,13 +475,10 @@ export function createConfirmDialog(options: {
     selectConfirm: () => {
       setSelected(1);
     },
-    confirm: () => {
-      if (selected() === 1) {
-        options.onConfirm?.();
-      } else {
-        options.onCancel?.();
-      }
-    },
+    /** Activate whichever action is selected. */
+    activateSelected,
+    /** @deprecated Use activateSelected(), which describes the behavior. */
+    confirm: activateSelected,
     cancel: () => {
       options.onCancel?.();
     },
@@ -544,7 +522,7 @@ export interface ToastProps {
  */
 export function Toast(props: ToastProps): VNode {
   const theme = getTheme();
-  const { message, type = 'info', position = 'bottom', showIcon = true, fullWidth = false } = props;
+  const { message, type = 'info', position, showIcon = true, fullWidth = false } = props;
 
   const icons = getIcons();
 
@@ -552,7 +530,7 @@ export function Toast(props: ToastProps): VNode {
   const tokens = theme.components.toast[type];
   const icon = icons[type];
 
-  return Box(
+  const toast = Box(
     {
       flexDirection: 'row',
       borderStyle: 'round',
@@ -564,6 +542,20 @@ export function Toast(props: ToastProps): VNode {
     },
     showIcon ? Text({ color: tokens.iconFg, bold: true }, `${icon} `) : Text({}, ''),
     Box({ flexGrow: fullWidth ? 1 : 0 }, Text({ color: tokens.fg }, message))
+  );
+
+  if (!position) return toast;
+
+  return Box(
+    {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: position === 'top' ? 0 : undefined,
+      bottom: position === 'bottom' ? 0 : undefined,
+      alignItems: fullWidth ? 'stretch' : 'center',
+    },
+    toast,
   );
 }
 
@@ -814,7 +806,6 @@ export function Window(props: WindowProps): VNode {
   let titleBarBg: string;
   let titleBarFg: string;
   let bg: string;
-  let fg: string;
   let border: string;
   let buttonFg: string;
   let closeFg: string;
@@ -824,7 +815,6 @@ export function Window(props: WindowProps): VNode {
     titleBarBg = color;
     titleBarFg = getContrastColor(color);
     bg = theme.background.base;
-    fg = theme.foreground.primary;
     border = color;
     buttonFg = titleBarFg;
     closeFg = titleBarFg;
@@ -834,7 +824,6 @@ export function Window(props: WindowProps): VNode {
     titleBarBg = tokens.titleBarBg;
     titleBarFg = tokens.titleBarFg;
     bg = tokens.bg;
-    fg = tokens.fg;
     border = tokens.border;
     buttonFg = tokens.buttonFg;
     closeFg = tokens.closeFg;
@@ -849,7 +838,16 @@ export function Window(props: WindowProps): VNode {
     buttons.push(Text({ color: buttonFg }, ' □ '));
   }
   if (showClose) {
-    buttons.push(Text({ color: closeFg }, ' × '));
+    buttons.push(
+      Box(
+        {
+          onClick: onClose,
+          role: onClose ? 'button' : undefined,
+          'aria-label': onClose ? 'Close window' : undefined,
+        },
+        Text({ color: closeFg }, ' × '),
+      ),
+    );
   }
 
   return Box(

@@ -4,7 +4,7 @@
  * Combines the predictability of Reducers with the performance of fine-grained reactivity.
  */
 
-import { createSignal, createEffect, Signal } from './signal.js';
+import { createSignal, Signal } from './signal.js';
 
 // =============================================================================
 // Types
@@ -109,7 +109,8 @@ export function createStore<S, A extends Action = AnyAction>(
   // Keep a non-reactive reference for middleware/getState
   let currentState = preloadedState as S;
   
-  const listeners = new Set<() => void>();
+  const listeners = new Map<number, () => void>();
+  let nextListenerId = 1;
   let isDispatching = false;
 
   function getState(): S {
@@ -135,15 +136,32 @@ export function createStore<S, A extends Action = AnyAction>(
       isDispatching = false;
     }
 
-    // Notify manual subscribers (outside of signal graph)
-    listeners.forEach((listener) => listener());
+    // Notify a stable snapshot so subscriptions created during dispatch only
+    // participate in the next dispatch.
+    const errors: unknown[] = [];
+    for (const listener of [...listeners.values()]) {
+      try {
+        listener();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'One or more store subscribers failed');
+    }
 
     return action;
   }
 
   function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
+    if (typeof listener !== 'function') {
+      throw new TypeError('Store listener must be a function');
+    }
+    const listenerId = nextListenerId++;
+    listeners.set(listenerId, listener);
+    return () => {
+      listeners.delete(listenerId);
+    };
   }
 
   function replaceReducer(nextReducer: Reducer<S, A>): void {
@@ -174,7 +192,7 @@ export function applyMiddleware<A extends Action = AnyAction>(
     preloadedState?: any
   ) => {
     const store = createStore(reducer, preloadedState);
-    let dispatch: Dispatch<A> = (action: A) => {
+    let dispatch: Dispatch<A> = (_action: A) => {
       throw new Error(
         'Dispatching while constructing your middleware is not allowed.'
       );
@@ -261,11 +279,30 @@ export interface PersistOptions {
   format?: 'json';
   /** Debounce save time in ms */
   debounce?: number;
+  /** Receives serialization and storage failures. */
+  onError?: (error: unknown) => void;
   /** Storage engine adapter */
   storage?: {
     getItem: (key: string) => string | null | Promise<string | null>;
     setItem: (key: string, value: string) => void | Promise<void>;
   };
+}
+
+export interface PersistController {
+  /** Immediately writes the latest queued state, if any. */
+  flush: () => Promise<void>;
+  /** Cancels a queued write and prevents future writes. */
+  dispose: () => void;
+  /** Whether a state snapshot is waiting to be written. */
+  pending: () => boolean;
+}
+
+export type PersistMiddleware<S = any, A extends Action = AnyAction> =
+  Middleware<S, A> & PersistController;
+
+export interface PersistedStore<S = any, A extends Action = AnyAction>
+  extends Store<S, A> {
+  persistence: PersistController;
 }
 
 /**
@@ -277,7 +314,7 @@ export interface PersistOptions {
  */
 export function createPersistedStore<S, A extends Action = AnyAction>(
   options: PersistedStoreOptions<S, A>
-): Store<S, A> {
+): PersistedStore<S, A> {
   const {
     reducer,
     initialState,
@@ -308,7 +345,11 @@ export function createPersistedStore<S, A extends Action = AnyAction>(
     storage,
   });
 
-  return createStore(reducer, preloadedState, applyMiddleware(persist));
+  const store = createStore(reducer, preloadedState, applyMiddleware(persist));
+  return {
+    ...store,
+    persistence: persist,
+  };
 }
 
 /**
@@ -319,14 +360,18 @@ export function createPersistedStore<S, A extends Action = AnyAction>(
  * Actual file I/O should be injected via `storage` to keep this primitive
  * environment-agnostic. For Node.js, pass an fs-based storage adapter.
  */
-export function createPersistMiddleware(options: PersistOptions): Middleware<any, any> { // Added any, any for S, A
+export function createPersistMiddleware(options: PersistOptions): PersistMiddleware<any, any> {
   const {
     path,
     key = 'root',
     format,
     debounce = 1000,
-    storage
+    storage,
+    onError,
   } = options;
+  if (!Number.isSafeInteger(debounce) || debounce < 0) {
+    throw new RangeError('Persist debounce must be a non-negative safe integer');
+  }
 
   if (typeof path !== 'undefined') {
     console.warn('Persist middleware ignores `path`. Use `storage` and `key` instead.');
@@ -338,28 +383,79 @@ export function createPersistMiddleware(options: PersistOptions): Middleware<any
 
   if (!storage) {
     console.warn('Persist middleware created without storage adapter. State will not be saved.');
-    return () => (next) => (action) => next(action);
+    const passThrough = (() => (next: Dispatch) => (action: Action) =>
+      next(action)) as unknown as PersistMiddleware;
+    passThrough.flush = async () => {};
+    passThrough.dispose = () => {};
+    passThrough.pending = () => false;
+    return passThrough;
   }
 
-  let timer: any = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let latestState: unknown;
+  let hasPendingState = false;
+  let disposed = false;
 
-  return (store) => (next) => (action) => {
+  const reportError = (error: unknown): void => {
+    if (onError) {
+      try {
+        onError(error);
+      } catch (handlerError) {
+        console.error('Persist error handler failed:', handlerError);
+      }
+      return;
+    }
+    console.error('Failed to persist state:', error);
+  };
+
+  const flush = async (): Promise<void> => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!hasPendingState || disposed) return;
+
+    const state = latestState;
+    hasPendingState = false;
+    try {
+      const serialized = JSON.stringify(state);
+      await storage.setItem(key, serialized);
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
+  const middleware = ((store) => (next) => (action) => {
     const result = next(action);
-    const state = store.getState();
+    if (disposed) return result;
+    latestState = store.getState();
+    hasPendingState = true;
 
     // Debounce save
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
-      try {
-        const serialized = JSON.stringify(state);
-        storage.setItem(key, serialized);
-      } catch (e) {
-        console.error('Failed to persist state:', e);
-      }
+      timer = null;
+      void flush();
     }, debounce);
+    timer.unref?.();
 
     return result;
+  }) as PersistMiddleware;
+
+  middleware.flush = flush;
+  middleware.dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    hasPendingState = false;
+    latestState = undefined;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
   };
+  middleware.pending = () => hasPendingState && !disposed;
+
+  return middleware;
 }
 
 /**
@@ -409,6 +505,9 @@ export function createLoggerMiddleware(): Middleware<any, any> { // Added any, a
  * store.user.name = 'Bob';           // Triggers second effect only
  */
 export function createReactiveStore<T extends Record<string, any>>(initial: T): T {
+  if (!isPlainObject(initial)) {
+    throw new TypeError('Reactive store root must be a plain object');
+  }
   return deepReactive(initial);
 }
 
@@ -437,6 +536,9 @@ function getOrCreatePropertySignal<V>(
 }
 
 function deepReactive<T extends object>(obj: T): T {
+  if (!isPlainObject(obj) && !Array.isArray(obj)) {
+    return obj;
+  }
   // Already proxied? Return cached proxy
   if (proxyCache.has(obj)) {
     return proxyCache.get(obj);
@@ -459,7 +561,7 @@ function deepReactive<T extends object>(obj: T): T {
       signal.value; // Read triggers tracking in current effect
 
       // Lazy child proxying: only wrap objects when accessed
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      if (isPlainObject(value) || Array.isArray(value)) {
         if (!childProxies.has(key)) {
           childProxies.set(key, deepReactive(value));
         }
@@ -471,9 +573,10 @@ function deepReactive<T extends object>(obj: T): T {
 
     set(target: any, key: string | symbol, newValue: any, receiver: any): boolean {
       const oldValue = Reflect.get(target, key, receiver);
+      const oldLength = Array.isArray(target) ? target.length : undefined;
       const result = Reflect.set(target, key, newValue, receiver);
 
-      if (!Object.is(oldValue, newValue)) {
+      if (result && !Object.is(oldValue, newValue)) {
         // Clear cached child proxy if value changed
         childProxies.delete(key);
 
@@ -483,6 +586,19 @@ function deepReactive<T extends object>(obj: T): T {
           signal.value = newValue; // Triggers notify
         }
       }
+      if (
+        result &&
+        Array.isArray(target) &&
+        key !== 'length' &&
+        oldLength !== target.length
+      ) {
+        const lengthSignal = getOrCreatePropertySignal(
+          target,
+          'length',
+          oldLength,
+        );
+        lengthSignal.value = target.length;
+      }
 
       return result;
     },
@@ -490,7 +606,7 @@ function deepReactive<T extends object>(obj: T): T {
     deleteProperty(target: any, key: string | symbol): boolean {
       const had = key in target;
       const result = Reflect.deleteProperty(target, key);
-      if (had) {
+      if (had && result) {
         childProxies.delete(key);
         if (typeof key !== 'symbol') {
           const signals = propertySignals.get(target);

@@ -17,6 +17,15 @@ import {
 import { Text, Box } from '../../src/primitives/nodes.js';
 
 describe('Tooltip', () => {
+  it('applies the configured background color to the tooltip panel', () => {
+    const vnode = Tooltip({
+      content: 'Help',
+      backgroundColor: 'blue',
+      position: 'top',
+    })!;
+
+    expect(vnode.children[0]?.props.backgroundColor).toBe('blue');
+  });
   describe('Basic Usage', () => {
     it('should create a tooltip with string content', () => {
       const vnode = Tooltip({
@@ -125,7 +134,7 @@ describe('Tooltip', () => {
       expect(vnode).toBeDefined();
       // Count non-null children - should be fewer without arrow
       const nonNullChildren = vnode?.children.filter((c: any) => c !== null);
-      expect(nonNullChildren.length).toBeGreaterThanOrEqual(1);
+      expect(nonNullChildren!.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -528,7 +537,7 @@ describe('Popover', () => {
       // Without arrow, structure is simpler
       expect(vnode).toBeDefined();
       const nonNullChildren = vnode?.children.filter((c: any) => c !== null);
-      expect(nonNullChildren.length).toBeGreaterThanOrEqual(1);
+      expect(nonNullChildren!.length).toBeGreaterThanOrEqual(1);
     });
   });
 

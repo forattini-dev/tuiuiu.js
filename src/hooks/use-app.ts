@@ -138,6 +138,7 @@ export function initializeApp(
 
   const exitCallbacks = new Set<(error?: Error) => void>();
   let isExiting = false;
+  let exitError: Error | undefined;
   let disposed = false;
   let autoTabNavigation = initialAutoTab;
   let appContext: AppContext;
@@ -374,13 +375,18 @@ export function initializeApp(
   const exit = (error?: Error) => {
     if (isExiting) return;
     isExiting = true;
+    exitError = error;
 
     const callbacks = [...exitCallbacks];
     exitCallbacks.clear();
     dispose();
 
     for (const callback of callbacks) {
-      callback(error);
+      try {
+        callback(error);
+      } catch (callbackError) {
+        console.error('[tuiuiu] Error in app exit callback:', callbackError);
+      }
     }
 
     if (error) {
@@ -402,6 +408,14 @@ export function initializeApp(
       stdout.write(`${safeText.replace(/\n+$/u, '')}\n`);
     },
     onExit: (callback) => {
+      if (isExiting) {
+        try {
+          callback(exitError);
+        } catch (callbackError) {
+          console.error('[tuiuiu] Error in app exit callback:', callbackError);
+        }
+        return () => {};
+      }
       exitCallbacks.add(callback);
       return () => {
         exitCallbacks.delete(callback);

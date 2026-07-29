@@ -1164,7 +1164,7 @@ export const iterm2Graphics = {
    * Display an image
    */
   display(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
-    const { width: imgWidth, height: imgHeight, pixels } = toTerminalImageSource(imageData);
+    const { pixels } = toTerminalImageSource(imageData);
 
     // Calculate dimensions
     const width = options.width ? `width=${options.width}` : 'width=auto';
@@ -1204,7 +1204,16 @@ export const sixelGraphics = {
    * Encode image as Sixel
    */
   encode(imageData: ImageData | TerminalImageSource, options: ImageOptions = {}): string {
-    const { width, height, pixels } = toTerminalImageSource(imageData);
+    const source = toTerminalImageSource(imageData);
+    const plan = planImageRender(source, options);
+    const scaled = options.width !== undefined || options.height !== undefined
+      ? scaleImage(
+          { width: source.width, height: source.height, pixels: source.pixels },
+          plan.resizedPixelWidth,
+          plan.resizedPixelHeight,
+        )
+      : source;
+    const { width, height, pixels } = scaled;
 
     // Build palette (up to 256 colors)
     const palette = buildPalette(pixels, 256);

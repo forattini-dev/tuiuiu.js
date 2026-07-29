@@ -22,7 +22,7 @@ import {
   // Test harness
   createTestHarness,
 } from '../../src/dev-tools/index.js';
-import type { VNode } from '../../src/utils/types.js';
+import type { VNode, VNodeType } from '../../src/utils/types.js';
 
 // Helper to create test VNodes
 function createNode(
@@ -30,7 +30,7 @@ function createNode(
   props: Record<string, unknown> = {},
   children: VNode[] = []
 ): VNode {
-  return { type, props, children };
+  return { type: type as VNodeType, props, children };
 }
 
 describe('Terminal Simulator', () => {

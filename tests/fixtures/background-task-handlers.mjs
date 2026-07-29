@@ -68,6 +68,15 @@ export const backgroundTaskHandlers = {
 
     return 'completed';
   },
+
+  async ignoreAbort(payload) {
+    await sleep(Number(payload.delayMs ?? 50));
+    return String(payload.text ?? 'completed');
+  },
+
+  async exitCleanly() {
+    process.exit(0);
+  },
 };
 
 export default backgroundTaskHandlers;

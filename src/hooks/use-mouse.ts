@@ -14,6 +14,7 @@ import {
   getHookStateByIndex,
   getAppContext,
   registerHookCleanup,
+  resetMouseClickState,
 } from './context.js';
 import { onTerminalPanic } from '../core/terminal-panic.js';
 import {
@@ -64,27 +65,16 @@ export interface MouseOptions {
 // Mouse Protocol Constants
 // =============================================================================
 
-/** Enable SGR extended mouse mode with any-motion tracking */
-const SGR_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h';
+/** Enable SGR extended mouse mode with click and button-drag tracking. */
+const SGR_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
 
 /** Disable SGR extended mouse mode */
 const SGR_MOUSE_DISABLE = '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l';
-
-/** Enable basic X10 mouse mode (legacy fallback) */
-const X10_MOUSE_ENABLE = '\x1b[?1000h';
-
-/** Disable basic X10 mouse mode */
-const X10_MOUSE_DISABLE = '\x1b[?1000l';
-
-interface ClickState {
-  lastClick: { x: number; y: number; time: number; button: MouseButton } | null;
-}
 
 interface MouseRuntimeState {
   trackingEnabled: boolean;
   trackingRefCount: number;
   outputStream: NodeJS.WriteStream | null;
-  clickState: ClickState;
   panicRegistered: boolean;
   unregisterPanic: (() => void) | null;
 }
@@ -98,7 +88,6 @@ function getMouseRuntimeState(scope?: RuntimeScope): MouseRuntimeState {
       trackingEnabled: false,
       trackingRefCount: 0,
       outputStream: null,
-      clickState: { lastClick: null },
       panicRegistered: false,
       unregisterPanic: null,
     }),
@@ -321,48 +310,6 @@ export function isMouseTrackingEnabled(scope?: RuntimeScope): boolean {
 }
 
 // =============================================================================
-// Double-click Detection
-// =============================================================================
-
-const DOUBLE_CLICK_THRESHOLD = 300; // ms
-const DOUBLE_CLICK_DISTANCE = 2; // pixels
-
-/**
- * Detect double-click by comparing with last click
- */
-function detectDoubleClick(event: MouseEvent): MouseEvent {
-  if (event.action !== 'click') {
-    return event;
-  }
-
-  const now = Date.now();
-  const clickState = getMouseRuntimeState().clickState;
-  const last = clickState.lastClick;
-
-  if (
-    last &&
-    last.button === event.button &&
-    now - last.time < DOUBLE_CLICK_THRESHOLD &&
-    Math.abs(event.x - last.x) <= DOUBLE_CLICK_DISTANCE &&
-    Math.abs(event.y - last.y) <= DOUBLE_CLICK_DISTANCE
-  ) {
-    // Double-click detected
-    clickState.lastClick = null;
-    return { ...event, action: 'double-click' };
-  }
-
-  // Store this click for potential double-click
-  clickState.lastClick = {
-    x: event.x,
-    y: event.y,
-    time: now,
-    button: event.button,
-  };
-
-  return event;
-}
-
-// =============================================================================
 // useMouse Hook
 // =============================================================================
 
@@ -402,13 +349,10 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
     // First render - create wrapper and register
     const hookIndex = getCurrentHookIndex();
 
-    // Mouse handler wrapper that detects double-clicks
     const mouseWrapper = (event: MouseEvent) => {
       const data = getHookStateByIndex(hookIndex) as typeof hookData;
       if (data && data.registered) {
-        // Detect double-clicks
-        const processedEvent = detectDoubleClick(event);
-        data.handler(processedEvent);
+        data.handler(event);
       }
     };
 
@@ -452,8 +396,7 @@ export function useMouse(handler: MouseHandler, options: MouseOptions = {}): voi
       const mouseWrapper = (event: MouseEvent) => {
         const data = getHookStateByIndex(hookIndex) as typeof hookData;
         if (data && data.registered) {
-          const processedEvent = detectDoubleClick(event);
-          data.handler(processedEvent);
+          data.handler(event);
         }
       };
       hookData.handlerId = addMouseHandler(mouseWrapper);
@@ -510,5 +453,5 @@ export function removeMouseExitHandlers(scope?: RuntimeScope): void {
  */
 export function resetMouseState(scope?: RuntimeScope): void {
   forceDisableMouseTracking(scope);
-  getMouseRuntimeState(scope).clickState.lastClick = null;
+  resetMouseClickState(scope);
 }

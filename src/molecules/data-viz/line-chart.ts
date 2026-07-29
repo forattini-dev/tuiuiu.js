@@ -376,7 +376,6 @@ export function renderLineChartStrings(
 
   // Draw grid if enabled
   if (showGrid && !isAscii) {
-    const gridChar = '·';
     const xTicks = xAxis.ticks ?? 5;
     const yTicks = yAxis.ticks ?? 5;
 
@@ -488,6 +487,7 @@ export function LineChart(options: LineChartOptions): VNode {
     xAxis,
     yAxis,
     showGrid,
+    gridColor,
   });
 
   // Build Y-axis labels
@@ -511,8 +511,6 @@ export function LineChart(options: LineChartOptions): VNode {
       yLabelWidth,
       'right',
     );
-    const rowIndex = Math.round((i / yTicks) * (chartLines.length - 1));
-
     if (i === 0 || i === yTicks || i === Math.floor(yTicks / 2)) {
       yLabels.push(
         Box(
@@ -657,7 +655,15 @@ export function LineChart(options: LineChartOptions): VNode {
     parts.push(legendNode);
   }
 
-  return Box({ flexDirection: 'column' }, ...parts);
+  return Box(
+    {
+      flexDirection: 'column',
+      borderStyle,
+      borderColor: borderStyle === 'none' ? undefined : gridColor,
+      padding: borderStyle === 'none' ? undefined : 1,
+    },
+    ...parts,
+  );
 }
 
 // =============================================================================
@@ -706,7 +712,14 @@ export function renderMultiSeriesChart(
   series: DataSeries[],
   options: Omit<LineChartOptions, 'series'> = {}
 ): { lines: string[]; colors: (ColorValue | undefined)[][] } {
-  const { width = 60, height = 15, xAxis = {}, yAxis = {} } = options;
+  const {
+    width = 60,
+    height = 15,
+    xAxis = {},
+    yAxis = {},
+    showGrid = false,
+    gridColor = 'mutedForeground',
+  } = options;
 
   const defaultColors: ColorValue[] = [
     'cyan',
@@ -728,6 +741,19 @@ export function renderMultiSeriesChart(
   const pixelOwner: (number | null)[][] = Array(pixelHeight)
     .fill(null)
     .map(() => Array(pixelWidth).fill(null));
+
+  if (showGrid) {
+    const xTicks = Math.max(1, xAxis.ticks ?? 5);
+    const yTicks = Math.max(1, yAxis.ticks ?? 5);
+    for (let tick = 0; tick <= xTicks; tick++) {
+      const x = Math.round((tick / xTicks) * (pixelWidth - 1));
+      for (let y = 0; y < pixelHeight; y++) pixelOwner[y]![x] = -1;
+    }
+    for (let tick = 0; tick <= yTicks; tick++) {
+      const y = Math.round((tick / yTicks) * (pixelHeight - 1));
+      for (let x = 0; x < pixelWidth; x++) pixelOwner[y]![x] = -1;
+    }
+  }
 
   // Draw each series
   series.forEach((s, seriesIdx) => {
@@ -790,10 +816,10 @@ export function renderMultiSeriesChart(
       for (let x = 0; x < width; x++) {
         const owner = pixelOwner[y]?.[x];
         if (owner !== null && owner !== undefined) {
-          line += '*';
-          lineColors.push(
-            series[owner]?.color ?? defaultColors[owner % defaultColors.length]
-          );
+          line += owner === -1 ? '·' : '*';
+          lineColors.push(owner === -1
+            ? gridColor
+            : series[owner]?.color ?? defaultColors[owner % defaultColors.length]);
         } else {
           line += ' ';
           lineColors.push(undefined);
@@ -846,10 +872,10 @@ export function renderMultiSeriesChart(
       line += String.fromCharCode(BRAILLE_BASE + pattern);
 
       if (dominantSeries !== null) {
-        lineColors.push(
-          series[dominantSeries]?.color ??
-            defaultColors[dominantSeries % defaultColors.length]
-        );
+        lineColors.push(dominantSeries === -1
+          ? gridColor
+          : series[dominantSeries]?.color ??
+            defaultColors[dominantSeries % defaultColors.length]);
       } else {
         lineColors.push(undefined);
       }

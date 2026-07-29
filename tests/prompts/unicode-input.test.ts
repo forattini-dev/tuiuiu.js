@@ -4,6 +4,8 @@ const processMocks = vi.hoisted(() => ({
   stdin: undefined as unknown as {
     emit: (event: string, value: Buffer) => boolean;
     isTTY: boolean;
+    isRaw: boolean;
+    isPaused: () => boolean;
     setRawMode: ReturnType<typeof vi.fn>;
     resume: ReturnType<typeof vi.fn>;
     pause: ReturnType<typeof vi.fn>;
@@ -15,6 +17,8 @@ vi.mock('node:process', async () => {
   const { EventEmitter } = await vi.importActual<typeof import('node:events')>('node:events');
   processMocks.stdin = Object.assign(new EventEmitter(), {
     isTTY: true,
+    isRaw: false,
+    isPaused: vi.fn(() => true),
     setRawMode: vi.fn(),
     resume: vi.fn(),
     pause: vi.fn(),
@@ -31,12 +35,19 @@ import {
   promptAutocomplete,
   promptPassword,
   promptSelect,
+  PromptBusyError,
+  PromptCancelledError,
   resetPromptTheme,
 } from '../../src/prompts/index.js';
 
 describe('interactive prompt Unicode input', () => {
   beforeEach(() => {
     processMocks.write.mockClear();
+    processMocks.stdin.setRawMode.mockClear();
+    processMocks.stdin.resume.mockClear();
+    processMocks.stdin.pause.mockClear();
+    processMocks.stdin.isRaw = false;
+    vi.mocked(processMocks.stdin.isPaused).mockReturnValue(true);
     resetPromptTheme();
   });
 
@@ -162,5 +173,38 @@ describe('interactive prompt Unicode input', () => {
     expect(output).not.toContain('payload');
     expect(output).not.toContain('title');
     expect(output).toContain('? owned');
+  });
+
+  it('rejects cancellation without terminating the host process', async () => {
+    const resultPromise = promptSelect('Choose', ['One']);
+
+    processMocks.stdin.emit('data', Buffer.from('\x1b'));
+
+    await expect(resultPromise).rejects.toBeInstanceOf(PromptCancelledError);
+    expect(processMocks.stdin.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(processMocks.stdin.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(processMocks.stdin.pause).toHaveBeenCalledOnce();
+  });
+
+  it('rejects concurrent prompts on the same stdin', async () => {
+    const firstPrompt = promptSelect('First', ['One']);
+    const secondPrompt = promptSelect('Second', ['Two']);
+
+    await expect(secondPrompt).rejects.toBeInstanceOf(PromptBusyError);
+    processMocks.stdin.emit('data', Buffer.from('\r'));
+    await expect(firstPrompt).resolves.toBe('One');
+  });
+
+  it('restores stdin ownership instead of forcing pause or cooked mode', async () => {
+    processMocks.stdin.isRaw = true;
+    vi.mocked(processMocks.stdin.isPaused).mockReturnValue(false);
+    const resultPromise = promptSelect('Choose', ['One']);
+
+    processMocks.stdin.emit('data', Buffer.from('\r'));
+    await expect(resultPromise).resolves.toBe('One');
+
+    expect(processMocks.stdin.setRawMode).not.toHaveBeenCalled();
+    expect(processMocks.stdin.resume).not.toHaveBeenCalled();
+    expect(processMocks.stdin.pause).not.toHaveBeenCalled();
   });
 });

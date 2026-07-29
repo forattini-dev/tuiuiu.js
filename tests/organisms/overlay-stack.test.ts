@@ -723,6 +723,161 @@ describe('createToastOverlay()', () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('is removed from the stack when its owned timer expires', () => {
+    vi.useFakeTimers();
+    try {
+      const onClose = vi.fn();
+      const toast = createToastOverlay({
+        id: 'toast',
+        component: () => Text({}, 'Saved'),
+        duration: 250,
+        onClose,
+      });
+
+      const toastStack = createOverlayStack();
+      toastStack.push(toast);
+      expect(toastStack.isOpen('toast')).toBe(true);
+
+      vi.advanceTimersByTime(250);
+
+      expect(toastStack.isOpen('toast')).toBe(false);
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels its timer when closed manually', () => {
+    vi.useFakeTimers();
+    try {
+      const onClose = vi.fn();
+      const toastStack = createOverlayStack();
+      toastStack.push(createToastOverlay({
+        id: 'toast',
+        component: () => Text({}, 'Saved'),
+        duration: 250,
+        onClose,
+      }));
+
+      toastStack.close('toast');
+      vi.advanceTimersByTime(250);
+
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects invalid durations', () => {
+    expect(() => createToastOverlay({
+      id: 'toast',
+      component: () => Box({}),
+      duration: Number.NaN,
+    })).toThrow(RangeError);
+  });
+});
+
+describe('Overlay lifecycle hardening', () => {
+  it('uses insertion order when timestamps are equal', () => {
+    const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    try {
+      const stack = createOverlayStack();
+      stack.push({ id: 'first', component: () => Box({}) });
+      stack.push({ id: 'second', component: () => Box({}) });
+      expect(stack.current()?.id).toBe('second');
+
+      stack.bringToTop('first');
+      expect(stack.current()?.id).toBe('first');
+    } finally {
+      dateSpy.mockRestore();
+    }
+  });
+
+  it('notifies every subscriber before reporting subscriber failures', () => {
+    const stack = createOverlayStack();
+    const healthy = vi.fn();
+    stack.subscribe(() => {
+      throw new Error('subscriber failed');
+    });
+    stack.subscribe(healthy);
+
+    expect(() => stack.push({
+      id: 'modal',
+      component: () => Box({}),
+    })).toThrow(AggregateError);
+    expect(healthy).toHaveBeenCalledOnce();
+    expect(stack.isOpen('modal')).toBe(true);
+  });
+
+  it('honors beforeClose during closeAll without looping forever', () => {
+    const stack = createOverlayStack();
+    stack.push({
+      id: 'blocked',
+      component: () => Box({}),
+      beforeClose: () => false,
+    });
+    stack.push({ id: 'closable', component: () => Box({}) });
+
+    stack.closeAll();
+
+    expect(stack.all().map(entry => entry.id)).toEqual(['blocked']);
+  });
+
+  it('runs replacement lifecycle hooks and can veto replacement', () => {
+    const stack = createOverlayStack();
+    const oldClose = vi.fn();
+    const newOpen = vi.fn();
+    stack.push({
+      id: 'modal',
+      component: () => Box({}),
+      onClose: oldClose,
+    });
+
+    expect(stack.replace('modal', {
+      id: 'modal',
+      component: () => Text({}, 'new'),
+      onOpen: newOpen,
+    })).toBe(true);
+    expect(oldClose).toHaveBeenCalledOnce();
+    expect(newOpen).toHaveBeenCalledOnce();
+
+    stack.replace('modal', {
+      id: 'modal',
+      component: () => Box({}),
+      beforeClose: () => false,
+    });
+    expect(stack.replace('modal', {
+      id: 'modal',
+      component: () => Text({}, 'never'),
+    })).toBe(false);
+  });
+
+  it('disposes timers, entries, and rejects later mutations', () => {
+    vi.useFakeTimers();
+    try {
+      const onClose = vi.fn();
+      const stack = createOverlayStack();
+      stack.push(createToastOverlay({
+        id: 'toast',
+        component: () => Box({}),
+        duration: 100,
+        onClose,
+      }));
+
+      stack.dispose();
+      vi.advanceTimersByTime(100);
+
+      expect(stack.size()).toBe(0);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(() => stack.push({
+        id: 'later',
+        component: () => Box({}),
+      })).toThrow(/disposed/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('createCriticalOverlay()', () => {

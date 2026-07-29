@@ -28,6 +28,13 @@ export interface FadeOptions {
   easing?: EasingName;
 }
 
+export interface ScaleOptions {
+  from?: number;
+  to?: number;
+  duration?: number;
+  easing?: EasingName;
+}
+
 export interface ShimmerOptions {
   span?: number;
   duration?: number;
@@ -63,6 +70,7 @@ export interface UseCompositorResult {
   bind: <P extends Record<string, any>>(props: P) => P & { __compositor: CompositorBindingMetadata };
   slide: (options?: SlideOptions) => () => void;
   fade: (options?: FadeOptions) => () => void;
+  scale: (options?: ScaleOptions) => () => void;
   shimmer: (options?: ShimmerOptions) => () => void;
   spring: (options?: SpringMotionOptions) => () => void;
   reveal: (options: RevealOptions) => () => void;
@@ -168,6 +176,33 @@ export function useCompositor(): UseCompositorResult {
           update({
             kind: 'fade',
             opacity: from + (to - from) * progress,
+          });
+        },
+        onComplete: finish,
+      });
+
+      animation.start();
+      return () => animation.stop();
+    });
+  };
+
+  const scale = (options: ScaleOptions = {}): (() => void) => {
+    const {
+      from = 0.9,
+      to = 1,
+      duration = 180,
+      easing = 'ease-out',
+    } = options;
+    const id = createTransformId('scale');
+
+    return registerAnimatedTransform(id, (update, finish) => {
+      const animation = useAnimation({
+        duration,
+        easing,
+        onFrame: (progress) => {
+          update({
+            kind: 'scale',
+            scale: from + (to - from) * progress,
           });
         },
         onComplete: finish,
@@ -330,6 +365,7 @@ export function useCompositor(): UseCompositorResult {
     bind,
     slide,
     fade,
+    scale,
     shimmer,
     spring,
     reveal,

@@ -165,6 +165,40 @@ describe('createStore', () => {
       store.dispatch({ type: 'INCREMENT' });
       expect(listener).toHaveBeenCalledTimes(1); // Still 1, not called again
     });
+
+    it('uses a snapshot and treats duplicate listener registrations independently', () => {
+      const store = createStore(counterReducer);
+      const lateListener = vi.fn();
+      const repeated = vi.fn();
+      store.subscribe(() => {
+        store.subscribe(lateListener);
+      });
+      const unsubscribeFirst = store.subscribe(repeated);
+      store.subscribe(repeated);
+
+      store.dispatch({ type: 'INCREMENT' });
+      expect(lateListener).not.toHaveBeenCalled();
+      expect(repeated).toHaveBeenCalledTimes(2);
+
+      unsubscribeFirst();
+      store.dispatch({ type: 'INCREMENT' });
+      expect(lateListener).toHaveBeenCalledTimes(1);
+      expect(repeated).toHaveBeenCalledTimes(3);
+    });
+
+    it('notifies every subscriber before aggregating listener failures', () => {
+      const store = createStore(counterReducer);
+      const survivor = vi.fn();
+      store.subscribe(() => {
+        throw new Error('subscriber failed');
+      });
+      store.subscribe(survivor);
+
+      expect(() => store.dispatch({ type: 'INCREMENT' }))
+        .toThrow(AggregateError);
+      expect(survivor).toHaveBeenCalledTimes(1);
+      expect(store.getState()).toEqual({ count: 1 });
+    });
   });
 
   describe('Replace Reducer', () => {
@@ -406,7 +440,9 @@ describe('createPersistMiddleware', () => {
     const storage = new Map<string, string>();
     const mockStorage = {
       getItem: (key: string) => storage.get(key) || null,
-      setItem: (key: string, value: string) => storage.set(key, value),
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
     };
 
     const middleware = createPersistMiddleware({
@@ -454,6 +490,69 @@ describe('createPersistMiddleware', () => {
 
     errorSpy.mockRestore();
   });
+
+  it('exposes flush, pending, and dispose lifecycle controls', async () => {
+    const setItem = vi.fn();
+    const middleware = createPersistMiddleware({
+      key: 'controlled',
+      storage: { getItem: () => null, setItem },
+      debounce: 60_000,
+    });
+    const store = createStore(
+      counterReducer,
+      { count: 0 },
+      applyMiddleware(middleware),
+    );
+
+    store.dispatch({ type: 'INCREMENT' });
+    store.dispatch({ type: 'INCREMENT' });
+    expect(middleware.pending()).toBe(true);
+
+    await middleware.flush();
+    expect(middleware.pending()).toBe(false);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(setItem).toHaveBeenCalledWith(
+      'controlled',
+      JSON.stringify({ count: 2 }),
+    );
+
+    store.dispatch({ type: 'INCREMENT' });
+    middleware.dispose();
+    await middleware.flush();
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports rejected async writes through onError', async () => {
+    const onError = vi.fn();
+    const failure = new Error('remote storage unavailable');
+    const middleware = createPersistMiddleware({
+      storage: {
+        getItem: async () => null,
+        setItem: async () => {
+          throw failure;
+        },
+      },
+      debounce: 60_000,
+      onError,
+    });
+    const store = createStore(
+      counterReducer,
+      { count: 0 },
+      applyMiddleware(middleware),
+    );
+
+    store.dispatch({ type: 'INCREMENT' });
+    await middleware.flush();
+
+    expect(onError).toHaveBeenCalledWith(failure);
+  });
+
+  it('validates debounce at the API boundary', () => {
+    expect(() => createPersistMiddleware({
+      storage: { getItem: () => null, setItem: vi.fn() },
+      debounce: Number.NaN,
+    })).toThrow(RangeError);
+  });
 });
 
 describe('createPersistedStore', () => {
@@ -487,7 +586,7 @@ describe('createPersistedStore', () => {
 
     const store = createPersistedStore({
       reducer,
-      initialState: { count: 0, theme: 'light' },
+      initialState: { count: 0, theme: 'light' } satisfies SettingsState,
       key: 'settings',
       storage: {
         getItem: () => JSON.stringify({ count: 7 }),
@@ -596,6 +695,7 @@ describe('createPersistedStore', () => {
       JSON.stringify({ count: 3 })
     );
     expect(saved.get('counter')).toBe(JSON.stringify({ count: 3 }));
+    expect(store.persistence.pending()).toBe(false);
   });
 });
 

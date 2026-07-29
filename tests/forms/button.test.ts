@@ -17,6 +17,7 @@ import {
 } from '../../src/core/hit-test.js';
 import { simulateClick, MouseSimulator } from '../../src/dev-tools/mouse-simulator.js';
 import type { VNode } from '../../src/utils/types.js';
+import { createKey as createKeyboardKey } from '../helpers/keyboard.js';
 
 describe('Button Component', () => {
   beforeEach(() => {
@@ -304,25 +305,8 @@ describe('ButtonGroup Component', () => {
 
 describe('createButtonGroup - Keyboard Navigation', () => {
   // Helper to create a mock key event
-  const mockKey = (overrides: Partial<Key> = {}): Key => ({
-    upArrow: false,
-    downArrow: false,
-    leftArrow: false,
-    rightArrow: false,
-    return: false,
-    escape: false,
-    tab: false,
-    backspace: false,
-    delete: false,
-    meta: false,
-    ctrl: false,
-    shift: false,
-    pageUp: false,
-    pageDown: false,
-    home: false,
-    end: false,
-    ...overrides,
-  });
+  const mockKey = (overrides: Partial<Key> = {}): Key =>
+    createKeyboardKey(overrides);
 
   it('should initialize with first button focused', () => {
     const state = createButtonGroup({

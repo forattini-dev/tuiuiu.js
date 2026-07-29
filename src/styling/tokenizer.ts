@@ -463,7 +463,6 @@ export class Tokenizer {
 
     // Check for dimension (e.g., 10px, 2fr, 1em)
     if (isNameStart(this.peek())) {
-      const unitStart = this.pos;
       while (!this.isAtEnd() && isNameChar(this.peek())) {
         this.advance();
       }

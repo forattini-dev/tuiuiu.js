@@ -4,7 +4,7 @@
  * Tests for Sparkline, BarChart, LineChart, Gauge, Heatmap
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
@@ -68,6 +68,11 @@ import {
   CorrelationMatrix,
   COLOR_SCALES,
 } from '../../src/molecules/data-viz/heatmap.js';
+import { ScatterPlot } from '../../src/molecules/data-viz/scatter-plot.js';
+import { RadarChart } from '../../src/molecules/data-viz/radar-chart.js';
+import { TimeHeatmap } from '../../src/molecules/data-viz/time-heatmap.js';
+import { Waveform } from '../../src/molecules/data-viz/waveform.js';
+import { GanttChart } from '../../src/molecules/data-viz/gantt-chart.js';
 
 describe('Data Visualization Components', () => {
   beforeEach(() => {
@@ -138,18 +143,18 @@ describe('Data Visualization Components', () => {
 
   describe('SparklineBuffer', () => {
     it('creates buffer with max size', () => {
-      const buffer = createSparklineBuffer({ maxSize: 5 });
+      const buffer = createSparklineBuffer({ maxPoints: 5 });
       expect(buffer).toBeDefined();
     });
 
     it('has push and getData methods', () => {
-      const buffer = createSparklineBuffer({ maxSize: 5 });
+      const buffer = createSparklineBuffer({ maxPoints: 5 });
       expect(typeof buffer.push).toBe('function');
       expect(typeof buffer.data).toBe('function');
     });
 
     it('tracks data internally', () => {
-      const buffer = createSparklineBuffer({ maxSize: 5 });
+      const buffer = createSparklineBuffer({ maxPoints: 5 });
       buffer.push(1);
       buffer.push(2);
       // Just verify the buffer works
@@ -157,7 +162,7 @@ describe('Data Visualization Components', () => {
     });
 
     it('can render VNode', () => {
-      const buffer = createSparklineBuffer({ maxSize: 10 });
+      const buffer = createSparklineBuffer({ maxPoints: 10 });
       buffer.push(1);
       buffer.push(5);
       buffer.push(3);
@@ -279,7 +284,7 @@ describe('Data Visualization Components', () => {
           ],
         },
       ];
-      const node = StackedBarChart({ data, width: 40 });
+      const node = StackedBarChart({ data, maxBarLength: 40 });
       expect(node).not.toBeNull();
     });
   });
@@ -379,6 +384,27 @@ describe('Data Visualization Components', () => {
       expect(node).not.toBeNull();
     });
 
+    it('renders a colored grid and honors the border style', () => {
+      const rendered = renderMultiSeriesChart(sampleSeries, {
+        width: 20,
+        height: 5,
+        showGrid: true,
+        gridColor: 'red',
+      });
+      const node = LineChart({
+        series: sampleSeries,
+        width: 20,
+        height: 5,
+        showGrid: true,
+        gridColor: 'red',
+        borderStyle: 'double',
+      });
+
+      expect(rendered.colors.flat()).toContain('red');
+      expect(node.props.borderStyle).toBe('double');
+      expect(node.props.borderColor).toBe('red');
+    });
+
     it('handles empty series', () => {
       const node = LineChart({ series: [], width: 40, height: 10 });
       expect(node).not.toBeNull();
@@ -402,7 +428,7 @@ describe('Data Visualization Components', () => {
         data: sampleData,
         width: 40,
         height: 10,
-        fillColor: 'blue',
+        color: 'blue',
       });
       expect(node).not.toBeNull();
     });
@@ -501,7 +527,7 @@ describe('Data Visualization Components', () => {
     });
 
     it('renders gauge with different styles', () => {
-      const styles = ['semicircle', 'arc', 'linear'] as const;
+      const styles = ['arc', 'linear', 'meter', 'dial'] as const;
       for (const style of styles) {
         const node = Gauge({ value: 60, max: 100, style });
         expect(node).not.toBeNull();
@@ -509,7 +535,7 @@ describe('Data Visualization Components', () => {
     });
 
     it('renders gauge with zones', () => {
-      const node = Gauge({ value: 80, max: 100, showZones: true });
+      const node = Gauge({ value: 80, max: 100, zones: true });
       expect(node).not.toBeNull();
     });
 
@@ -541,7 +567,7 @@ describe('Data Visualization Components', () => {
     });
 
     it('renders with zones', () => {
-      const node = LinearGauge({ value: 90, max: 100, showZones: true });
+      const node = LinearGauge({ value: 90, max: 100, zones: true });
       expect(node).not.toBeNull();
     });
   });
@@ -553,7 +579,7 @@ describe('Data Visualization Components', () => {
     });
 
     it('renders with ticks', () => {
-      const node = MeterGauge({ value: 40, max: 100, showTicks: true });
+      const node = MeterGauge({ value: 40, max: 100, segments: 5 });
       expect(node).not.toBeNull();
     });
   });
@@ -570,38 +596,45 @@ describe('Data Visualization Components', () => {
       const node = DialGauge({ value: 45, max: 100 });
       expect(node).not.toBeNull();
     });
+
+    it('uses width as the number of dial cells', () => {
+      const node = DialGauge({ value: 45, width: 17, showMinMax: false, showValue: false });
+
+      expect(node.children[0]!.children).toHaveLength(17);
+      expect(() => DialGauge({ value: 1, width: 2 })).toThrow(/width/);
+    });
   });
 
   describe('BatteryGauge', () => {
     it('renders battery gauge', () => {
-      const node = BatteryGauge({ value: 80 });
+      const node = BatteryGauge({ level: 80 });
       expect(node).not.toBeNull();
     });
 
     it('renders low battery', () => {
-      const node = BatteryGauge({ value: 10 });
+      const node = BatteryGauge({ level: 10 });
       expect(node).not.toBeNull();
     });
 
     it('renders full battery', () => {
-      const node = BatteryGauge({ value: 100 });
+      const node = BatteryGauge({ level: 100 });
       expect(node).not.toBeNull();
     });
 
     it('renders empty battery', () => {
-      const node = BatteryGauge({ value: 0 });
+      const node = BatteryGauge({ level: 0 });
       expect(node).not.toBeNull();
     });
 
     it('renders charging state', () => {
-      const node = BatteryGauge({ value: 50, charging: true });
+      const node = BatteryGauge({ level: 50, charging: true });
       expect(node).not.toBeNull();
     });
   });
 
   describe('renderLinearGaugeString', () => {
     it('returns string representation', () => {
-      const result = renderLinearGaugeString(50, 100, { width: 20 });
+      const result = renderLinearGaugeString(50, { max: 100, width: 20 });
       expect(typeof result).toBe('string');
     });
   });
@@ -792,6 +825,52 @@ describe('Data Visualization Components', () => {
       });
       expect(node).not.toBeNull();
     });
+
+    it('uses formatValue in cell accessibility labels', () => {
+      const node = ContributionGraph({
+        data: sampleContributions,
+        weeks: 1,
+        showMonths: false,
+        showDays: false,
+        formatValue: count => `${count} commits`,
+      });
+      const cells = node.children.flatMap(row => row.children);
+
+      expect(cells.some(cell => String(cell.props['aria-label']).endsWith('commits'))).toBe(true);
+    });
+  });
+
+  describe('ScatterPlot', () => {
+    it('renders category legends and retains point click handlers', () => {
+      const onPointClick = vi.fn();
+      const points = [
+        { x: 0, y: 0, category: 'alpha', label: 'Alpha', size: 1 },
+        { x: 1, y: 1, category: 'beta', label: 'Beta', size: 10 },
+      ];
+      const node = ScatterPlot({
+        points,
+        width: 10,
+        height: 5,
+        colorMode: 'category',
+        showLegend: true,
+        onPointClick,
+      });
+      const output = renderToString(node, 50);
+
+      expect(output).toContain('alpha');
+      expect(output).toContain('beta');
+
+      const findClickable = (current: typeof node): typeof node | undefined => {
+        if (current.props['aria-label'] === 'Beta') return current;
+        for (const child of current.children) {
+          const match = findClickable(child);
+          if (match) return match;
+        }
+        return undefined;
+      };
+      findClickable(node)?.props.onClick?.({} as never);
+      expect(onPointClick).toHaveBeenCalledWith(points[1], 1);
+    });
   });
 
   describe('CalendarHeatmap', () => {
@@ -875,6 +954,182 @@ describe('Data Visualization Components', () => {
       Object.entries(COLOR_SCALES).forEach(([key, scale]) => {
         expect(scale.name).toBe(key);
       });
+    });
+  });
+
+  describe('RadarChart', () => {
+    const axes = [
+      { name: 'Speed', min: 0, max: 100 },
+      { name: 'Power', min: 0, max: 100 },
+      { name: 'Range', min: 0, max: 100 },
+    ];
+
+    it('uses size to render a normalized radar plot', () => {
+      const node = RadarChart({
+        axes,
+        series: [{ name: 'A', values: [25, 50, 100], color: 'cyan' }],
+        size: 21,
+      });
+      const chart = node.children[0]!;
+
+      expect(chart.props.width).toBe(21);
+      expect(chart.props.height).toBe(11);
+      expect(renderToString(chart, 21)).toContain('●');
+    });
+
+    it('validates bounds and series dimensions', () => {
+      expect(() => RadarChart({
+        axes,
+        series: [{ name: 'A', values: [1, 2] }],
+      })).toThrow(/exactly 3 values/);
+      expect(() => RadarChart({
+        axes: [
+          { name: 'A', min: 1, max: 1 },
+          axes[1]!,
+          axes[2]!,
+        ],
+        series: [],
+      })).toThrow(/max > min/);
+    });
+
+    it('uses only ASCII plot characters in ASCII mode', () => {
+      setRenderMode('ascii');
+      const node = RadarChart({
+        axes,
+        series: [{ name: 'A', values: [25, 50, 100] }],
+        size: 21,
+      });
+      const output = renderToString(node, 40);
+
+      expect(output).toContain('o');
+      expect(output).not.toMatch(/[·┼•●]/);
+    });
+  });
+
+  describe('TimeHeatmap', () => {
+    it('filters data by the requested inclusive date range', () => {
+      const node = TimeHeatmap({
+        data: [
+          { date: '2024-01-01', value: 1 },
+          { date: '2024-01-02', value: 2 },
+          { date: '2024-01-03', value: 3 },
+        ],
+        startDate: '2024-01-02',
+        endDate: '2024-01-03',
+        showLegend: false,
+      });
+      const output = JSON.stringify(node);
+
+      expect(output).not.toContain('2024-01-01: 1');
+      expect(output).toContain('2024-01-02: 2');
+      expect(output).toContain('2024-01-03: 3');
+    });
+
+    it('validates the selected range', () => {
+      expect(() => TimeHeatmap({
+        data: [{ date: '2024-01-01', value: 1 }],
+        startDate: '2024-02-01',
+        endDate: '2024-01-01',
+      })).toThrow(/startDate/);
+    });
+  });
+
+  describe('Waveform', () => {
+    it('honors explicit normalization bounds and custom bar characters', () => {
+      const node = Waveform({
+        data: [50, 60],
+        width: 2,
+        height: 2,
+        min: 0,
+        max: 100,
+        fillChar: 'X',
+        emptyChar: '.',
+        background: 'blue',
+      });
+      const output = renderToString(node, 2);
+      const textNodes = node.children.flatMap(row => row.children);
+
+      expect(output).toContain('X');
+      expect(output).toContain('.');
+      expect(textNodes.every(text => text.props.backgroundColor === 'blue')).toBe(true);
+    });
+
+    it('rejects invalid dimensions and ranges', () => {
+      expect(() => Waveform({ data: [1], width: 0 })).toThrow(/width/);
+      expect(() => Waveform({ data: [1], min: 2, max: 1 })).toThrow(/greater/);
+    });
+  });
+
+  describe('GanttChart', () => {
+    it('renders exact zero-progress, completed, and milestone markers', () => {
+      const node = GanttChart({
+        width: 40,
+        showLegend: false,
+        tasks: [
+          {
+            id: 'pending',
+            name: 'Pending',
+            startDate: '2024-01-01',
+            endDate: '2024-01-02',
+            progress: 0,
+            status: 'pending',
+          },
+          {
+            id: 'done',
+            name: 'Done',
+            startDate: '2024-01-02',
+            endDate: '2024-01-03',
+            progress: 100,
+            status: 'complete',
+          },
+          {
+            id: 'release',
+            name: 'Release',
+            startDate: '2024-01-03',
+            endDate: '2024-01-03',
+            isMilestone: true,
+          },
+        ],
+      });
+      const output = renderToString(node, 40);
+
+      expect(output).toContain('Pending');
+      expect(output).toContain('░');
+      expect(output).toContain('█');
+      expect(output).toContain('◆');
+    });
+
+    it('handles a zero-length timeline without losing the task bar', () => {
+      const node = GanttChart({
+        width: 20,
+        showLegend: false,
+        tasks: [{
+          id: 'instant',
+          name: 'Instant',
+          startDate: '2024-01-01',
+          endDate: '2024-01-01',
+          progress: 0,
+        }],
+      });
+
+      expect(renderToString(node, 20)).toContain('░');
+    });
+
+    it('rejects invalid dimensions and task dates', () => {
+      const validTask = {
+        id: 'task',
+        name: 'Task',
+        startDate: '2024-01-01',
+        endDate: '2024-01-02',
+      };
+
+      expect(() => GanttChart({ tasks: [validTask], width: 2 })).toThrow(/width/);
+      expect(() => GanttChart({
+        tasks: [{ ...validTask, startDate: 'not-a-date' }],
+      })).toThrow(/startDate/);
+      expect(() => GanttChart({
+        tasks: [{ ...validTask, startDate: '2024-01-03' }],
+      })).toThrow(/ends before/);
     });
   });
 

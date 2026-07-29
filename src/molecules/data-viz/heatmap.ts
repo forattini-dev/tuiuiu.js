@@ -706,11 +706,20 @@ export function ContributionGraph(props: ContributionGraphOptions): VNode {
 
     for (let week = 0; week < weeksToShow; week++) {
       const count = grid[day]![week] ?? 0;
+      const cellDate = new Date(startDateObj);
+      cellDate.setDate(cellDate.getDate() + week * 7 + day);
+      const dateLabel = cellDate.toISOString().slice(0, 10);
       const normalized = normalizeWithMode(count, 0, maxCount, normMode, percentiles);
       const color = getColorForValue(normalized, scale);
       const char = isAscii ? (count > 0 ? '█' : '·') : '█';
 
-      rowCells.push(Text({ color: count > 0 ? color : 'mutedForeground' }, char));
+      rowCells.push(Text(
+        {
+          color: count > 0 ? color : 'mutedForeground',
+          'aria-label': `${dateLabel}: ${formatValue(count)}`,
+        },
+        char,
+      ));
     }
 
     rows.push(Box({ flexDirection: 'row' }, ...rowCells));

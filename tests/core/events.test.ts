@@ -86,6 +86,18 @@ describe('EventEmitter', () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
+    it('should unsubscribe only the registration that created the closure', () => {
+      const handler = vi.fn();
+      const unsubscribeFirst = emitter.on('test', handler);
+      emitter.on('test', handler);
+
+      unsubscribeFirst();
+      emitter.emit('test');
+
+      expect(handler).toHaveBeenCalledOnce();
+      expect(emitter.listenerCount('test')).toBe(1);
+    });
+
     it('should support multiple listeners', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
@@ -163,6 +175,32 @@ describe('EventEmitter', () => {
       expect(unhandled).toBeUndefined();
 
       consoleSpy.mockRestore();
+    });
+
+    it('should prevent passive listeners from preventing defaults', () => {
+      emitter.on('test', event => event.preventDefault(), { passive: true });
+
+      const event = emitter.emit('test');
+
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('should await async handlers and aggregate failures', async () => {
+      const order: string[] = [];
+      emitter.on('test', async () => {
+        await Promise.resolve();
+        order.push('first');
+        throw new Error('first failed');
+      });
+      emitter.on('test', async () => {
+        await Promise.resolve();
+        order.push('second');
+      });
+
+      await expect(emitter.emitAsync('test')).rejects.toThrow(
+        'Event "test" handlers failed'
+      );
+      expect(order).toEqual(['first', 'second']);
     });
   });
 

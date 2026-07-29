@@ -10,7 +10,6 @@
 
 import { createSignal } from '../../primitives/signal.js';
 import type { Story, ControlDefinition } from '../types.js';
-import type { VNode } from '../../utils/types.js';
 
 export type LayoutMode = 'horizontal' | 'vertical' | 'grid';
 

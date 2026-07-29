@@ -340,7 +340,6 @@ function parseMarkdown(markdown: string): ParsedNode[] {
  */
 function parseInline(text: string, theme: typeof DEFAULT_THEME): VNode[] {
   const parts: VNode[] = [];
-  let remaining = text;
 
   // Process inline elements
   const patterns: Array<{ regex: RegExp; render: (m: string, url?: string) => VNode }> = [
@@ -362,8 +361,6 @@ function parseInline(text: string, theme: typeof DEFAULT_THEME): VNode[] {
     { regex: /!\[([^\]]*)\]\(([^)]+)\)/g, render: (alt: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: 'warning' }, '🖼️ '), Text({ color: 'mutedForeground' }, alt || 'image'), Text({ color: 'mutedForeground', dim: true }, ` (${url})`)) },
   ];
 
-  // Simple approach: process text linearly
-  let lastIndex = 0;
   const matches: Array<{ index: number; length: number; vnode: VNode }> = [];
 
   // Find all matches

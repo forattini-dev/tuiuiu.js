@@ -4,7 +4,9 @@
  * Tests for file browser and navigation components.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { renderToString } from '../../src/core/renderer.js';
+import { stripAnsi } from '../../src/utils/text-utils.js';
 import {
   // Components
   DirectoryTree,
@@ -322,6 +324,42 @@ describe('File Manager Components', () => {
       expect(ascii).toBeDefined();
       expect(none).toBeDefined();
     });
+
+    it('uses indentSize and removes connectors when lineStyle is none', () => {
+      const child = createTestFileItem({ name: 'child.txt', path: '/root/child.txt' });
+      const root = createTestDirectory({
+        name: 'root',
+        path: '/root',
+        children: [child],
+      });
+
+      const indented = renderToString(
+        DirectoryTree({
+          items: [root],
+          expanded: new Set(['/root']),
+          indentSize: 4,
+          lineStyle: 'ascii',
+        }),
+        60,
+      );
+      const withoutLines = renderToString(
+        DirectoryTree({
+          items: [root],
+          expanded: new Set(['/root']),
+          indentSize: 4,
+          lineStyle: 'none',
+        }),
+        60,
+      );
+
+      expect(stripAnsi(indented)).toContain('    `--- ');
+      expect(stripAnsi(withoutLines)).not.toMatch(/[+`|]---/);
+    });
+
+    it('rejects invalid indentation and depth', () => {
+      expect(() => DirectoryTree({ items: [], indentSize: 0 })).toThrow(/indentSize/);
+      expect(() => DirectoryTree({ items: [], maxDepth: -1 })).toThrow(/maxDepth/);
+    });
   });
 
   describe('FileList', () => {
@@ -364,6 +402,25 @@ describe('File Manager Components', () => {
       });
 
       expect(node).toBeDefined();
+    });
+
+    it('emits the next controlled multi-selection', () => {
+      const items = createTestFileList();
+      const onSelectionChange = vi.fn();
+      const node = FileList({
+        items,
+        multiSelect: true,
+        selectedItems: new Set([items[0]!.path]),
+        onSelectionChange,
+      });
+      const rows = node.children.find(child => child?.type === 'box' && child.children.length > 0)!;
+      const secondRow = rows.children[1]!;
+
+      secondRow.props.onClick?.({} as never);
+
+      expect(onSelectionChange).toHaveBeenCalledOnce();
+      expect(onSelectionChange.mock.calls[0]![0].map((item: FileItem) => item.path))
+        .toEqual(expect.arrayContaining([items[0]!.path, items[1]!.path]));
     });
   });
 
@@ -465,6 +522,29 @@ describe('File Manager Components', () => {
       expect(withAll).toBeDefined();
       expect(minimal).toBeDefined();
     });
+
+    it('renders a functional toolbar and preserves percentage sizing', () => {
+      const items = createTestFileList();
+      const onPathChange = vi.fn();
+      const node = FileBrowser({
+        path: '/home/user',
+        items,
+        showBreadcrumbs: false,
+        showStatusBar: false,
+        showToolbar: true,
+        width: '75%',
+        onPathChange,
+      });
+
+      expect(node.props.width).toBe('75%');
+      const output = stripAnsi(renderToString(node, 80));
+      expect(output).toContain('↑ Up');
+      expect(output).toContain('name ↑');
+
+      const toolbar = node.children[0]!;
+      toolbar.children[0]!.props.onClick?.({} as never);
+      expect(onPathChange).toHaveBeenCalledWith('/home');
+    });
   });
 
   describe('FileDetails', () => {
@@ -563,6 +643,25 @@ describe('File Manager Components', () => {
 
       expect(withNumbers).toBeDefined();
       expect(withoutNumbers).toBeDefined();
+    });
+
+    it('applies syntax highlighting when requested', () => {
+      const item = createTestFileItem({ name: 'code.ts', extension: 'ts' });
+      const plain = renderToString(FilePreview({
+        item,
+        content: 'const answer = 42;',
+        lineNumbers: false,
+        syntaxHighlight: false,
+      }), 50);
+      const highlighted = renderToString(FilePreview({
+        item,
+        content: 'const answer = 42;',
+        lineNumbers: false,
+        syntaxHighlight: true,
+      }), 50);
+
+      expect(stripAnsi(plain)).toBe(stripAnsi(highlighted));
+      expect(highlighted).not.toBe(plain);
     });
   });
 

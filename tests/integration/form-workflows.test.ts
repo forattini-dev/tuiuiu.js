@@ -169,7 +169,7 @@ describe('Form Validation Flow', () => {
       label: 'Email',
       required: true,
       error: formState.errors['email'],
-      children: TextInput({ state: createTextInput({ value: 'invalid' }) }),
+      children: TextInput({ state: createTextInput({ initialValue: 'invalid' }) }),
     });
 
     expect(findTextContent(result, 'Invalid email format')).toBe(true);
@@ -188,7 +188,7 @@ describe('Form Validation Flow', () => {
       label: 'Email',
       required: true,
       error: formState.errors['email'],
-      children: TextInput({ state: createTextInput({ value: 'valid@example.com' }) }),
+      children: TextInput({ state: createTextInput({ initialValue: 'valid@example.com' }) }),
     });
 
     // Should not have error
@@ -222,7 +222,7 @@ describe('Form Validation Flow', () => {
       label: 'Password',
       helperText: 'Must be at least 8 characters',
       error: formState.errors['password'],
-      children: TextInput({ state: createTextInput({ value: 'validPassword123' }) }),
+      children: TextInput({ state: createTextInput({ initialValue: 'validPassword123' }) }),
     });
 
     expect(findTextContent(result, 'Must be at least 8 characters')).toBe(true);
@@ -395,9 +395,9 @@ describe('Form Group Rendering', () => {
   });
 
   it('should render settings form with switches', () => {
-    const darkMode = createSwitch({ on: false });
-    const notifications = createSwitch({ on: true });
-    const autoSave = createSwitch({ on: true });
+    const darkMode = createSwitch({ initialValue: false });
+    const notifications = createSwitch({ initialValue: true });
+    const autoSave = createSwitch({ initialValue: true });
 
     const result = FormGroup({
       title: 'Settings',
@@ -427,7 +427,7 @@ describe('Form Group Rendering', () => {
   it('should render form with mixed inputs', () => {
     const name = createTextInput();
     const email = createTextInput();
-    const subscribe = createSwitch({ on: false });
+    const subscribe = createSwitch({ initialValue: false });
 
     const result = FormGroup({
       title: 'Newsletter Signup',

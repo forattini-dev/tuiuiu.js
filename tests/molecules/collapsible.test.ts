@@ -171,6 +171,18 @@ describe('Collapsible Component', () => {
     expect(output).toContain('"backgroundColor":"cyan"');
   });
 
+  it('should apply the resolved color to the section border', () => {
+    const vnode = Collapsible({
+      title: 'Colored',
+      color: 'cyan',
+      children: Text({}, 'Content'),
+    });
+
+    expect(vnode.props.borderLeft).toBe(true);
+    expect(vnode.props.borderColor).toBe('cyan');
+    expect(vnode.props.paddingLeft).toBe(1);
+  });
+
   it('should apply indent', () => {
     const vnode = Collapsible({
       title: 'Indented',
@@ -416,7 +428,7 @@ describe('Accordion Component', () => {
   it('should apply active color', () => {
     const vnode = Accordion({
       sections,
-      activeColor: 'cyan',
+      colorActive: 'cyan',
     });
 
     expect(vnode).toBeDefined();
@@ -463,10 +475,10 @@ describe('Details Component', () => {
     expect(vnode).toBeDefined();
   });
 
-  it('should apply summary color', () => {
+  it('should apply a custom summary icon', () => {
     const vnode = Details({
       summary: 'Colored',
-      summaryColor: 'yellow',
+      icon: '*',
       children: Text({}, 'Content'),
     });
 
@@ -512,7 +524,7 @@ describe('ExpandableText Component', () => {
     const vnode = ExpandableText({
       text: longText,
       maxLines: 2,
-      expandText: 'Show more...',
+      showMoreLabel: 'Show more...',
     });
 
     expect(vnode).toBeDefined();
@@ -522,7 +534,7 @@ describe('ExpandableText Component', () => {
     const vnode = ExpandableText({
       text: longText,
       maxLines: 2,
-      collapseText: 'Show less',
+      showLessLabel: 'Show less',
     });
 
     expect(vnode).toBeDefined();
@@ -532,7 +544,7 @@ describe('ExpandableText Component', () => {
     const vnode = ExpandableText({
       text: longText,
       maxLines: 2,
-      linkColor: 'blue',
+      color: 'blue',
     });
 
     expect(vnode).toBeDefined();

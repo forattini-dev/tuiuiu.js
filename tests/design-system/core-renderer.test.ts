@@ -75,7 +75,7 @@ describe('Core Renderer', () => {
     it('should handle wrap mode none', () => {
       const node = Box(
         { width: 10 },
-        Text({ wrap: 'none' }, 'This text should not wrap at all')
+        Text({}, 'This text should not wrap at all')
       );
       const output = renderToString(node, 10);
       expect(output).toBeDefined();
@@ -239,7 +239,7 @@ describe('Core Renderer', () => {
     it('should align text left', () => {
       const node = Box(
         { width: 20 },
-        Text({ align: 'left' }, 'Left')
+        Text({}, 'Left')
       );
       const output = renderToString(node, 80);
       expect(output).toContain('Left');
@@ -248,7 +248,7 @@ describe('Core Renderer', () => {
     it('should align text center', () => {
       const node = Box(
         { width: 20 },
-        Text({ align: 'center' }, 'Center')
+        Box({ width: 'fill', justifyContent: 'center' }, Text({}, 'Center'))
       );
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
@@ -257,7 +257,7 @@ describe('Core Renderer', () => {
     it('should align text right', () => {
       const node = Box(
         { width: 20 },
-        Text({ align: 'right' }, 'Right')
+        Box({ width: 'fill', justifyContent: 'flex-end' }, Text({}, 'Right'))
       );
       const output = renderToString(node, 80);
       expect(output).toBeDefined();

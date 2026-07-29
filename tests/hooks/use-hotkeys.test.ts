@@ -22,6 +22,7 @@ import {
 } from '../../src/hooks/use-hotkeys.js';
 import type { HotkeyBinding } from '../../src/hooks/use-hotkeys.js';
 import type { Key } from '../../src/hooks/types.js';
+import { createKey as createKeyboardKey } from '../helpers/keyboard.js';
 
 describe('parseHotkey', () => {
   it('should parse simple key', () => {
@@ -168,26 +169,8 @@ describe('parseHotkeys', () => {
 });
 
 describe('matchesHotkey', () => {
-  const createKey = (overrides: Partial<Key> = {}): Key => ({
-    upArrow: false,
-    downArrow: false,
-    leftArrow: false,
-    rightArrow: false,
-    return: false,
-    escape: false,
-    tab: false,
-    backspace: false,
-    delete: false,
-    pageUp: false,
-    pageDown: false,
-    home: false,
-    end: false,
-    insert: false,
-    ctrl: false,
-    meta: false,
-    shift: false,
-    ...overrides,
-  });
+  const createKey = (overrides: Partial<Key> = {}): Key =>
+    createKeyboardKey(overrides);
 
   it('should match simple letter', () => {
     const binding = parseHotkey('a');
@@ -504,26 +487,8 @@ describe('scope stack', () => {
 });
 
 describe('triggerHotkey', () => {
-  const createKey = (overrides: Partial<Key> = {}): Key => ({
-    upArrow: false,
-    downArrow: false,
-    leftArrow: false,
-    rightArrow: false,
-    return: false,
-    escape: false,
-    tab: false,
-    backspace: false,
-    delete: false,
-    pageUp: false,
-    pageDown: false,
-    home: false,
-    end: false,
-    insert: false,
-    ctrl: false,
-    meta: false,
-    shift: false,
-    ...overrides,
-  });
+  const createKey = (overrides: Partial<Key> = {}): Key =>
+    createKeyboardKey(overrides);
 
   beforeEach(() => {
     resetHotkeyScope();

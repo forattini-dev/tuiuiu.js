@@ -82,23 +82,69 @@ function walkHitTestLayout(
   offsetX = 0,
   offsetY = 0,
   parentNode: VNode | null = null,
+  activeClip?: { x: number; y: number; width: number; height: number },
 ): void {
   const { node, x, y, width, height, children } = layout;
   const absX = offsetX + x;
   const absY = offsetY + y;
 
-  visitor(node, absX, absY, width, height, parentNode);
+  const left = activeClip ? Math.max(absX, activeClip.x) : absX;
+  const top = activeClip ? Math.max(absY, activeClip.y) : absY;
+  const right = activeClip
+    ? Math.min(absX + width, activeClip.x + activeClip.width)
+    : absX + width;
+  const bottom = activeClip
+    ? Math.min(absY + height, activeClip.y + activeClip.height)
+    : absY + height;
+
+  if (right > left && bottom > top) {
+    visitor(node, left, top, right - left, bottom - top, parentNode);
+  }
 
   const style = node.props;
   const paddingTop = style.paddingTop ?? style.paddingY ?? style.padding ?? 0;
   const paddingLeft = style.paddingLeft ?? style.paddingX ?? style.padding ?? 0;
   const borderSize = style.borderStyle && style.borderStyle !== 'none' ? 1 : 0;
   const contentOffsetX = absX + paddingLeft + borderSize;
-  const contentOffsetY = absY + paddingTop + borderSize;
+  const scrollOffsetY =
+    typeof style.__scrollOffsetY === 'number' && Number.isFinite(style.__scrollOffsetY)
+      ? Math.max(0, Math.floor(style.__scrollOffsetY))
+      : 0;
+  const contentOffsetY = absY + paddingTop + borderSize - scrollOffsetY;
+  const clipsX = style.overflow === 'hidden' || style.overflowX === 'hidden';
+  const clipsY = style.overflow === 'hidden' || style.overflowY === 'hidden';
+  const ownClip = {
+    x: clipsX ? absX : (activeClip?.x ?? Number.MIN_SAFE_INTEGER),
+    y: clipsY ? absY : (activeClip?.y ?? Number.MIN_SAFE_INTEGER),
+    width: clipsX ? width : (activeClip?.width ?? Number.MAX_SAFE_INTEGER * 2),
+    height: clipsY ? height : (activeClip?.height ?? Number.MAX_SAFE_INTEGER * 2),
+  };
+  const childClip = clipsX || clipsY
+    ? intersectHitBounds(activeClip, ownClip)
+    : activeClip;
 
   for (const child of children) {
-    walkHitTestLayout(child, visitor, contentOffsetX, contentOffsetY, node);
+    walkHitTestLayout(child, visitor, contentOffsetX, contentOffsetY, node, childClip);
   }
+}
+
+function intersectHitBounds(
+  left: { x: number; y: number; width: number; height: number } | undefined,
+  right: { x: number; y: number; width: number; height: number },
+): { x: number; y: number; width: number; height: number } {
+  if (!left) return right;
+
+  const x = Math.max(left.x, right.x);
+  const y = Math.max(left.y, right.y);
+  const rightEdge = Math.min(left.x + left.width, right.x + right.width);
+  const bottomEdge = Math.min(left.y + left.height, right.y + right.height);
+
+  return {
+    x,
+    y,
+    width: Math.max(0, rightEdge - x),
+    height: Math.max(0, bottomEdge - y),
+  };
 }
 
 export function collectHitTestTargetsFromLayout(layout: LayoutNode): ElementBounds[] {

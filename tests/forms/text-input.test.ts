@@ -21,10 +21,10 @@ import {
 import { createPasteCollapseStore, createPasteCollapseTransform } from '../../src/atoms/paste-collapse.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { createInlineBackgroundExecutor } from '../../src/utils/background-executor.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 import { keys, charKey, typeString } from '../helpers/keyboard.js';
 import {
   addInputHandler,
-  removeInputHandler,
   clearInputHandlers,
   emitInput,
 } from '../../src/hooks/context.js';
@@ -1950,6 +1950,23 @@ describe('TextInput Keyboard Interactions', () => {
       expect(vnode).toBeDefined();
     });
 
+    it('should render each configured virtual cursor style without shifting width', () => {
+      const ti = createTestInput({ initialValue: 'abc' });
+      ti.setCursorPosition(1);
+
+      const block = renderTextInput(ti, { isActive: true, cursorStyle: 'block' });
+      const underline = renderTextInput(ti, { isActive: true, cursorStyle: 'underline' });
+      const bar = renderTextInput(ti, { isActive: true, cursorStyle: 'bar' });
+      const blockCursor = (block.children[1] as any).children[1];
+      const underlineCursor = (underline.children[1] as any).children[1];
+      const barCursor = (bar.children[1] as any).children[1];
+
+      expect(blockCursor.props.backgroundColor).toBeDefined();
+      expect(underlineCursor.props.underline).toBe(true);
+      expect(barCursor.props.children).toBe('b\u20D2');
+      expect(stringWidth(barCursor.props.children)).toBe(1);
+    });
+
     it('should render cursor on empty space when at end', () => {
       const ti = createTestInput({ initialValue: 'hello' });
       // Cursor is already at end
@@ -2078,7 +2095,7 @@ describe('TextInput Keyboard Interactions', () => {
     });
 
     it('should render TextInput with label', () => {
-      const vnode = TextInput({ initialValue: 'test', label: 'Name:' });
+      const vnode = TextInput({ initialValue: 'test', placeholder: 'Name:' });
       expect(vnode).toBeDefined();
     });
   });

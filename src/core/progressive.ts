@@ -19,11 +19,19 @@ import {
   sanitizeTerminalLabel,
 } from '../utils/terminal-sanitize.js';
 import {
-  getDefaultRuntimeResource,
-  getRuntimeResource,
-  getRuntimeScope,
-  type RuntimeScope,
-} from './runtime-scope.js';
+  areHyperlinksEnabled,
+} from './progressive-state.js';
+
+export {
+  areHyperlinksEnabled,
+  configureProgressive,
+  getProgressiveOverrides,
+  getProgressiveVersion,
+  hasNerdFonts,
+  resetProgressive,
+  setHyperlinksEnabled,
+  setNerdFonts,
+} from './progressive-state.js';
 
 // =============================================================================
 // Passthrough / Multiplexer Wrapping
@@ -307,136 +315,4 @@ export function getUnderlineColorCode(color: Color, caps?: TerminalCapabilities)
  */
 export function getUnderlineColorResetCode(): string {
   return '59';
-}
-
-// =============================================================================
-// Nerd Fonts
-// =============================================================================
-
-interface ProgressiveRuntimeState {
-  nerdFontsEnabled: boolean;
-  hyperlinksEnabled: boolean;
-  progressiveVersion: number;
-  capabilityOverrides: Partial<TerminalCapabilities> | null;
-}
-
-const PROGRESSIVE_RUNTIME_STATE = Symbol('tuiuiu.progressive-runtime-state');
-
-function createDefaultProgressiveRuntimeState(): ProgressiveRuntimeState {
-  return {
-    nerdFontsEnabled: false,
-    hyperlinksEnabled: true,
-    progressiveVersion: 0,
-    capabilityOverrides: null,
-  };
-}
-
-function createProgressiveRuntimeState(scope: RuntimeScope): ProgressiveRuntimeState {
-  if (scope.id === 0) return createDefaultProgressiveRuntimeState();
-  const defaults = getDefaultRuntimeResource(
-    PROGRESSIVE_RUNTIME_STATE,
-    createDefaultProgressiveRuntimeState,
-  );
-  return {
-    nerdFontsEnabled: defaults.nerdFontsEnabled,
-    hyperlinksEnabled: defaults.hyperlinksEnabled,
-    progressiveVersion: defaults.progressiveVersion,
-    capabilityOverrides: defaults.capabilityOverrides
-      ? { ...defaults.capabilityOverrides }
-      : null,
-  };
-}
-
-function getProgressiveRuntimeState(): ProgressiveRuntimeState {
-  const scope = getRuntimeScope();
-  return getRuntimeResource(
-    PROGRESSIVE_RUNTIME_STATE,
-    () => createProgressiveRuntimeState(scope),
-    scope,
-  );
-}
-
-/**
- * Enable or disable Nerd Fonts support.
- * When enabled, components may use Nerd Font icons.
- */
-export function setNerdFonts(enabled: boolean): void {
-  const state = getProgressiveRuntimeState();
-  state.nerdFontsEnabled = enabled;
-  state.progressiveVersion++;
-}
-
-/**
- * Check if Nerd Fonts are enabled.
- * Checks both explicit opt-in and NERD_FONT env var.
- */
-export function hasNerdFonts(): boolean {
-  return (
-    getProgressiveRuntimeState().nerdFontsEnabled ||
-    process.env.NERD_FONT === '1' ||
-    process.env.NERD_FONTS === '1'
-  );
-}
-
-/**
- * Enable or disable OSC 8 hyperlink emission globally.
- * Defaults to enabled.
- */
-export function setHyperlinksEnabled(enabled: boolean): void {
-  const state = getProgressiveRuntimeState();
-  state.hyperlinksEnabled = enabled;
-  state.progressiveVersion++;
-}
-
-/**
- * Check whether hyperlink emission is enabled.
- */
-export function areHyperlinksEnabled(): boolean {
-  return getProgressiveRuntimeState().hyperlinksEnabled;
-}
-
-// =============================================================================
-// Configuration
-// =============================================================================
-
-/**
- * Override detected capabilities for progressive enhancement.
- * Useful for testing or forcing specific behavior.
- */
-export function configureProgressive(options: {
-  overrides?: Partial<TerminalCapabilities>;
-  hyperlinks?: boolean;
-}): void {
-  const state = getProgressiveRuntimeState();
-  state.capabilityOverrides = options.overrides ?? null;
-  if (options.hyperlinks !== undefined) {
-    state.hyperlinksEnabled = options.hyperlinks;
-  }
-  state.progressiveVersion++;
-}
-
-/**
- * Get any configured overrides.
- */
-export function getProgressiveOverrides(): Partial<TerminalCapabilities> | null {
-  return getProgressiveRuntimeState().capabilityOverrides;
-}
-
-/**
- * Get the current progressive configuration version.
- * Used by capability caching to invalidate stale snapshots.
- */
-export function getProgressiveVersion(): number {
-  return getProgressiveRuntimeState().progressiveVersion;
-}
-
-/**
- * Reset progressive configuration.
- */
-export function resetProgressive(): void {
-  const state = getProgressiveRuntimeState();
-  state.capabilityOverrides = null;
-  state.nerdFontsEnabled = false;
-  state.hyperlinksEnabled = true;
-  state.progressiveVersion++;
 }

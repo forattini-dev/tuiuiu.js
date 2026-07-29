@@ -55,8 +55,12 @@ export interface GanttChartOptions {
 /**
  * Parse date
  */
-function parseDate(date: Date | string): Date {
-  return typeof date === 'string' ? new Date(date) : date;
+function parseDate(date: Date | string, taskId: string, field: 'startDate' | 'endDate'): Date {
+  const parsed = typeof date === 'string' ? new Date(date) : date;
+  if (!Number.isFinite(parsed.getTime())) {
+    throw new RangeError(`GanttChart task "${taskId}" has an invalid ${field}`);
+  }
+  return parsed;
 }
 
 /**
@@ -117,20 +121,27 @@ export function GanttChart(props: GanttChartOptions): VNode {
   if (tasks.length === 0) {
     return Text({ color: 'gray', dim: true }, 'No tasks');
   }
+  if (!Number.isSafeInteger(width) || width < 3) {
+    throw new RangeError('GanttChart width must be a safe integer of at least 3');
+  }
 
   // Calculate date range
   let minDate = new Date(8640000000000000);
   let maxDate = new Date(-8640000000000000);
 
   for (const task of tasks) {
-    const start = parseDate(task.startDate);
-    const end = parseDate(task.endDate);
+    const start = parseDate(task.startDate, task.id, 'startDate');
+    const end = parseDate(task.endDate, task.id, 'endDate');
+    if (end < start) {
+      throw new RangeError(`GanttChart task "${task.id}" ends before it starts`);
+    }
     if (start < minDate) minDate = start;
     if (end > maxDate) maxDate = end;
   }
 
-  const dateRange = maxDate.getTime() - minDate.getTime();
-  const barWidth = width - 30; // Space for labels
+  const dateRange = Math.max(1, maxDate.getTime() - minDate.getTime());
+  const nameWidth = Math.min(20, width - 2);
+  const barWidth = Math.max(1, width - nameWidth - 1);
 
   // Build rows
   const displayLines: VNode[] = [];
@@ -148,18 +159,21 @@ export function GanttChart(props: GanttChartOptions): VNode {
   // Task rows
   const taskRows: VNode[] = [];
   for (const task of tasks) {
-    const startDate = parseDate(task.startDate);
-    const endDate = parseDate(task.endDate);
+    const startDate = parseDate(task.startDate, task.id, 'startDate');
+    const endDate = parseDate(task.endDate, task.id, 'endDate');
     const duration = endDate.getTime() - startDate.getTime();
     const offset = Math.round(((startDate.getTime() - minDate.getTime()) / dateRange) * barWidth);
     const barLength = Math.max(1, Math.round((duration / dateRange) * barWidth));
-    const progress = task.progress ?? 0;
+    const requestedProgress = task.progress ?? 0;
+    const progress = Number.isFinite(requestedProgress)
+      ? Math.max(0, Math.min(100, requestedProgress))
+      : 0;
     const fillLength = Math.round((progress / 100) * barLength);
 
     // Task name
     const nameCell = Text(
       { color: 'gray' },
-      padTextToWidth(task.name, 20)
+      padTextToWidth(task.name, nameWidth)
     );
 
     // Build bar
@@ -170,7 +184,9 @@ export function GanttChart(props: GanttChartOptions): VNode {
       bar.push('◆');
     } else {
       // Filled portion
-      bar.push('█'.repeat(Math.max(1, fillLength)));
+      if (fillLength > 0) {
+        bar.push('█'.repeat(fillLength));
+      }
       // Empty portion
       if (fillLength < barLength) {
         bar.push('░'.repeat(barLength - fillLength));

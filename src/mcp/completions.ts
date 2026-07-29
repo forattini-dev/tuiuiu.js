@@ -158,7 +158,7 @@ export function getResourceCompletions(
   const lowerValue = argValue.toLowerCase();
 
   // Component names
-  if (uriTemplate.includes('{name}') && uriTemplate.includes('component')) {
+  if (argName === 'name' && uriTemplate.includes('{name}') && uriTemplate.includes('component')) {
     return filterCompletions(
       allComponents.map(c => c.name),
       lowerValue
@@ -166,7 +166,7 @@ export function getResourceCompletions(
   }
 
   // Hook names
-  if (uriTemplate.includes('{name}') && uriTemplate.includes('hook')) {
+  if (argName === 'name' && uriTemplate.includes('{name}') && uriTemplate.includes('hook')) {
     return filterCompletions(
       allHooks.map(h => h.name),
       lowerValue
@@ -174,7 +174,7 @@ export function getResourceCompletions(
   }
 
   // Theme names
-  if (uriTemplate.includes('{name}') && uriTemplate.includes('theme')) {
+  if (argName === 'name' && uriTemplate.includes('{name}') && uriTemplate.includes('theme')) {
     return filterCompletions(
       allThemes.map(t => t.name),
       lowerValue
@@ -182,12 +182,12 @@ export function getResourceCompletions(
   }
 
   // Categories
-  if (uriTemplate.includes('{category}')) {
+  if (argName === 'category' && uriTemplate.includes('{category}')) {
     return filterCompletions(Object.keys(categories), lowerValue);
   }
 
   // Examples
-  if (uriTemplate.includes('{id}') && uriTemplate.includes('example')) {
+  if (argName === 'id' && uriTemplate.includes('{id}') && uriTemplate.includes('example')) {
     return filterCompletions([
       'counter', 'dashboard', 'form', 'file-browser',
       'data-table', 'command-palette', 'wizard', 'game-snake',
@@ -195,7 +195,7 @@ export function getResourceCompletions(
   }
 
   // Guides
-  if (uriTemplate.includes('{topic}')) {
+  if (argName === 'topic' && uriTemplate.includes('{topic}')) {
     return filterCompletions([
       'getting-started', 'custom-themes', 'migration-ink',
       'migration-blessed', 'signals', 'common-mistakes', 'layout',

@@ -33,8 +33,8 @@ describe('Feedback Components', () => {
       expect(output).toContain('\x1b[');
     });
 
-    it('should apply inverse', () => {
-      const node = Badge({ label: 'ERROR', color: 'red', inverse: true });
+    it('should apply outline style', () => {
+      const node = Badge({ label: 'ERROR', color: 'red', style: 'outline' });
       const output = renderToString(node, 80);
       expect(output).toContain('ERROR');
     });
@@ -48,7 +48,7 @@ describe('Feedback Components', () => {
     });
 
     it('should apply semantic variant', () => {
-      const variants = ['success', 'error', 'warning', 'info', 'primary', 'secondary'] as const;
+      const variants = ['success', 'danger', 'warning', 'info', 'primary', 'secondary'] as const;
       for (const variant of variants) {
         const node = Badge({ label: variant.toUpperCase(), variant });
         const output = renderToString(node, 80);

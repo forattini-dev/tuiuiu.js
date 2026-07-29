@@ -12,7 +12,7 @@ import {
   getRuntimeResource,
   getRuntimeScope,
 } from './runtime-scope.js';
-import type { Screen, ScreenComponent } from './screen.js';
+import type { ScreenComponent } from './screen.js';
 
 // =============================================================================
 // Types
@@ -224,12 +224,12 @@ export function matchPath(
           return { matched: false, params: {} };
         }
       } else {
-        params[segment.name] = pathPart;
+        params[segment.name] = decodePathPart(pathPart);
         pathIndex++;
       }
     } else if (segment.type === 'wildcard') {
       // Consume all remaining path parts
-      params['*'] = pathParts.slice(pathIndex).join('/');
+      params['*'] = pathParts.slice(pathIndex).map(decodePathPart).join('/');
       pathIndex = pathParts.length;
     }
   }
@@ -255,14 +255,14 @@ export function buildPath(pattern: string, params: RouteParams = {}): string {
     } else if (segment.type === 'param') {
       const value = params[segment.name];
       if (value !== undefined) {
-        parts.push(value);
+        parts.push(encodeURIComponent(value));
       } else if (!segment.optional) {
         throw new Error(`Missing required param: ${segment.name}`);
       }
     } else if (segment.type === 'wildcard') {
       const value = params['*'];
       if (value) {
-        parts.push(value);
+        parts.push(value.split('/').map(encodeURIComponent).join('/'));
       }
     }
   }
@@ -360,6 +360,24 @@ export function normalizePath(path: string): string {
   return path;
 }
 
+function decodePathPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function joinRoutePath(parentPath: string, routePath: string): string {
+  if (!parentPath) {
+    return normalizePath(routePath || '/');
+  }
+
+  const parent = parentPath === '/' ? '' : parentPath.replace(/\/+$/u, '');
+  const child = routePath.replace(/^\/+/u, '');
+  return normalizePath(`${parent}/${child}`);
+}
+
 // =============================================================================
 // Router Class
 // =============================================================================
@@ -406,6 +424,8 @@ export class Router extends EventEmitter<RouterEvents> {
   private history: HistoryEntry[] = [];
   private historyIndex = -1;
   private maxHistorySize = 50;
+  /** Settles after the optional initial navigation has completed. */
+  readonly ready: Promise<NavigationResult>;
 
   constructor(options: RouterOptions) {
     super();
@@ -419,9 +439,16 @@ export class Router extends EventEmitter<RouterEvents> {
     this.indexRoutes(this.routes);
 
     // Navigate to initial path
-    if (options.initialPath) {
-      this.replace(options.initialPath);
-    }
+    this.ready = options.initialPath
+      ? this.replace(options.initialPath).catch(error => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.emit('error', {
+            error: message,
+            target: { path: options.initialPath },
+          });
+          return { success: false, error: message };
+        })
+      : Promise.resolve({ success: true });
   }
 
   clone(): Router {
@@ -464,14 +491,32 @@ export class Router extends EventEmitter<RouterEvents> {
    * Index routes by name for fast lookup
    */
   private indexRoutes(routes: RouteDefinition[], parentPath = ''): void {
-    for (const route of routes) {
-      const fullPath = parentPath + route.path;
-      if (route.name) {
-        this.routesByName.set(route.name, { ...route, path: fullPath });
+    const pending: Array<[string, RouteDefinition]> = [];
+
+    const collect = (definitions: RouteDefinition[], basePath: string): void => {
+      for (const route of definitions) {
+        const fullPath = joinRoutePath(basePath, route.path);
+        if (route.name) {
+          pending.push([route.name, { ...route, path: fullPath }]);
+        }
+        if (route.children) {
+          collect(route.children, fullPath);
+        }
       }
-      if (route.children) {
-        this.indexRoutes(route.children, fullPath);
+    };
+
+    collect(routes, parentPath);
+
+    const newNames = new Set<string>();
+    for (const [name] of pending) {
+      if (this.routesByName.has(name) || newNames.has(name)) {
+        throw new Error(`Duplicate route name: ${name}`);
       }
+      newNames.add(name);
+    }
+
+    for (const [name, route] of pending) {
+      this.routesByName.set(name, route);
     }
   }
 
@@ -533,7 +578,7 @@ export class Router extends EventEmitter<RouterEvents> {
     parentPath = ''
   ): MatchedRoute[] {
     for (const route of routes) {
-      const fullPattern = parentPath + route.path;
+      const fullPattern = joinRoutePath(parentPath, route.path);
       const { matched, params } = matchPath(path, fullPattern);
 
       if (matched) {
@@ -568,7 +613,7 @@ export class Router extends EventEmitter<RouterEvents> {
           const parentParams: RouteParams = {};
           for (const segment of segments) {
             if (segment.type === 'param' && pathParts[pathIndex]) {
-              parentParams[segment.name] = pathParts[pathIndex]!;
+              parentParams[segment.name] = decodePathPart(pathParts[pathIndex]!);
             }
             if (segment.type !== 'param' || !segment.optional || pathParts[pathIndex]) {
               pathIndex++;
@@ -591,11 +636,18 @@ export class Router extends EventEmitter<RouterEvents> {
    */
   private resolveTarget(target: NavigationTarget | string): RouteLocation | null {
     if (typeof target === 'string') {
-      target = { path: target };
+      const parsed = parsePath(target);
+      target = {
+        path: parsed.path,
+        query: parsed.query,
+        hash: parsed.hash,
+      };
     }
 
     let path: string;
-    let params = target.params || {};
+    const params = target.params || {};
+    let query = target.query || {};
+    let hash = target.hash || '';
 
     if (target.name) {
       const route = this.routesByName.get(target.name);
@@ -604,7 +656,10 @@ export class Router extends EventEmitter<RouterEvents> {
       }
       path = buildPath(route.path, params);
     } else if (target.path) {
-      path = normalizePath(target.path);
+      const parsed = parsePath(target.path);
+      path = normalizePath(parsed.path);
+      query = { ...parsed.query, ...target.query };
+      hash = target.hash ?? parsed.hash;
     } else {
       return null;
     }
@@ -621,12 +676,11 @@ export class Router extends EventEmitter<RouterEvents> {
     }
     Object.assign(allParams, params);
 
-    const query = target.query || {};
-    const hash = target.hash || '';
+    const matchedName = matched[matched.length - 1]?.route.name;
 
     return {
       path,
-      name: target.name,
+      name: target.name ?? matchedName,
       params: allParams,
       query,
       hash,
@@ -666,7 +720,7 @@ export class Router extends EventEmitter<RouterEvents> {
       if (lastMatched?.route.redirect) {
         const redirect = lastMatched.route.redirect;
         this._isNavigating[1](false);
-        return this.push(redirect);
+        return addToHistory ? this.push(redirect) : this.replace(redirect);
       }
 
       // Run global beforeEach guard
@@ -677,7 +731,7 @@ export class Router extends EventEmitter<RouterEvents> {
         }
         if (result && typeof result === 'object') {
           this._isNavigating[1](false);
-          return this.push(result);
+          return addToHistory ? this.push(result) : this.replace(result);
         }
       }
 
@@ -690,7 +744,7 @@ export class Router extends EventEmitter<RouterEvents> {
           }
           if (result && typeof result === 'object') {
             this._isNavigating[1](false);
-            return this.push(result);
+            return addToHistory ? this.push(result) : this.replace(result);
           }
         }
       }
@@ -737,6 +791,10 @@ export class Router extends EventEmitter<RouterEvents> {
    * Navigate to a new route (push to history)
    */
   async push(target: NavigationTarget | string): Promise<NavigationResult> {
+    if (typeof target !== 'string' && target.replace) {
+      const { replace: _replace, ...replacement } = target;
+      return this.replace(replacement);
+    }
     return this.navigate(target, true);
   }
 
@@ -774,14 +832,7 @@ export class Router extends EventEmitter<RouterEvents> {
       return { success: false, error: 'Cannot go back' };
     }
 
-    this.historyIndex--;
-    const entry = this.history[this.historyIndex]!;
-    const from = this._currentRoute[0]();
-
-    this._currentRoute[1](entry.location);
-    this.emit('navigate', { from, to: entry.location });
-
-    return { success: true };
+    return this.navigateHistory(this.historyIndex - 1);
   }
 
   /**
@@ -792,34 +843,76 @@ export class Router extends EventEmitter<RouterEvents> {
       return { success: false, error: 'Cannot go forward' };
     }
 
-    this.historyIndex++;
-    const entry = this.history[this.historyIndex]!;
-    const from = this._currentRoute[0]();
-
-    this._currentRoute[1](entry.location);
-    this.emit('navigate', { from, to: entry.location });
-
-    return { success: true };
+    return this.navigateHistory(this.historyIndex + 1);
   }
 
   /**
    * Go to specific history index
    */
   async go(delta: number): Promise<NavigationResult> {
+    if (!Number.isSafeInteger(delta)) {
+      return { success: false, error: 'History delta must be a safe integer' };
+    }
+
     const targetIndex = this.historyIndex + delta;
 
     if (targetIndex < 0 || targetIndex >= this.history.length) {
       return { success: false, error: 'Invalid history index' };
     }
 
-    this.historyIndex = targetIndex;
-    const entry = this.history[this.historyIndex]!;
-    const from = this._currentRoute[0]();
+    return this.navigateHistory(targetIndex);
+  }
 
-    this._currentRoute[1](entry.location);
-    this.emit('navigate', { from, to: entry.location });
+  private async navigateHistory(targetIndex: number): Promise<NavigationResult> {
+    if (this._isNavigating[0]()) {
+      return { success: false, error: 'Navigation already in progress' };
+    }
 
-    return { success: true };
+    const entry = this.history[targetIndex];
+    if (!entry) {
+      return { success: false, error: 'Invalid history index' };
+    }
+
+    this._isNavigating[1](true);
+    try {
+      const location = entry.location;
+      const from = this._currentRoute[0]();
+
+      this.emit('beforeNavigate', { from, to: location });
+
+      if (this.beforeEachGuard) {
+        const result = await this.beforeEachGuard(location, from);
+        if (result === false) {
+          return { success: false, error: 'Navigation cancelled by guard' };
+        }
+        if (result && typeof result === 'object') {
+          this._isNavigating[1](false);
+          return this.push(result);
+        }
+      }
+
+      for (const matched of location.matched) {
+        if (!matched.route.beforeEnter) continue;
+        const result = await matched.route.beforeEnter(location, from);
+        if (result === false) {
+          return { success: false, error: 'Navigation cancelled by route guard' };
+        }
+        if (result && typeof result === 'object') {
+          this._isNavigating[1](false);
+          return this.push(result);
+        }
+      }
+
+      this.historyIndex = targetIndex;
+      this._currentRoute[1](location);
+      this.emit('navigate', { from, to: location });
+      this.afterEachHook?.(location, from);
+      this.emit('afterNavigate', { from, to: location });
+
+      return { success: true };
+    } finally {
+      this._isNavigating[1](false);
+    }
   }
 
   /**
@@ -834,23 +927,26 @@ export class Router extends EventEmitter<RouterEvents> {
    */
   addRoute(route: RouteDefinition, parentName?: string): void {
     if (parentName) {
-      const parent = this.routesByName.get(parentName);
-      if (parent) {
-        if (!parent.children) {
-          parent.children = [];
-        }
-        parent.children.push(route);
-        if (route.name) {
-          this.routesByName.set(route.name, {
-            ...route,
-            path: parent.path + route.path,
-          });
-        }
+      const parent = this.findRouteDefinitionByName(this.routes, parentName);
+      const indexedParent = this.routesByName.get(parentName);
+      if (!parent || !indexedParent) {
+        throw new Error(`Parent route not found: ${parentName}`);
+      }
+      parent.children ??= [];
+      parent.children.push(route);
+      try {
+        this.indexRoutes([route], indexedParent.path);
+      } catch (error) {
+        parent.children.pop();
+        throw error;
       }
     } else {
       this.routes.push(route);
-      if (route.name) {
-        this.routesByName.set(route.name, route);
+      try {
+        this.indexRoutes([route]);
+      } catch (error) {
+        this.routes.pop();
+        throw error;
       }
     }
   }
@@ -861,13 +957,14 @@ export class Router extends EventEmitter<RouterEvents> {
   removeRoute(name: string): boolean {
     if (!this.routesByName.has(name)) return false;
 
-    this.routesByName.delete(name);
-
     // Remove from routes array by name
     const removeByName = (routes: RouteDefinition[]): boolean => {
       for (let i = 0; i < routes.length; i++) {
         if (routes[i]!.name === name) {
-          routes.splice(i, 1);
+          const [removed] = routes.splice(i, 1);
+          if (removed) {
+            this.removeRouteNames(removed);
+          }
           return true;
         }
         if (routes[i]!.children && removeByName(routes[i]!.children!)) {
@@ -878,6 +975,29 @@ export class Router extends EventEmitter<RouterEvents> {
     };
 
     return removeByName(this.routes);
+  }
+
+  private findRouteDefinitionByName(
+    routes: RouteDefinition[],
+    name: string
+  ): RouteDefinition | undefined {
+    for (const route of routes) {
+      if (route.name === name) return route;
+      if (route.children) {
+        const match = this.findRouteDefinitionByName(route.children, name);
+        if (match) return match;
+      }
+    }
+    return undefined;
+  }
+
+  private removeRouteNames(route: RouteDefinition): void {
+    if (route.name) {
+      this.routesByName.delete(route.name);
+    }
+    for (const child of route.children ?? []) {
+      this.removeRouteNames(child);
+    }
   }
 
   /**

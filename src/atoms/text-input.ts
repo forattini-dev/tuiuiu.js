@@ -16,7 +16,7 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
-import type { VNode, MouseEventData } from '../utils/types.js';
+import type { VNode, MouseEventData, TextStyle } from '../utils/types.js';
 import { batch, createSignal, createEffect } from '../primitives/signal.js';
 import { useConst, useInput, type Key } from '../hooks/index.js';
 import { usePaste } from '../hooks/use-paste.js';
@@ -133,6 +133,8 @@ export interface TextInputCompletionContext {
 export interface TextInputCompletionItem<T = unknown> {
   id: string;
   label: string;
+  /** Optional icon displayed by CompletionDropdown. */
+  icon?: string;
   detail?: string;
   replacement?: TextInputInsertionLike<T>;
   payload?: T;
@@ -253,7 +255,7 @@ export interface TextInputOptions {
   /** Transform pasted content before it mutates the input buffer */
   transformPaste?: (context: TextInputPasteContext) => TextInputPasteTransformResult;
   /** Async completion provider anchored to the current cursor range */
-  completion?: TextInputCompletionOptions;
+  completion?: TextInputCompletionOptions<any>;
 }
 
 interface TextInputRuntimeOptions {
@@ -268,7 +270,7 @@ interface TextInputRuntimeOptions {
   multiline: boolean;
   enterCreatesNewline: boolean;
   transformPaste?: (context: TextInputPasteContext) => TextInputPasteTransformResult;
-  completion?: TextInputCompletionOptions;
+  completion?: TextInputCompletionOptions<any>;
 }
 
 function resolveRuntimeOptions(options: TextInputOptions): TextInputRuntimeOptions {
@@ -846,7 +848,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       anchor,
     });
 
-    if (isTaskBackedCompletionResult(completionResult)) {
+    if (isTaskBackedCompletionResult<any>(completionResult)) {
       activeCompletionTask = completionResult;
       releaseCompletionTaskEvents = completionResult.subscribe((event) => {
         if (requestId !== completionRequestId || event.kind !== 'progress') {
@@ -1512,11 +1514,43 @@ export function renderTextInput(
   const cursorChar = displayValue.slice(displayCursor, displayCursorEnd) || ' ';
   const afterCursor = displayValue.slice(displayCursorEnd);
 
-  const showPlaceholder = isEmpty && placeholder;
+  const showPlaceholder = Boolean(isEmpty && placeholder);
 
   // Cursor colors based on theme
   const cursorBg = theme.foreground.primary;
   const cursorFg = getContrastColor(cursorBg);
+  const renderCursor = (char: string, placeholderCursor = false): VNode => {
+    let text = char;
+    let style: TextStyle;
+
+    switch (cursorStyle) {
+      case 'underline':
+        style = {
+          color: placeholderCursor ? 'mutedForeground' : undefined,
+          underline: true,
+          underlineColor: cursorBg,
+        };
+        break;
+      case 'bar':
+        // U+20D2 overlays a vertical stroke without consuming another cell,
+        // so the character under the virtual cursor remains visible.
+        text = `${char}\u20D2`;
+        style = {
+          color: placeholderCursor ? 'mutedForeground' : cursorBg,
+          bold: true,
+        };
+        break;
+      case 'block':
+      default:
+        style = {
+          backgroundColor: cursorBg,
+          color: cursorFg,
+        };
+        break;
+    }
+
+    return Text(style, text);
+  };
 
   // Box style based on borderStyle
   const noBorder = borderStyle === 'none';
@@ -1608,9 +1642,6 @@ export function renderTextInput(
       }
     }
 
-    // Adjust cursorLine to be relative to visible window
-    const relativeCursorLine = cursorLine - offset;
-
     const chars = getChars();
     const renderMode = getRenderMode();
     const trackChar = renderMode === 'ascii' ? '|' : chars.scrollbar.track;
@@ -1679,10 +1710,7 @@ export function renderTextInput(
           { flexDirection: 'row' },
           Text({ color: foreground }, `${linePrompt} `),
           Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, before),
-          Text({
-            backgroundColor: cursorBg,
-            color: renderPlaceholderLine ? cursorFg : cursorFg,
-          }, char),
+          renderCursor(char, renderPlaceholderLine),
           Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, after),
           padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
           renderScrollbar(i, isThumb)
@@ -1752,13 +1780,13 @@ export function renderTextInput(
       ? Box(
         { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
         Text({ color: 'mutedForeground', dim: true }, placeholder),
-        isActive ? Text({ backgroundColor: cursorBg, color: cursorFg }, ' ') : Text({}, '')
+        isActive ? renderCursor(' ', true) : Text({}, '')
       )
       : Box(
         { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
         Text({}, beforeCursor),
         isActive
-          ? Text({ backgroundColor: cursorBg, color: cursorFg }, cursorChar)
+          ? renderCursor(cursorChar)
           : Text({}, cursorChar),
         Text({}, afterCursor)
       )

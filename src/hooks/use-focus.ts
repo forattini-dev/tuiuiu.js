@@ -3,12 +3,16 @@
  */
 
 import { createEffect } from '../primitives/signal.js';
-import { getFocusManager, setFocusManager } from './context.js';
+import { getFocusManager } from './context.js';
 import { hasContext } from '../primitives/context.js';
 import { FocusContext } from './focus-context.js';
 import { useState } from './use-state.js';
-import { getFocusZoneManager } from '../core/focus.js';
 import type { FocusOptions, FocusResult, FocusManager } from './types.js';
+
+export {
+  createFocusAdapter,
+  FocusZoneManagerAdapter,
+} from './focus-adapter.js';
 
 /**
  * Get FocusManager from Context or global fallback
@@ -26,69 +30,6 @@ function getActiveFocusManager(): FocusManager | null {
 }
 
 export type { FocusOptions, FocusResult, FocusManager };
-
-/**
- * FocusZoneManagerAdapter - Bridges simple FocusManager interface to FocusZoneManager
- *
- * This adapter allows existing code using useFocus() to benefit from
- * the advanced FocusZoneManager features (zones, traps, stacks) while
- * maintaining backward compatibility with the simpler FocusManager interface.
- *
- * Elements are registered in the root zone ('__root__') by default.
- */
-export class FocusZoneManagerAdapter implements FocusManager {
-  private zoneManager = getFocusZoneManager();
-  private readonly zoneId: string;
-
-  constructor(zoneId: string = '__root__') {
-    this.zoneId = zoneId;
-  }
-
-  register(id: string, setFocused: (focused: boolean) => void): void {
-    this.zoneManager.registerElement(id, this.zoneId, {
-      onFocus: setFocused,
-    });
-  }
-
-  unregister(id: string): void {
-    this.zoneManager.unregisterElement(id, this.zoneId);
-  }
-
-  focus(id: string): void {
-    this.zoneManager.focusElement(id, this.zoneId);
-  }
-
-  focusNext(): void {
-    this.zoneManager.focusNextInZone(this.zoneId);
-  }
-
-  focusPrevious(): void {
-    this.zoneManager.focusPreviousInZone(this.zoneId);
-  }
-
-  blur(): void {
-    this.zoneManager.blur(this.zoneId);
-  }
-
-  getActiveId(): string | undefined {
-    return this.zoneManager.getActiveId(this.zoneId) ?? undefined;
-  }
-}
-
-/**
- * Create a FocusZoneManagerAdapter for use with useFocus
- *
- * This is the recommended way to create a focus manager for new code.
- * It uses the advanced FocusZoneManager internally while providing
- * the simple FocusManager interface.
- *
- * @param zoneId - Optional zone ID. Defaults to root zone.
- */
-export function createFocusAdapter(zoneId?: string): FocusManager {
-  const adapter = new FocusZoneManagerAdapter(zoneId);
-  setFocusManager(adapter);
-  return adapter;
-}
 
 /**
  * useFocus - Focus management for the component

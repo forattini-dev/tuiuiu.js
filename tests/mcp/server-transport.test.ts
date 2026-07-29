@@ -167,6 +167,45 @@ describe('MCP network transports', () => {
     expect((await fetch(`${baseUrl}/mcp/extra`)).status).toBe(404);
   });
 
+  it('returns no JSON-RPC body for notifications', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { baseUrl } = await startServer({ transport: 'http' });
+
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'notifications/initialized',
+      }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.text()).toBe('');
+  });
+
+  it('reports malformed method parameters as JSON-RPC errors', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { baseUrl } = await startServer({ transport: 'http' });
+
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 4,
+        method: 'tools/call',
+        params: [],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: 4,
+      error: { code: -32602 },
+    });
+  });
+
   it('limits concurrent requests while a handler is active', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const { server, baseUrl } = await startServer({
@@ -180,7 +219,8 @@ describe('MCP network transports', () => {
     });
     const dispatch = vi
       .spyOn(server as any, 'dispatchRequest')
-      .mockImplementationOnce(async (request: { id: number }) => {
+      .mockImplementationOnce(async (...args: unknown[]) => {
+        const request = args[0] as { id: number };
         await blocked;
         return { jsonrpc: '2.0', id: request.id, result: {} };
       });
@@ -271,5 +311,14 @@ describe('MCP network transports', () => {
     await server.stop();
     await server.stop();
     expect(server.getAddress()).toBeNull();
+  });
+
+  it('rejects unsafe or nonsensical server options eagerly', () => {
+    expect(() => new MCPServer({ maxRequestBytes: 0 })).toThrow(/positive integer/);
+    expect(() => new MCPServer({ requestTimeoutMs: Number.NaN })).toThrow(/positive integer/);
+    expect(() => new MCPServer({ port: 70_000 })).toThrow(/port/);
+    expect(() => new MCPServer({ authToken: '' })).toThrow(/authToken/);
+    expect(() => new MCPServer({ allowedOrigins: ['https://app.example/path'] }))
+      .toThrow(/exact HTTP/);
   });
 });

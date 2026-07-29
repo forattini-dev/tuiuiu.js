@@ -162,6 +162,8 @@ describe('AppShell', () => {
 
       expect(vnode.type).toBe('box');
       expect(vnode.props.flexDirection).toBe('column');
+      expect(vnode.props.width).toBe('fill');
+      expect(vnode.props.height).toBe('fill');
     });
 
     it('should include header when provided', () => {
@@ -220,6 +222,22 @@ describe('AppShell', () => {
       expect(output).toContain('Left');
       expect(output).toContain('Right');
       expect(output).toContain('Center');
+    });
+
+    it('should let the main panel consume remaining width without reading stdout size', () => {
+      const vnode = AppShell({
+        sidebar: Text({}, 'Left'),
+        aside: Text({}, 'Right'),
+        children: Text({}, 'Center'),
+      });
+      const middle = vnode.children.find(
+        child => child.props.flexDirection === 'row' && child.props.flexGrow === 1,
+      )!;
+      const content = middle.children.find(child => child.props.flexGrow === 1)!;
+
+      expect(middle.props.width).toBe('fill');
+      expect(content.props.width).toBeUndefined();
+      expect(content.props.height).toBe('fill');
     });
   });
 
@@ -326,6 +344,18 @@ describe('StatusBar', () => {
     const hasFlexGrow = vnode.children.some((c: any) => c.props?.flexGrow === 1);
     expect(hasFlexGrow).toBe(true);
   });
+
+  it('should render the configured separator and fill its parent', () => {
+    const vnode = StatusBar({
+      left: Text({}, 'L'),
+      center: Text({}, 'C'),
+      right: Text({}, 'R'),
+      separator: ' / ',
+    });
+
+    expect(vnode.props.width).toBe('fill');
+    expect(JSON.stringify(vnode).match(/ \/ /g)).toHaveLength(2);
+  });
 });
 
 describe('Header', () => {
@@ -431,10 +461,10 @@ describe('Container', () => {
       children: Text({}, 'Centered'),
     });
 
-    // When centered, creates a row with side margins
-    if (vnode.props.flexDirection === 'row') {
-      expect(vnode.children.length).toBe(3); // left margin + content + right margin
-    }
+    expect(vnode.props.flexDirection).toBe('row');
+    expect(vnode.props.justifyContent).toBe('center');
+    expect(vnode.children).toHaveLength(1);
+    expect(vnode.children[0]!.props.maxWidth).toBe(40);
   });
 
   it('should not center when center=false', () => {
@@ -454,9 +484,8 @@ describe('Container', () => {
       children: Text({}, 'Padded'),
     });
 
-    // Find the content box with padding
-    const contentBox = vnode.props.flexDirection === 'row'
-      ? vnode.children[1]
+    const contentBox = vnode.props.justifyContent === 'center'
+      ? vnode.children[0]!
       : vnode;
     expect(contentBox.props.padding).toBe(2);
   });

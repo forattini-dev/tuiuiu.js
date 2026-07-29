@@ -1096,7 +1096,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Three different dot spinner styles')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
@@ -1121,7 +1121,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Circle, square, arc and line spinners')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
@@ -1151,7 +1151,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Arrow-based spinners')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
@@ -1172,7 +1172,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Clock face emoji spinner')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.clock[frame % spinnerFrames.clock.length]),
@@ -1184,7 +1184,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Rotating earth globe')
     .animated(180)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.earth[frame % spinnerFrames.earth.length]),
@@ -1196,7 +1196,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Moon phases animation')
     .animated(150)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.moon[frame % spinnerFrames.moon.length]),
@@ -1208,7 +1208,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Colorful hearts')
     .animated(150)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.hearts[frame % spinnerFrames.hearts.length]),
@@ -1220,7 +1220,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Weather conditions cycling')
     .animated(200)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.weather[frame % spinnerFrames.weather.length]),
@@ -1232,7 +1232,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Walking/running animation')
     .animated(200)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({}, spinnerFrames.runner[frame % spinnerFrames.runner.length]),
@@ -1245,7 +1245,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Classic bouncing progress bar')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'primary' }, spinnerFrames.bouncingBar[frame % spinnerFrames.bouncingBar.length]),
@@ -1257,7 +1257,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Modern aesthetic progress animation')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'accent' }, spinnerFrames.aesthetic[frame % spinnerFrames.aesthetic.length]),
@@ -1269,7 +1269,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Growing bar animation')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'success' }, spinnerFrames.bar[frame % spinnerFrames.bar.length]),
@@ -1281,7 +1281,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Pulsing intensity animation')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'destructive' }, spinnerFrames.pulse[frame % spinnerFrames.pulse.length]),
@@ -1294,7 +1294,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Classic Pong game animation')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Text({ color: 'primary' }, spinnerFrames.pong[frame % spinnerFrames.pong.length]),
@@ -1306,7 +1306,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Binary code animation - for hackers')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'success' }, spinnerFrames.binary[frame % spinnerFrames.binary.length]),
@@ -1342,7 +1342,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Twinkling star animation')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'warning' }, spinnerFrames.star[frame % spinnerFrames.star.length]),
@@ -1354,7 +1354,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Growing/shrinking dot')
     .animated(120)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'primary' }, spinnerFrames.grow[frame % spinnerFrames.grow.length]),
@@ -1367,7 +1367,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Box corner bouncing animations')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
@@ -1387,7 +1387,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Rotating pipe/box characters')
     .animated(100)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'primary' }, spinnerFrames.pipe[frame % spinnerFrames.pipe.length]),
@@ -1400,7 +1400,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Simple toggle animations')
     .animated(150)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(
@@ -1420,7 +1420,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Static noise effect')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'mutedForeground' }, spinnerFrames.noise[frame % spinnerFrames.noise.length]),
@@ -1432,7 +1432,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Flipping line animation')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'row', gap: 2 },
         Text({ color: 'warning' }, spinnerFrames.flip[frame % spinnerFrames.flip.length]),
@@ -1445,7 +1445,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('All basic spinner types')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 0 },
         Box({ flexDirection: 'row', gap: 2 }, Text({ color: 'primary' }, spinnerFrames.dots[frame % spinnerFrames.dots.length]), Text({ color: 'mutedForeground' }, 'dots')),
@@ -1463,7 +1463,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('All emoji spinner types')
     .animated(150)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 0 },
         Box({ flexDirection: 'row', gap: 2 }, Text({}, spinnerFrames.clock[frame % spinnerFrames.clock.length]), Text({ color: 'mutedForeground' }, 'clock')),
@@ -1496,7 +1496,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Multiple concurrent tasks with different spinners')
     .animated(80)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1, padding: 1, borderStyle: 'round', borderColor: 'border' },
         Box(
@@ -1531,7 +1531,7 @@ export const spinnerStories: Story[] = [
     .category('Atoms')
     .description('Same spinner at different speeds')
     .animated(50)
-    .render((props, frame = 0) =>
+    .render((_props, frame = 0) =>
       Box(
         { flexDirection: 'column', gap: 1 },
         Box(

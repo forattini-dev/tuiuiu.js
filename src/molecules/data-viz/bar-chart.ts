@@ -437,7 +437,7 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
 
   // Value row (top)
   if (showValues) {
-    const values = data.map((item, i) => {
+    const values = data.map(item => {
       const valueStr = String(item.value);
       // Truncate or pad value to fit column
       const displayValue = valueStr.length > colWidth 

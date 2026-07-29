@@ -361,26 +361,25 @@ describe('Center', () => {
     expect(vnode.props.justifyContent).toBe('center');
   });
 
-  it('should use terminal size when dimensions not specified', () => {
+  it('should fill its parent when dimensions are not specified', () => {
     const vnode = Center({
       children: Text({}, 'Full'),
     });
 
-    // Should have some width/height from process.stdout or defaults
-    expect(vnode.props.width).toBeGreaterThan(0);
-    expect(vnode.props.height).toBeGreaterThan(0);
+    expect(vnode.props.width).toBe('fill');
+    expect(vnode.props.height).toBe('fill');
   });
 });
 
 describe('FullScreen', () => {
-  it('should fill terminal dimensions', () => {
+  it('should fill parent dimensions', () => {
     const vnode = FullScreen({
       children: Text({}, 'Full Screen'),
     });
 
     expect(vnode.props.flexDirection).toBe('column');
-    expect(vnode.props.width).toBeGreaterThan(0);
-    expect(vnode.props.height).toBeGreaterThan(0);
+    expect(vnode.props.width).toBe('fill');
+    expect(vnode.props.height).toBe('fill');
   });
 
   it('should apply padding', () => {

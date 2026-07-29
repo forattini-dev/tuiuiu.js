@@ -111,7 +111,7 @@ describe('App Layout Components', () => {
     it('should apply title color', () => {
       const node = Page({
         title: 'Colored',
-        titleColor: 'green',
+        color: 'green',
         divider: false,
         children: Text({}, 'Content'),
       });
@@ -122,7 +122,7 @@ describe('App Layout Components', () => {
     it('should apply border color', () => {
       const node = Page({
         border: true,
-        borderColor: 'cyan',
+        color: 'cyan',
         children: Text({}, 'Content'),
       });
       const output = renderToString(node, 80);
@@ -258,7 +258,7 @@ describe('App Layout Components', () => {
     it('should apply background color', () => {
       const node = StatusBar({
         left: Text({}, 'Status'),
-        backgroundColor: 'blue',
+        color: 'blue',
       });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
@@ -323,7 +323,7 @@ describe('App Layout Components', () => {
     it('should apply title color', () => {
       const node = Header({
         title: 'Colored',
-        titleColor: 'magenta',
+        color: 'magenta',
       });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
@@ -342,7 +342,7 @@ describe('App Layout Components', () => {
       const node = Header({
         title: 'Test',
         border: true,
-        borderColor: 'yellow',
+        color: 'yellow',
       });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();

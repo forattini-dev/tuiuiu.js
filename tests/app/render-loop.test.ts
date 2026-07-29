@@ -10,7 +10,12 @@ import {
   renderInline,
   renderOnce,
 } from '../../src/app/render-loop.js';
-import { Text, Box } from '../../src/primitives/index.js';
+import {
+  Text,
+  Box,
+  Computed,
+  AppendList,
+} from '../../src/primitives/index.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
@@ -677,7 +682,7 @@ describe('render-loop', () => {
       let renderCount = 0;
       let writeCount = 0;
 
-      vi.mocked(stdout.write).mockImplementation((chunk: string | Buffer) => {
+      vi.mocked(stdout.write).mockImplementation((chunk: string | Uint8Array) => {
         writeCount++;
         stdout.output += chunk.toString();
         // Trigger backpressure on 3rd write (init bracketedPaste + render1 + render2)
@@ -954,6 +959,105 @@ describe('render-loop', () => {
   });
 
   describe('render loop lifecycle', () => {
+    it('rejects waitUntilExit and releases runtime resources after a scheduled render error', async () => {
+      const [shouldThrow, setShouldThrow] = createSignal(false);
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const instance = render(
+        () => {
+          if (shouldThrow()) {
+            throw new Error('scheduled render failed');
+          }
+          return Text({}, 'ready');
+        },
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          alternateScreen: false,
+          clearOnStart: false,
+        },
+      );
+      const exited = instance.waitUntilExit();
+      const exitAssertion = expect(exited).rejects.toThrow('scheduled render failed');
+
+      setShouldThrow(true);
+      await vi.runAllTimersAsync();
+
+      await exitAssertion;
+      expect(stdout.listenerCount('resize')).toBe(0);
+      expect(stdout.listenerCount('drain')).toBe(0);
+      expect(stdin.listenerCount('data')).toBe(0);
+      consoleSpy.mockRestore();
+    });
+
+    it.each([
+      [{ maxFps: Number.NaN }, /maxFps/u],
+      [{ maxFps: Number.POSITIVE_INFINITY }, /maxFps/u],
+      [{
+        fixedStep: {
+          updateFps: Number.NaN,
+          onUpdate: vi.fn(),
+        },
+      }, /fixedStep\.updateFps/u],
+      [{
+        fixedStep: {
+          updateFps: 60,
+          maxCatchUpUpdates: 0,
+          onUpdate: vi.fn(),
+        },
+      }, /fixedStep\.maxCatchUpUpdates/u],
+    ])('rejects invalid scheduler options before acquiring terminal resources %#', (invalid, message) => {
+      expect(() => render(Text({}, 'invalid'), {
+        stdin,
+        stdout,
+        ...invalid,
+      })).toThrow(message);
+
+      expect(stdin.listenerCount('data')).toBe(0);
+      expect(stdout.listenerCount('resize')).toBe(0);
+    });
+
+    it('routes fixed-step callback errors through the app exit lifecycle', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const instance = render(Text({}, 'game'), {
+        stdin,
+        stdout,
+        alternateScreen: false,
+        clearOnStart: false,
+        fixedStep: {
+          updateFps: 60,
+          pauseWhenUnfocused: false,
+          onUpdate: () => {
+            throw new Error('fixed update failed');
+          },
+        },
+      });
+      const exited = instance.waitUntilExit();
+      const exitAssertion = expect(exited).rejects.toThrow('fixed update failed');
+
+      await vi.advanceTimersByTimeAsync(20);
+
+      await exitAssertion;
+      expect(stdout.listenerCount('resize')).toBe(0);
+      expect(stdin.listenerCount('data')).toBe(0);
+      consoleSpy.mockRestore();
+    });
+
+    it('removes a pending drain listener on unmount', () => {
+      const write = stdout.write as ReturnType<typeof vi.fn>;
+      write.mockReturnValue(false);
+      const instance = render(Text({}, 'backpressured'), {
+        stdin,
+        stdout,
+        alternateScreen: false,
+        clearOnStart: false,
+      });
+
+      expect(stdout.listenerCount('drain')).toBe(1);
+      instance.unmount();
+      expect(stdout.listenerCount('drain')).toBe(0);
+    });
+
     it('waitUntilExit returns a promise', () => {
       const node = Text({}, 'Test');
       const instance = render(node, { stdin, stdout });
@@ -962,6 +1066,79 @@ describe('render-loop', () => {
       expect(promise).toBeInstanceOf(Promise);
 
       instance.unmount();
+    });
+
+    it('refreshes a pre-built Computed node when its signal changes', async () => {
+      const [count, setCount] = createSignal(0);
+      let computedRuns = 0;
+      const node = Computed(() => {
+        computedRuns++;
+        return Text({}, `Computed: ${count()}`);
+      });
+      const instance = render(node, {
+        stdin,
+        stdout,
+        maxFps: 0,
+        clearOnStart: false,
+        useDeltaRenderer: false,
+      });
+
+      expect(stdout.output).toContain('Computed: 0');
+      expect(computedRuns).toBe(1);
+
+      setCount(1);
+      await Promise.resolve();
+
+      expect(stdout.output).toContain('Computed: 1');
+      expect(computedRuns).toBe(2);
+      instance.unmount();
+    });
+
+    it('preserves append-only Static output when delta rendering was requested', async () => {
+      const [items, setItems] = createSignal(['first']);
+      const instance = render(
+        () => AppendList({
+          id: 'build-log',
+          items: items(),
+          children: item => Text({}, item),
+        }),
+        {
+          stdin,
+          stdout,
+          maxFps: 0,
+          clearOnStart: false,
+          useDeltaRenderer: true,
+        },
+      );
+
+      expect(stdout.output).toContain('first');
+
+      setItems(['first', 'second']);
+      await Promise.resolve();
+
+      expect(stdout.output).toContain('first');
+      expect(stdout.output).toContain('second');
+      instance.unmount();
+    });
+
+    it('settles waitUntilExit and renderer resources on direct app disposal', async () => {
+      let app: ReturnType<typeof useApp> | undefined;
+      const instance = render(() => {
+        app = useApp();
+        return Text({}, 'embedded');
+      }, {
+        stdin,
+        stdout,
+        alternateScreen: false,
+        clearOnStart: false,
+      });
+      const exited = instance.waitUntilExit();
+
+      app!.dispose();
+
+      await expect(exited).resolves.toBeUndefined();
+      expect(stdout.listenerCount('resize')).toBe(0);
+      expect(stdin.listenerCount('data')).toBe(0);
     });
 
     it('cleanup removes resize listener', () => {

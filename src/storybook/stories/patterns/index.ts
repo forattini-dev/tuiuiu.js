@@ -8,16 +8,9 @@
 import {
   Box,
   Text,
-  Spacer,
-  createSignal,
-  createEffect,
-  createMemo,
-  batch,
-  onCleanup,
   Panel,
 } from '../../../index.js';
-import { Computed, ComputedText, Memo, PreText } from '../../../primitives/computed-node.js';
-import { createReactiveStore } from '../../../primitives/store.js';
+import { PreText } from '../../../primitives/computed-node.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
 

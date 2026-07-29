@@ -14,7 +14,7 @@ import { createSignal, createMemo } from '../../primitives/signal.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { Spinner } from '../../atoms/spinner.js';
 import { useTerminalSize } from '../../hooks/use-terminal-size.js';
-import type { VNode, ColorValue } from '../../utils/types.js';
+import type { VNode } from '../../utils/types.js';
 
 // =============================================================================
 // Types

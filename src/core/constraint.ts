@@ -726,6 +726,77 @@ export interface ConstraintLayoutOptions {
   height: number;
   /** Padding */
   padding?: number | { top: number; right: number; bottom: number; left: number };
+  /**
+   * Throw when one or more required constraints cannot be satisfied.
+   * @default true
+   */
+  strict?: boolean;
+}
+
+export interface ConstraintLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ConstraintLayoutResult {
+  layouts: Map<string, ConstraintLayout>;
+  solution: ConstraintSolution;
+}
+
+/**
+ * Raised by a strict layout manager when required constraints conflict.
+ * The complete solver result is retained so callers can inspect every
+ * unsatisfied constraint.
+ */
+export class UnsatisfiedConstraintError extends Error {
+  readonly solution: ConstraintSolution;
+
+  constructor(solution: ConstraintSolution) {
+    const required = solution.unsatisfied.filter(
+      constraint => constraint.priority === 'required'
+    );
+    super(
+      `Unable to satisfy ${required.length} required constraint${required.length === 1 ? '' : 's'}: ` +
+      required.map(constraint => constraint.id).join(', ')
+    );
+    this.name = 'UnsatisfiedConstraintError';
+    this.solution = solution;
+  }
+}
+
+type ResolvedPadding = { top: number; right: number; bottom: number; left: number };
+
+function resolveContainer(
+  width: number,
+  height: number,
+  padding: ConstraintLayoutOptions['padding']
+): { width: number; height: number; padding: ResolvedPadding } {
+  if (!Number.isFinite(width) || width < 0) {
+    throw new RangeError('Constraint layout width must be a finite, non-negative number');
+  }
+  if (!Number.isFinite(height) || height < 0) {
+    throw new RangeError('Constraint layout height must be a finite, non-negative number');
+  }
+
+  const resolved = typeof padding === 'number'
+    ? { top: padding, right: padding, bottom: padding, left: padding }
+    : padding ?? { top: 0, right: 0, bottom: 0, left: 0 };
+
+  for (const [side, value] of Object.entries(resolved)) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new RangeError(`Constraint layout padding.${side} must be a finite, non-negative number`);
+    }
+  }
+
+  const innerWidth = width - resolved.left - resolved.right;
+  const innerHeight = height - resolved.top - resolved.bottom;
+  if (innerWidth < 0 || innerHeight < 0) {
+    throw new RangeError('Constraint layout padding cannot exceed the container dimensions');
+  }
+
+  return { width: innerWidth, height: innerHeight, padding: resolved };
 }
 
 /**
@@ -735,9 +806,12 @@ export class ConstraintLayoutManager {
   private solver: ConstraintSolver;
   private elements: Map<string, ConstraintElement> = new Map();
   private container: ConstraintElement;
+  private readonly strict: boolean;
+  private lastSolution: ConstraintSolution | undefined;
 
   constructor(options: ConstraintLayoutOptions) {
     this.solver = new ConstraintSolver();
+    this.strict = options.strict ?? true;
 
     // Create container element with fixed dimensions
     this.container = createElement('__container__');
@@ -747,14 +821,13 @@ export class ConstraintLayoutManager {
     this.container.height.isFixed = true;
 
     // Set container values
-    const padding = typeof options.padding === 'number'
-      ? { top: options.padding, right: options.padding, bottom: options.padding, left: options.padding }
-      : options.padding ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const geometry = resolveContainer(options.width, options.height, options.padding);
+    const padding = geometry.padding;
 
     this.container.x.value = padding.left;
     this.container.y.value = padding.top;
-    this.container.width.value = options.width - padding.left - padding.right;
-    this.container.height.value = options.height - padding.top - padding.bottom;
+    this.container.width.value = geometry.width;
+    this.container.height.value = geometry.height;
 
     this.solver.addVariable(this.container.x);
     this.solver.addVariable(this.container.y);
@@ -773,6 +846,13 @@ export class ConstraintLayoutManager {
    * Create and register an element
    */
   addElement(id: string): ConstraintElement {
+    if (id.length === 0) {
+      throw new TypeError('Constraint element ID cannot be empty');
+    }
+    if (id === this.container.id || this.elements.has(id)) {
+      throw new Error(`Constraint element ID "${id}" is already registered`);
+    }
+
     const element = createElement(id);
     this.elements.set(id, element);
 
@@ -812,11 +892,13 @@ export class ConstraintLayoutManager {
   }
 
   /**
-   * Solve the layout
+   * Solve the layout and return both rounded layouts and solver diagnostics.
+   * Unlike solve(), this method never throws for conflicting constraints.
    */
-  solve(): Map<string, { x: number; y: number; width: number; height: number }> {
+  solveDetailed(): ConstraintLayoutResult {
     const solution = this.solver.solve();
-    const layouts = new Map<string, { x: number; y: number; width: number; height: number }>();
+    this.lastSolution = solution;
+    const layouts = new Map<string, ConstraintLayout>();
 
     for (const [id, element] of this.elements) {
       layouts.set(id, {
@@ -827,21 +909,48 @@ export class ConstraintLayoutManager {
       });
     }
 
-    return layouts;
+    return { layouts, solution };
+  }
+
+  /**
+   * Solve the layout.
+   *
+   * In strict mode (the default), conflicting required constraints throw an
+   * UnsatisfiedConstraintError instead of returning misleading coordinates.
+   * Use solveDetailed() or strict: false when diagnostics are preferred.
+   */
+  solve(): Map<string, ConstraintLayout> {
+    const result = this.solveDetailed();
+    const hasUnsatisfiedRequired = result.solution.unsatisfied.some(
+      constraint => constraint.priority === 'required'
+    );
+
+    if (this.strict && hasUnsatisfiedRequired) {
+      throw new UnsatisfiedConstraintError(result.solution);
+    }
+
+    return result.layouts;
+  }
+
+  /**
+   * Return the most recent solver diagnostics, if solve() or solveDetailed()
+   * has been called.
+   */
+  getLastSolution(): ConstraintSolution | undefined {
+    return this.lastSolution;
   }
 
   /**
    * Update container size
    */
   resize(width: number, height: number, padding?: number | { top: number; right: number; bottom: number; left: number }): void {
-    const p = typeof padding === 'number'
-      ? { top: padding, right: padding, bottom: padding, left: padding }
-      : padding ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const geometry = resolveContainer(width, height, padding);
+    const p = geometry.padding;
 
     this.container.x.value = p.left;
     this.container.y.value = p.top;
-    this.container.width.value = width - p.left - p.right;
-    this.container.height.value = height - p.top - p.bottom;
+    this.container.width.value = geometry.width;
+    this.container.height.value = geometry.height;
   }
 }
 

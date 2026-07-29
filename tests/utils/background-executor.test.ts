@@ -4,8 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 import {
   createInlineBackgroundExecutor,
+  createTaskBridge,
+  createTaskBridgePool,
+  createThreadBus,
   createWorkerExecutor,
+  THREAD_BUS_EVENT_KIND,
+  THREAD_BUS_TASK_TYPE,
   type BackgroundTaskEvent,
+  type TaskBridge,
 } from '../../src/utils/background-executor.js';
 import { render } from '../../src/app/render-loop.js';
 import { Text } from '../../src/primitives/nodes.js';
@@ -366,5 +372,234 @@ describe('background executor', () => {
 
     instance.unmount();
     await executor.destroy();
+  });
+
+  it('settles cancellation immediately even when an inline handler ignores abort', async () => {
+    const executor = createInlineBackgroundExecutor({
+      ignoreAbort: async () => new Promise(resolve => {
+        setTimeout(() => resolve('late'), 100);
+      }),
+    });
+    const task = executor.submit({ type: 'ignoreAbort', payload: undefined });
+
+    task.cancel('Stop now');
+
+    await expect(task.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'Stop now',
+    });
+    expect(executor.pendingCount).toBe(0);
+    await executor.destroy();
+  });
+
+  it('rejects submissions after inline and worker executors are destroyed', async () => {
+    const inline = createInlineBackgroundExecutor({});
+    const worker = createWorkerExecutor(workerModulePath);
+    await Promise.all([inline.destroy(), worker.destroy()]);
+
+    await expect(inline.submit({
+      type: 'unknown',
+      payload: undefined,
+    }).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'ExecutorUnavailableError' },
+    });
+    await expect(worker.submit({
+      type: 'uppercase',
+      payload: { text: 'late' },
+    }).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'ExecutorUnavailableError' },
+    });
+    expect(inline.state).toBe('destroyed');
+    expect(worker.state).toBe('destroyed');
+  });
+
+  it('settles a task when its worker exits cleanly without a result', async () => {
+    const executor = createWorkerExecutor(workerModulePath);
+    const task = executor.submit({
+      type: 'exitCleanly',
+      payload: undefined,
+    });
+
+    await expect(task.result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'WorkerExitError', code: '0' },
+    });
+    expect(executor.state).toBe('failed');
+    await expect(executor.submit({
+      type: 'uppercase',
+      payload: { text: 'late' },
+    }).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'ExecutorUnavailableError' },
+    });
+    await executor.destroy();
+  });
+
+  it('enters a permanent failed state after worker startup failure', async () => {
+    const missingModule = fileURLToPath(
+      new URL('../fixtures/does-not-exist.mjs', import.meta.url)
+    );
+    const executor = createWorkerExecutor(missingModule);
+
+    await expect(executor.submit({
+      type: 'uppercase',
+      payload: { text: 'hello' },
+    }).result).resolves.toMatchObject({
+      status: 'rejected',
+    });
+    expect(executor.state).toBe('failed');
+    await expect(executor.submit({
+      type: 'uppercase',
+      payload: { text: 'late' },
+    }).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'ExecutorUnavailableError' },
+    });
+    await executor.destroy();
+  });
+
+  it('settles uncloneable worker payloads without leaving pending tasks', async () => {
+    const executor = createWorkerExecutor(workerModulePath);
+    const task = executor.submit({
+      type: 'uppercase',
+      payload: { text: 'hello', callback: () => {} },
+    });
+
+    await expect(task.result).resolves.toMatchObject({
+      status: 'rejected',
+    });
+    expect(executor.pendingCount).toBe(0);
+    await executor.destroy();
+  });
+
+  it('settles worker cancellation immediately when a handler ignores abort', async () => {
+    const executor = createWorkerExecutor(workerModulePath);
+    const task = executor.submit({
+      type: 'ignoreAbort',
+      payload: { text: 'late', delayMs: 100 },
+    });
+
+    task.cancel('No longer needed');
+
+    await expect(task.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'No longer needed',
+    });
+    expect(executor.pendingCount).toBe(0);
+    await executor.destroy();
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 129])(
+    'rejects invalid task pool size %s',
+    (poolSize) => {
+      expect(() => createTaskBridgePool({
+        modulePath: workerModulePath,
+        poolSize,
+      })).toThrow('poolSize must be a safe integer between 1 and 128');
+    }
+  );
+
+  it('creates globally unique task ids across a worker pool', async () => {
+    const pool = createTaskBridgePool({
+      modulePath: workerModulePath,
+      poolSize: 2,
+    });
+
+    const first = pool.execute('delayedEcho', { text: 'a', delayMs: 10 });
+    const second = pool.execute('delayedEcho', { text: 'b', delayMs: 10 });
+
+    expect(first.id).not.toBe(second.id);
+    await Promise.all([first.result, second.result]);
+    await pool.destroy();
+  });
+
+  it('keeps thread-bus listener and worker identity isolated', async () => {
+    const workerBridge = createTaskBridge(createInlineBackgroundExecutor({
+      [THREAD_BUS_TASK_TYPE]: (_payload, _signal, reporter) => {
+        reporter.emit(THREAD_BUS_EVENT_KIND, {
+          from: 'forged-worker',
+          to: 'main',
+          channel: 'updates',
+          type: 'reply',
+          payload: 'done',
+        });
+      },
+    }));
+    const bus = createThreadBus({ threads: { analyzer: workerBridge } });
+    const observed: Array<{ from: string; type: string }> = [];
+    bus.subscribe(() => {
+      throw new Error('broken listener');
+    });
+    bus.subscribe(event => {
+      observed.push({ from: event.from, type: event.type });
+    });
+
+    expect(() => bus.post({
+      to: 'analyzer',
+      channel: 'updates',
+      type: 'start',
+      payload: null,
+    })).not.toThrow();
+
+    await vi.waitFor(() => {
+      expect(observed).toContainEqual({ from: 'analyzer', type: 'reply' });
+    });
+    expect(observed).not.toContainEqual({
+      from: 'forged-worker',
+      type: 'reply',
+    });
+    await bus.destroy();
+  });
+
+  it('can release a thread bus without taking ownership of its bridges', async () => {
+    const destroy = vi.fn(async () => {});
+    const bridge: TaskBridge = {
+      execute: () => {
+        throw new Error('not used');
+      },
+      submit: () => {
+        throw new Error('not used');
+      },
+      destroy,
+    };
+    const bus = createThreadBus({
+      threads: { worker: bridge },
+      destroyThreads: false,
+    });
+
+    await bus.destroy();
+    await bus.destroy();
+
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it('attempts to destroy every owned bridge and aggregates failures', async () => {
+    const firstDestroy = vi.fn(async () => {
+      throw new Error('first failed');
+    });
+    const secondDestroy = vi.fn(async () => {});
+    const makeBridge = (destroy: () => Promise<void>): TaskBridge => ({
+      execute: () => {
+        throw new Error('not used');
+      },
+      submit: () => {
+        throw new Error('not used');
+      },
+      destroy,
+    });
+    const bus = createThreadBus({
+      threads: {
+        first: makeBridge(firstDestroy),
+        second: makeBridge(secondDestroy),
+      },
+    });
+
+    await expect(bus.destroy()).rejects.toThrow(
+      'Failed to destroy one or more thread bridges'
+    );
+    expect(firstDestroy).toHaveBeenCalledOnce();
+    expect(secondDestroy).toHaveBeenCalledOnce();
   });
 });

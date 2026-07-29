@@ -29,12 +29,12 @@
  */
 
 import { Box, Text } from './nodes.js';
-import type { VNode, ColorValue } from '../utils/types.js';
+import type { VNode, ColorValue, BoxStyle, LayoutRect } from '../utils/types.js';
 import { createSignal } from './signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
-import { renderToString } from '../core/renderer.js';
+import { calculateLayout } from '../core/layout.js';
 
 // =============================================================================
 // Types
@@ -48,7 +48,7 @@ export interface ScrollProps {
   height: number;
 
   /** Width for content layout */
-  width?: number;
+  width?: BoxStyle['width'];
 
   /** Show scrollbar (default: true) */
   showScrollbar?: boolean;
@@ -88,21 +88,43 @@ interface ScrollInternalOptions {
   height?: number;
 }
 
+interface InternalScrollState extends ScrollState {
+  _setMaxScroll: (max: number) => void;
+  _setHeight: (h: number) => void;
+}
+
+function validatePositiveInteger(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${name} must be a positive safe integer`);
+  }
+  return value;
+}
+
+function validateFiniteNumber(value: number, name: string): number {
+  if (!Number.isFinite(value)) {
+    throw new RangeError(`${name} must be a finite number`);
+  }
+  return value;
+}
+
 // =============================================================================
 // State Factory
 // =============================================================================
 
-export function createScroll(options: ScrollInternalOptions = {}): ScrollState & { _setMaxScroll: (max: number) => void; _setHeight: (h: number) => void } {
+export function createScroll(options: ScrollInternalOptions = {}): InternalScrollState {
+  const initialHeight = validatePositiveInteger(options.height ?? 10, 'height');
   const [scrollTop, setScrollTop] = createSignal(0);
   const [maxScroll, setMaxScroll] = createSignal(0);
-  const [height, setHeight] = createSignal(options.height ?? 10);
+  const [height, setHeight] = createSignal(initialHeight);
 
   const scrollBy = (delta: number) => {
+    validateFiniteNumber(delta, 'scroll delta');
     const max = maxScroll();
     setScrollTop(current => Math.max(0, Math.min(max, current + delta)));
   };
 
   const scrollTo = (pos: number) => {
+    validateFiniteNumber(pos, 'scroll position');
     const max = maxScroll();
     setScrollTop(Math.max(0, Math.min(max, pos)));
   };
@@ -122,10 +144,20 @@ export function createScroll(options: ScrollInternalOptions = {}): ScrollState &
     pageUp,
     pageDown,
     updateOptions: (nextOptions: ScrollInternalOptions) => {
-      setHeight(nextOptions.height ?? 10);
+      setHeight(validatePositiveInteger(nextOptions.height ?? 10, 'height'));
     },
-    _setMaxScroll: setMaxScroll,
-    _setHeight: setHeight,
+    _setMaxScroll: (max: number) => {
+      const normalized = validateFiniteNumber(max, 'maxScroll');
+      if (normalized < 0) {
+        throw new RangeError('maxScroll must be non-negative');
+      }
+      const nextMax = Math.floor(normalized);
+      setMaxScroll(nextMax);
+      setScrollTop(current => Math.min(current, nextMax));
+    },
+    _setHeight: (nextHeight: number) => {
+      setHeight(validatePositiveInteger(nextHeight, 'height'));
+    },
   };
 }
 
@@ -164,7 +196,7 @@ export interface UseScrollReturn {
 export function useScroll(options: UseScrollOptions = {}): UseScrollReturn {
   const state = useFactoryState<
     UseScrollOptions,
-    ScrollState & { _setMaxScroll: (max: number) => void; _setHeight: (h: number) => void }
+    InternalScrollState
   >(undefined, options, createScroll);
 
   return {
@@ -214,7 +246,7 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   const {
     id,
     height,
-    width = 80,
+    width,
     showScrollbar = true,
     keysEnabled = true,
     isActive = true,
@@ -223,6 +255,14 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
     scrollStep = 1,
     state: externalState,
   } = props;
+  validatePositiveInteger(height, 'height');
+  validatePositiveInteger(scrollStep, 'scrollStep');
+  if (
+    typeof width === 'number' &&
+    (!Number.isSafeInteger(width) || width <= 0)
+  ) {
+    throw new RangeError('width must be a positive safe integer');
+  }
 
   // Use external state or create internal
   const state = useFactoryState(
@@ -232,25 +272,49 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   );
 
   // Update height in state
-  if ('_setHeight' in state) {
-    (state as any)._setHeight(height);
+  if (isInternalScrollState(state)) {
+    state._setHeight(height);
   }
 
-  // Render children to string to calculate total height
-  const contentNode = children.length === 1 ? children[0]! : Box({ flexDirection: 'column' }, ...children);
-  const rendered = renderToString(contentNode, width);
-  const lines = rendered.split('\n');
-  const totalHeight = lines.length;
+  const hasKnownWidth = typeof width === 'number';
+  const initialContentWidth = hasKnownWidth ? width : undefined;
+  let currentContentRect: LayoutRect = { x: 0, y: 0, width: 0, height: 0 };
+  const contentLayoutRef = {
+    current: () => currentContentRect,
+    x: () => currentContentRect.x,
+    y: () => currentContentRect.y,
+    width: () => currentContentRect.width,
+    height: () => currentContentRect.height,
+    __update: (rect: LayoutRect) => {
+      currentContentRect = rect;
+      if (isInternalScrollState(state)) {
+        state._setMaxScroll(Math.max(0, rect.height - height));
+      }
+    },
+  };
+  const contentNode = Box(
+    {
+      flexDirection: 'column',
+      width: 'fill',
+      layoutRef: contentLayoutRef,
+    },
+    ...children,
+  );
 
-  // Calculate max scroll
-  const maxScroll = Math.max(0, totalHeight - height);
-
-  // Update max scroll in state
-  if ('_setMaxScroll' in state) {
-    (state as any)._setMaxScroll(maxScroll);
+  let totalHeight = height + state.maxScroll();
+  if (initialContentWidth !== undefined) {
+    let measured = calculateLayout(contentNode, initialContentWidth, Infinity);
+    if (showScrollbar && measured.height > height && initialContentWidth > 2) {
+      measured = calculateLayout(contentNode, initialContentWidth - 2, Infinity);
+    }
+    totalHeight = measured.height;
+    if (isInternalScrollState(state)) {
+      state._setMaxScroll(Math.max(0, totalHeight - height));
+    }
   }
 
   const scrollTop = state.scrollTop();
+  const maxScroll = state.maxScroll();
 
   // Keyboard handling
   useInput((input, key) => {
@@ -272,17 +336,6 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
       state.scrollBy(3);
     }
   };
-
-  // Get visible lines
-  const visibleLines = lines.slice(scrollTop, scrollTop + height);
-
-  // Pad with empty lines if needed
-  while (visibleLines.length < height) {
-    visibleLines.push('');
-  }
-
-  // Create content nodes from visible lines
-  const contentNodes = visibleLines.map(line => Text({}, line));
 
   // Scrollbar
   let scrollbar: VNode | null = null;
@@ -312,7 +365,9 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   // Layout
   const hasScrollbar = showScrollbar && maxScroll > 0;
   const scrollbarWidth = 2;
-  const contentWidth = hasScrollbar ? width - scrollbarWidth : width;
+  const contentWidth = typeof width === 'number'
+    ? Math.max(0, width - (hasScrollbar ? scrollbarWidth : 0))
+    : undefined;
   const scrollQuery = {
     getViewport: () => ({ width: contentWidth, height }),
     getContent: () => ({ width: contentWidth, height: totalHeight }),
@@ -329,11 +384,31 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
   };
 
   return Box(
-    { id, flexDirection: 'row', width, onScroll: handleScroll, __scrollQuery: scrollQuery },
+    {
+      id,
+      flexDirection: 'row',
+      width: width ?? 'fill',
+      onScroll: handleScroll,
+      __scrollQuery: scrollQuery,
+    },
     Box(
-      { flexDirection: 'column', flexGrow: 1, height, width: contentWidth },
-      ...contentNodes
+      {
+        flexDirection: 'column',
+        flexGrow: 1,
+        height,
+        ...(contentWidth !== undefined ? { width: contentWidth } : undefined),
+        overflow: 'hidden',
+        __scrollOffsetY: scrollTop,
+      },
+      contentNode,
     ),
     scrollbar
+  );
+}
+
+function isInternalScrollState(state: ScrollState): state is InternalScrollState {
+  return (
+    typeof (state as Partial<InternalScrollState>)._setMaxScroll === 'function' &&
+    typeof (state as Partial<InternalScrollState>)._setHeight === 'function'
   );
 }

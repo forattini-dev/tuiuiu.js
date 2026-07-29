@@ -56,6 +56,29 @@ describe('useCompositor', () => {
     expect((render.node.props as any).__compositor.transforms).toEqual([]);
   });
 
+  it('updates bound transforms during a scale animation', () => {
+    let render = renderComponent();
+    const cancel = render.controls.scale({
+      from: 0.5,
+      to: 1,
+      duration: 100,
+    });
+
+    vi.advanceTimersByTime(50);
+    render = renderComponent();
+
+    expect((render.node.props as any).__compositor.transforms).toEqual([
+      expect.objectContaining({
+        kind: 'scale',
+        scale: expect.any(Number),
+      }),
+    ]);
+
+    cancel();
+    render = renderComponent();
+    expect((render.node.props as any).__compositor.transforms).toEqual([]);
+  });
+
   it('cleans up transforms when hook state is reset', () => {
     let render = renderComponent();
     render.controls.fade({ from: 0, to: 1, duration: 100 });

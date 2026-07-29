@@ -10,6 +10,7 @@ import {
 } from '../../src/primitives/scroll.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { createFrameSnapshot } from '../../src/core/frame.js';
 
 // Capture the useInput callback
 let capturedInputHandler: ((input: string, key: any) => void) | null = null;
@@ -329,6 +330,55 @@ describe('external state', () => {
 
     const output = renderToString(node, 40);
     expect(output).toContain('Controlled content');
+  });
+});
+
+describe('interactive subtree preservation', () => {
+  it('clips and offsets original VNodes without converting them to text', () => {
+    const state = createScroll({ height: 2 });
+    const onClick = vi.fn();
+    const lines = Array.from(
+      { length: 5 },
+      (_, index) => Text({ id: `line-${index + 1}`, onClick }, `Line ${index + 1}`),
+    );
+
+    Scroll({ height: 2, width: 20, state, showScrollbar: false }, ...lines);
+    state.scrollTo(2);
+    const node = Scroll(
+      { height: 2, width: 20, state, showScrollbar: false },
+      ...lines,
+    );
+    const frame = createFrameSnapshot(node, { width: 20, height: 4 });
+    const output = renderToString(node, { width: 20, height: 4 });
+
+    expect(output).toContain('Line 3');
+    expect(output).toContain('Line 4');
+    expect(output).not.toContain('Line 1');
+    expect(frame.hitTargets.some(target => target.node === lines[2])).toBe(true);
+    expect(frame.hitTargets.some(target => target.node === lines[0])).toBe(false);
+    expect(
+      frame.drawCommands
+        .filter(command => command.type === 'text')
+        .every(command => command.clip !== undefined),
+    ).toBe(true);
+  });
+
+  it('clamps the current offset when content becomes shorter', () => {
+    const state = createScroll({ height: 2 });
+    state._setMaxScroll(10);
+    state.scrollToBottom();
+
+    state._setMaxScroll(1);
+
+    expect(state.maxScroll()).toBe(1);
+    expect(state.scrollTop()).toBe(1);
+  });
+
+  it('rejects dimensions and positions that would poison layout state', () => {
+    expect(() => createScroll({ height: 0 })).toThrow(RangeError);
+    expect(() => Scroll({ height: Number.NaN, width: 20 })).toThrow(RangeError);
+    expect(() => Scroll({ height: 2, width: -1 })).toThrow(RangeError);
+    expect(() => createScroll().scrollTo(Number.POSITIVE_INFINITY)).toThrow(RangeError);
   });
 });
 

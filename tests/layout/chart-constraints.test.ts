@@ -82,15 +82,6 @@ describe('Chart Layout Constraints', () => {
     });
     
     it('should overflow safely (clip or min size) if width is too small', () => {
-      // Width 10. Label 9. Value 4. Gap 2. Total needed 15.
-      // Chart logic: maxBarLength = max(1, width - ...).
-      // If width < needed, maxBarLength might stay 1.
-      // Resulting line width will be > targetWidth because Text nodes don't auto-truncate?
-      // BarChart puts items in a row. 
-      // If parent Box has width 10, but children total 15, does renderToString truncate?
-      // renderToString renders content. It doesn't strictly enforce "overflow: hidden" unless implemented.
-      // So this test checks if the *Component Logic* attempts to fit.
-      
       const targetWidth = 10;
       const node = BarChart({
         data,
@@ -100,12 +91,9 @@ describe('Chart Layout Constraints', () => {
       const output = renderToString(node);
       const lines = output.split('\n');
       
-      // If component logic tries to fit, it might produce a line longer than 10 if it can't shrink components enough.
-      // We expect it to be reasonable (e.g. not 40 chars default).
-      // Received 15 in practice. 
-      // Likely: 9 (label) + 1 (bar) + 4 (value) + 1 (gap) = 15? Or similar layout nuance.
       const len = stringWidth(lines[0]);
-      expect(len).toBe(15); // Expect exact minimum size
+      expect(len).toBeGreaterThan(0);
+      expect(len).toBeLessThanOrEqual(targetWidth);
     });
   });
 });

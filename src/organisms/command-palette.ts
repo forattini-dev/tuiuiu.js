@@ -87,8 +87,8 @@ export interface CommandPaletteProps {
   query: string;
   /** Available items */
   items: CommandItem[];
-  /** Filtered items (after search) */
-  filteredItems: CommandItem[];
+  /** Filtered items (after search). Derived from items/query when omitted. */
+  filteredItems?: CommandItem[];
   /** Currently selected index */
   selectedIndex: number;
   /** Placeholder text */
@@ -316,7 +316,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
   const {
     query,
     items,
-    filteredItems,
+    filteredItems: providedFilteredItems,
     selectedIndex,
     placeholder = 'Type to search...',
     title = 'Command Palette',
@@ -331,6 +331,27 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
     noResultsMessage = 'No results found',
     onItemClick,
   } = props;
+
+  if (!Number.isInteger(width) || width < 10) {
+    throw new RangeError('CommandPalette width must be an integer greater than or equal to 10');
+  }
+  if (!Number.isInteger(maxVisible) || maxVisible <= 0) {
+    throw new RangeError('CommandPalette maxVisible must be a positive integer');
+  }
+
+  const filteredItems = providedFilteredItems ?? items
+    .filter(item => !item.disabled)
+    .map(item => ({
+      item,
+      score: Math.max(
+        fuzzyMatch(query, item.label),
+        item.description ? fuzzyMatch(query, item.description) * 0.5 : -1,
+        item.category ? fuzzyMatch(query, item.category) * 0.3 : -1,
+      ),
+    }))
+    .filter(({ score }) => score >= 0)
+    .sort((left, right) => right.score - left.score)
+    .map(({ item }) => item);
 
   const chars = borderStyle !== 'none' ? BORDER_CHARS[borderStyle] : null;
   const innerWidth = width - 2;

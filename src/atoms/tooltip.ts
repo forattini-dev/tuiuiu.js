@@ -119,6 +119,7 @@ export function Tooltip(props: TooltipOptions): VNode | null {
     {
       borderStyle,
       borderColor,
+      backgroundColor,
       paddingLeft: 1,
       paddingRight: 1,
       maxWidth,

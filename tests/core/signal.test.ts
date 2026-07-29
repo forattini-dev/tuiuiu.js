@@ -173,6 +173,42 @@ describe('Effect', () => {
 
     vi.useRealTimers()
   })
+
+  it('should recover when a scheduler throws before accepting the job', () => {
+    const [count, setCount] = createSignal(0)
+    const scheduler = vi.fn(() => {
+      throw new Error('scheduler unavailable')
+    })
+    createEffect(() => {
+      count()
+    }, { scheduler })
+
+    expect(() => setCount(1)).toThrow('scheduler unavailable')
+    expect(() => setCount(2)).toThrow('scheduler unavailable')
+    expect(scheduler).toHaveBeenCalledTimes(2)
+  })
+
+  it('should run every batched effect before reporting failures', () => {
+    const [first, setFirst] = createSignal(0)
+    const [second, setSecond] = createSignal(0)
+    let shouldThrow = false
+    const secondEffect = vi.fn()
+    createEffect(() => {
+      first()
+      if (shouldThrow) throw new Error('first failed')
+    })
+    createEffect(() => {
+      second()
+      secondEffect()
+    })
+    shouldThrow = true
+
+    expect(() => batch(() => {
+      setFirst(1)
+      setSecond(1)
+    })).toThrow('first failed')
+    expect(secondEffect).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('Batch', () => {

@@ -8,9 +8,7 @@ import {
   parse,
   type Stylesheet,
   type Rule,
-  type Declaration,
   type Value,
-  type VariableDefinition,
   type MediaRule,
   type ImportRule,
   type SelectorList,
@@ -418,11 +416,9 @@ export class StyleSheet {
   private rules: Rule[] = [];
   private mediaRules: MediaRule[] = [];
   private imports: ImportRule[] = [];
-  private options: StyleSheetOptions;
   private ruleOrder: number = 0;
 
   constructor(source: string, options: StyleSheetOptions = {}) {
-    this.options = options;
     const { ast, errors } = parse(source);
 
     if (errors.length > 0 && options.parent === undefined) {

@@ -103,10 +103,13 @@ export {
   createThreadBus,
   createTaskBridge,
   createTaskBridgePool,
+  THREAD_BUS_EVENT_KIND,
+  THREAD_BUS_TASK_TYPE,
 } from './background-executor.js';
 
 export type {
   BackgroundExecutor,
+  BackgroundExecutorState,
   BackgroundTaskError,
   BackgroundTaskEvent,
   BackgroundTaskEventListener,
@@ -117,8 +120,6 @@ export type {
   BackgroundTaskRequest,
   BackgroundTaskResult,
   InterThreadBusMessage,
-  THREAD_BUS_EVENT_KIND,
-  THREAD_BUS_TASK_TYPE,
   TaskBridge,
   TaskBridgePoolOptions,
   TaskBridgePoolScheduler,
@@ -140,6 +141,7 @@ export {
   getMemoryInfo,
   getProcessList,
   getSystemInfo,
+  resetSystemDataSampling,
   formatBytes,
   formatUptime,
   getStateDescription,

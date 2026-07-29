@@ -473,6 +473,11 @@ describe('isHotkey', () => {
       expect(isHotkey('c', key, 'c')).toBe(false);
     });
 
+    it('should not match with an extra shift modifier', () => {
+      const key = createKey({ ctrl: true, shift: true });
+      expect(isHotkey('ctrl+c', key, 'c')).toBe(false);
+    });
+
     it('should match shift modifier', () => {
       const key = createKey({ shift: true });
       expect(isHotkey('shift+a', key, 'a')).toBe(true);
@@ -537,6 +542,8 @@ describe('isHotkey', () => {
     it('should match plus sign', () => {
       const key = createKey();
       expect(isHotkey('plus', key, '+')).toBe(true);
+      expect(isHotkey('+', key, '+')).toBe(true);
+      expect(isHotkey('ctrl++', createKey({ ctrl: true }), '+')).toBe(true);
     });
   });
 

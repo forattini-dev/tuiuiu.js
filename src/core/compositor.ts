@@ -3,10 +3,7 @@ import { getMotionRuntimeState } from './motion-runtime.js';
 import { sliceAnsi } from '../utils/text-utils.js';
 import type {
   Bounds,
-  DrawBoxCommand,
   DrawCommand,
-  DrawTerminalImageCommand,
-  DrawTextCommand,
 } from './frame.js';
 
 export type CompositorDirection = 'left' | 'right' | 'up' | 'down';
@@ -20,6 +17,12 @@ export interface SlideTransform {
 export interface FadeTransform {
   kind: 'fade';
   opacity: number;
+}
+
+export interface ScaleTransform {
+  kind: 'scale';
+  /** Cell-grid scale approximation in the range 0..1 */
+  scale: number;
 }
 
 export interface ShimmerTransform {
@@ -43,6 +46,7 @@ export interface SpringTransform {
 export type CompositorTransform =
   | SlideTransform
   | FadeTransform
+  | ScaleTransform
   | ShimmerTransform
   | RevealTransform
   | SpringTransform;
@@ -135,6 +139,46 @@ function applyFade(command: DrawCommand, transform: FadeTransform): DrawCommand 
     bold: opacity >= 0.4 ? next.style.bold : false,
   };
   return next;
+}
+
+function intersectBounds(left: Bounds | undefined, right: Bounds): Bounds {
+  if (!left) return right;
+  const x = Math.max(left.x, right.x);
+  const y = Math.max(left.y, right.y);
+  const rightEdge = Math.min(left.x + left.width, right.x + right.width);
+  const bottomEdge = Math.min(left.y + left.height, right.y + right.height);
+  return {
+    x,
+    y,
+    width: Math.max(0, rightEdge - x),
+    height: Math.max(0, bottomEdge - y),
+  };
+}
+
+function applyScale(
+  command: DrawCommand,
+  transform: ScaleTransform,
+  bounds: Bounds,
+): DrawCommand | null {
+  const scale = clamp01(transform.scale);
+  if (scale <= 0) return null;
+  if (scale >= 1) return command;
+
+  // A terminal cannot resize glyphs. Use a centered clip rectangle as an
+  // honest cell-grid approximation and preserve the original layout bounds.
+  const width = Math.max(0, Math.round(bounds.width * scale));
+  const height = Math.max(0, Math.round(bounds.height * scale));
+  if (width === 0 || height === 0) return null;
+
+  const scaleClip: Bounds = {
+    x: bounds.x + Math.floor((bounds.width - width) / 2),
+    y: bounds.y + Math.floor((bounds.height - height) / 2),
+    width,
+    height,
+  };
+  const next = cloneCommand(command);
+  next.clip = intersectBounds(next.clip, scaleClip);
+  return next.clip.width > 0 && next.clip.height > 0 ? next : null;
 }
 
 function commandIntersectsBand(command: DrawCommand, bounds: Bounds, start: number, end: number): boolean {
@@ -268,6 +312,9 @@ function applyTransformsToCommand(
       if (transform.kind === 'fade' && clamp01(transform.opacity) <= 0) {
         return null;
       }
+      if (transform.kind === 'scale' && clamp01(transform.scale) <= 0) {
+        return null;
+      }
       if (transform.kind === 'reveal' && clamp01(transform.progress) <= 0) {
         return null;
       }
@@ -285,6 +332,9 @@ function applyTransformsToCommand(
         break;
       case 'fade':
         current = applyFade(current, transform);
+        break;
+      case 'scale':
+        current = applyScale(current, transform, bounds);
         break;
       case 'shimmer':
         current = applyShimmer(current, transform, bounds);

@@ -1,374 +1,158 @@
-/**
- * Tests for primitives/context.ts - Context API for state sharing
- */
+import { describe, expect, it } from 'vitest';
 
-import { describe, it, expect } from 'vitest';
 import {
   createContext,
-  useContext,
   hasContext,
-  type Context,
+  useContext,
+  withContext,
 } from '../../src/primitives/context.js';
-import { createSignal, createEffect } from '../../src/primitives/signal.js';
+import { Text } from '../../src/primitives/nodes.js';
+import { createSignal } from '../../src/primitives/signal.js';
 
-describe('primitives/context', () => {
-  describe('createContext', () => {
-    it('creates context with default value', () => {
-      const ctx = createContext('default');
+describe('tree-scoped Context', () => {
+  it('returns the default outside a Provider', () => {
+    const context = createContext('default');
 
-      expect(ctx._defaultValue).toBe('default');
-      expect(ctx._currentValue).toBe('default');
-      expect(ctx._stack).toEqual([]);
-    });
-
-    it('creates context with object value', () => {
-      const defaultValue = { theme: 'dark', locale: 'en' };
-      const ctx = createContext(defaultValue);
-
-      expect(ctx._currentValue).toBe(defaultValue);
-      expect(ctx._currentValue.theme).toBe('dark');
-    });
-
-    it('creates context with null value', () => {
-      const ctx = createContext<string | null>(null);
-
-      expect(ctx._defaultValue).toBeNull();
-      expect(ctx._currentValue).toBeNull();
-    });
-
-    it('has Provider function', () => {
-      const ctx = createContext('default');
-
-      expect(typeof ctx.Provider).toBe('function');
-    });
+    expect(useContext(context)).toBe('default');
+    expect(hasContext(context)).toBe(false);
+    expect(context._stack).toEqual([]);
   });
 
-  describe('useContext', () => {
-    it('returns default value when no Provider', () => {
-      const ctx = createContext('default-theme');
+  it('evaluates render-function descendants inside the Provider scope', () => {
+    const context = createContext('default');
+    let observed = '';
+    let active = false;
 
-      const value = useContext(ctx);
+    const node = context.Provider(
+      { value: 'provided' },
+      () => {
+        observed = useContext(context);
+        active = hasContext(context);
+        return Text({}, observed);
+      },
+    );
 
-      expect(value).toBe('default-theme');
-    });
-
-    it('returns current value from context', () => {
-      const ctx = createContext('initial');
-      ctx._currentValue = 'updated';
-
-      const value = useContext(ctx);
-
-      expect(value).toBe('updated');
-    });
-
-    it('works with complex types', () => {
-      interface User {
-        id: number;
-        name: string;
-      }
-      const defaultUser: User = { id: 0, name: 'Guest' };
-      const ctx = createContext<User>(defaultUser);
-
-      const user = useContext(ctx);
-
-      expect(user.id).toBe(0);
-      expect(user.name).toBe('Guest');
-    });
+    expect(observed).toBe('provided');
+    expect(active).toBe(true);
+    expect(node.children[0]?.props.children).toBe('provided');
+    expect(useContext(context)).toBe('default');
+    expect(hasContext(context)).toBe(false);
   });
 
-  describe('Provider', () => {
-    it('updates current value when called', () => {
-      const ctx = createContext('default');
+  it('uses the nearest nested Provider and restores the outer value', () => {
+    const context = createContext('default');
+    const observations: string[] = [];
 
-      expect(ctx._currentValue).toBe('default');
+    context.Provider(
+      { value: 'outer' },
+      () => {
+        observations.push(useContext(context));
+        const inner = context.Provider(
+          { value: 'inner' },
+          () => {
+            observations.push(useContext(context));
+            return Text({}, 'inner child');
+          },
+        );
+        observations.push(useContext(context));
+        return inner;
+      },
+    );
 
-      // Call Provider - it updates _currentValue
-      ctx.Provider({ value: 'provided' });
-
-      // After Provider called, value is updated
-      expect(ctx._currentValue).toBe('provided');
-    });
-
-    it('pushes previous value to stack', () => {
-      const ctx = createContext('default');
-
-      expect(ctx._stack.length).toBe(0);
-
-      ctx.Provider({ value: 'level1' });
-
-      expect(ctx._stack.length).toBe(1);
-      expect(ctx._stack[0]).toBe('default');
-    });
-
-    it('returns a VNode wrapper', () => {
-      const ctx = createContext('default');
-
-      const result = ctx.Provider({ value: 'test' });
-
-      expect(result).toBeDefined();
-      expect(result?.type).toBe('box');
-      expect((result?.props as any)?.__contextProvider).toBe(true);
-    });
-
-    it('includes children in wrapper', () => {
-      const ctx = createContext('default');
-
-      const child = { type: 'text' as const, props: {}, children: ['Hello'] };
-      const result = ctx.Provider({ value: 'test', children: child });
-
-      expect(result?.children).toContain(child);
-    });
-
-    it('handles array children', () => {
-      const ctx = createContext('default');
-
-      const children = [
-        { type: 'text' as const, props: {}, children: ['A'] },
-        { type: 'text' as const, props: {}, children: ['B'] },
-      ];
-      const result = ctx.Provider({ value: 'test', children });
-
-      expect(result?.children?.length).toBe(2);
-    });
-
-    it('handles rest children arguments', () => {
-      const ctx = createContext('default');
-
-      const child1 = { type: 'text' as const, props: {}, children: ['A'] };
-      const child2 = { type: 'text' as const, props: {}, children: ['B'] };
-      const result = ctx.Provider({ value: 'test' }, child1, child2);
-
-      expect(result?.children?.length).toBe(2);
-    });
-
-    it('combines props.children and rest children', () => {
-      const ctx = createContext('default');
-
-      const propsChild = { type: 'text' as const, props: {}, children: ['props'] };
-      const restChild = { type: 'text' as const, props: {}, children: ['rest'] };
-      const result = ctx.Provider({ value: 'test', children: propsChild }, restChild);
-
-      expect(result?.children?.length).toBe(2);
-    });
+    expect(observations).toEqual(['outer', 'inner', 'outer']);
+    expect(useContext(context)).toBe('default');
+    expect(context._stack).toEqual([]);
   });
 
-  describe('nested Providers', () => {
-    it('inner Provider overrides outer value', () => {
-      const ctx = createContext('default');
+  it('restores context when a descendant throws', () => {
+    const context = createContext('default');
 
-      // Outer Provider
-      ctx.Provider({ value: 'outer' });
-      expect(ctx._currentValue).toBe('outer');
-      expect(ctx._stack).toEqual(['default']);
+    expect(() => context.Provider(
+      { value: 'temporary' },
+      () => {
+        expect(useContext(context)).toBe('temporary');
+        throw new Error('child failed');
+      },
+    )).toThrow('child failed');
 
-      // Inner Provider
-      ctx.Provider({ value: 'inner' });
-      expect(ctx._currentValue).toBe('inner');
-      expect(ctx._stack).toEqual(['default', 'outer']);
-
-      // useContext should return inner value
-      expect(useContext(ctx)).toBe('inner');
-    });
-
-    it('restore function pops stack correctly', () => {
-      const ctx = createContext('default');
-
-      // Create nested structure
-      const outer = ctx.Provider({ value: 'outer' });
-      const inner = ctx.Provider({ value: 'inner' });
-
-      expect(ctx._currentValue).toBe('inner');
-      expect(ctx._stack.length).toBe(2);
-
-      // Simulate inner restore
-      const innerRestore = (inner?.props as any)?.__contextRestore;
-      innerRestore?.();
-
-      expect(ctx._currentValue).toBe('outer');
-      expect(ctx._stack.length).toBe(1);
-
-      // Simulate outer restore
-      const outerRestore = (outer?.props as any)?.__contextRestore;
-      outerRestore?.();
-
-      expect(ctx._currentValue).toBe('default');
-      expect(ctx._stack.length).toBe(0);
-    });
-
-    it('restore falls back to default when stack is empty', () => {
-      const ctx = createContext('default');
-
-      // Provider without proper stack setup
-      const vnode = ctx.Provider({ value: 'test' });
-
-      // Clear stack to simulate edge case
-      ctx._stack.length = 0;
-      ctx._currentValue = 'test';
-
-      // Call restore
-      const restore = (vnode?.props as any)?.__contextRestore;
-      restore?.();
-
-      expect(ctx._currentValue).toBe('default');
-    });
+    expect(useContext(context)).toBe('default');
+    expect(context._stack).toEqual([]);
   });
 
-  describe('hasContext', () => {
-    it('returns false when using default value and no providers', () => {
-      const ctx = createContext('default');
-
-      expect(hasContext(ctx)).toBe(false);
+  it('supports props children, arrays, eager VNodes, and empty results', () => {
+    const context = createContext('default');
+    const eager = Text({}, 'eager');
+    const node = context.Provider({
+      value: 'provided',
+      children: [
+        eager,
+        () => Text({}, useContext(context)),
+        () => null,
+        () => [Text({}, 'A'), Text({}, 'B')],
+      ],
     });
 
-    it('returns true when inside a Provider', () => {
-      const ctx = createContext('default');
-
-      ctx.Provider({ value: 'provided' });
-
-      expect(hasContext(ctx)).toBe(true);
-    });
-
-    it('returns true when value differs from default', () => {
-      const ctx = createContext('default');
-      ctx._currentValue = 'changed';
-
-      expect(hasContext(ctx)).toBe(true);
-    });
-
-    it('returns true when stack has entries', () => {
-      const ctx = createContext('default');
-      ctx._stack.push('something');
-
-      expect(hasContext(ctx)).toBe(true);
-    });
+    expect(node.children).toHaveLength(4);
+    expect(node.children[0]).toBe(eager);
+    expect(node.children[1]?.props.children).toBe('provided');
   });
 
-  describe('integration with signals', () => {
-    it('context can hold signal accessors', () => {
-      const [count, setCount] = createSignal(0);
+  it('provides an explicit withContext helper for non-layout work', () => {
+    const context = createContext({ role: 'guest' });
 
-      interface CountContext {
-        count: () => number;
-        setCount: (v: number | ((prev: number) => number)) => void;
-      }
+    const role = withContext(
+      context,
+      { role: 'admin' },
+      () => {
+        expect(hasContext(context)).toBe(true);
+        return useContext(context).role;
+      },
+    );
 
-      const ctx = createContext<CountContext>({
-        count: () => 0,
-        setCount: () => {},
-      });
-
-      // Provide real signal
-      ctx.Provider({
-        value: { count, setCount },
-      });
-
-      // Get context value
-      const { count: getCount, setCount: updateCount } = useContext(ctx);
-
-      expect(getCount()).toBe(0);
-
-      updateCount(5);
-      expect(getCount()).toBe(5);
-    });
-
-    it('effects react to signal changes in context', () => {
-      const [value, setValue] = createSignal('initial');
-      const ctx = createContext<() => string>(value);
-
-      ctx.Provider({ value });
-
-      let observed = '';
-      createEffect(() => {
-        const getter = useContext(ctx);
-        observed = getter();
-      });
-
-      expect(observed).toBe('initial');
-
-      setValue('updated');
-      expect(observed).toBe('updated');
-    });
+    expect(role).toBe('admin');
+    expect(useContext(context)).toEqual({ role: 'guest' });
   });
 
-  describe('real-world patterns', () => {
-    it('theme context pattern', () => {
-      type Theme = 'light' | 'dark';
-      const ThemeContext = createContext<Theme>('light');
+  it('can provide signal accessors without leaking the provider value', () => {
+    const [count, setCount] = createSignal(0);
+    const context = createContext<{
+      count: () => number;
+      increment: () => void;
+    } | null>(null);
 
-      // App provides dark theme
-      ThemeContext.Provider({ value: 'dark' });
+    context.Provider(
+      { value: { count, increment: () => setCount(value => value + 1) } },
+      () => {
+        const value = useContext(context)!;
+        value.increment();
+        value.increment();
+        expect(value.count()).toBe(2);
+        return Text({}, String(value.count()));
+      },
+    );
 
-      // Component reads theme
-      const theme = useContext(ThemeContext);
-      expect(theme).toBe('dark');
-    });
+    expect(useContext(context)).toBeNull();
+    expect(count()).toBe(2);
+  });
 
-    it('user context pattern', () => {
-      interface User {
-        id: string;
-        name: string;
-        isAdmin: boolean;
-      }
+  it('keeps separate contexts independent', () => {
+    const theme = createContext('light');
+    const locale = createContext('en');
+    const observations: string[] = [];
 
-      const UserContext = createContext<User | null>(null);
+    theme.Provider(
+      { value: 'dark' },
+      () => locale.Provider(
+        { value: 'pt-BR' },
+        () => {
+          observations.push(useContext(theme), useContext(locale));
+          return Text({}, 'child');
+        },
+      ),
+    );
 
-      // Before login
-      expect(useContext(UserContext)).toBeNull();
-      expect(hasContext(UserContext)).toBe(false);
-
-      // After login
-      UserContext.Provider({
-        value: { id: '123', name: 'John', isAdmin: false },
-      });
-
-      const user = useContext(UserContext);
-      expect(user?.name).toBe('John');
-      expect(hasContext(UserContext)).toBe(true);
-    });
-
-    it('multiple contexts work independently', () => {
-      const ThemeContext = createContext('light');
-      const LocaleContext = createContext('en');
-
-      ThemeContext.Provider({ value: 'dark' });
-      LocaleContext.Provider({ value: 'pt-BR' });
-
-      expect(useContext(ThemeContext)).toBe('dark');
-      expect(useContext(LocaleContext)).toBe('pt-BR');
-
-      // Changing one doesn't affect the other
-      ThemeContext._currentValue = 'light';
-      expect(useContext(ThemeContext)).toBe('light');
-      expect(useContext(LocaleContext)).toBe('pt-BR');
-    });
-
-    it('context with functions', () => {
-      interface Actions {
-        increment: () => void;
-        decrement: () => void;
-        reset: () => void;
-      }
-
-      const ActionsContext = createContext<Actions | null>(null);
-
-      let counter = 0;
-      const actions: Actions = {
-        increment: () => counter++,
-        decrement: () => counter--,
-        reset: () => (counter = 0),
-      };
-
-      ActionsContext.Provider({ value: actions });
-
-      const ctx = useContext(ActionsContext);
-      ctx?.increment();
-      ctx?.increment();
-      ctx?.increment();
-
-      expect(counter).toBe(3);
-
-      ctx?.reset();
-      expect(counter).toBe(0);
-    });
+    expect(observations).toEqual(['dark', 'pt-BR']);
+    expect(useContext(theme)).toBe('light');
+    expect(useContext(locale)).toBe('en');
   });
 });

@@ -339,8 +339,6 @@ function processLines(
   alignX: PictureAlignX,
   alignY: PictureAlignY
 ): string[] {
-  const { width: srcWidth, height: srcHeight } = getSourceDimensions(lines);
-
   // Handle vertical alignment and sizing
   let processedLines: string[] = [...lines];
 
@@ -492,7 +490,7 @@ export function Picture(props: PictureProps): VNode {
   }
 
   // Build the picture content
-  const content = lines.map((line, index) =>
+  const content = lines.map(line =>
     Text(
       {
         color: preserveColors ? undefined : color,
@@ -1273,7 +1271,7 @@ export function applyRainbowToGrid(grid: PixelGrid, progress: number): PixelGrid
 export function applyGlitchToGrid(grid: PixelGrid, intensity: number): PixelGrid {
   if (intensity < 0.1) return grid;
 
-  return grid.map((row, y) => {
+  return grid.map(row => {
     // Random horizontal shift for some rows
     if (Math.random() < intensity * 0.3) {
       const shift = Math.floor((Math.random() - 0.5) * 6 * intensity);

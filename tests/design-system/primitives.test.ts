@@ -72,7 +72,7 @@ describe('Primitive Components', () => {
         transform: (text) => text.toUpperCase(),
       }, Text({}, 'hello'));
       expect(node.type).toBe('box');
-      expect(node.props.__transform).toBeDefined();
+      expect(renderToString(node, 80)).toContain('HELLO');
     });
 
     it('should accept accessibility label', () => {
@@ -80,7 +80,7 @@ describe('Primitive Components', () => {
         transform: (text) => text,
         accessibilityLabel: 'Description',
       }, Text({}, 'content'));
-      expect(node.props.__accessibilityLabel).toBe('Description');
+      expect(node.props['aria-label']).toBe('Description');
     });
 
     it('should handle children in props', () => {
@@ -147,7 +147,7 @@ describe('Primitive Components', () => {
     });
 
     it('should render vertical orientation', () => {
-      const node = Divider({ orientation: 'vertical', height: 3 });
+      const node = Divider({ direction: 'vertical', height: 3 });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
     });

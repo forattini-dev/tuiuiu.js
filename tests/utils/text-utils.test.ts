@@ -214,6 +214,15 @@ describe('Text Utilities', () => {
       expect(result).toBeDefined();
     });
 
+    it('should prefer word boundaries for middle truncation', () => {
+      const result = truncateText('alpha beta gamma delta', 14, {
+        position: 'middle',
+        preferTruncationOnSpace: true,
+      });
+
+      expect(result).toBe('alpha...delta');
+    });
+
     it('should handle columns smaller than ellipsis', () => {
       const result = truncateText('hello', 2);
       expect(result.length).toBeLessThanOrEqual(3);

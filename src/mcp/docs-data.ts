@@ -18,22 +18,11 @@ import { dataViz } from './docs/data-viz.js';
 import { organisms } from './docs/organisms.js';
 import { layouts } from './docs/layouts.js';
 import { media } from './docs/media.js';
-import { animation, animationTimingGuide } from './docs/animation.js';
-import { colors, colorsGuide } from './docs/colors.js';
+import { animation } from './docs/animation.js';
+import { colors } from './docs/colors.js';
 import { hooks } from './docs/hooks.js';
 import { signals } from './docs/signals.js';
-import { themeSystem, availableThemes, customThemeGuide } from './docs/themes.js';
-import {
-  apiPatterns,
-  quickReference as apiPatternsQuickReference,
-  componentPatternMap,
-  getComponentPattern,
-} from './docs/api-patterns.js';
-import {
-  promptsApiDocs,
-  promptsApiGuide,
-  formatPromptDoc,
-} from './docs/prompts-api.js';
+import { themeSystem, availableThemes } from './docs/themes.js';
 
 // Re-export everything for backwards compatibility
 export { primitives } from './docs/primitives.js';

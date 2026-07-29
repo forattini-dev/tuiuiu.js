@@ -72,12 +72,6 @@ export function createRegistry(): Registry {
   // Helper to create story key
   const storyKey = (category: string, name: string): string => `${category}::${name}`;
 
-  // Helper to parse story key
-  const parseKey = (key: string): { category: string; name: string } => {
-    const [category, name] = key.split('::');
-    return { category, name };
-  };
-
   const register = (config: StoryConfig): void => {
     const { name, category, description, controls = {}, render, tags = [], animation } = config;
 

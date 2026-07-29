@@ -36,7 +36,7 @@ import { resolve, type MaybeReactive } from '../utils/resolve.js';
 /**
  * Threshold range as [min, max] inclusive tuple
  */
-export type ThresholdRange = [number, number];
+export type ThresholdRange = readonly [number, number];
 
 /**
  * Threshold configuration

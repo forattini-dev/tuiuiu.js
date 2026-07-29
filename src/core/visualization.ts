@@ -35,6 +35,7 @@ export type ChartColor =
 export interface DataPoint {
   value: number;
   label?: string;
+  /** @deprecated String chart helpers do not encode color. Use data-viz VNode components. */
   color?: ChartColor;
 }
 
@@ -50,7 +51,7 @@ export interface SparklineOptions {
   max?: number;
   /** Character set to use */
   charset?: 'braille' | 'blocks' | 'ascii';
-  /** Color for the line */
+  /** @deprecated sparkline() returns plain text and does not encode color. */
   color?: ChartColor;
 }
 
@@ -74,7 +75,7 @@ export interface BarChartOptions {
   fillChar?: string;
   /** Character for empty portion */
   emptyChar?: string;
-  /** Default bar color */
+  /** @deprecated String chart helpers do not encode color. Use BarChart instead. */
   color?: ChartColor;
 }
 
@@ -113,7 +114,7 @@ export interface HistogramOptions {
   height?: number;
   /** Show bin labels */
   showLabels?: boolean;
-  /** Color */
+  /** @deprecated histogram() returns plain text and does not encode color. */
   color?: ChartColor;
 }
 
@@ -152,7 +153,7 @@ export interface LineChartOptions {
   min?: number;
   /** Maximum Y value */
   max?: number;
-  /** Series colors */
+  /** @deprecated lineChart() returns plain text and does not encode color. */
   colors?: ChartColor[];
   /** Show axes */
   showAxes?: boolean;
@@ -190,7 +191,7 @@ const PIE_CHARS = ['█', '▓', '▒', '░', '○', '●', '◐', '◑', '◒'
  * Generate sparkline string
  */
 export function sparkline(options: SparklineOptions): string {
-  const { data, width = data.length, charset = 'blocks', color } = options;
+  const { data, width = data.length, charset = 'blocks' } = options;
 
   if (data.length === 0) {
     return '';
@@ -291,7 +292,6 @@ export function barChart(options: BarChartOptions): string[] {
     showLabels = true,
     fillChar = '█',
     emptyChar = '░',
-    color,
   } = options;
 
   if (data.length === 0) {
@@ -337,7 +337,7 @@ export function barChart(options: BarChartOptions): string[] {
  * Generate vertical bar chart
  */
 export function verticalBarChart(options: BarChartOptions): string[] {
-  const { data, height = 10, showLabels = true, color } = options;
+  const { data, height = 10, showLabels = true } = options;
 
   if (data.length === 0) {
     return [];
@@ -504,6 +504,9 @@ export function boxPlot(options: BoxPlotOptions): string {
  * Calculate histogram bins
  */
 export function calculateHistogramBins(data: number[], numBins: number): HistogramBin[] {
+  if (!Number.isInteger(numBins) || numBins < 1) {
+    throw new RangeError('Histogram bin count must be a positive integer');
+  }
   if (data.length === 0) {
     return [];
   }
@@ -543,6 +546,11 @@ export function histogram(options: HistogramOptions): string[] {
 
   const bins = calculateHistogramBins(data, numBins);
   const maxCount = Math.max(...bins.map((b) => b.count));
+  if (!Number.isInteger(width) || width < bins.length) {
+    throw new RangeError('Histogram width must be an integer at least as large as its bin count');
+  }
+  const binWidth = Math.max(1, Math.floor(width / bins.length));
+  const chartWidth = binWidth * bins.length;
 
   const lines: string[] = [];
 
@@ -555,9 +563,9 @@ export function histogram(options: HistogramOptions): string[] {
       const barHeight = ratio * height;
 
       if (row < barHeight) {
-        line += '█';
+        line += '█'.repeat(binWidth);
       } else {
-        line += ' ';
+        line += ' '.repeat(binWidth);
       }
     }
 
@@ -565,14 +573,14 @@ export function histogram(options: HistogramOptions): string[] {
   }
 
   // Add axis
-  lines.push('─'.repeat(bins.length));
+  lines.push('─'.repeat(chartWidth));
 
   // Add labels
   if (showLabels) {
     const startLabel = formatNumber(bins[0].start, 1);
     const endLabel = formatNumber(bins[bins.length - 1].end, 1);
-    const labelLine = startLabel.padEnd(bins.length - endLabel.length) + endLabel;
-    lines.push(labelLine.slice(0, bins.length));
+    const labelLine = startLabel.padEnd(Math.max(0, chartWidth - endLabel.length)) + endLabel;
+    lines.push(labelLine.slice(0, chartWidth));
   }
 
   return lines;
@@ -703,7 +711,6 @@ export function lineChart(options: LineChartOptions): string[] {
     height = 10,
     showAxes = true,
     showDots = false,
-    colors = ['default'],
   } = options;
 
   // Handle both single and multiple series
@@ -803,9 +810,9 @@ export interface GaugeOptions {
   style?: 'bar' | 'arc' | 'circle';
   /** Show percentage */
   showPercentage?: boolean;
-  /** Color for filled portion */
+  /** @deprecated gauge() returns plain text and does not encode color. */
   color?: ChartColor;
-  /** Colors for different ranges */
+  /** @deprecated gauge() returns plain text and does not encode color. */
   rangeColors?: { threshold: number; color: ChartColor }[];
 }
 
@@ -819,8 +826,6 @@ export function gauge(options: GaugeOptions): string {
     width = 20,
     style = 'bar',
     showPercentage = true,
-    color,
-    rangeColors,
   } = options;
 
   const ratio = Math.min(1, Math.max(0, value / max));

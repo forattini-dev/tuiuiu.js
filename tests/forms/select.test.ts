@@ -950,9 +950,8 @@ describe('Select Component (VNode)', () => {
   it('should render with custom styling', () => {
     const result = Select({
       items: basicItems,
-      cursorColor: 'cyan',
-      selectedColor: 'green',
-      labelColor: 'white',
+      colorActive: 'cyan',
+      colorSelected: 'green',
     });
     expect(result).toBeDefined();
   });

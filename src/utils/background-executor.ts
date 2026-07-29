@@ -45,14 +45,29 @@ export type BackgroundTaskHandler<TPayload = unknown, TResult = unknown> = (
   reporter: BackgroundTaskReporter
 ) => TResult | Promise<TResult>;
 
-export type BackgroundTaskHandlers = Record<string, BackgroundTaskHandler>;
+/**
+ * A dynamically-dispatched registry may contain unrelated payload and result
+ * types. Individual submit() calls retain their generic contract; only this
+ * internal dispatch boundary erases those types.
+ */
+export type BackgroundTaskHandlers = Record<string, BackgroundTaskHandler<any, any>>;
 
 export interface BackgroundExecutor {
   submit<TPayload = unknown, TResult = unknown>(
     request: BackgroundTaskRequest<TPayload>
   ): BackgroundTaskHandle<TResult>;
   destroy: () => Promise<void>;
+  /** Current lifecycle state. */
+  readonly state?: BackgroundExecutorState;
+  /** Number of tasks waiting for a terminal result. */
+  readonly pendingCount?: number;
 }
+
+export type BackgroundExecutorState =
+  | 'active'
+  | 'failed'
+  | 'destroying'
+  | 'destroyed';
 
 export const THREAD_BUS_TASK_TYPE = '__threadBusMessage__';
 export const THREAD_BUS_EVENT_KIND = 'thread-bus';
@@ -90,6 +105,8 @@ export interface ThreadBusOptions {
   taskType?: string;
   defaultChannel?: string;
   mirrorToMain?: boolean;
+  /** Whether destroy() also destroys the supplied bridges (default: true). */
+  destroyThreads?: boolean;
 }
 
 export interface TaskBridge {
@@ -152,9 +169,10 @@ function toModuleHref(modulePath: string): string {
 }
 
 function createTaskIdFactory() {
-  let nextId = 0;
-  return () => `task-${++nextId}`;
+  return () => `task-${++globalTaskId}`;
 }
+
+let globalTaskId = 0;
 
 function createTaskEvent<T = unknown>(
   taskId: string,
@@ -178,7 +196,12 @@ function emitPendingTaskEvent(
   }
 
   for (const listener of pendingTask.listeners) {
-    listener(event);
+    try {
+      listener(event);
+    } catch {
+      // A progress observer must not be able to fail the task or starve
+      // the remaining observers.
+    }
   }
 }
 
@@ -197,17 +220,45 @@ function settlePendingTask(
   return pendingTask;
 }
 
+function createRejectedTaskHandle<TResult = unknown>(
+  taskId: string,
+  name: string,
+  message: string
+): BackgroundTaskHandle<TResult> {
+  return {
+    id: taskId,
+    result: Promise.resolve({
+      status: 'rejected',
+      taskId,
+      error: { name, message },
+    }),
+    cancel() {},
+    subscribe() {
+      return () => {};
+    },
+  };
+}
+
 export function createInlineBackgroundExecutor(
   handlers: BackgroundTaskHandlers
 ): BackgroundExecutor {
   const nextTaskId = createTaskIdFactory();
   const pending = new Map<string, PendingTask>();
+  let state: BackgroundExecutorState = 'active';
 
   return {
     submit<TPayload = unknown, TResult = unknown>(
       request: BackgroundTaskRequest<TPayload>
     ): BackgroundTaskHandle<TResult> {
       const taskId = nextTaskId();
+      if (state !== 'active') {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'ExecutorUnavailableError',
+          `Background executor is ${state}`
+        );
+      }
+
       const handler = handlers[request.type];
       const controller = new AbortController();
       const pendingTask: PendingTask = {
@@ -231,6 +282,10 @@ export function createInlineBackgroundExecutor(
         pending.set(taskId, pendingTask);
 
         queueMicrotask(async () => {
+          if (!pending.has(taskId)) {
+            return;
+          }
+
           if (!handler) {
             settlePendingTask(pending, taskId);
             resolve({
@@ -299,6 +354,12 @@ export function createInlineBackgroundExecutor(
           if (!pendingTask) return;
           pendingTask.cancelled = true;
           pendingTask.controller.abort(reason ?? 'Cancelled');
+          settlePendingTask(pending, taskId);
+          pendingTask.resolve({
+            status: 'cancelled',
+            taskId,
+            reason: reason ?? 'Cancelled',
+          });
         },
         subscribe(listener) {
           const pendingTask = pending.get(taskId);
@@ -315,6 +376,8 @@ export function createInlineBackgroundExecutor(
     },
 
     async destroy() {
+      if (state === 'destroyed' || state === 'destroying') return;
+      state = 'destroying';
       for (const [taskId, pendingTask] of pending) {
         pendingTask.cancelled = true;
         pendingTask.settled = true;
@@ -327,6 +390,15 @@ export function createInlineBackgroundExecutor(
         });
       }
       pending.clear();
+      state = 'destroyed';
+    },
+
+    get state() {
+      return state;
+    },
+
+    get pendingCount() {
+      return pending.size;
     },
   };
 }
@@ -478,6 +550,7 @@ export function createWorkerExecutor(
 
   const nextTaskId = createTaskIdFactory();
   const pending = new Map<string, PendingTask>();
+  let state: BackgroundExecutorState = 'active';
   const worker = new Worker(
     new URL(`data:text/javascript;charset=utf-8,${encodeURIComponent(createWorkerSource())}`),
     {
@@ -511,18 +584,38 @@ export function createWorkerExecutor(
     pendingTask.resolve(message.result);
   });
 
-  worker.on('error', (error) => {
-    const serialized = serializeError(error);
+  const rejectAllPending = (error: BackgroundTaskError): void => {
     for (const [taskId, pendingTask] of pending) {
       pendingTask.settled = true;
       pendingTask.listeners.clear();
       pendingTask.resolve({
         status: 'rejected',
         taskId,
-        error: serialized,
+        error,
       });
     }
     pending.clear();
+  };
+
+  worker.on('error', (error) => {
+    if (state === 'destroying' || state === 'destroyed') {
+      return;
+    }
+    state = 'failed';
+    rejectAllPending(serializeError(error));
+  });
+
+  worker.on('exit', (code) => {
+    if (state === 'destroying' || state === 'destroyed') {
+      return;
+    }
+
+    state = 'failed';
+    rejectAllPending({
+      name: 'WorkerExitError',
+      message: `Background worker exited before shutdown (code ${code})`,
+      code: String(code),
+    });
   });
 
   return {
@@ -530,6 +623,14 @@ export function createWorkerExecutor(
       request: BackgroundTaskRequest<TPayload>
     ): BackgroundTaskHandle<TResult> {
       const taskId = nextTaskId();
+      if (state !== 'active') {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'ExecutorUnavailableError',
+          `Background worker is ${state}`
+        );
+      }
+
       const controller = new AbortController();
       const pendingTask: PendingTask = {
         controller,
@@ -544,12 +645,21 @@ export function createWorkerExecutor(
         pending.set(taskId, pendingTask);
       });
 
-      worker.postMessage({
-        kind: 'run',
-        taskId,
-        taskType: request.type,
-        payload: request.payload,
-      });
+      try {
+        worker.postMessage({
+          kind: 'run',
+          taskId,
+          taskType: request.type,
+          payload: request.payload,
+        });
+      } catch (error) {
+        const orphanedTask = settlePendingTask(pending, taskId);
+        orphanedTask?.resolve({
+          status: 'rejected',
+          taskId,
+          error: serializeError(error),
+        });
+      }
 
       return {
         id: taskId,
@@ -559,11 +669,22 @@ export function createWorkerExecutor(
           if (!pendingTask) return;
           pendingTask.cancelled = true;
           pendingTask.controller.abort(reason ?? 'Cancelled');
-          worker.postMessage({
-            kind: 'cancel',
+          settlePendingTask(pending, taskId);
+          pendingTask.resolve({
+            status: 'cancelled',
             taskId,
             reason: reason ?? 'Cancelled',
           });
+          try {
+            worker.postMessage({
+              kind: 'cancel',
+              taskId,
+              reason: reason ?? 'Cancelled',
+            });
+          } catch {
+            // The handle is already settled. A concurrent worker exit does not
+            // change the cancellation result observed by the caller.
+          }
         },
         subscribe(listener) {
           const pendingTask = pending.get(taskId);
@@ -580,6 +701,8 @@ export function createWorkerExecutor(
     },
 
     async destroy() {
+      if (state === 'destroyed' || state === 'destroying') return;
+      state = 'destroying';
       for (const [taskId, pendingTask] of pending) {
         pendingTask.cancelled = true;
         pendingTask.settled = true;
@@ -592,7 +715,19 @@ export function createWorkerExecutor(
         });
       }
       pending.clear();
-      await worker.terminate();
+      try {
+        await worker.terminate();
+      } finally {
+        state = 'destroyed';
+      }
+    },
+
+    get state() {
+      return state;
+    },
+
+    get pendingCount() {
+      return pending.size;
     },
   };
 }
@@ -625,14 +760,19 @@ function notifyThreadBusListeners<T>(
   event: InterThreadBusMessage<T>
 ): void {
   for (const listener of listeners) {
-    listener(event);
+    try {
+      listener(event);
+    } catch {
+      // Listener isolation keeps routing deterministic when one observer fails.
+    }
   }
 }
 
 function normalizeThreadBusMessage<T = unknown>(
   source: string,
   rawMessage: InterThreadBusMessage<T> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp'> | Omit<InterThreadBusMessage<T>, 'id' | 'timestamp' | 'from'> & { from?: string },
-  defaults: { mainThreadName: string; defaultChannel: string }
+  defaults: { mainThreadName: string; defaultChannel: string },
+  authoritativeSource = false
 ): InterThreadBusMessage | null {
   if (!rawMessage || typeof rawMessage !== 'object') {
     return null;
@@ -655,7 +795,7 @@ function normalizeThreadBusMessage<T = unknown>(
 
   return {
     id: messageLike.id ?? createBusMessageId(),
-    from: messageLike.from ?? source,
+    from: authoritativeSource ? source : messageLike.from ?? source,
     to: target,
     channel,
     type,
@@ -670,12 +810,14 @@ export function createThreadBus({
   taskType = THREAD_BUS_TASK_TYPE,
   defaultChannel = 'default',
   mirrorToMain = true,
+  destroyThreads = true,
 }: ThreadBusOptions): ThreadBus {
   const allListeners = new Set<ThreadBusListener<any>>();
   const channelListeners = createThreadBusListenerSet();
   const activeThreads = new Map<string, TaskBridge>();
   const threadTaskCleanup = new Set<() => void>();
   const defaults = { mainThreadName, defaultChannel };
+  let destroyed = false;
 
   const emitToListeners = (event: InterThreadBusMessage) => {
     notifyThreadBusListeners(allListeners, event);
@@ -693,7 +835,12 @@ export function createThreadBus({
           continue;
         }
 
-        threadBridge.execute(taskType, message);
+        try {
+          threadBridge.execute(taskType, message);
+        } catch {
+          // One unavailable destination must not prevent a broadcast from
+          // reaching the other workers.
+        }
       }
       return;
     }
@@ -703,7 +850,11 @@ export function createThreadBus({
       return;
     }
 
-    destination.execute(taskType, message);
+    try {
+      destination.execute(taskType, message);
+    } catch {
+      // A failed destination is isolated from the main bus.
+    }
   };
 
   const post = <T>(
@@ -713,6 +864,8 @@ export function createThreadBus({
       channel?: string;
     }
   ): void => {
+    if (destroyed) return;
+
     const message = normalizeThreadBusMessage<T>(rawMessage.from ?? mainThreadName, rawMessage, defaults);
     if (!message) {
       return;
@@ -733,7 +886,12 @@ export function createThreadBus({
           return;
         }
 
-        const message = normalizeThreadBusMessage(threadName, event.payload as InterThreadBusMessage<unknown>, defaults);
+        const message = normalizeThreadBusMessage(
+          threadName,
+          event.payload as InterThreadBusMessage<unknown>,
+          defaults,
+          true
+        );
         if (!message) {
           return;
         }
@@ -747,7 +905,10 @@ export function createThreadBus({
         });
       });
       threadTaskCleanup.add(unsubscribe);
-      void handle.result.finally(() => {
+      void handle.result.then(() => {
+        unsubscribe();
+        threadTaskCleanup.delete(unsubscribe);
+      }, () => {
         unsubscribe();
         threadTaskCleanup.delete(unsubscribe);
       });
@@ -763,7 +924,8 @@ export function createThreadBus({
         const message = normalizeThreadBusMessage(
           threadName,
           event.payload as InterThreadBusMessage<unknown>,
-          defaults
+          defaults,
+          true
         );
         if (!message) {
           return;
@@ -778,7 +940,10 @@ export function createThreadBus({
         });
       });
       threadTaskCleanup.add(unsubscribe);
-      void handle.result.finally(() => {
+      void handle.result.then(() => {
+        unsubscribe();
+        threadTaskCleanup.delete(unsubscribe);
+      }, () => {
         unsubscribe();
         threadTaskCleanup.delete(unsubscribe);
       });
@@ -844,17 +1009,31 @@ export function createThreadBus({
       };
     },
     async destroy() {
+      if (destroyed) return;
+      destroyed = true;
       for (const unsubscribe of threadTaskCleanup) {
         unsubscribe();
       }
       threadTaskCleanup.clear();
 
-      for (const threadBridge of activeThreads.values()) {
-        await threadBridge.destroy();
-      }
+      const bridges = [...activeThreads.values()];
       activeThreads.clear();
       allListeners.clear();
       channelListeners.clear();
+
+      if (!destroyThreads) {
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        bridges.map(threadBridge => threadBridge.destroy())
+      );
+      const errors = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map(result => result.reason);
+      if (errors.length > 0) {
+        throw new AggregateError(errors, 'Failed to destroy one or more thread bridges');
+      }
     },
   };
 }
@@ -896,7 +1075,19 @@ export function createTaskBridge(
 export function createTaskBridgePool(
   options: TaskBridgePoolOptions
 ): TaskBridge {
-  const poolSize = Math.max(1, Math.floor(options.poolSize ?? 1));
+  const requestedPoolSize = options.poolSize ?? 1;
+  if (
+    !Number.isSafeInteger(requestedPoolSize)
+    || requestedPoolSize < 1
+    || requestedPoolSize > 128
+  ) {
+    throw new RangeError('poolSize must be a safe integer between 1 and 128');
+  }
+  if (options.scheduler && !['round-robin', 'least-pending'].includes(options.scheduler)) {
+    throw new TypeError(`Unknown task pool scheduler: ${String(options.scheduler)}`);
+  }
+
+  const poolSize = requestedPoolSize;
   const scheduler = options.scheduler ?? 'round-robin';
   const bridges = Array.from({ length: poolSize }, (_, index) =>
     createTaskBridge({
@@ -946,7 +1137,7 @@ export function createTaskBridgePool(
       workerLoad[trackedWorkerIndex].pending -= 1;
     };
 
-    void handle.result.finally(settleLoad);
+    void handle.result.then(settleLoad, settleLoad);
     return handle;
   };
 
@@ -968,8 +1159,14 @@ export function createTaskBridgePool(
       return createSubmitHandle(request);
     },
     async destroy() {
-      for (const bridge of bridges) {
-        await bridge.destroy();
+      const results = await Promise.allSettled(
+        bridges.map(bridge => bridge.destroy())
+      );
+      const errors = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map(result => result.reason);
+      if (errors.length > 0) {
+        throw new AggregateError(errors, 'Failed to destroy one or more task pool workers');
       }
     },
   };

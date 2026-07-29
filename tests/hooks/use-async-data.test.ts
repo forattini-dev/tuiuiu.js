@@ -25,7 +25,7 @@ describe('useAsyncData hook', () => {
 
   describe('basic fetching', () => {
     it('should start loading immediately', () => {
-      const fetcher = vi.fn(() => new Promise<string>(() => {}));
+      const fetcher = vi.fn((_signal: AbortSignal) => new Promise<string>(() => {}));
 
       beginRender();
       const { data, loading, error } = useAsyncData(fetcher);
@@ -80,7 +80,7 @@ describe('useAsyncData hook', () => {
     });
 
     it('should pass AbortSignal to fetcher', () => {
-      const fetcher = vi.fn(() => new Promise<string>(() => {}));
+      const fetcher = vi.fn((_signal: AbortSignal) => new Promise<string>(() => {}));
 
       beginRender();
       useAsyncData(fetcher);

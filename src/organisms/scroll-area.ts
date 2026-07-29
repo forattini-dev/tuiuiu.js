@@ -294,7 +294,7 @@ export function ScrollArea(props: ScrollAreaProps): VNode {
   };
 
   // Render content
-  const contentNodes: VNode[] = visibleItems.map((item, i) => {
+  const contentNodes: VNode[] = visibleItems.map(item => {
     if (typeof item === 'string') {
       return Text({}, item);
     }

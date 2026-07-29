@@ -221,7 +221,14 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
     colorScale = ['blue', 'cyan', 'green', 'yellow', 'red'],
     title,
     showLegend = false,
+    onPointClick,
   } = props;
+  if (!Number.isInteger(width) || width < 2) {
+    throw new RangeError('ScatterPlot width must be an integer of at least 2');
+  }
+  if (!Number.isInteger(height) || height < 2) {
+    throw new RangeError('ScatterPlot height must be an integer of at least 2');
+  }
 
   const isAscii = getRenderMode() === 'ascii';
   const marker = getMarkerChar(markerStyle, isAscii);
@@ -231,14 +238,49 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
   }
 
   const bounds = calculateBounds(points, xAxis, yAxis);
+  const categories = Array.from(new Set(
+    points.map(point => point.category).filter((category): category is string => Boolean(category)),
+  ));
+  const categoryColors = new Map(
+    categories.map((category, index) => [
+      category,
+      colorScale[index % Math.max(1, colorScale.length)] ?? color,
+    ]),
+  );
+  const sizes = points
+    .map(point => point.size)
+    .filter((size): size is number => Number.isFinite(size));
+  const minSize = sizes.length > 0 ? Math.min(...sizes) : 0;
+  const maxSize = sizes.length > 0 ? Math.max(...sizes) : 1;
+  const pointColor = (point: ScatterPoint): ColorValue => {
+    if (colorMode === 'category' && point.category) {
+      return categoryColors.get(point.category) ?? color;
+    }
+    if (colorMode === 'value' && point.value !== undefined && colorScale.length > 0) {
+      const normalized = (point.value - bounds.valueMin) / (bounds.valueMax - bounds.valueMin);
+      const index = Math.min(
+        colorScale.length - 1,
+        Math.max(0, Math.floor(normalized * colorScale.length)),
+      );
+      return colorScale[index]!;
+    }
+    return color;
+  };
+  const pointMarker = (point: ScatterPoint): string => {
+    if (point.size === undefined || minSize === maxSize) return marker;
+    const normalized = (point.size - minSize) / (maxSize - minSize);
+    if (isAscii) return normalized < 0.34 ? '.' : normalized < 0.67 ? 'o' : 'O';
+    return normalized < 0.34 ? '·' : normalized < 0.67 ? '•' : marker;
+  };
 
-  // Build grid (ASCII mode for now)
-  const grid: string[][] = Array(height)
+  // Keep point ownership per cell so color, size and click handlers survive
+  // rasterization. Later points win when multiple points map to one cell.
+  const grid: (number | null)[][] = Array(height)
     .fill(null)
-    .map(() => Array(width).fill(' '));
+    .map(() => Array(width).fill(null));
 
   // Plot points
-  for (const point of points) {
+  points.forEach((point, pointIndex) => {
     const x = Math.round(
       ((point.x - bounds.xMin) / (bounds.xMax - bounds.xMin)) * (width - 1)
     );
@@ -247,22 +289,28 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
     );
 
     if (x >= 0 && x < width && y >= 0 && y < height) {
-      grid[height - 1 - y]![x] = marker;
+      grid[height - 1 - y]![x] = pointIndex;
     }
-  }
+  });
 
   // Render grid
   const chartRows: VNode[] = [];
   for (let y = 0; y < height; y++) {
-    const rowStr = grid[y]!.join('');
-
-    // Determine row color based on color mode
-    let rowColor: ColorValue | undefined = color;
-    if (colorMode === 'value' && colorScale.length > 0) {
-      rowColor = colorScale[0];
-    }
-
-    chartRows.push(Text({ color: rowColor }, rowStr));
+    const cells = grid[y]!.map(pointIndex => {
+      if (pointIndex === null) return Text({}, ' ');
+      const point = points[pointIndex]!;
+      return Text(
+        {
+          color: pointColor(point),
+          onClick: onPointClick
+            ? () => onPointClick(point, pointIndex)
+            : undefined,
+          'aria-label': point.label ?? `Point ${pointIndex + 1}`,
+        },
+        pointMarker(point),
+      );
+    });
+    chartRows.push(Box({ flexDirection: 'row' }, ...cells));
   }
 
   // Build Y-axis labels
@@ -321,6 +369,37 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
         { flexDirection: 'row', marginLeft: yAxis.show !== false ? 6 : 0 },
         ...xLabels
       )
+    );
+  }
+
+  if (showLegend) {
+    const legendItems = colorMode === 'category' && categories.length > 0
+      ? categories.map(category =>
+          Box(
+            { flexDirection: 'row' },
+            Text({ color: categoryColors.get(category) }, `${marker} `),
+            Text({ color: 'mutedForeground' }, category),
+          )
+        )
+      : colorMode === 'value' && colorScale.length > 0
+        ? colorScale.map((scaleColor, index) =>
+            Text(
+              { color: scaleColor },
+              `${marker}${index === 0 ? ` ${formatTick(bounds.valueMin)}` : index === colorScale.length - 1 ? ` ${formatTick(bounds.valueMax)}` : ''}`,
+            )
+          )
+        : [
+            Box(
+              { flexDirection: 'row' },
+              Text({ color }, `${marker} `),
+              Text({ color: 'mutedForeground' }, 'Points'),
+            ),
+          ];
+    parts.push(
+      Box(
+        { flexDirection: 'row', gap: 2, marginTop: 1 },
+        ...legendItems,
+      ),
     );
   }
 

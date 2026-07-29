@@ -5,7 +5,9 @@
     "rootDir": ".",
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": ["examples/**/*.ts"],
   "exclude": ["node_modules", "dist"]

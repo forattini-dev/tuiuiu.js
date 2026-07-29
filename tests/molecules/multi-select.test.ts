@@ -266,8 +266,8 @@ describe('MultiSelect Component', () => {
   it('should apply custom colors', () => {
     const vnode = MultiSelect({
       items: basicItems,
-      activeColor: 'blue',
-      selectedColor: 'green',
+      colorActive: 'blue',
+      colorSelected: 'green',
     });
 
     expect(vnode).toBeDefined();

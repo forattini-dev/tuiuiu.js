@@ -34,7 +34,7 @@ describe('useSubscription hook', () => {
     });
 
     it('should return initialValue when provided', () => {
-      const subscribe = vi.fn(() => vi.fn());
+      const subscribe = vi.fn((_callback: (value: number) => void) => vi.fn());
 
       beginRender();
       const getter = useSubscription<number>(subscribe, { initialValue: 42 });
@@ -44,7 +44,7 @@ describe('useSubscription hook', () => {
     });
 
     it('should call subscribe on first render', () => {
-      const subscribe = vi.fn(() => vi.fn());
+      const subscribe = vi.fn((_callback: (value: unknown) => void) => vi.fn());
 
       beginRender();
       useSubscription(subscribe);

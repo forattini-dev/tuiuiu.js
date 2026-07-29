@@ -130,6 +130,7 @@ export type {
   UseCompositorResult,
   SlideOptions,
   FadeOptions,
+  ScaleOptions,
   ShimmerOptions,
   SpringMotionOptions,
   RevealOptions,

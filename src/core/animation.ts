@@ -1021,6 +1021,7 @@ export function createSlideTransition(options: SwipeOptions) {
         compositeOutput = compositeVerticalInline(
           prevContent,
           nextContent,
+          width,
           height,
           splitPoint,
           gap
@@ -1029,6 +1030,7 @@ export function createSlideTransition(options: SwipeOptions) {
         compositeOutput = compositeVerticalInline(
           nextContent,
           prevContent,
+          width,
           height,
           height - splitPoint,
           gap
@@ -1042,6 +1044,7 @@ export function createSlideTransition(options: SwipeOptions) {
   function compositeVerticalInline(
     top: string,
     bottom: string,
+    lineWidth: number,
     totalHeight: number,
     splitPoint: number,
     gapSize: number
@@ -1052,12 +1055,14 @@ export function createSlideTransition(options: SwipeOptions) {
     const topHeight = Math.max(0, splitPoint);
     const bottomHeight = Math.max(0, totalHeight - splitPoint - gapSize);
 
-    const topVisible = topLines.slice(-topHeight);
-    const bottomVisible = bottomLines.slice(0, bottomHeight);
+    const fitLine = (line: string): string =>
+      padTextToWidth(sliceAnsi(line, 0, lineWidth), lineWidth);
+    const topVisible = topLines.slice(-topHeight).map(fitLine);
+    const bottomVisible = bottomLines.slice(0, bottomHeight).map(fitLine);
 
     return [
       ...topVisible,
-      ...Array(gapSize).fill(''),
+      ...Array(gapSize).fill(' '.repeat(lineWidth)),
       ...bottomVisible,
     ].join('\n');
   }

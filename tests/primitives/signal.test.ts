@@ -19,6 +19,7 @@ import {
   createDebounced,
   Signal,
   Effect,
+  onCleanup,
 } from '../../src/primitives/signal.js';
 
 describe('primitives/signal', () => {
@@ -165,8 +166,7 @@ describe('primitives/signal', () => {
       const [source] = createSignal(5);
       const previous = createPrevious(source);
 
-      // First value is stored, but previous is undefined initially
-      expect(previous()).toBe(5);
+      expect(previous()).toBeUndefined();
     });
 
     it('tracks previous values', () => {
@@ -174,10 +174,10 @@ describe('primitives/signal', () => {
       const previous = createPrevious(source);
 
       setSource(2);
-      expect(previous()).toBe(2);
+      expect(previous()).toBe(1);
 
       setSource(3);
-      expect(previous()).toBe(3);
+      expect(previous()).toBe(2);
     });
 
     it('does not update when value is same', () => {
@@ -191,6 +191,18 @@ describe('primitives/signal', () => {
 
       setSource(5); // Same value
       expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops tracking after disposal', () => {
+      const [source, setSource] = createSignal(1);
+      const previous = createPrevious(source);
+
+      setSource(2);
+      expect(previous()).toBe(1);
+      previous.dispose();
+      setSource(3);
+
+      expect(previous()).toBe(1);
     });
   });
 
@@ -239,6 +251,17 @@ describe('primitives/signal', () => {
 
       vi.advanceTimersByTime(100);
       expect(throttled()).toBe(3);
+    });
+
+    it('cancels pending work when disposed', () => {
+      const [source, setSource] = createSignal(1);
+      const throttled = createThrottled(source, 100);
+
+      setSource(2);
+      throttled.dispose();
+      vi.advanceTimersByTime(100);
+
+      expect(throttled()).toBe(1);
     });
   });
 
@@ -304,6 +327,28 @@ describe('primitives/signal', () => {
 
       vi.advanceTimersByTime(50);
       expect(debounced()).toBe(3);
+    });
+
+    it('cancels pending work when disposed', () => {
+      const [source, setSource] = createSignal(1);
+      const debounced = createDebounced(source, 100);
+
+      setSource(2);
+      debounced.dispose();
+      vi.advanceTimersByTime(100);
+
+      expect(debounced()).toBe(1);
+    });
+
+    it('rejects invalid delays', () => {
+      const [source] = createSignal(1);
+
+      expect(() => createDebounced(source, Number.NaN)).toThrow(
+        'Reactive delay must be a finite non-negative number'
+      );
+      expect(() => createThrottled(source, -1)).toThrow(
+        'Reactive delay must be a finite non-negative number'
+      );
     });
   });
 
@@ -461,6 +506,23 @@ describe('primitives/signal', () => {
 
       effect.dispose();
       expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs every cleanup and unsubscribes even when one cleanup throws', () => {
+      const signal = new Signal(0);
+      const laterCleanup = vi.fn();
+      const effect = new Effect(() => {
+        signal.value;
+        onCleanup(() => {
+          throw new Error('cleanup failed');
+        });
+        onCleanup(laterCleanup);
+      });
+
+      expect(() => effect.dispose()).toThrow('cleanup failed');
+      expect(laterCleanup).toHaveBeenCalledOnce();
+      signal.value = 1;
+      expect(laterCleanup).toHaveBeenCalledOnce();
     });
 
     it('calls cleanup on re-run', () => {

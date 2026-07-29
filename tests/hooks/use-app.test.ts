@@ -17,6 +17,7 @@ import {
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { EventEmitter } from 'node:events';
 import { Writable, Readable } from 'node:stream';
+import type { AppContext } from '../../src/hooks/types.js';
 
 // Create mock stdin
 function createMockStdin(): NodeJS.ReadStream {
@@ -52,6 +53,22 @@ function createMockStdout(): NodeJS.WriteStream {
   return stream as unknown as NodeJS.WriteStream;
 }
 
+function createMockAppContext(): AppContext {
+  return {
+    exit: vi.fn(),
+    dispose: vi.fn(),
+    stdin: {} as NodeJS.ReadStream,
+    stdout: {} as NodeJS.WriteStream,
+    onExit: vi.fn(() => vi.fn()),
+    autoTabNavigation: true,
+    setAutoTabNavigation: vi.fn(),
+    setRawMode: vi.fn(),
+    rawModeEnabledCount: 0,
+    isRawModeEnabled: vi.fn(() => false),
+    writeLine: vi.fn(),
+  };
+}
+
 describe('useApp', () => {
   beforeEach(() => {
     resetHookState();
@@ -71,13 +88,7 @@ describe('useApp', () => {
   });
 
   it('returns app context when within app', () => {
-    const mockContext = {
-      exit: vi.fn(),
-      dispose: vi.fn(),
-      stdin: {} as any,
-      stdout: {} as any,
-      onExit: vi.fn(),
-    };
+    const mockContext = createMockAppContext();
     setAppContext(mockContext);
 
     const app = useApp();
@@ -455,6 +466,38 @@ describe('initializeApp', () => {
 
       expect(mockExit).toHaveBeenCalledTimes(1);
     });
+
+    it('isolates exit callback failures and still notifies later callbacks', () => {
+      const ctx = initializeApp(stdin, stdout);
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const laterCallback = vi.fn();
+      ctx.onExit(() => {
+        throw new Error('callback failed');
+      });
+      ctx.onExit(laterCallback);
+
+      expect(() => ctx.exit()).not.toThrow();
+      expect(laterCallback).toHaveBeenCalledWith(undefined);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[tuiuiu] Error in app exit callback:',
+        expect.any(Error),
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('notifies callbacks registered after exit immediately', () => {
+      const ctx = initializeApp(stdin, stdout);
+      const error = new Error('already exited');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      ctx.exit(error);
+      const callback = vi.fn();
+
+      const unsubscribe = ctx.onExit(callback);
+
+      expect(callback).toHaveBeenCalledWith(error);
+      expect(() => unsubscribe()).not.toThrow();
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('non-TTY stdin', () => {
@@ -481,13 +524,7 @@ describe('cleanupApp', () => {
   });
 
   it('clears app context', () => {
-    setAppContext({
-      exit: vi.fn(),
-      dispose: vi.fn(),
-      stdin: {} as any,
-      stdout: {} as any,
-      onExit: vi.fn(),
-    });
+    setAppContext(createMockAppContext());
 
     cleanupApp();
 

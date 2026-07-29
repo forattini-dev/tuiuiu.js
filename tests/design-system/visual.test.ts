@@ -113,8 +113,8 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders with border', () => {
-      const node = FigletText({ text: 'Hi', borderStyle: 'round' });
+    it('renders with a width constraint', () => {
+      const node = FigletText({ text: 'Hi', width: 20 });
       expect(node).not.toBeNull();
     });
   });
@@ -145,8 +145,8 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders Logo with border', () => {
-      const node = Logo({ text: 'APP', borderStyle: 'double' });
+    it('renders Logo with gradient colors', () => {
+      const node = Logo({ text: 'APP', colors: ['cyan', 'blue'] });
       expect(node).not.toBeNull();
     });
   });
@@ -221,7 +221,7 @@ describe('Visual Components', () => {
     });
 
     it('renders Clock in 12-hour format', () => {
-      const node = Clock({ time: new Date(), format12: true });
+      const node = Clock({ time: new Date(), format: '12h' });
       expect(node).not.toBeNull();
     });
   });
@@ -232,13 +232,13 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders Counter with label', () => {
-      const node = Counter({ value: 50, label: 'Items' });
+    it('renders Counter with a fixed digit count', () => {
+      const node = Counter({ value: 50, digits: 6 });
       expect(node).not.toBeNull();
     });
 
-    it('renders Counter with prefix and suffix', () => {
-      const node = Counter({ value: 99, prefix: '$', suffix: '.00' });
+    it('renders Counter with a sign', () => {
+      const node = Counter({ value: 99, showSign: true });
       expect(node).not.toBeNull();
     });
   });
@@ -249,31 +249,30 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders Countdown with target date', () => {
-      const future = new Date(Date.now() + 3600000);
-      const node = Countdown({ target: future });
+    it('renders Countdown with hours', () => {
+      const node = Countdown({ seconds: 3600, showHours: true });
       expect(node).not.toBeNull();
     });
 
-    it('renders Countdown without showDays', () => {
-      const node = Countdown({ seconds: 3600, showDays: false });
+    it('renders Countdown without forced hours', () => {
+      const node = Countdown({ seconds: 60, showHours: false });
       expect(node).not.toBeNull();
     });
   });
 
   describe('Stopwatch', () => {
     it('renders Stopwatch with elapsed time', () => {
-      const node = Stopwatch({ elapsed: 65000 });
+      const node = Stopwatch({ milliseconds: 65000 });
       expect(node).not.toBeNull();
     });
 
-    it('renders Stopwatch with running state', () => {
-      const node = Stopwatch({ elapsed: 1000, running: true });
+    it('renders Stopwatch with milliseconds', () => {
+      const node = Stopwatch({ milliseconds: 1000, showMilliseconds: true });
       expect(node).not.toBeNull();
     });
 
-    it('renders Stopwatch with lap times', () => {
-      const node = Stopwatch({ elapsed: 5000, laps: [1000, 2000, 2000] });
+    it('renders Stopwatch with a custom style', () => {
+      const node = Stopwatch({ milliseconds: 5000, style: 'minimal' });
       expect(node).not.toBeNull();
     });
   });
@@ -284,8 +283,8 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders DigitRoll with previous value', () => {
-      const node = DigitRoll({ value: 10, previousValue: 9 });
+    it('renders DigitRoll with a fixed digit count', () => {
+      const node = DigitRoll({ value: 10, digits: 4 });
       expect(node).not.toBeNull();
     });
   });
@@ -296,13 +295,13 @@ describe('Visual Components', () => {
       expect(node).not.toBeNull();
     });
 
-    it('renders Score with home and away', () => {
-      const node = Score({ home: 3, away: 2 });
+    it('renders Score with a custom label', () => {
+      const node = Score({ score: 3, label: 'HOME' });
       expect(node).not.toBeNull();
     });
 
-    it('renders Score with labels', () => {
-      const node = Score({ home: 1, away: 0, homeLabel: 'Team A', awayLabel: 'Team B' });
+    it('renders Score without a label', () => {
+      const node = Score({ score: 1, label: '' });
       expect(node).not.toBeNull();
     });
   });
@@ -520,17 +519,17 @@ describe('Visual Components', () => {
     });
 
     it('renders solid variant', () => {
-      const node = Badge({ label: '5', variant: 'solid', color: 'red' });
+      const node = Badge({ label: '5', style: 'solid', color: 'red' });
       expect(node).not.toBeNull();
     });
 
     it('renders outline variant', () => {
-      const node = Badge({ label: 'OK', variant: 'outline', color: 'green' });
+      const node = Badge({ label: 'OK', style: 'outline', color: 'green' });
       expect(node).not.toBeNull();
     });
 
     it('renders subtle variant (default)', () => {
-      const node = Badge({ label: 'INFO', variant: 'subtle' });
+      const node = Badge({ label: 'INFO', style: 'subtle' });
       expect(node).not.toBeNull();
     });
   });

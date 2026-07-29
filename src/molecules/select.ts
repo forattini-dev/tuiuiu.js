@@ -64,7 +64,7 @@ export interface CreateSelectOptions<T = any> {
   isActive?: boolean | (() => boolean);
 }
 
-export interface SelectRenderOptions<T = any> {
+export interface SelectRenderOptions {
   /** Enable type-ahead search */
   searchable?: boolean;
   /** Expand to fill available width */
@@ -91,7 +91,7 @@ export interface SelectRenderOptions<T = any> {
   showCount?: boolean;
 }
 
-export type SelectOptions<T = any> = CreateSelectOptions<T> & SelectRenderOptions<T>;
+export type SelectOptions<T = any> = CreateSelectOptions<T> & SelectRenderOptions;
 
 interface SelectRuntimeOptions<T = any> {
   items: SelectItem<T>[];

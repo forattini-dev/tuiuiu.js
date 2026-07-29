@@ -28,8 +28,6 @@ import type {
   ThemeOpacity,
   ComponentTokens,
   ComponentName,
-  ColorScale,
-  ShadeValue,
   BorderRadius,
 } from './theme-types.js';
 

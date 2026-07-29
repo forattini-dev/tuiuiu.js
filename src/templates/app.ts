@@ -138,11 +138,8 @@ export function Page(props: PageProps): VNode {
     borderColor = tokens.border;
   }
 
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-
-  const pageWidth = fullScreen ? termWidth : (width ?? termWidth);
-  const pageHeight = fullScreen ? termHeight : height;
+  const pageWidth = fullScreen ? 'fill' : (width ?? 'fill');
+  const pageHeight = fullScreen ? 'fill' : height;
 
   const parts: VNode[] = [];
 
@@ -295,9 +292,6 @@ export function AppShell(props: AppShellProps): VNode {
     children,
   } = props;
 
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-
   // Divider character based on style
   const divChars: Record<string, { v: string; h: string }> = {
     line: { v: '│', h: '─' },
@@ -315,19 +309,14 @@ export function AppShell(props: AppShellProps): VNode {
   if (header) {
     rows.push(
       Box(
-        { width: termWidth, height: headerHeight, flexDirection: 'column' },
+        { width: 'fill', height: headerHeight, flexDirection: 'column' },
         header
       )
     );
     if (dividers) {
-      rows.push(Text({ color: dividerColor }, divChar.h.repeat(termWidth)));
+      rows.push(Divider({ char: divChar.h, color: dividerColor, width: 'fill' }));
     }
   }
-
-  // Calculate content height
-  let contentHeight = termHeight;
-  if (header) contentHeight -= (headerHeight ?? 1) + (dividers ? 1 : 0);
-  if (footer) contentHeight -= footerHeight + (dividers ? 1 : 0);
 
   // Middle section (sidebar + content + aside)
   const middleParts: VNode[] = [];
@@ -336,28 +325,31 @@ export function AppShell(props: AppShellProps): VNode {
   if (sidebar) {
     middleParts.push(
       Box(
-        { width: sidebarWidth, height: contentHeight, flexDirection: 'column' },
+        { width: sidebarWidth, height: 'fill', flexDirection: 'column' },
         sidebar
       )
     );
     if (dividers) {
-      const sidebarDivider = Array(contentHeight).fill(divChar.v).join('\n');
-      middleParts.push(Text({ color: dividerColor }, sidebarDivider));
+      middleParts.push(
+        Divider({
+          direction: 'vertical',
+          char: divChar.v,
+          color: dividerColor,
+          height: 'fill',
+        })
+      );
     }
   }
 
   // Main content
-  const contentWidth = termWidth
-    - (sidebar ? sidebarWidth + (dividers ? 1 : 0) : 0)
-    - (aside ? asideWidth + (dividers ? 1 : 0) : 0);
-
   middleParts.push(
     Box(
       {
-        width: contentWidth,
-        height: contentHeight,
+        flexGrow: 1,
+        height: 'fill',
         padding,
         flexDirection: 'column',
+        overflow: 'hidden',
       },
       children
     )
@@ -366,34 +358,50 @@ export function AppShell(props: AppShellProps): VNode {
   // Aside
   if (aside) {
     if (dividers) {
-      const asideDivider = Array(contentHeight).fill(divChar.v).join('\n');
-      middleParts.push(Text({ color: dividerColor }, asideDivider));
+      middleParts.push(
+        Divider({
+          direction: 'vertical',
+          char: divChar.v,
+          color: dividerColor,
+          height: 'fill',
+        })
+      );
     }
     middleParts.push(
       Box(
-        { width: asideWidth, height: contentHeight, flexDirection: 'column' },
+        { width: asideWidth, height: 'fill', flexDirection: 'column' },
         aside
       )
     );
   }
 
-  rows.push(Box({ flexDirection: 'row' }, ...middleParts));
+  rows.push(
+    Box(
+      {
+        flexDirection: 'row',
+        width: 'fill',
+        flexGrow: 1,
+        overflow: 'hidden',
+      },
+      ...middleParts,
+    )
+  );
 
   // Footer
   if (footer) {
     if (dividers) {
-      rows.push(Text({ color: dividerColor }, divChar.h.repeat(termWidth)));
+      rows.push(Divider({ char: divChar.h, color: dividerColor, width: 'fill' }));
     }
     rows.push(
       Box(
-        { width: termWidth, height: footerHeight, flexDirection: 'column' },
+        { width: 'fill', height: footerHeight, flexDirection: 'column' },
         footer
       )
     );
   }
 
   return Box(
-    { width: termWidth, height: termHeight, flexDirection: 'column' },
+    { width: 'fill', height: 'fill', flexDirection: 'column' },
     ...rows
   );
 }
@@ -456,8 +464,6 @@ export function StatusBar(props: StatusBarProps): VNode {
     textColor = tokens.fg;
   }
 
-  const termWidth = process.stdout.columns || 80;
-
   // Helper to convert string to Text with correct color, or pass VNode through
   const toNode = (content: string | VNode | undefined): VNode | null => {
     if (content === undefined) return null;
@@ -478,18 +484,24 @@ export function StatusBar(props: StatusBarProps): VNode {
 
   const centerNode = toNode(center);
   if (centerNode) {
+    if (leftNode && separator) {
+      parts.push(Text({ color: textColor, dim: true }, separator));
+    }
     parts.push(centerNode);
     parts.push(Spacer());
   }
 
   const rightNode = toNode(right);
   if (rightNode) {
+    if ((leftNode || centerNode) && separator) {
+      parts.push(Text({ color: textColor, dim: true }, separator));
+    }
     parts.push(rightNode);
   }
 
   return Box(
     {
-      width: termWidth,
+      width: 'fill',
       height: 1,
       backgroundColor,
       flexDirection: 'row',
@@ -600,8 +612,6 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiC
     borderColor = tokens.border;
   }
 
-  const termWidth = process.stdout.columns || 80;
-
   // Helper to convert string to Text with correct color, or pass VNode through
   const toNode = (content: string | VNode | undefined): VNode | null => {
     if (content === undefined) return null;
@@ -635,7 +645,7 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiC
 
   const headerContent = Box(
     {
-      width: termWidth,
+      width: 'fill',
       backgroundColor,
       flexDirection: 'row',
       paddingX: 1,
@@ -648,7 +658,7 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiC
       gap: 0,
       children: [
         headerContent,
-        Text({ color: borderColor }, '─'.repeat(termWidth)),
+        Divider({ color: borderColor, width: 'fill' }),
       ],
     });
   }
@@ -695,21 +705,22 @@ export function Container(props: ContainerProps): VNode {
     children,
   } = props;
 
-  const termWidth = process.stdout.columns || 80;
-  const actualWidth = Math.min(maxWidth, termWidth);
+  const content = Box(
+    {
+      width: 'fill',
+      maxWidth,
+      padding,
+      flexDirection: 'column',
+    },
+    children,
+  );
 
-  if (center && actualWidth < termWidth) {
-    const sideMargin = Math.floor((termWidth - actualWidth) / 2);
+  if (center) {
     return Box(
-      { flexDirection: 'row' },
-      Box({ width: sideMargin }),
-      Box({ width: actualWidth, padding, flexDirection: 'column' }, children),
-      Box({ width: termWidth - actualWidth - sideMargin })
+      { width: 'fill', flexDirection: 'row', justifyContent: 'center' },
+      content,
     );
   }
 
-  return Box(
-    { width: actualWidth, padding, flexDirection: 'column' },
-    children
-  );
+  return content;
 }

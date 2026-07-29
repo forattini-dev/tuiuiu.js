@@ -263,13 +263,10 @@ export function Center(props: CenterProps): VNode {
     children,
   } = props;
 
-  const termWidth = width ?? (process.stdout.columns || 80);
-  const termHeight = height ?? (process.stdout.rows || 24);
-
   return Box(
     {
-      width: termWidth,
-      height: termHeight,
+      width: width ?? 'fill',
+      height: height ?? 'fill',
       flexDirection: 'column',
       alignItems: horizontal ? 'center' : 'flex-start',
       justifyContent: vertical ? 'center' : 'flex-start',
@@ -317,13 +314,10 @@ export function FullScreen(props: FullScreenProps): VNode {
     children,
   } = props;
 
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
-
   return Box(
     {
-      width: termWidth,
-      height: termHeight,
+      width: 'fill',
+      height: 'fill',
       padding,
       backgroundColor,
       flexDirection: 'column',

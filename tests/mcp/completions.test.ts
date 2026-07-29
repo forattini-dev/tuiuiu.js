@@ -157,6 +157,16 @@ describe('MCP Completions', () => {
       expect(result.values).toContain('common-mistakes');
       expect(result.values).toContain('layout');
     });
+
+    it('should not complete a different template argument', () => {
+      const result = getResourceCompletions(
+        'tuiuiu://component/{name}',
+        'category',
+        ''
+      );
+
+      expect(result.values).toEqual([]);
+    });
   });
 
   describe('getToolCompletions', () => {

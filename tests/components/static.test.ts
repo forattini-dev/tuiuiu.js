@@ -10,6 +10,7 @@ import { Text } from '../../src/primitives/index.js';
 import { Box } from '../../src/primitives/index.js';
 import { Fragment } from '../../src/primitives/index.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
 
 describe('Static Component', () => {
   describe('Basic rendering', () => {
@@ -121,6 +122,56 @@ describe('Static Component', () => {
       const output = renderToString(node, 80);
       expect(output).toContain('valid');
       expect(output).toContain('another');
+    });
+
+    it('emits only newly appended keys across component renders', () => {
+      resetHookState();
+      try {
+        beginRender();
+        const first = Static({
+          id: 'logs',
+          items: ['same', 'same'],
+          children: (item) => Text({}, item),
+        });
+        endRender();
+
+        beginRender();
+        const second = Static({
+          id: 'logs',
+          items: ['same', 'same', 'new'],
+          children: (item) => Text({}, item),
+        });
+        endRender();
+
+        expect(first.children).toHaveLength(2);
+        expect(second.children).toHaveLength(1);
+        expect(second.children[0]?.props.children).toBe('new');
+        expect(first.props.__staticId).not.toBe(second.props.__staticId);
+      } finally {
+        resetHookState();
+      }
+    });
+
+    it('keeps identical prefixes from separate instances distinct', () => {
+      const longPrefix = 'x'.repeat(100);
+      const first = Static({
+        items: [`${longPrefix}-one`],
+        children: item => Text({}, item),
+      });
+      const second = Static({
+        items: [`${longPrefix}-two`],
+        children: item => Text({}, item),
+      });
+
+      expect(first.props.__staticId).not.toBe(second.props.__staticId);
+    });
+
+    it('rejects duplicate explicit keys instead of dropping an item', () => {
+      expect(() => Static({
+        items: [{ id: 1 }, { id: 1 }],
+        getKey: item => item.id,
+        children: item => Text({}, String(item.id)),
+      })).toThrow(/unique/);
     });
   });
 

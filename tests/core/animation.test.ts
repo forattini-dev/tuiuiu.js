@@ -970,6 +970,20 @@ describe('createSlideTransition', () => {
     const lines = output.split('\n');
     expect(lines.length).toBeGreaterThan(0);
   });
+
+  it('should fit every vertical transition row to the configured width', () => {
+    const slide = createSlideTransition({
+      width: 5,
+      height: 4,
+      gap: 1,
+      animation: { useSpring: false, duration: 100 },
+    });
+
+    slide.slideUp('too long\nx', 'next value\ny');
+    vi.advanceTimersByTime(50);
+
+    expect(slide.render().split('\n').every(line => stringWidth(line) === 5)).toBe(true);
+  });
 });
 
 // =============================================================================

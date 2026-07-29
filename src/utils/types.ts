@@ -107,6 +107,10 @@ export interface BoxStyle {
   borderText?: string;
   /** Alignment of borderText: 'left' | 'center' | 'right' (default: 'center') */
   borderTextAlign?: 'left' | 'center' | 'right';
+  /** Optional color for borderText; defaults to borderColor */
+  borderTextColor?: ColorValue;
+  /** Render borderText in bold */
+  borderTextBold?: boolean;
 
   // Overflow
   overflow?: 'visible' | 'hidden';
@@ -239,6 +243,10 @@ export interface BoxProps extends BoxStyle, MouseEventProps, AccessibilityProps 
   id?: string;
   /** Internal runtime metadata for scroll-container queries */
   __scrollQuery?: unknown;
+  /** Internal vertical content offset used by scroll containers */
+  __scrollOffsetY?: number;
+  /** Internal single-cell character used to fill this box */
+  __fillChar?: string;
   /** Unique key for reconciliation */
   key?: string | number;
   /** Child elements */

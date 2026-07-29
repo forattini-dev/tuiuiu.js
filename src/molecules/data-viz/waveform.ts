@@ -145,8 +145,12 @@ function renderBars(
     background?: ColorValue;
     showPeaks?: boolean;
     peakColor?: ColorValue;
+    min?: number;
+    max?: number;
     barGap?: number;
     peaks?: number[];
+    fillChar?: string;
+    emptyChar?: string;
   }
 ): VNode[] {
   const {
@@ -155,20 +159,25 @@ function renderBars(
     background,
     showPeaks = false,
     peakColor = 'error',
+    min,
+    max,
     barGap = 0,
     peaks = [],
+    fillChar,
+    emptyChar,
   } = options;
 
-  const normalized = normalizeData(data);
+  const normalized = normalizeData(data, min, max);
   const resampled = resampleData(normalized, width);
   const ascii = getRenderMode() === 'ascii';
+  const resolvedFillChar = fillChar ?? (ascii ? ASCII_FILL[4]! : VBLOCK_CHARS[8]!);
+  const resolvedEmptyChar = emptyChar ?? VBLOCK_CHARS[0]!;
 
   const rows: VNode[] = [];
 
   // Render from top to bottom
   for (let row = 0; row < height; row++) {
     const rowThreshold = 1 - (row + 1) / height;
-    let line = '';
     const segments: { text: string; color: ColorValue }[] = [];
     let currentSegment = { text: '', color: background || 'background' as ColorValue };
 
@@ -181,7 +190,7 @@ function renderBars(
       let charColor: ColorValue;
 
       if (isBarGap) {
-        char = EMPTY_BLOCK;
+        char = resolvedEmptyChar;
         charColor = background || 'background';
       } else if (showPeaks && row === Math.floor((1 - peakValue) * height)) {
         char = '▀';
@@ -190,13 +199,17 @@ function renderBars(
         // Calculate sub-character fill level
         const fillLevel = Math.min(1, (value - rowThreshold) * height);
         const charIndex = Math.floor(fillLevel * 8);
-        char = ascii ? (charIndex > 4 ? '#' : '.') : FULL_BLOCK;
+        char = fillChar
+          ? resolvedFillChar
+          : ascii
+            ? ASCII_FILL[Math.min(ASCII_FILL.length - 1, Math.floor(fillLevel * ASCII_FILL.length))]!
+            : VBLOCK_CHARS[charIndex]!;
 
         // Color gradient: colorHigh at top, color at bottom
         const heightRatio = row / height;
         charColor = heightRatio < 0.3 ? (colorHigh || color) : color;
       } else {
-        char = EMPTY_BLOCK;
+        char = resolvedEmptyChar;
         charColor = background || 'background';
       }
 
@@ -218,7 +231,7 @@ function renderBars(
     rows.push(
       Box(
         { flexDirection: 'row' },
-        ...segments.map((seg) => Text({ color: seg.color }, seg.text))
+        ...segments.map((seg) => Text({ color: seg.color, backgroundColor: background }, seg.text))
       )
     );
   }
@@ -236,11 +249,13 @@ function renderWaveform(
   options: {
     color?: ColorValue;
     background?: ColorValue;
+    min?: number;
+    max?: number;
   }
 ): VNode[] {
-  const { color = 'primary', background } = options;
+  const { color = 'primary', background, min, max } = options;
 
-  const normalized = normalizeData(data);
+  const normalized = normalizeData(data, min, max);
   const resampled = resampleData(normalized, width);
   const ascii = getRenderMode() === 'ascii';
 
@@ -265,7 +280,15 @@ function renderWaveform(
       }
     }
 
-    rows.push(Text({ color: row === centerRow && line.includes('─') ? 'muted' : color }, line));
+    rows.push(
+      Text(
+        {
+          color: row === centerRow ? 'muted' : color,
+          backgroundColor: background,
+        },
+        line,
+      )
+    );
   }
 
   return rows;
@@ -282,11 +305,13 @@ function renderMirrored(
     color?: ColorValue;
     colorHigh?: ColorValue;
     background?: ColorValue;
+    min?: number;
+    max?: number;
   }
 ): VNode[] {
-  const { color = 'primary', colorHigh, background } = options;
+  const { color = 'primary', colorHigh, background, min, max } = options;
 
-  const normalized = normalizeData(data);
+  const normalized = normalizeData(data, min, max);
   const resampled = resampleData(normalized, width);
   const ascii = getRenderMode() === 'ascii';
 
@@ -330,7 +355,7 @@ function renderMirrored(
     rows.push(
       Box(
         { flexDirection: 'row' },
-        ...segments.map((seg) => Text({ color: seg.color }, seg.text))
+        ...segments.map((seg) => Text({ color: seg.color, backgroundColor: background }, seg.text))
       )
     );
   }
@@ -349,12 +374,14 @@ function renderSpectrum(
     color?: ColorValue;
     colorHigh?: ColorValue;
     background?: ColorValue;
+    min?: number;
+    max?: number;
   }
 ): VNode[] {
-  const { color = 'cyan', colorHigh = 'magenta', background } = options;
+  const { color = 'cyan', colorHigh = 'magenta', background, min, max } = options;
 
   // Spectrum uses gradient coloring based on frequency
-  const normalized = normalizeData(data);
+  const normalized = normalizeData(data, min, max);
   const resampled = resampleData(normalized, width);
   const ascii = getRenderMode() === 'ascii';
 
@@ -400,7 +427,7 @@ function renderSpectrum(
     rows.push(
       Box(
         { flexDirection: 'row' },
-        ...segments.map((seg) => Text({ color: seg.color }, seg.text))
+        ...segments.map((seg) => Text({ color: seg.color, backgroundColor: background }, seg.text))
       )
     );
   }
@@ -418,11 +445,13 @@ function renderOscilloscope(
   options: {
     color?: ColorValue;
     background?: ColorValue;
+    min?: number;
+    max?: number;
   }
 ): VNode[] {
-  const { color = 'success', background } = options;
+  const { color = 'success', background, min, max } = options;
 
-  const normalized = normalizeData(data);
+  const normalized = normalizeData(data, min, max);
   const resampled = resampleData(normalized, width);
   const ascii = getRenderMode() === 'ascii';
 
@@ -458,7 +487,7 @@ function renderOscilloscope(
     }
   }
 
-  return grid.map((rowChars) => Text({ color }, rowChars.join('')));
+  return grid.map((rowChars) => Text({ color, backgroundColor: background }, rowChars.join('')));
 }
 
 // =============================================================================
@@ -512,24 +541,45 @@ export function Waveform(options: WaveformOptions): VNode {
     min,
     max,
     barGap = 0,
+    fillChar,
+    emptyChar,
     border = false,
     borderColor = 'border',
   } = options;
+
+  if (!Number.isInteger(width) || width <= 0) {
+    throw new RangeError('Waveform width must be a positive integer');
+  }
+  if (!Number.isInteger(height) || height <= 0) {
+    throw new RangeError('Waveform height must be a positive integer');
+  }
+  if (!Number.isInteger(barGap) || barGap < 0) {
+    throw new RangeError('Waveform barGap must be a non-negative integer');
+  }
+  if (min !== undefined && !Number.isFinite(min)) {
+    throw new RangeError('Waveform min must be finite');
+  }
+  if (max !== undefined && !Number.isFinite(max)) {
+    throw new RangeError('Waveform max must be finite');
+  }
+  if (min !== undefined && max !== undefined && max <= min) {
+    throw new RangeError('Waveform max must be greater than min');
+  }
 
   let rows: VNode[];
 
   switch (style) {
     case 'waveform':
-      rows = renderWaveform(data, width, height, { color, background });
+      rows = renderWaveform(data, width, height, { color, background, min, max });
       break;
     case 'mirrored':
-      rows = renderMirrored(data, width, height, { color, colorHigh, background });
+      rows = renderMirrored(data, width, height, { color, colorHigh, background, min, max });
       break;
     case 'spectrum':
-      rows = renderSpectrum(data, width, height, { color, colorHigh, background });
+      rows = renderSpectrum(data, width, height, { color, colorHigh, background, min, max });
       break;
     case 'oscilloscope':
-      rows = renderOscilloscope(data, width, height, { color, background });
+      rows = renderOscilloscope(data, width, height, { color, background, min, max });
       break;
     case 'bars':
     default:
@@ -539,7 +589,11 @@ export function Waveform(options: WaveformOptions): VNode {
         background,
         showPeaks,
         peakColor,
+        min,
+        max,
         barGap,
+        fillChar,
+        emptyChar,
       });
       break;
   }

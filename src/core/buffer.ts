@@ -1152,7 +1152,7 @@ export function patchesToAnsi(patches: CellPatch[], width: number, alreadySorted
   for (const patch of patches) {
     const { x, y, cell } = patch;
 
-    if (cell.isWide) continue;
+    if (cell.isWide || x < 0 || x >= width || y < 0) continue;
 
     // Move cursor if not at expected position
     if (y !== lastY || x !== lastX + 1) {

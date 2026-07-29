@@ -3,7 +3,7 @@
  */
 
 import { Writable } from 'node:stream';
-import { onTerminalPanic, removePanicHooks } from '../core/terminal-panic.js';
+import { onTerminalPanic } from '../core/terminal-panic.js';
 
 // ANSI escape codes for cursor control
 const SHOW_CURSOR = '\u001B[?25h';
@@ -40,7 +40,7 @@ function registerPanicCleanup(): void {
 
 /**
  * Remove exit handlers (useful for tests).
- * Delegates to removePanicHooks for full cleanup.
+ * Only unregisters this cursor module's cleanup hook.
  */
 export function removeExitHandlers(): void {
   if (unregisterPanic) {

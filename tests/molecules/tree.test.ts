@@ -409,8 +409,8 @@ describe('Tree Component', () => {
   it('should render with custom colors', () => {
     const vnode = Tree({
       nodes: sampleTree,
-      activeColor: 'cyan',
-      guideColor: 'gray',
+      colorActive: 'cyan',
+      colorGuide: 'gray',
     });
 
     expect(vnode).toBeDefined();

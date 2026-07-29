@@ -54,4 +54,39 @@ describe('AppendList', () => {
     expect((fallback.props as any).__static).not.toBe(true);
     expect(fallback.children.length).toBe(2);
   });
+
+  it('uses absolute indices so duplicate values do not collide', () => {
+    beginRender();
+    const first = AppendList({
+      items: ['same', 'same'],
+      children: (item, index) => Text({}, `${index}:${item}`),
+    });
+    endRender();
+
+    beginRender();
+    const second = AppendList({
+      items: ['same', 'same', 'same'],
+      children: (item, index) => Text({}, `${index}:${item}`),
+    });
+    endRender();
+
+    expect(first.children.map(node => node.props.children)).toEqual([
+      '0:same',
+      '1:same',
+    ]);
+    expect(second.children.map(node => node.props.children)).toEqual([
+      '2:same',
+    ]);
+    expect(first.props.__staticId).not.toBe(second.props.__staticId);
+  });
+
+  it('rejects duplicate explicit keys in one appended batch', () => {
+    beginRender();
+    expect(() => AppendList({
+      items: [{ id: 1 }, { id: 1 }],
+      getKey: item => item.id,
+      children: item => Text({}, String(item.id)),
+    })).toThrow(/unique/);
+    endRender();
+  });
 });

@@ -1,11 +1,12 @@
 /**
  * Computed Node - Fine-grained reactive VNode (inspired by arrow-js)
  *
- * A `Computed` wraps a reactive expression that produces a VNode subtree.
- * When signals read inside the expression change, only this subtree
- * re-evaluates — not the entire component.
+ * A `Computed` wraps a reactive expression that produces a memoized VNode
+ * subtree. Signals read inside the expression invalidate that expression;
+ * the host component may still be evaluated by the frame scheduler.
  *
- * This is the foundation for fine-grained rendering in tuiuiu.
+ * This avoids rebuilding expensive regions for unrelated parent renders
+ * without pretending that tuiuiu has a fiber-per-node renderer.
  *
  * @example
  * function Dashboard() {
@@ -25,7 +26,7 @@
  * }
  */
 
-import type { VNode, TuiChild, TextProps } from '../utils/types.js';
+import type { BoxStyle, VNode, TextProps } from '../utils/types.js';
 import { useComputed } from '../hooks/use-computed.js';
 import { useMemo } from '../hooks/use-memo.js';
 import { isRenderingHooks } from '../hooks/context.js';
@@ -49,11 +50,11 @@ export interface ReactiveVNode extends VNode {
 }
 
 /**
- * Computed - Create a fine-grained reactive VNode.
+ * Computed - Create a signal-memoized VNode.
  *
  * The provided function is wrapped in a reactive effect.
- * When signals read inside it change, only this node's output
- * is re-computed — the parent component does NOT re-run.
+ * When signals read inside it change, this expression is re-computed. The
+ * renderer may also evaluate the host component while scheduling the frame.
  *
  * @param fn - A function that reads signals and returns a VNode
  * @returns A VNode that updates independently
@@ -88,6 +89,7 @@ export function Computed(fn: () => VNode | null): VNode {
     __reactive: memo,
     __cachedResult: initialResult,
     __cachedFingerprint: fingerprintValue(initialResult),
+    __dispose: memo.dispose,
   };
   return node;
 }
@@ -111,6 +113,38 @@ export function refreshReactiveVNode(node: ReactiveVNode): boolean {
   node.__cachedFingerprint = newFingerprint;
   node.children = newResult ? [newResult] : [];
   return changed;
+}
+
+/**
+ * Refresh every standalone ReactiveVNode in a tree.
+ *
+ * Reading each memo accessor also connects pre-built Computed nodes to the
+ * active render effect, which is what makes `render(prebuiltNode)` update.
+ */
+export function refreshReactiveVNodes(root: VNode): number {
+  let changed = 0;
+  const visit = (node: VNode): void => {
+    if (isReactiveVNode(node)) {
+      if (refreshReactiveVNode(node)) changed++;
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
+  return changed;
+}
+
+/** Dispose memo effects owned by standalone ReactiveVNodes in a tree. */
+export function disposeReactiveVNodes(root: VNode): void {
+  const visited = new Set<ReactiveVNode>();
+  const visit = (node: VNode): void => {
+    if (isReactiveVNode(node) && !visited.has(node)) {
+      visited.add(node);
+      node.__dispose?.();
+      node.__dispose = undefined;
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
 }
 
 /**
@@ -152,6 +186,7 @@ export function ComputedText(
     __reactive: memo,
     __cachedResult: initialResult,
     __cachedFingerprint: fingerprintValue(initialResult),
+    __dispose: memo.dispose,
   };
   return node;
 }
@@ -274,7 +309,11 @@ function depsEqual(a: unknown[], b: unknown[]): boolean {
  *   );
  * }
  */
-export function PreText(content: string, props: Partial<TextProps> = {}): VNode {
+export type PreTextProps = Partial<
+  TextProps & Pick<BoxStyle, 'width' | 'height' | 'minWidth' | 'maxWidth'>
+>;
+
+export function PreText(content: string, props: PreTextProps = {}): VNode {
   return {
     type: 'text',
     props: {

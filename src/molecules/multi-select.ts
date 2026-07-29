@@ -539,7 +539,6 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
   }
 
   // Scroll indicators
-  const hasMore = filtered.length > maxVisible;
   const scrollTop = state.scrollOffset() > 0;
   const scrollBottom = state.scrollOffset() + maxVisible < filtered.length;
 

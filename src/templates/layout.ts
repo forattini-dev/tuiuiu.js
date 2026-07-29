@@ -18,8 +18,6 @@ export interface ScreenProps extends BoxStyle {
 
 export function Screen(props: ScreenProps = {}, ...children: TuiChild[]): VNode {
   const { width, height, children: propsChildren, ...rest } = props;
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
 
   // Fallback to props.children if variadic children empty
   const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
@@ -28,8 +26,8 @@ export function Screen(props: ScreenProps = {}, ...children: TuiChild[]): VNode 
     {
       flexDirection: 'column',
       alignItems: 'stretch',
-      width: width ?? termWidth,
-      height: height ?? termHeight,
+      width: width ?? 'fill',
+      height: height ?? 'fill',
       ...rest,
     },
     ...resolvedChildren

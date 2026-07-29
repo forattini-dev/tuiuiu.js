@@ -39,6 +39,13 @@ import {
   useIsDark,
   useComponentTokens,
 } from '../../src/core/theme.js';
+import {
+  defineTheme,
+  isValidTheme,
+  mergeThemes,
+  shade,
+  validateTheme,
+} from '../../src/core/theme-loader.js';
 
 describe('Theme System', () => {
   const originalEnv = { ...process.env };
@@ -106,6 +113,45 @@ describe('Theme System', () => {
       expect(themes.light).toBe(lightTheme);
       expect(themes.highContrastDark).toBe(highContrastDarkTheme);
       expect(themes.monochrome).toBe(monochromeTheme);
+    });
+  });
+
+  describe('Theme builder contracts', () => {
+    it('defines themes and resolves color-scale shades', () => {
+      expect(defineTheme(darkTheme)).toBe(darkTheme);
+      expect(shade(darkTheme.palette.primary)).toBe(darkTheme.palette.primary[500]);
+      expect(shade(darkTheme.palette.primary, 200)).toBe(darkTheme.palette.primary[200]);
+    });
+
+    it('deep-merges nested state and component overrides', () => {
+      const merged = mergeThemes(darkTheme, {
+        name: 'custom',
+        background: { base: '#010203' },
+        foreground: { inverse: { soft: '#abcdef' } },
+        states: { focus: { ring: { width: 3 } } },
+        components: { button: { primary: { bg: '#123456' } } },
+      });
+
+      expect(merged.name).toBe('custom');
+      expect(merged.background.base).toBe('#010203');
+      expect(merged.background.surface).toBe(darkTheme.background.surface);
+      expect(merged.foreground.inverse.soft).toBe('#abcdef');
+      expect(merged.foreground.inverse.base).toBe(darkTheme.foreground.inverse.base);
+      expect(merged.states.focus.ring.width).toBe(3);
+      expect(merged.states.focus.ring.color).toBe(darkTheme.states.focus.ring.color);
+      expect(merged.components.button.primary.bg).toBe('#123456');
+      expect(merged.components.button.primary.fg).toBe(darkTheme.components.button.primary.fg);
+    });
+
+    it('reports malformed themes without throwing', () => {
+      expect(validateTheme(null)).toEqual(['Theme must be an object']);
+      expect(validateTheme({ mode: 'sepia', palette: {} })).toEqual(expect.arrayContaining([
+        'Missing required property: name',
+        'Invalid mode: sepia. Must be \'dark\' or \'light\'',
+        'Missing palette color: palette.primary',
+      ]));
+      expect(isValidTheme(darkTheme)).toBe(true);
+      expect(isValidTheme({})).toBe(false);
     });
   });
 

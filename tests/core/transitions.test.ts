@@ -14,6 +14,7 @@ import {
   applyHorizontalOffset,
   applyVerticalOffset,
   applyOpacity,
+  applyScale,
   compositeScreens,
   useScreenTransition,
   transitionPresets,
@@ -391,11 +392,33 @@ describe('Screen Transitions', () => {
       expect(applyOpacity('界a', 0)).toBe('   ');
     });
 
-    it('should return content at partial opacity (simplified)', () => {
-      // Current implementation returns content as-is for partial opacity
+    it('should visibly dim content at partial opacity', () => {
       const content = 'Hello';
       const result = applyOpacity(content, 0.5);
-      expect(result).toBe(content);
+      expect(result).toBe('\x1b[2mHello\x1b[22m');
+    });
+  });
+
+  describe('applyScale', () => {
+    it('approximates scale with a centered cell-grid clip', () => {
+      const result = applyScale(
+        'ABCDEFGHIJ\nabcdefghij\n0123456789',
+        0.5,
+        10,
+        3,
+      );
+      const lines = result.split('\n');
+
+      expect(lines).toHaveLength(3);
+      expect(lines[0]).toBe('  CDEFG   ');
+      expect(lines[1]).toBe('  cdefg   ');
+      expect(lines[2]).toBe('          ');
+      expect(lines.every(line => stringWidth(line) === 10)).toBe(true);
+    });
+
+    it('validates viewport dimensions', () => {
+      expect(() => applyScale('x', 0.5, -1, 2)).toThrow(RangeError);
+      expect(() => applyScale('x', 0.5, 2, 1.5)).toThrow(RangeError);
     });
   });
 
@@ -413,8 +436,11 @@ describe('Screen Transitions', () => {
 
       const result = compositeScreens(from, to, offsets, width, height);
 
-      // With to.opacity > 0.5, should show 'to' content
-      expect(result.split('\n')[0]).toBe('To');
+      // Ordered dithering must contain contributions from both frames instead
+      // of switching the entire frame at a 0.5 threshold.
+      const plain = result.replace(/\x1b\[[0-9;]*m/g, '');
+      expect(plain).toContain('T');
+      expect(plain).toContain('r');
     });
 
     it('should composite screens during horizontal slide', () => {
@@ -442,6 +468,24 @@ describe('Screen Transitions', () => {
 
       expect(result).toBe('aa界');
       expect(stringWidth(result)).toBe(4);
+    });
+
+    it('applies scale metadata before compositing', () => {
+      const offsets: TransitionOffsets = {
+        from: { x: 0, y: 0, opacity: 0, scale: 1 },
+        to: { x: 0, y: 0, opacity: 1, scale: 0.5 },
+      };
+
+      const result = compositeScreens(
+        '----------\n----------\n----------',
+        'ABCDEFGHIJ\nabcdefghij\n0123456789',
+        offsets,
+        10,
+        3,
+      );
+
+      expect(result.split('\n')[0]).toBe('  CDEFG   ');
+      expect(result.split('\n')[1]).toBe('  cdefg   ');
     });
   });
 
@@ -555,7 +599,7 @@ describe('Screen Transitions', () => {
       const from = createScreen(HomeComponent);
       const to = createScreen(SettingsComponent);
 
-      manager.start(from, to, 'forward', undefined, {
+      const pending = manager.start(from, to, 'forward', undefined, {
         type: 'fade',
         duration: 1000,
       });
@@ -565,6 +609,7 @@ describe('Screen Transitions', () => {
       manager.stop();
 
       expect(manager.isTransitioning).toBe(false);
+      await expect(pending).resolves.toBeUndefined();
     });
 
     it('should get current offsets', () => {
@@ -607,7 +652,7 @@ describe('Screen Transitions', () => {
       const screen3 = createScreen(HomeComponent);
 
       // Start first transition
-      manager.start(screen1, screen2, 'forward', undefined, {
+      const first = manager.start(screen1, screen2, 'forward', undefined, {
         type: 'fade',
         duration: 500,
       });
@@ -616,9 +661,11 @@ describe('Screen Transitions', () => {
       expect(manager.isTransitioning).toBe(true);
 
       // Start second transition (should stop first)
-      manager.start(screen2, screen3, 'forward', undefined, NO_TRANSITION);
+      const second = manager.start(screen2, screen3, 'forward', undefined, NO_TRANSITION);
 
       expect(manager.isTransitioning).toBe(false);
+      await expect(first).resolves.toBeUndefined();
+      await expect(second).resolves.toBeUndefined();
     });
   });
 

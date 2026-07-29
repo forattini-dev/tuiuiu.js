@@ -95,7 +95,21 @@ export interface TextInputCompletionSource<T = unknown> {
   /** Resolve whether this source owns the current cursor token. */
   resolveAnchor: TextInputCompletionOptions<T>['resolveAnchor'];
   /** Return items for a previously resolved anchor. */
-  getItems: TextInputCompletionOptions<T>['getItems'];
+  getItems: ArrayTextInputCompletionOptions<T>['getItems'];
+}
+
+/**
+ * Completion provider whose lookup always resolves to an item array.
+ *
+ * The general TextInput API also accepts cancellable background task handles.
+ * Trigger/path factories never return those handles, so exposing the narrower
+ * contract prevents callers from having to narrow an impossible union.
+ */
+export interface ArrayTextInputCompletionOptions<T = unknown>
+  extends Omit<TextInputCompletionOptions<T>, 'getItems'> {
+  getItems: (
+    context: TextInputCompletionContext,
+  ) => Promise<readonly TextInputCompletionItem<T>[]> | readonly TextInputCompletionItem<T>[];
 }
 
 export interface ComposableCompletionOptions<T = unknown> {
@@ -302,7 +316,7 @@ function resolvePathAnchor(
  */
 export function createTriggerCompletion<T = unknown>(
   config: TriggerConfig<T>,
-): TextInputCompletionOptions<T> {
+): ArrayTextInputCompletionOptions<T> {
   const {
     trigger,
     getItems,
@@ -366,7 +380,7 @@ export function createTriggerCompletionSource<T = unknown>(
  */
 export function createComposableCompletion<T = unknown>(
   sourcesOrOptions: readonly TextInputCompletionSource<T>[] | ComposableCompletionOptions<T>,
-): TextInputCompletionOptions<T> {
+): ArrayTextInputCompletionOptions<T> {
   const isSourceArray = Array.isArray(sourcesOrOptions);
   const sources = (
     isSourceArray
@@ -492,7 +506,7 @@ export function createPathCompletionSource(
  */
 export function createPathCompletion(
   options: PathCompletionOptions = {},
-): TextInputCompletionOptions<PathCompletionPayload> {
+): ArrayTextInputCompletionOptions<PathCompletionPayload> {
   return createComposableCompletion([createPathCompletionSource(options)]);
 }
 
@@ -512,7 +526,7 @@ export function createPathCompletion(
  */
 export function createMultiTriggerCompletion<T = unknown>(
   configs: TriggerConfig<T>[],
-): TextInputCompletionOptions<T> {
+): ArrayTextInputCompletionOptions<T> {
   // Pre-build individual completions
   const completions = configs.map((config) => ({
     config,

@@ -164,11 +164,11 @@ describe('developer warnings', () => {
 
   describe('API pattern guardrails', () => {
     it('warns when props-pattern components are used with variadic children', () => {
-      Page(
+      (Page as (...args: any[]) => unknown)(
         { title: 'Settings', children: Text({}, 'Correct child') } as any,
         Text({}, 'Wrong extra child') as any,
       );
-      AppShell(
+      (AppShell as (...args: any[]) => unknown)(
         { header: Text({}, 'Header'), children: Text({}, 'Main') } as any,
         Text({}, 'Wrong extra child') as any,
       );
@@ -193,7 +193,7 @@ describe('developer warnings', () => {
 
       // Filter to only API-pattern warnings (ignore hook-outside-render noise)
       const apiWarnings = warnSpy.mock.calls.filter(
-        (args) => typeof args[0] === 'string' && args[0].includes('expects `children` to be a render function')
+        (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('expects `children` to be a render function')
       );
       expect(apiWarnings).toHaveLength(2);
       expect(apiWarnings[0]?.[0]).toContain('ScrollList expects `children` to be a render function');
@@ -213,7 +213,7 @@ describe('developer warnings', () => {
 
       // Filter to only data-driven warnings (ignore hook-outside-render noise)
       const dataWarnings = warnSpy.mock.calls.filter(
-        (args) => typeof args[0] === 'string' && args[0].includes('is data-driven')
+        (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('is data-driven')
       );
       expect(dataWarnings).toHaveLength(2);
       expect(dataWarnings[0]?.[0]).toContain('Tabs is data-driven');

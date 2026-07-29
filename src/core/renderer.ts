@@ -294,9 +294,15 @@ export function renderFrameToString(frame: FrameSnapshot, options: FrameRenderOp
  */
 export function renderToString(node: VNode, widthOrOptions?: number | RenderOptions, height?: number): string {
   const resolved = resolveRenderOptions(widthOrOptions, height);
+  const callerProvidedHeight = typeof widthOrOptions === 'object'
+    ? widthOrOptions.height !== undefined
+    : height !== undefined;
+  const viewportHeight = !callerProvidedHeight && node.props.height === 'fill'
+    ? process.stdout.rows ?? 24
+    : resolved.height;
   const frame = createFrameSnapshot(node, {
     width: resolved.width,
-    height: resolved.height,
+    height: viewportHeight,
   }, PRODUCTION_FRAME_OPTIONS);
 
   return renderFrameToString(frame, {

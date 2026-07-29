@@ -235,7 +235,7 @@ describe('Data Display Components', () => {
       const node = CodeBlock({
         code: 'const x = 1;',
         language: 'javascript',
-        theme: 'dark',
+        theme: { keyword: 'magenta' },
       });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();

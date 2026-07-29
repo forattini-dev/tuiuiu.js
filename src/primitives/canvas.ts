@@ -8,7 +8,8 @@
  * - Block mode: Uses block characters for 2x2 sub-character resolution
  */
 
-import { colorToAnsi } from '../utils/text-utils.js';
+import { colorToAnsi, stringWidth } from '../utils/text-utils.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 import { resolveColor } from '../core/theme.js';
 
 // =============================================================================
@@ -97,6 +98,10 @@ export interface CanvasState {
 // Constants
 // =============================================================================
 
+const MAX_CANVAS_DIMENSION = 10_000;
+const MAX_CANVAS_CELLS = 1_000_000;
+const MAX_DRAW_POINTS = 1_000_000;
+
 /**
  * Braille character patterns (2x4 dots)
  * Each braille character represents 8 dots arranged as:
@@ -160,6 +165,9 @@ export function createBrailleBuffer(
   width: number,
   height: number
 ): boolean[][] {
+  validateCanvasDimension(width, 'width');
+  validateCanvasDimension(height, 'height');
+  validateCanvasArea(width, height, 8);
   // Each character cell is 2x4 braille dots
   const dotWidth = width * 2;
   const dotHeight = height * 4;
@@ -181,6 +189,7 @@ export function setBrailleDot(
   y: number,
   value = true
 ): void {
+  if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return;
   if (y >= 0 && y < buffer.length && x >= 0 && x < (buffer[0]?.length ?? 0)) {
     buffer[y]![x] = value;
   }
@@ -237,6 +246,9 @@ export function createBlockBuffer(
   width: number,
   height: number
 ): boolean[][] {
+  validateCanvasDimension(width, 'width');
+  validateCanvasDimension(height, 'height');
+  validateCanvasArea(width, height, 4);
   const blockWidth = width * 2;
   const blockHeight = height * 2;
   const buffer: boolean[][] = [];
@@ -257,6 +269,7 @@ export function setBlockPixel(
   y: number,
   value = true
 ): void {
+  if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return;
   if (y >= 0 && y < buffer.length && x >= 0 && x < (buffer[0]?.length ?? 0)) {
     buffer[y]![x] = value;
   }
@@ -341,10 +354,19 @@ export function bresenhamLine(
   x1: number,
   y1: number
 ): Point[] {
+  [x0, y0, x1, y1] = [
+    normalizeCoordinate(x0, 'x0'),
+    normalizeCoordinate(y0, 'y0'),
+    normalizeCoordinate(x1, 'x1'),
+    normalizeCoordinate(y1, 'y1'),
+  ];
   const points: Point[] = [];
 
   const dx = Math.abs(x1 - x0);
   const dy = Math.abs(y1 - y0);
+  if (Math.max(dx, dy) + 1 > MAX_DRAW_POINTS) {
+    throw new RangeError(`Line exceeds the ${MAX_DRAW_POINTS} point safety limit`);
+  }
   const sx = x0 < x1 ? 1 : -1;
   const sy = y0 < y1 ? 1 : -1;
   let err = dx - dy;
@@ -380,6 +402,12 @@ export function midpointCircle(
   cy: number,
   radius: number
 ): Point[] {
+  cx = normalizeCoordinate(cx, 'circle center x');
+  cy = normalizeCoordinate(cy, 'circle center y');
+  radius = normalizeNonNegativeDrawingInteger(radius, 'circle radius');
+  if (radius * 8 > MAX_DRAW_POINTS) {
+    throw new RangeError('Circle exceeds the drawing point safety limit');
+  }
   const points: Point[] = [];
 
   if (radius <= 0) {
@@ -426,6 +454,12 @@ export function filledCircle(
   cy: number,
   radius: number
 ): Point[] {
+  cx = normalizeCoordinate(cx, 'circle center x');
+  cy = normalizeCoordinate(cy, 'circle center y');
+  radius = normalizeNonNegativeDrawingInteger(radius, 'circle radius');
+  if (Math.PI * radius * radius > MAX_DRAW_POINTS) {
+    throw new RangeError('Filled circle exceeds the drawing point safety limit');
+  }
   const points: Point[] = [];
 
   for (let y = -radius; y <= radius; y++) {
@@ -447,6 +481,13 @@ export function midpointEllipse(
   rx: number,
   ry: number
 ): Point[] {
+  cx = normalizeCoordinate(cx, 'ellipse center x');
+  cy = normalizeCoordinate(cy, 'ellipse center y');
+  rx = normalizeNonNegativeDrawingInteger(rx, 'ellipse x radius');
+  ry = normalizeNonNegativeDrawingInteger(ry, 'ellipse y radius');
+  if (4 * (rx + ry) > MAX_DRAW_POINTS) {
+    throw new RangeError('Ellipse exceeds the drawing point safety limit');
+  }
   const points: Point[] = [];
 
   if (rx <= 0 || ry <= 0) {
@@ -514,6 +555,12 @@ export function arcPoints(
   startAngle: number,
   endAngle: number
 ): Point[] {
+  cx = normalizeCoordinate(cx, 'arc center x');
+  cy = normalizeCoordinate(cy, 'arc center y');
+  radius = normalizeNonNegativeDrawingInteger(radius, 'arc radius');
+  if (!Number.isFinite(startAngle) || !Number.isFinite(endAngle)) {
+    throw new RangeError('Arc angles must be finite numbers');
+  }
   const points: Point[] = [];
 
   // Convert to radians
@@ -523,6 +570,9 @@ export function arcPoints(
   // Calculate number of steps based on arc length
   const arcLength = Math.abs(endRad - startRad) * radius;
   const steps = Math.max(Math.ceil(arcLength), 20);
+  if (!Number.isSafeInteger(steps) || steps > MAX_DRAW_POINTS) {
+    throw new RangeError('Arc exceeds the drawing point safety limit');
+  }
 
   for (let i = 0; i <= steps; i++) {
     const angle = startRad + (i / steps) * (endRad - startRad);
@@ -544,6 +594,8 @@ export function bezierCurve(
   p3: Point,
   steps = 50
 ): Point[] {
+  [p0, p1, p2, p3].forEach(validateDrawingPoint);
+  steps = normalizeDrawingSteps(steps, 'Bezier steps');
   const points: Point[] = [];
 
   for (let i = 0; i <= steps; i++) {
@@ -576,6 +628,8 @@ export function quadraticBezier(
   p2: Point,
   steps = 50
 ): Point[] {
+  [p0, p1, p2].forEach(validateDrawingPoint);
+  steps = normalizeDrawingSteps(steps, 'Quadratic Bezier steps');
   const points: Point[] = [];
 
   for (let i = 0; i <= steps; i++) {
@@ -595,6 +649,7 @@ export function quadraticBezier(
  * Polygon points (closed shape)
  */
 export function polygonPoints(vertices: Point[]): Point[] {
+  vertices.forEach(validateDrawingPoint);
   const points: Point[] = [];
 
   if (vertices.length < 2) return points;
@@ -613,17 +668,27 @@ export function polygonPoints(vertices: Point[]): Point[] {
  * Filled polygon using scanline fill
  */
 export function filledPolygon(vertices: Point[]): Point[] {
+  vertices.forEach(validateDrawingPoint);
   const points: Point[] = [];
 
   if (vertices.length < 3) return points;
 
   // Find bounding box
+  let minX = Infinity;
+  let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
 
   for (const v of vertices) {
+    minX = Math.min(minX, v.x);
+    maxX = Math.max(maxX, v.x);
     minY = Math.min(minY, v.y);
     maxY = Math.max(maxY, v.y);
+  }
+  if (
+    (maxX - minX + 1) * (maxY - minY + 1) > MAX_DRAW_POINTS
+  ) {
+    throw new RangeError('Polygon exceeds the drawing point safety limit');
   }
 
   // Scanline fill
@@ -668,6 +733,13 @@ export function rectanglePoints(
   width: number,
   height: number
 ): Point[] {
+  x = normalizeCoordinate(x, 'rectangle x');
+  y = normalizeCoordinate(y, 'rectangle y');
+  validateShapeDimension(width, 'rectangle width');
+  validateShapeDimension(height, 'rectangle height');
+  if (width * 2 + height * 2 > MAX_DRAW_POINTS) {
+    throw new RangeError('Rectangle exceeds the drawing point safety limit');
+  }
   const points: Point[] = [];
 
   // Top edge
@@ -699,6 +771,13 @@ export function filledRectangle(
   width: number,
   height: number
 ): Point[] {
+  x = normalizeCoordinate(x, 'rectangle x');
+  y = normalizeCoordinate(y, 'rectangle y');
+  validateShapeDimension(width, 'rectangle width');
+  validateShapeDimension(height, 'rectangle height');
+  if (width * height > MAX_DRAW_POINTS) {
+    throw new RangeError('Filled rectangle exceeds the drawing point safety limit');
+  }
   const points: Point[] = [];
 
   for (let dy = 0; dy < height; dy++) {
@@ -744,7 +823,9 @@ export class Canvas {
   private charBuffer: string[][];
 
   // Color buffer (stores color for each cell)
-  private colorBuffer: (CanvasColor)[][];
+  private colorBuffer: (CanvasColor | undefined)[][];
+  private boldBuffer: boolean[][];
+  private italicBuffer: boolean[][];
 
   // Braille mode buffer (2x4 resolution per character)
   private brailleBuffer: boolean[][] | null = null;
@@ -753,12 +834,15 @@ export class Canvas {
   private blockBuffer: boolean[][] | null = null;
 
   constructor(options: CanvasOptions) {
+    validateCanvasDimension(options.width, 'width');
+    validateCanvasDimension(options.height, 'height');
+    validateCanvasArea(options.width, options.height, 1);
     this.width = options.width;
     this.height = options.height;
     this.mode = options.mode ?? 'character';
     this.foreground = options.foreground ?? null;
     this.background = options.background ?? null;
-    this.fillChar = options.fillChar ?? '█';
+    this.fillChar = normalizeCanvasCell(options.fillChar ?? '\u2588', 'fillChar');
     this.defaultColor = options.defaultColor ?? null;
 
     // Initialize character buffer
@@ -769,8 +853,12 @@ export class Canvas {
 
     // Initialize color buffer
     this.colorBuffer = [];
+    this.boldBuffer = [];
+    this.italicBuffer = [];
     for (let y = 0; y < this.height; y++) {
-      this.colorBuffer.push(new Array(this.width).fill(null));
+      this.colorBuffer.push(new Array(this.width).fill(undefined));
+      this.boldBuffer.push(new Array(this.width).fill(false));
+      this.italicBuffer.push(new Array(this.width).fill(false));
     }
 
     // Initialize mode-specific buffers
@@ -808,7 +896,9 @@ export class Canvas {
   clear(): void {
     for (let y = 0; y < this.height; y++) {
       this.charBuffer[y] = new Array(this.width).fill(' ');
-      this.colorBuffer[y] = new Array(this.width).fill(null);
+      this.colorBuffer[y] = new Array(this.width).fill(undefined);
+      this.boldBuffer[y] = new Array(this.width).fill(false);
+      this.italicBuffer[y] = new Array(this.width).fill(false);
     }
 
     if (this.brailleBuffer) {
@@ -823,16 +913,22 @@ export class Canvas {
    * Set a pixel/character at position with optional color
    */
   setPixel(x: number, y: number, char?: string, color?: CanvasColor): void {
+    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return;
     if (this.mode === 'character') {
       if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-        this.charBuffer[y]![x] = char ?? this.fillChar;
-        // Set color: use provided color, fall back to defaultColor, or null
-        this.colorBuffer[y]![x] = color !== undefined ? color : this.defaultColor;
+        this.charBuffer[y]![x] = char === undefined
+          ? this.fillChar
+          : normalizeCanvasCell(char, 'pixel character');
+        this.colorBuffer[y]![x] = color !== undefined
+          ? color
+          : (this.defaultColor ?? this.foreground);
       }
     } else if (this.mode === 'braille' && this.brailleBuffer) {
       setBrailleDot(this.brailleBuffer, x, y, true);
+      this.setSubpixelColor(x, y, 2, 4, color);
     } else if (this.mode === 'block' && this.blockBuffer) {
       setBlockPixel(this.blockBuffer, x, y, true);
+      this.setSubpixelColor(x, y, 2, 2, color);
     }
   }
 
@@ -851,7 +947,7 @@ export class Canvas {
    */
   getPixelColor(x: number, y: number): CanvasColor {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-      return this.colorBuffer[y]![x]!;
+      return this.colorBuffer[y]![x] ?? null;
     }
     return null;
   }
@@ -860,23 +956,83 @@ export class Canvas {
    * Set only the color at a position without changing the character
    */
   setPixelColor(x: number, y: number, color: CanvasColor): void {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+    if (
+      Number.isSafeInteger(x) &&
+      Number.isSafeInteger(y) &&
+      x >= 0 && x < this.width &&
+      y >= 0 && y < this.height
+    ) {
       this.colorBuffer[y]![x] = color;
     }
+  }
+
+  private setSubpixelColor(
+    x: number,
+    y: number,
+    cellWidth: number,
+    cellHeight: number,
+    color: CanvasColor | undefined,
+  ): void {
+    if (x < 0 || y < 0) return;
+    const cellX = Math.floor(x / cellWidth);
+    const cellY = Math.floor(y / cellHeight);
+    if (cellX >= this.width || cellY >= this.height) return;
+    this.colorBuffer[cellY]![cellX] = color !== undefined
+      ? color
+      : (this.defaultColor ?? this.foreground);
   }
 
   /**
    * Draw a line from (x0, y0) to (x1, y1)
    */
-  line(x0: number, y0: number, x1: number, y1: number, char?: string): void {
-    const points = bresenhamLine(
-      Math.round(x0),
-      Math.round(y0),
-      Math.round(x1),
-      Math.round(y1)
-    );
-    for (const p of points) {
-      this.setPixel(p.x, p.y, char);
+  line(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    charOrStyle?: string | LineStyle,
+    style?: LineStyle,
+  ): void {
+    const resolvedStyle = typeof charOrStyle === 'object'
+      ? charOrStyle
+      : style;
+    const char = typeof charOrStyle === 'string'
+      ? charOrStyle
+      : undefined;
+    const points = bresenhamLine(x0, y0, x1, y1);
+    const thickness = normalizeLineThickness(resolvedStyle?.thickness);
+    if (points.length * thickness * thickness > MAX_DRAW_POINTS) {
+      throw new RangeError('Styled line exceeds the drawing point safety limit');
+    }
+    const dashPattern = normalizeDashPattern(resolvedStyle);
+    let patternIndex = 0;
+    let remaining = dashPattern?.[0] ?? 0;
+    let drawing = true;
+
+    for (const point of points) {
+      if (!dashPattern || drawing) {
+        const before = Math.floor((thickness - 1) / 2);
+        const after = thickness - before - 1;
+        for (let offsetY = -before; offsetY <= after; offsetY++) {
+          for (let offsetX = -before; offsetX <= after; offsetX++) {
+            this.setPixel(
+              point.x + offsetX,
+              point.y + offsetY,
+              char,
+              resolvedStyle?.color,
+            );
+          }
+        }
+      }
+
+      if (dashPattern) {
+        remaining--;
+        if (remaining === 0) {
+          patternIndex = (patternIndex + 1) % dashPattern.length;
+          remaining = dashPattern[patternIndex]!;
+          drawing = !drawing;
+        }
+      }
     }
   }
 
@@ -889,15 +1045,29 @@ export class Canvas {
     width: number,
     height: number,
     filled = false,
-    char?: string
+    charOrStyle?: string | LineStyle | FillStyle,
   ): void {
-    const points = filled
-      ? filledRectangle(x, y, width, height)
-      : rectanglePoints(x, y, width, height);
+    validateShapeDimension(width, 'rectangle width');
+    validateShapeDimension(height, 'rectangle height');
+    const style = typeof charOrStyle === 'object'
+      ? charOrStyle
+      : undefined;
+    const char = typeof charOrStyle === 'string'
+      ? charOrStyle
+      : ('pattern' in (style ?? {}) ? (style as FillStyle).pattern : undefined);
 
-    for (const p of points) {
-      this.setPixel(p.x, p.y, char);
+    if (filled) {
+      for (const point of filledRectangle(x, y, width, height)) {
+        this.setPixel(point.x, point.y, char, style?.color);
+      }
+      return;
     }
+
+    const lineStyle = style as LineStyle | undefined;
+    this.line(x, y, x + width - 1, y, char, lineStyle);
+    this.line(x, y + height - 1, x + width - 1, y + height - 1, char, lineStyle);
+    this.line(x, y, x, y + height - 1, char, lineStyle);
+    this.line(x + width - 1, y, x + width - 1, y + height - 1, char, lineStyle);
   }
 
   /**
@@ -974,22 +1144,45 @@ export class Canvas {
    * Draw text at position
    */
   text(x: number, y: number, str: string, style?: TextStyle): void {
-    if (y < 0 || y >= this.height) return;
+    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return;
+    if (this.mode !== 'character' || y < 0 || y >= this.height) return;
 
     let startX = x;
+    const graphemes = segmentGraphemes(str).map(entry => entry.segment);
+    const textWidth = graphemes.reduce(
+      (total, grapheme) => total + Math.max(0, stringWidth(grapheme)),
+      0,
+    );
 
     // Handle alignment
     if (style?.align === 'center') {
-      startX = x - Math.floor(str.length / 2);
+      startX = x - Math.floor(textWidth / 2);
     } else if (style?.align === 'right') {
-      startX = x - str.length + 1;
+      startX = x - textWidth + 1;
     }
 
-    for (let i = 0; i < str.length; i++) {
-      const px = startX + i;
-      if (px >= 0 && px < this.width) {
-        this.charBuffer[y]![px] = str[i]!;
+    let px = startX;
+    for (const grapheme of graphemes) {
+      const graphemeWidth = stringWidth(grapheme);
+      if (graphemeWidth <= 0) continue;
+      if (
+        px >= 0 &&
+        px + graphemeWidth <= this.width
+      ) {
+        this.charBuffer[y]![px] = grapheme;
+        this.colorBuffer[y]![px] = style?.color !== undefined
+          ? style.color
+          : (this.defaultColor ?? this.foreground);
+        this.boldBuffer[y]![px] = style?.bold ?? false;
+        this.italicBuffer[y]![px] = style?.italic ?? false;
+        for (let continuation = 1; continuation < graphemeWidth; continuation++) {
+          this.charBuffer[y]![px + continuation] = '';
+          this.colorBuffer[y]![px + continuation] = this.colorBuffer[y]![px];
+          this.boldBuffer[y]![px + continuation] = style?.bold ?? false;
+          this.italicBuffer[y]![px + continuation] = style?.italic ?? false;
+        }
       }
+      px += graphemeWidth;
     }
   }
 
@@ -1035,45 +1228,55 @@ export class Canvas {
   /**
    * Helper to resolve and convert a color to ANSI code
    */
-  private colorToAnsiCode(color: CanvasColor): string {
+  private colorToAnsiCode(
+    color: CanvasColor,
+    layer: 'foreground' | 'background' = 'foreground',
+  ): string {
     if (!color) return '';
     // Resolve palette/semantic colors first, then convert to ANSI
     const resolved = resolveColor(color);
-    return colorToAnsi(resolved, 'foreground');
+    return colorToAnsi(resolved, layer);
   }
 
   /**
-   * Render a single line with ANSI color codes
+   * Render a row of canvas cells with colors and text attributes.
    */
-  renderLine(y: number): string {
-    if (y < 0 || y >= this.height) return '';
-
+  private renderCells(chars: string[], y: number): string {
     const RESET = '\x1b[0m';
     let result = '';
-    let currentColor: CanvasColor = null;
+    let currentSignature = '';
 
     for (let x = 0; x < this.width; x++) {
-      const char = this.charBuffer[y]![x]!;
-      const color = this.colorBuffer[y]![x];
+      const char = chars[x] ?? ' ';
+      if (char === '') continue;
+      const storedColor = this.colorBuffer[y]?.[x];
+      const foreground = storedColor === undefined
+        ? this.foreground
+        : storedColor;
+      const bold = this.boldBuffer[y]?.[x] ?? false;
+      const italic = this.italicBuffer[y]?.[x] ?? false;
+      const signature = [
+        foreground ?? '',
+        this.background ?? '',
+        bold ? '1' : '0',
+        italic ? '1' : '0',
+      ].join(':');
 
-      // Check if color changed
-      if (color !== currentColor) {
-        // Reset if we had a color and now we don't, or if color changed
-        if (currentColor !== null) {
-          result += RESET;
+      if (signature !== currentSignature) {
+        if (currentSignature !== '') result += RESET;
+        if (foreground) result += this.colorToAnsiCode(foreground);
+        if (this.background) {
+          result += this.colorToAnsiCode(this.background, 'background');
         }
-        // Apply new color if present
-        if (color !== null) {
-          result += this.colorToAnsiCode(color);
-        }
-        currentColor = color;
+        if (bold) result += '\x1b[1m';
+        if (italic) result += '\x1b[3m';
+        currentSignature = signature;
       }
 
       result += char;
     }
 
-    // Reset at end of line if we had a color
-    if (currentColor !== null) {
+    if (currentSignature !== '' && currentSignature !== '::0:0') {
       result += RESET;
     }
 
@@ -1081,15 +1284,27 @@ export class Canvas {
   }
 
   /**
+   * Render a single line with ANSI color codes.
+   */
+  renderLine(y: number): string {
+    if (!Number.isSafeInteger(y) || y < 0 || y >= this.height) return '';
+    return this.renderCells(this.charBuffer[y]!, y);
+  }
+
+  /**
    * Render canvas to string array with ANSI color codes
    */
   render(): string[] {
     if (this.mode === 'braille' && this.brailleBuffer) {
-      return brailleBufferToString(this.brailleBuffer).split('\n');
+      return brailleBufferToString(this.brailleBuffer)
+        .split('\n')
+        .map((line, y) => this.renderCells(Array.from(line), y));
     }
 
     if (this.mode === 'block' && this.blockBuffer) {
-      return blockBufferToString(this.blockBuffer).split('\n');
+      return blockBufferToString(this.blockBuffer)
+        .split('\n')
+        .map((line, y) => this.renderCells(Array.from(line), y));
     }
 
     // Character mode with colors
@@ -1150,13 +1365,23 @@ export function drawSparkline(
   height: number,
   char = '█'
 ): void {
-  if (data.length === 0) return;
+  if (data.length === 0 || !isValidPlotRect(x, y, width, height)) return;
+  if (data.some(value => !Number.isFinite(value))) return;
 
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
 
-  const step = width / (data.length - 1 || 1);
+  if (data.length === 1) {
+    canvas.setPixel(
+      x,
+      Math.round(y + height - 1 - ((data[0]! - min) / range) * (height - 1)),
+      char
+    );
+    return;
+  }
+
+  const step = (width - 1) / (data.length - 1);
 
   for (let i = 0; i < data.length - 1; i++) {
     const x0 = Math.round(x + i * step);
@@ -1180,17 +1405,22 @@ export function drawBarChart(
   height: number,
   char = '█'
 ): void {
-  if (data.length === 0) return;
+  if (data.length === 0 || !isValidPlotRect(x, y, width, height)) return;
+  if (data.some(value => !Number.isFinite(value))) return;
 
-  const max = Math.max(...data);
-  const barWidth = Math.floor(width / data.length);
+  const max = Math.max(0, ...data);
+  if (max <= 0) return;
+  const barWidth = Math.max(1, Math.floor(width / data.length));
 
   for (let i = 0; i < data.length; i++) {
-    const barHeight = Math.round((data[i]! / max) * (height - 1));
+    const barHeight = Math.max(
+      0,
+      Math.min(height, Math.round((data[i]! / max) * height))
+    );
     const barX = x + i * barWidth;
 
     for (let dy = 0; dy < barHeight; dy++) {
-      for (let dx = 0; dx < barWidth - 1; dx++) {
+      for (let dx = 0; dx < Math.max(1, barWidth - 1); dx++) {
         canvas.setPixel(barX + dx, y + height - 1 - dy, char);
       }
     }
@@ -1209,10 +1439,135 @@ export function drawScatterPlot(
 ): void {
   const { minX, maxX, minY, maxY } = bounds;
   const { x, y, width, height } = canvasBounds;
+  if (!isValidPlotRect(x, y, width, height)) return;
+  if (
+    ![minX, maxX, minY, maxY].every(Number.isFinite)
+    || points.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))
+  ) return;
+  const rangeX = maxX - minX;
+  const rangeY = maxY - minY;
 
   for (const point of points) {
-    const px = x + Math.round(((point.x - minX) / (maxX - minX)) * (width - 1));
-    const py = y + height - 1 - Math.round(((point.y - minY) / (maxY - minY)) * (height - 1));
+    const px = x + (rangeX === 0
+      ? Math.floor((width - 1) / 2)
+      : Math.round(((point.x - minX) / rangeX) * (width - 1)));
+    const py = y + (rangeY === 0
+      ? Math.floor((height - 1) / 2)
+      : height - 1 - Math.round(((point.y - minY) / rangeY) * (height - 1)));
     canvas.setPixel(px, py, char);
   }
+}
+
+function validateCanvasDimension(value: number, name: string): void {
+  if (
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > MAX_CANVAS_DIMENSION
+  ) {
+    throw new RangeError(
+      `Canvas ${name} must be a safe integer from 0 to ${MAX_CANVAS_DIMENSION}`,
+    );
+  }
+}
+
+function validateCanvasArea(
+  width: number,
+  height: number,
+  resolutionMultiplier: number,
+): void {
+  if (width * height * resolutionMultiplier > MAX_CANVAS_CELLS) {
+    throw new RangeError(
+      `Canvas allocation exceeds the ${MAX_CANVAS_CELLS} cell safety limit`,
+    );
+  }
+}
+
+function normalizeCoordinate(value: number, name: string): number {
+  if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+    throw new RangeError(`${name} must be a finite safe-range number`);
+  }
+  return Math.round(value);
+}
+
+function normalizeNonNegativeDrawingInteger(
+  value: number,
+  name: string,
+): number {
+  if (!Number.isFinite(value) || value < 0 || value > Number.MAX_SAFE_INTEGER) {
+    throw new RangeError(`${name} must be a non-negative safe-range number`);
+  }
+  return Math.round(value);
+}
+
+function normalizeDrawingSteps(value: number, name: string): number {
+  if (
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > MAX_DRAW_POINTS
+  ) {
+    throw new RangeError(
+      `${name} must be a safe integer from 1 to ${MAX_DRAW_POINTS}`,
+    );
+  }
+  return value;
+}
+
+function validateDrawingPoint(point: Point): void {
+  normalizeCoordinate(point.x, 'point.x');
+  normalizeCoordinate(point.y, 'point.y');
+}
+
+function validateShapeDimension(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${name} must be a positive safe integer`);
+  }
+}
+
+function normalizeCanvasCell(value: string, name: string): string {
+  const graphemes = segmentGraphemes(value);
+  if (
+    graphemes.length !== 1 ||
+    stringWidth(graphemes[0]!.segment) !== 1
+  ) {
+    throw new RangeError(`${name} must contain exactly one single-cell grapheme`);
+  }
+  return graphemes[0]!.segment;
+}
+
+function normalizeLineThickness(value: number | undefined): number {
+  if (value === undefined) return 1;
+  if (!Number.isSafeInteger(value) || value <= 0 || value > 64) {
+    throw new RangeError('Line thickness must be a safe integer from 1 to 64');
+  }
+  return value;
+}
+
+function normalizeDashPattern(style: LineStyle | undefined): number[] | null {
+  const requested = style?.dashPattern;
+  if (!style?.dashed && requested === undefined) return null;
+  const pattern = requested ?? [3, 2];
+  if (
+    pattern.length === 0 ||
+    pattern.some(value => !Number.isSafeInteger(value) || value <= 0)
+  ) {
+    throw new RangeError('Line dashPattern must contain positive safe integers');
+  }
+  return [...pattern];
+}
+
+function isValidPlotRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): boolean {
+  return (
+    Number.isSafeInteger(x)
+    && Number.isSafeInteger(y)
+    && Number.isSafeInteger(width)
+    && Number.isSafeInteger(height)
+    && width > 0
+    && height > 0
+    && width * height <= MAX_DRAW_POINTS
+  );
 }

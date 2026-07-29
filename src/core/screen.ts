@@ -339,28 +339,6 @@ export class ScreenManager extends EventEmitter {
       direction,
     };
 
-    // Emit beforeNavigate
-    this.emit('beforeNavigate', event);
-
-    // Check onBeforeExit guard
-    if (fromScreen?.onBeforeExit) {
-      const canExit = await fromScreen.onBeforeExit();
-      if (canExit === false) {
-        this.emit('navigateCancelled', { from: fromScreen, to: screen });
-        return false;
-      }
-    }
-
-    // Check onBeforeEnter guard
-    if (screen.onBeforeEnter) {
-      const canEnter = await screen.onBeforeEnter();
-      if (canEnter === false) {
-        this.emit('navigateCancelled', { from: fromScreen, to: screen });
-        return false;
-      }
-    }
-
-    // Start transition
     this.transitioning = true;
     this.transitionDirection = direction;
 
@@ -369,52 +347,73 @@ export class ScreenManager extends EventEmitter {
       this._transitionDirection.set(direction);
     });
 
-    // Call exit lifecycle
-    if (fromScreen) {
-      fromScreen.onExit?.();
-      this.emit('screenExit', { screen: fromScreen });
+    try {
+      // Emit beforeNavigate
+      this.emit('beforeNavigate', event);
+
+      // Check onBeforeExit guard
+      if (fromScreen?.onBeforeExit) {
+        const canExit = await fromScreen.onBeforeExit();
+        if (canExit === false) {
+          this.emit('navigateCancelled', { from: fromScreen, to: screen });
+          return false;
+        }
+      }
+
+      // Check onBeforeEnter guard
+      if (screen.onBeforeEnter) {
+        const canEnter = await screen.onBeforeEnter();
+        if (canEnter === false) {
+          this.emit('navigateCancelled', { from: fromScreen, to: screen });
+          return false;
+        }
+      }
+
+      // Call exit lifecycle
+      if (fromScreen) {
+        fromScreen.onExit?.();
+        this.emit('screenExit', { screen: fromScreen });
+      }
+
+      // Update stack based on direction
+      this.updateStack(screen, direction);
+
+      // Update signals
+      batch(() => {
+        this._current.set(screen);
+        this._stack.set([...this.stack]);
+      });
+
+      // Call enter lifecycle
+      screen.onEnter?.();
+      this.emit('screenEnter', { screen });
+
+      // End transition after duration
+      const animate = options?.animate ?? true;
+      const duration = animate ? this.options.transitionDuration : 0;
+
+      await this.delay(duration);
+      if (this.disposed) {
+        return false;
+      }
+
+      // Emit navigate
+      this.emit('navigate', event);
+      this.emit('stackChange', { stack: this.stack });
+
+      return true;
+    } finally {
+      this.transitioning = false;
+      this.transitionDirection = 'none';
+
+      batch(() => {
+        this._transitioning.set(false);
+        this._transitionDirection.set('none');
+      });
     }
-
-    // Update stack based on direction
-    this.updateStack(screen, direction);
-
-    // Update signals
-    batch(() => {
-      this._current.set(screen);
-      this._stack.set([...this.stack]);
-    });
-
-    // Call enter lifecycle
-    screen.onEnter?.();
-    this.emit('screenEnter', { screen });
-
-    // End transition after duration
-    const animate = options?.animate ?? true;
-    const duration = animate ? this.options.transitionDuration : 0;
-
-    await this.delay(duration);
-    if (this.disposed) {
-      return false;
-    }
-
-    this.transitioning = false;
-    this.transitionDirection = 'none';
-
-    batch(() => {
-      this._transitioning.set(false);
-      this._transitionDirection.set('none');
-    });
-
-    // Emit navigate
-    this.emit('navigate', event);
-    this.emit('stackChange', { stack: this.stack });
-
-    return true;
   }
 
   private updateStack(screen: Screen, direction: TransitionDirection): void {
-    const keepAlive = screen.keepAlive ?? this.options.defaultKeepAlive;
-
     switch (direction) {
       case 'forward': {
         // Push new entry
@@ -516,41 +515,15 @@ export class ScreenManager extends EventEmitter {
       return false;
     }
 
-    const rootEntry = this.stack[0];
-    if (!rootEntry) return false;
-
-    // Navigate handles stack manipulation, so save the target and let navigate do the work
-    // But we need to pop down to just the root first
-    const fromScreen = this.current;
-
-    // Clear intermediate screens
+    let changed = false;
     while (this.stack.length > 1) {
-      const popped = this.stack.pop();
-      if (popped) {
-        popped.screen.onExit?.();
+      const popped = await this.pop(options);
+      if (!popped) {
+        return changed;
       }
+      changed = true;
     }
-    this.currentIndex = 0;
-
-    // Update signals for the remaining stack
-    batch(() => {
-      this._current.set(rootEntry.screen);
-      this._stack.set([...this.stack]);
-    });
-
-    // Call lifecycle
-    rootEntry.screen.onEnter?.();
-
-    // Emit events
-    const event: ScreenNavigationEvent = {
-      from: fromScreen,
-      to: rootEntry.screen,
-      direction: 'back',
-    };
-    this.emit('navigate', event);
-    this.emit('stackChange', { stack: this.stack });
-
-    return true;
+    return changed;
   }
 
   /**
@@ -562,57 +535,35 @@ export class ScreenManager extends EventEmitter {
       return false;
     }
 
-    const targetEntry = this.stack[index];
-    if (!targetEntry) return false;
-
-    const fromScreen = this.current;
-
-    // Pop screens until we reach the target
+    let changed = false;
     while (this.stack.length > index + 1) {
-      const popped = this.stack.pop();
-      if (popped) {
-        popped.screen.onExit?.();
+      const popped = await this.pop(options);
+      if (!popped) {
+        return changed;
       }
+      changed = true;
     }
-    this.currentIndex = index;
-
-    // Update signals
-    batch(() => {
-      this._current.set(targetEntry.screen);
-      this._stack.set([...this.stack]);
-    });
-
-    // Call lifecycle
-    targetEntry.screen.onEnter?.();
-
-    // Emit events
-    const event: ScreenNavigationEvent = {
-      from: fromScreen,
-      to: targetEntry.screen,
-      direction: 'back',
-    };
-    this.emit('navigate', event);
-    this.emit('stackChange', { stack: this.stack });
-
-    return true;
+    return changed;
   }
 
   /**
    * Clear the entire stack and start fresh
    */
   async reset(screen: Screen, options?: { animate?: boolean }): Promise<boolean> {
-    const fromScreen = this.current;
-
-    // Clear all screens, calling exit lifecycle
-    for (const entry of this.stack) {
-      entry.screen.onExit?.();
+    const replaced = await this.replace(screen, options);
+    if (!replaced) {
+      return false;
     }
 
-    this.stack = [];
-    this.currentIndex = -1;
-
-    // Push the new screen
-    return this.navigate(screen, 'none', options);
+    const currentEntry = this.stack[this.currentIndex];
+    this.stack = currentEntry ? [currentEntry] : [];
+    this.currentIndex = this.stack.length - 1;
+    batch(() => {
+      this._current.set(currentEntry?.screen ?? null);
+      this._stack.set([...this.stack]);
+    });
+    this.emit('stackChange', { stack: this.stack });
+    return true;
   }
 
   // ===========================================================================

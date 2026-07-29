@@ -4,7 +4,7 @@
  * This is the entry point for Tuiuiu applications
  */
 
-import type { VNode, BoxStyle } from '../utils/types.js';
+import type { VNode } from '../utils/types.js';
 import { renderToString, renderFrameToString } from '../core/renderer.js';
 import { batch, createEffect } from '../primitives/signal.js';
 import {
@@ -49,6 +49,11 @@ import {
   runInRuntimeScope,
 } from '../core/runtime-scope.js';
 import { sanitizeTerminalText } from '../utils/terminal-sanitize.js';
+import {
+  disposeReactiveVNodes,
+  refreshReactiveVNodes,
+} from '../primitives/computed-node.js';
+import { fingerprintValue } from '../core/structural-fingerprint.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -70,8 +75,9 @@ function isStaticNode(node: VNode): boolean {
 function getStaticNodeId(node: VNode, index: number): string {
   const props = node.props as any;
   if (props.__staticId) return props.__staticId;
-  // Generate an ID based on position and content
-  return `static-${index}-${JSON.stringify(node.children?.slice(0, 2) ?? []).slice(0, 50)}`;
+  // Compatibility for manually-authored __static nodes. Never truncate the
+  // content fingerprint: two long log entries may share an arbitrary prefix.
+  return `static-${index}-${fingerprintValue(node.children ?? [])}`;
 }
 
 /**
@@ -260,6 +266,23 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   const fullHeight = options.fullHeight ?? screenPreset?.fullHeight ?? false;
   const alternateScreen = options.alternateScreen ?? screenPreset?.alternateScreen ?? true;
 
+  if (!Number.isFinite(maxFps) || maxFps < 0) {
+    throw new Error('[tuiuiu] maxFps must be a finite non-negative number');
+  }
+  if (fixedStep) {
+    if (!Number.isFinite(fixedStep.updateFps) || fixedStep.updateFps <= 0) {
+      throw new Error('[tuiuiu] fixedStep.updateFps must be a finite positive number');
+    }
+    if (
+      fixedStep.maxCatchUpUpdates !== undefined
+      && (!Number.isSafeInteger(fixedStep.maxCatchUpUpdates) || fixedStep.maxCatchUpUpdates < 1)
+    ) {
+      throw new Error(
+        '[tuiuiu] fixedStep.maxCatchUpUpdates must be a positive safe integer',
+      );
+    }
+  }
+
   // Initialize app context FIRST (before calling component functions)
   const appContext = initializeApp(stdin, stdout, {
     autoTabNavigation,
@@ -328,7 +351,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   const handleOutputDrain = () => {
     outputBackpressured = false;
-    pendingRender = scheduledRenderCallback !== null;
     schedulePendingRenderCallback();
   };
 
@@ -370,7 +392,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         : chunk.byteLength;
     }
 
-    if (!canWrite && !outputBackpressured) {
+    if (!canWrite && !outputBackpressured && !isUnmounted) {
       outputBackpressured = true;
       stdout.once('drain', handleOutputDrain);
     }
@@ -458,6 +480,19 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     rejectExit = reject;
   });
 
+  // AppContext.dispose() is public and may be called directly by an embedded
+  // host. Route that path through render cleanup as well, so waitUntilExit()
+  // never remains pending and renderer-owned listeners are not orphaned.
+  const disposeAppContext = appContext.dispose;
+  appContext.dispose = () => {
+    if (isUnmounted) {
+      disposeAppContext();
+      return;
+    }
+    cleanup();
+    resolveExit();
+  };
+
   // Throttle rendering
   const minRenderInterval = maxFps > 0 ? Math.ceil(1000 / maxFps) : 0;
   runInRuntimeScope(runtimeScope, () => {
@@ -469,10 +504,8 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     setOverlayTerminalSize(stdout.columns || 80, stdout.rows || 24);
   });
   let lastRenderTime = 0;
-  let pendingRender = false;
   let scheduledRender = false;
   let renderTimer: ReturnType<typeof setTimeout> | null = null;
-  let renderMicrotaskQueued = false;
   let scheduledRenderCallback: (() => void) | null = null;
   let fixedStepTimer: ReturnType<typeof setTimeout> | null = null;
   let fixedStepAccumulatorMs = 0;
@@ -540,9 +573,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const evalStart = performance.now();
     pendingRuntimeStartAt = Date.now();
     beginRender('component');
-    currentNode = componentFn();
-    endRender();
-    pendingVNodeEvalMs = performance.now() - evalStart;
+    try {
+      currentNode = componentFn();
+      refreshReactiveVNodes(currentNode);
+    } finally {
+      endRender();
+      pendingVNodeEvalMs = performance.now() - evalStart;
+    }
   };
 
   const evaluateAndRender = () => runInRuntimeScope(runtimeScope, () => {
@@ -559,7 +596,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     scheduledRenderCallback = callback;
 
     if (outputBackpressured) {
-      pendingRender = true;
       return;
     }
 
@@ -582,20 +618,22 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       const flush = scheduledRenderCallback;
       scheduledRenderCallback = null;
       scheduledRender = false;
-      renderMicrotaskQueued = false;
-      pendingRender = false;
       renderTimer = null;
 
       if (!isUnmounted) {
-        flush?.();
+        try {
+          flush?.();
+        } catch (error) {
+          appContext.exit(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
       }
     };
 
     scheduledRender = true;
-    pendingRender = delay > 0;
 
     if (delay === 0) {
-      renderMicrotaskQueued = true;
       queueMicrotask(flushScheduledRender);
       return;
     }
@@ -638,43 +676,50 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       return;
     }
 
-    const pauseWhenUnfocused = fixedStep.pauseWhenUnfocused ?? true;
-    if (pauseWhenUnfocused && !readTerminalFocus()) {
-      fixedStepTimer = null;
-      fixedStepAccumulatorMs = 0;
-      fixedStepLastAt = Date.now();
-      return;
-    }
+    try {
+      const pauseWhenUnfocused = fixedStep.pauseWhenUnfocused ?? true;
+      if (pauseWhenUnfocused && !readTerminalFocus()) {
+        fixedStepTimer = null;
+        fixedStepAccumulatorMs = 0;
+        fixedStepLastAt = Date.now();
+        return;
+      }
 
-    const stepMs = 1000 / Math.max(1, fixedStep.updateFps);
-    const maxCatchUpUpdates = Math.max(1, fixedStep.maxCatchUpUpdates ?? 5);
-    const now = Date.now();
-    fixedStepAccumulatorMs += now - fixedStepLastAt;
-    fixedStepLastAt = now;
+      const stepMs = 1000 / fixedStep.updateFps;
+      const maxCatchUpUpdates = fixedStep.maxCatchUpUpdates ?? 5;
+      const now = Date.now();
+      fixedStepAccumulatorMs += now - fixedStepLastAt;
+      fixedStepLastAt = now;
 
-    let executed = 0;
-    while (fixedStepAccumulatorMs >= stepMs && executed < maxCatchUpUpdates) {
-      fixedStepAccumulatorMs -= stepMs;
-      fixedStepCount++;
-      fixedStepElapsedMs += stepMs;
+      let executed = 0;
+      while (fixedStepAccumulatorMs >= stepMs && executed < maxCatchUpUpdates) {
+        fixedStepAccumulatorMs -= stepMs;
+        fixedStepCount++;
+        fixedStepElapsedMs += stepMs;
 
-      batch(() => {
-        fixedStep.onUpdate({
-          deltaTimeMs: stepMs,
-          step: fixedStepCount,
-          elapsedMs: fixedStepElapsedMs,
+        batch(() => {
+          fixedStep.onUpdate({
+            deltaTimeMs: stepMs,
+            step: fixedStepCount,
+            elapsedMs: fixedStepElapsedMs,
+          });
         });
-      });
 
-      executed++;
+        executed++;
+      }
+
+      if (fixedStepAccumulatorMs >= stepMs) {
+        // Drop stale backlog to avoid a catch-up spiral while preserving the latest remainder.
+        fixedStepAccumulatorMs %= stepMs;
+      }
+
+      scheduleFixedStepLoop();
+    } catch (error) {
+      fixedStepTimer = null;
+      appContext.exit(
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
-
-    if (fixedStepAccumulatorMs >= stepMs) {
-      // Drop stale backlog to avoid a catch-up spiral while preserving the latest remainder.
-      fixedStepAccumulatorMs %= stepMs;
-    }
-
-    scheduleFixedStepLoop();
   }
 
   // Handle resize - need to re-evaluate component for new dimensions
@@ -716,23 +761,33 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     const width = stdout.columns || 80;
     const terminalHeight = stdout.rows || 24;
+    const staticSeparation = separateStaticNodes(currentNode);
+    const switchToPermanentOutputRenderer = () => {
+      if (!deltaRenderer) return;
+      deltaRenderer.cleanup();
+      deltaRenderer = null;
+      writeOutput(ansi.clearTerminal);
+      renderedStaticIds.clear();
+      staticLineCount = 0;
+      recreateLogUpdate();
+    };
 
     if (pendingOutputLines.length > 0) {
       // Delta rendering assumes ownership of absolute screen coordinates. A
       // permanent output region needs a vertical origin, so switch once to the
       // string renderer, which supports top offsets explicitly.
-      if (deltaRenderer) {
-        deltaRenderer.cleanup();
-        deltaRenderer = null;
-        writeOutput(ansi.clearTerminal);
-        renderedStaticIds.clear();
-        staticLineCount = 0;
-        recreateLogUpdate();
-      }
+      switchToPermanentOutputRenderer();
 
       const lines = pendingOutputLines;
       pendingOutputLines = [];
       appendPermanentOutput(lines.join('\n'));
+    }
+
+    // Delta frames redraw a fixed viewport and therefore cannot preserve
+    // append-only rows above it. Switch once, before the first Static batch,
+    // to the renderer that owns a permanent-output region.
+    if (staticSeparation.staticNodes.length > 0) {
+      switchToPermanentOutputRenderer();
     }
 
     const height = Math.max(1, terminalHeight - staticLineCount);
@@ -771,7 +826,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     // Standard renderer path: string-based rendering
     // Separate static from interactive content
-    const { staticNodes, interactiveNode } = separateStaticNodes(currentNode);
+    const { staticNodes, interactiveNode } = staticSeparation;
     const staticRenderStart = performance.now();
     beginOutputCapture();
 
@@ -886,10 +941,9 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     cleanupFixedStepFocus?.();
     cleanupFixedStepFocus = null;
     outputBackpressured = false;
+    attempt(() => stdout.off('drain', handleOutputDrain));
     scheduledRenderCallback = null;
     scheduledRender = false;
-    renderMicrotaskQueued = false;
-    pendingRender = false;
     externalUpdateBatcher.cancel();
     externalUpdateQueue = [];
     setExternalUpdateIngress(null);
@@ -916,8 +970,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         stdout.write(disableAlternateScreen());
       });
     }
+    outputBackpressured = false;
+    attempt(() => stdout.off('drain', handleOutputDrain));
 
     attempt(() => resetHookState(runtimeScope)); // Clear all hook state and owned resources
+    if (currentNode) {
+      attempt(() => disposeReactiveVNodes(currentNode!));
+    }
     attempt(() => appContext.dispose());
     for (const unregister of unregisterPanicCleanups.splice(0)) {
       attempt(unregister);
@@ -1011,8 +1070,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         }
         scheduledRenderCallback = null;
         scheduledRender = false;
-        renderMicrotaskQueued = false;
-        pendingRender = false;
         resetOutputState();
         if (outputBackpressured) {
           scheduleRenderCallback(() => {

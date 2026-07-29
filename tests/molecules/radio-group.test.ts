@@ -230,8 +230,8 @@ describe('RadioGroup Component', () => {
   it('should apply custom colors', () => {
     const vnode = RadioGroup({
       options: basicOptions,
-      activeColor: 'blue',
-      selectedColor: 'yellow',
+      colorActive: 'blue',
+      colorSelected: 'yellow',
     });
 
     expect(vnode).toBeDefined();

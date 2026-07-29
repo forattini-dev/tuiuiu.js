@@ -682,6 +682,18 @@ describe('ANSI Conversion', () => {
       expect(ansi).toContain('X');
     });
 
+    it('should ignore patches outside the declared buffer width', () => {
+      const ansi = patchesToAnsi([
+        { x: -1, y: 0, cell: createCell('A') },
+        { x: 5, y: 0, cell: createCell('B') },
+        { x: 4, y: 0, cell: createCell('C') },
+      ], 5);
+
+      expect(ansi).toContain('C');
+      expect(ansi).not.toContain('A');
+      expect(ansi).not.toContain('B');
+    });
+
     it('should optimize consecutive cells', () => {
       const patches = [
         { x: 0, y: 0, cell: createCell('A') },

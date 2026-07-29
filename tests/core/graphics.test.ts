@@ -683,6 +683,19 @@ describe('Sixel Graphics Protocol', () => {
       // Should have row separators
       expect(output.includes('-')).toBe(true);
     });
+
+    it('should apply requested dimensions before encoding', () => {
+      const img = createSolidImage(6, 6, 255, 0, 0);
+      const source = createTerminalImageSource(img, {
+        cellSize: { width: 1, height: 1 },
+      });
+
+      expect(sixelGraphics.encode(source, {
+        width: 3,
+        height: 3,
+        fit: 'fill',
+      })).not.toBe(sixelGraphics.encode(source));
+    });
   });
 });
 

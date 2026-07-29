@@ -116,14 +116,6 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Parse date string to Date
- */
-function parseDate(str: string): Date {
-  const [year, month, day] = str.split('-').map(Number);
-  return new Date(year!, month! - 1, day);
-}
-
-/**
  * Check if two dates are the same day
  */
 function isSameDay(a: Date, b: Date): boolean {
@@ -600,20 +592,32 @@ export function Calendar(props: CalendarProps): VNode {
       }
 
       const dayStr = String(day.dayOfMonth).padStart(2, ' ');
-      const content = eventIndicator ? `${dayStr}${eventIndicator}` : dayStr;
+      const trailingSpaces = ' '.repeat(
+        Math.max(0, cellWidth - 1 - dayStr.length - eventIndicator.length),
+      );
 
       weekCells.push(
         Box(
-          { width: cellWidth, justifyContent: 'center' },
-          Text(
-            {
-              color,
-              bold,
-              dim,
-              backgroundColor: bgColor,
-            },
-            content.padEnd(cellWidth - 1)
-          )
+          {
+            width: cellWidth,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            backgroundColor: bgColor,
+          },
+          Text({ color, bold, dim, backgroundColor: bgColor }, dayStr),
+          eventIndicator
+            ? Text(
+                {
+                  color: day.isDisabled ? color : colorEvent,
+                  bold: true,
+                  dim,
+                  backgroundColor: bgColor,
+                  'aria-label': day.events.map(event => event.label).join(', '),
+                },
+                eventIndicator,
+              )
+            : null,
+          trailingSpaces ? Text({ backgroundColor: bgColor }, trailingSpaces) : null,
         )
       );
     }
@@ -702,14 +706,17 @@ export function createDatePicker(options: DatePickerOptions = {}): DatePickerSta
     if (dates.length === 0) return '';
 
     const format = runtimeOptions.format ?? 'YYYY-MM-DD';
-    void format;
+    const formatSelectedDate = (date: Date): string => format
+      .replace(/YYYY/g, String(date.getFullYear()).padStart(4, '0'))
+      .replace(/MM/g, String(date.getMonth() + 1).padStart(2, '0'))
+      .replace(/DD/g, String(date.getDate()).padStart(2, '0'));
     if (dates.length === 1) {
-      return formatDate(dates[0]!);
+      return formatSelectedDate(dates[0]!);
     }
 
     // Range
     const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
-    return `${formatDate(sorted[0]!)} - ${formatDate(sorted[sorted.length - 1]!)}`;
+    return `${formatSelectedDate(sorted[0]!)} - ${formatSelectedDate(sorted[sorted.length - 1]!)}`;
   });
 
   return {
@@ -754,7 +761,7 @@ export function DatePicker(props: DatePickerProps): VNode {
 
   // Setup keyboard handling
   useInput(
-    (input, key) => {
+    (_input, key) => {
       if (key.return && !state.isOpen()) {
         state.open();
       } else if (key.escape && state.isOpen()) {

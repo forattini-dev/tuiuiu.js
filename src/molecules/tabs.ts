@@ -257,10 +257,21 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
 
   // Resolve colors from theme tokens or custom colors
   const tabTokens = theme.components.tabs;
-  const colorActive = customColorActive ?? tabTokens.tab.indicator;
+  const variantColor = variant === 'primary'
+    ? theme.palette.primary[500]
+    : variant === 'secondary'
+      ? theme.palette.secondary[500]
+      : tabTokens.tab.indicator;
+  const colorActive = customColorActive ?? variantColor;
   const colorInactive = customColorInactive ?? tabTokens.tab.fg;
   const activeFg = tabTokens.tab.activeFg;
   const activeBg = tabTokens.tab.activeBg;
+  const resolvedActiveBg = customColorActive || variant !== 'default'
+    ? colorActive
+    : activeBg;
+  const resolvedActiveFg = customColorActive || variant !== 'default'
+    ? getContrastColor(colorActive as string)
+    : activeFg;
 
   const state = useFactoryState(externalState, props, createTabs);
   const chars = getChars();
@@ -310,10 +321,9 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
             : isFocused
               ? 'foreground'
               : colorInactive;
-          const bgColor = isTabActive ? colorActive : undefined;
-          // Use contrast color when tab is active with background
+          const bgColor = isTabActive ? resolvedActiveBg : undefined;
           const textColor = isTabActive
-            ? getContrastColor(colorActive as string)
+            ? resolvedActiveFg
             : isDisabled
               ? 'mutedForeground'
               : 'foreground';
@@ -346,10 +356,9 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
         }
 
         case 'pills': {
-          const pillBg = isTabActive ? colorActive : undefined;
-          // Use contrast color when pill is active with background
+          const pillBg = isTabActive ? resolvedActiveBg : undefined;
           const pillColor = isTabActive
-            ? getContrastColor(colorActive as string)
+            ? resolvedActiveFg
             : isDisabled
               ? 'mutedForeground'
               : 'foreground';
@@ -393,9 +402,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
               : colorInactive;
 
           const underline = isTabActive
-            ? isAscii
-              ? '─'.repeat(tabLabelWidth)
-              : '━'.repeat(tabLabelWidth)
+            ? (isAscii ? chars.border.horizontal : '━').repeat(tabLabelWidth)
             : '';
 
           tabContent = Box(
@@ -522,7 +529,9 @@ export function TabPanel(props: TabPanelProps): VNode | null {
 // VerticalTabs - Tabs with vertical tab bar
 // =============================================================================
 
-export interface VerticalTabsOptions<T = string> extends TabsOptions<T> {
+export interface VerticalTabsOptions<T = string> extends Omit<TabsOptions<T>, 'position'> {
+  /** Side on which to render the vertical tab bar */
+  position?: 'left' | 'right';
   /** Tab bar width */
   tabWidth?: number;
   /** Content width */
@@ -540,7 +549,7 @@ export interface VerticalTabsProps<T = string> extends VerticalTabsOptions<T> {
 export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
   const theme = getTheme();
   const {
-    tabs,
+    position = 'left',
     tabWidth = 20,
     contentWidth,
     colorActive: customColorActive,
@@ -554,7 +563,9 @@ export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
   const colorActive = customColorActive ?? tabTokens.tab.indicator;
   const colorInactive = customColorInactive ?? tabTokens.tab.fg;
 
-  const state = useFactoryState(externalState, props, createTabs);
+  const { position: _position, ...tabsOptions } = props;
+  void _position;
+  const state = useFactoryState(externalState, tabsOptions, createTabs);
   const chars = getChars();
 
   // Setup keyboard handling
@@ -604,28 +615,32 @@ export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
       : activeTab.content
     : null;
 
+  const tabBar = Box(
+    {
+      flexDirection: 'column',
+      width: tabWidth,
+      borderStyle: 'single',
+      borderRight: position === 'left',
+      borderTop: false,
+      borderBottom: false,
+      borderLeft: position === 'right',
+      paddingRight: position === 'left' ? 1 : undefined,
+      paddingLeft: position === 'right' ? 1 : undefined,
+    },
+    ...tabNodes
+  );
+  const contentPanel = Box(
+    {
+      width: contentWidth,
+      paddingLeft: position === 'left' ? 2 : undefined,
+      paddingRight: position === 'right' ? 2 : undefined,
+    },
+    content
+  );
+
   return Box(
     { flexDirection: 'row' },
-    Box(
-      {
-        flexDirection: 'column',
-        width: tabWidth,
-        borderStyle: 'single',
-        borderRight: true,
-        borderTop: false,
-        borderBottom: false,
-        borderLeft: false,
-        paddingRight: 1,
-      },
-      ...tabNodes
-    ),
-    Box(
-      {
-        width: contentWidth,
-        paddingLeft: 2,
-      },
-      content
-    )
+    ...(position === 'left' ? [tabBar, contentPanel] : [contentPanel, tabBar]),
   );
 }
 

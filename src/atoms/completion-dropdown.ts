@@ -18,6 +18,7 @@ import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue, BorderStyleName } from '../utils/types.js';
 import { getTheme } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
 import { Spinner } from './spinner.js';
 import type { TextInputCompletionState, TextInputCompletionItem } from './text-input.js';
 
@@ -87,6 +88,12 @@ export function CompletionDropdown<T = unknown>(
     emptyMessage = 'No results',
     loadingMessage = 'Searching...',
   } = props;
+  if (!Number.isInteger(maxVisible) || maxVisible < 1) {
+    throw new RangeError('CompletionDropdown maxVisible must be a positive integer');
+  }
+  if (width !== undefined && (!Number.isInteger(width) || width < 5)) {
+    throw new RangeError('CompletionDropdown width must be an integer of at least 5');
+  }
 
   // Loading state
   if (completion.status === 'loading') {
@@ -177,21 +184,49 @@ function renderItem<T>(
   const pointer = isSelected ? (isAscii ? '>' : '\u276F') : ' '; // ❯
 
   const parts: VNode[] = [];
+  const icon = showIcons && item.icon ? `${item.icon} ` : '';
+  const prefixWidth = stringWidth(`${pointer} ${icon}`);
+  const detailText = item.detail ? ` ${item.detail}` : '';
+  const detailWidth = stringWidth(detailText);
+  // The outer box consumes two border cells and two padding cells.
+  const contentWidth = maxWidth === undefined ? undefined : Math.max(1, maxWidth - 4);
+  const labelWidth = contentWidth === undefined
+    ? undefined
+    : Math.max(1, contentWidth - prefixWidth - detailWidth);
+  const label = labelWidth === undefined
+    ? item.label
+    : truncateText(item.label, labelWidth, {
+      position: 'end',
+      truncationCharacter: isAscii ? '...' : '…',
+    });
+  const remainingDetailWidth = contentWidth === undefined
+    ? undefined
+    : Math.max(0, contentWidth - prefixWidth - stringWidth(label));
+  const detail = remainingDetailWidth === undefined
+    ? detailText
+    : truncateText(detailText, remainingDetailWidth, {
+      position: 'end',
+      truncationCharacter: isAscii ? '...' : '…',
+    });
 
   // Pointer
   parts.push(Text({ color: isSelected ? highlightColor : undefined }, `${pointer} `));
+
+  if (icon) {
+    parts.push(Text({ color: isSelected ? highlightColor : undefined }, icon));
+  }
 
   // Label
   parts.push(
     Text(
       { color: isSelected ? highlightColor : undefined, bold: isSelected },
-      item.label,
+      label,
     ),
   );
 
   // Detail (right-aligned, dim)
-  if (item.detail) {
-    parts.push(Text({ color: 'mutedForeground', dim: true }, ` ${item.detail}`));
+  if (detail) {
+    parts.push(Text({ color: 'mutedForeground', dim: true }, detail));
   }
 
   return Box({ flexDirection: 'row' }, ...parts);

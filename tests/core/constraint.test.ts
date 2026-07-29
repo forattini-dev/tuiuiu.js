@@ -29,6 +29,7 @@ import {
   distributeHorizontally,
   ConstraintSolver,
   ConstraintLayoutManager,
+  UnsatisfiedConstraintError,
   type ConstraintVariable,
   type ConstraintExpression,
   type Constraint,
@@ -588,6 +589,14 @@ describe('Constraint System', () => {
       expect(manager.getElement('box')).toBe(el);
     });
 
+    it('rejects duplicate and reserved element IDs', () => {
+      manager.addElement('box');
+
+      expect(() => manager.addElement('box')).toThrow(/already registered/);
+      expect(() => manager.addElement('__container__')).toThrow(/already registered/);
+      expect(() => manager.addElement('')).toThrow(/cannot be empty/);
+    });
+
     it('adds constraints to elements', () => {
       const el = manager.addElement('box');
       const container = manager.getContainer();
@@ -667,6 +676,47 @@ describe('Constraint System', () => {
       expect(container.y.value).toBe(10);
       expect(container.width.value).toBe(180);
       expect(container.height.value).toBe(80);
+    });
+
+    it('rejects invalid container dimensions and padding', () => {
+      expect(() => new ConstraintLayoutManager({ width: -1, height: 50 })).toThrow(RangeError);
+      expect(() => new ConstraintLayoutManager({ width: 100, height: Number.NaN })).toThrow(RangeError);
+      expect(() => new ConstraintLayoutManager({ width: 10, height: 10, padding: 6 })).toThrow(
+        /cannot exceed/
+      );
+      expect(() => manager.resize(10, 10, { top: 0, right: -1, bottom: 0, left: 0 }))
+        .toThrow(/padding.right/);
+    });
+
+    it('throws for conflicting required constraints in strict mode', () => {
+      const element = manager.addElement('box');
+      manager.addConstraint(eq(element.width, 10));
+      manager.addConstraint(eq(element.width, 20));
+
+      expect(() => manager.solve()).toThrow(UnsatisfiedConstraintError);
+      expect(manager.getLastSolution()?.isSatisfied).toBe(false);
+    });
+
+    it('exposes diagnostics without throwing through solveDetailed()', () => {
+      const element = manager.addElement('box');
+      manager.addConstraint(eq(element.width, 10));
+      manager.addConstraint(eq(element.width, 20));
+
+      const result = manager.solveDetailed();
+
+      expect(result.layouts.get('box')).toBeDefined();
+      expect(result.solution.isSatisfied).toBe(false);
+      expect(result.solution.unsatisfied.some(constraint => constraint.priority === 'required')).toBe(true);
+    });
+
+    it('allows best-effort solve when strict mode is disabled', () => {
+      const bestEffort = new ConstraintLayoutManager({ width: 100, height: 50, strict: false });
+      const element = bestEffort.addElement('box');
+      bestEffort.addConstraint(eq(element.width, 10));
+      bestEffort.addConstraint(eq(element.width, 20));
+
+      expect(bestEffort.solve().get('box')).toBeDefined();
+      expect(bestEffort.getLastSolution()?.isSatisfied).toBe(false);
     });
 
     it('handles equal width distribution', () => {
@@ -819,7 +869,9 @@ describe('Constraint System', () => {
       const container = manager.getContainer();
 
       // Header
-      manager.addConstraints(pinToEdges(header, container, 0));
+      manager.addConstraint(eq(header.x, container.x));
+      manager.addConstraint(eq(header.y, container.y));
+      manager.addConstraint(eq(header.width, container.width));
       manager.addConstraint(eq(header.height, 50));
 
       // Sidebar

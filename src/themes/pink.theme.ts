@@ -5,7 +5,6 @@
  */
 
 import { defineTheme } from '../core/theme-loader.js';
-import * as colors from '../core/colors.js';
 
 // =============================================================================
 // Pink Colors

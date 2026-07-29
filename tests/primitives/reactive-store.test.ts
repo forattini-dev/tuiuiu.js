@@ -126,4 +126,53 @@ describe('createReactiveStore', () => {
     const ref2 = store.nested;
     expect(ref1).toBe(ref2);
   });
+
+  it('proxies arrays deeply and notifies length dependencies on push', () => {
+    const store = createReactiveStore({
+      items: [{ value: 1 }],
+    });
+    const lengths: number[] = [];
+    const values: number[] = [];
+    createEffect(() => lengths.push(store.items.length));
+    createEffect(() => values.push(store.items[0]!.value));
+
+    store.items.push({ value: 2 });
+    store.items[0]!.value = 3;
+
+    expect(lengths).toEqual([1, 2]);
+    expect(values).toEqual([1, 3]);
+  });
+
+  it('leaves Date, Map, and Set instances unproxied so brand checks work', () => {
+    const date = new Date('2026-01-01T00:00:00.000Z');
+    const map = new Map([['key', 1]]);
+    const set = new Set(['value']);
+    const store = createReactiveStore({ date, map, set });
+
+    expect(store.date).toBe(date);
+    expect(store.date.getUTCFullYear()).toBe(2026);
+    expect(store.map.get('key')).toBe(1);
+    expect(store.set.has('value')).toBe(true);
+  });
+
+  it('does not publish a signal update when Reflect.set fails', () => {
+    const initial = Object.freeze({ value: 1 });
+    const store = createReactiveStore(initial as { value: number });
+    const effect = vi.fn();
+    createEffect(() => {
+      void store.value;
+      effect();
+    });
+
+    expect(() => {
+      store.value = 2;
+    }).toThrow(TypeError);
+    expect(effect).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects non-plain root state instead of creating broken branded proxies', () => {
+    expect(() => createReactiveStore(
+      new Date() as unknown as Record<string, any>,
+    )).toThrow(TypeError);
+  });
 });

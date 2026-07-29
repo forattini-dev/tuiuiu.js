@@ -11,7 +11,7 @@
 import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode } from '../../utils/types.js';
 import type { Story, StoryCategory } from '../types.js';
-import type { Navigator, FocusArea } from '../core/navigator.js';
+import type { Navigator } from '../core/navigator.js';
 import { getTheme } from '../../core/theme.js';
 
 export interface SidebarProps {
@@ -249,7 +249,7 @@ export function CompactSidebar(props: SidebarProps): VNode {
       borderColor: isFocused ? theme.palette.primary[500] : theme.borders.default,
     },
     // Categories
-    ...categories.map((category, idx) => {
+    ...categories.map(category => {
       const originalIdx = state.categories.findIndex(
         (c) => c.name === category.name
       );

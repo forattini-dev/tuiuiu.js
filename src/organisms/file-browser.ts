@@ -21,7 +21,8 @@
 
 import { Box, Text, Spacer, When } from '../primitives/nodes.js';
 import { VStack, HStack } from '../templates/stack.js';
-import type { VNode, BoxStyleProps, TextStyleProps } from '../utils/types.js';
+import type { VNode, TextStyleProps } from '../utils/types.js';
+import { highlight } from '../core/highlighter.js';
 
 // =============================================================================
 // Types
@@ -774,6 +775,15 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
     directoryStyle = { color: 'primary', bold: true },
     fileStyle = { color: 'foreground' },
   } = options;
+  if (!Number.isInteger(indentSize) || indentSize < 1) {
+    throw new RangeError('DirectoryTree indentSize must be a positive integer');
+  }
+  if (
+    maxDepth !== Infinity &&
+    (!Number.isInteger(maxDepth) || maxDepth < 0)
+  ) {
+    throw new RangeError('DirectoryTree maxDepth must be a non-negative integer');
+  }
 
   const treeIcons = {
     vertical: lineStyle === 'none' ? '' : lineStyle === 'ascii' ? '|' : icons.treeVertical,
@@ -786,8 +796,7 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
   function flattenTree(
     treeItems: FileItem[],
     depth = 0,
-    prefix = '',
-    isLast = true
+    prefix = ''
   ): Array<{ item: FileItem; prefix: string; isLast: boolean }> {
     if (depth > maxDepth) {
       return [];
@@ -801,8 +810,12 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
       result.push({ item, prefix, isLast: isLastItem });
 
       if (item.type === 'directory' && expanded.has(item.path) && item.children) {
-        const childPrefix = prefix + (isLastItem ? '  ' : treeIcons.vertical + ' ');
-        const childFlat = flattenTree(item.children, depth + 1, childPrefix, isLastItem);
+        const childPrefix = prefix + (
+          isLastItem || lineStyle === 'none'
+            ? ' '.repeat(indentSize)
+            : treeIcons.vertical + ' '.repeat(Math.max(0, indentSize - 1))
+        );
+        const childFlat = flattenTree(item.children, depth + 1, childPrefix);
         result.push(...childFlat);
       }
     });
@@ -819,10 +832,14 @@ export function DirectoryTree(options: DirectoryTreeOptions): VNode {
     const icon = getFileIcon({ ...item, isExpanded: isOpen }, { ...unicodeIcons, ...icons });
 
     const lineChar = isLast ? treeIcons.corner : treeIcons.branch;
-    const treeLine = prefix + lineChar + '─ ';
+    const connector = lineStyle === 'ascii' ? '-' : '─';
+    const treeLine = lineStyle === 'none'
+      ? prefix
+      : prefix + lineChar + connector.repeat(Math.max(1, indentSize - 1)) + ' ';
 
     return Box(
       {
+        flexDirection: 'row',
         width: '100%',
         onClick: () => {
           onSelect?.(item);
@@ -901,6 +918,20 @@ export function FileList(options: FileListOptions): VNode {
   ];
 
   const activeColumns = columns || defaultColumns;
+  const handleSelect = (item: FileItem): void => {
+    onSelect?.(item);
+    if (!multiSelect) return;
+
+    const nextSelection = new Set(selectedItems ?? []);
+    if (nextSelection.has(item.path)) {
+      nextSelection.delete(item.path);
+    } else {
+      nextSelection.add(item.path);
+    }
+    onSelectionChange?.(
+      processedItems.filter(candidate => nextSelection.has(candidate.path)),
+    );
+  };
 
   // Render item based on view mode
   function renderItem(item: FileItem): VNode {
@@ -913,8 +944,9 @@ export function FileList(options: FileListOptions): VNode {
     if (viewMode === 'compact') {
       return Box(
         {
+          flexDirection: 'row',
           paddingRight: 2,
-          onClick: () => onSelect?.(item),
+          onClick: () => handleSelect(item),
           onDoubleClick: () => onOpen?.(item),
           ...(isSelected ? selectedStyle : {}),
         },
@@ -926,8 +958,9 @@ export function FileList(options: FileListOptions): VNode {
     if (viewMode === 'details') {
       return Box(
         {
+          flexDirection: 'row',
           width: '100%',
-          onClick: () => onSelect?.(item),
+          onClick: () => handleSelect(item),
           onDoubleClick: () => onOpen?.(item),
           ...(isSelected ? selectedStyle : {}),
         },
@@ -969,8 +1002,9 @@ export function FileList(options: FileListOptions): VNode {
     // Default list view
     return Box(
       {
+        flexDirection: 'row',
         width: '100%',
-        onClick: () => onSelect?.(item),
+        onClick: () => handleSelect(item),
         onDoubleClick: () => onOpen?.(item),
         ...(isSelected ? selectedStyle : {}),
       },
@@ -984,7 +1018,12 @@ export function FileList(options: FileListOptions): VNode {
   // Header for details view
   const headerRow = viewMode === 'details'
     ? Box(
-        { width: '100%', borderStyle: 'none', borderBottom: true },
+        {
+          flexDirection: 'row',
+          width: '100%',
+          borderStyle: 'none',
+          borderBottom: true,
+        },
         ...activeColumns.map(col =>
           Box(
             { width: col.width, flexShrink: 0 },
@@ -1054,7 +1093,7 @@ export function PathBreadcrumbs(options: PathBreadcrumbsOptions): VNode {
     }
 
     return Box(
-      {},
+      { flexDirection: 'row' },
       When(index > 0 || truncated, Text(separatorStyle, ` ${separator} `)),
       Text(
         {
@@ -1067,7 +1106,7 @@ export function PathBreadcrumbs(options: PathBreadcrumbsOptions): VNode {
   });
 
   return HStack({
-    width: typeof width === 'string' ? undefined : width,
+    width,
     children: [
       // Root
       Text(
@@ -1158,7 +1197,7 @@ export function FileDetails(options: FileDetailsOptions): VNode {
     { flexDirection: 'column', width },
     // Icon and name header
     Box(
-      { marginBottom: 1 },
+      { flexDirection: 'row', marginBottom: 1 },
       Text({}, icon),
       Text({}, ' '),
       Text({ bold: true }, item.name)
@@ -1250,7 +1289,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
             Text({ color: 'mutedForeground' }, lineNum + ' │')
           )
         ),
-        Text({}, line)
+        Text({}, syntaxHighlight ? highlight(line, ext || 'plain') : line)
       ].filter((n): n is VNode => n !== null)
     });
   });
@@ -1305,6 +1344,30 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
 
   // Status bar text
   const statusText = `${dirCount} directories, ${fileCount} files`;
+  const toolbar = showToolbar
+    ? Box(
+        {
+          width: '100%',
+          flexDirection: 'row',
+          borderBottom: true,
+          paddingBottom: 1,
+        },
+        Box(
+          {
+            onClick: () => onPathChange?.(getParentPath(path)),
+            role: 'button',
+            'aria-label': 'Go to parent directory',
+          },
+          Text({ color: 'primary', bold: true }, '↑ Up'),
+        ),
+        Text({ color: 'mutedForeground' }, `  ${viewMode}`),
+        Spacer(),
+        Text(
+          { color: 'mutedForeground' },
+          `${sort.field} ${sort.direction === 'asc' ? '↑' : '↓'}${showHidden ? '  hidden:on' : ''}`,
+        ),
+      )
+    : null;
 
   // Breadcrumbs
   const breadcrumbs = showBreadcrumbs
@@ -1383,7 +1446,7 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
       filter,
       viewMode: viewMode === 'details' ? 'details' : 'list',
       icons,
-      width: showPreview ? `calc(100% - ${previewWidth})` : '100%',
+      width: '100%',
     });
   }
 
@@ -1391,7 +1454,7 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
   if (showPreview) {
     mainContent = HStack({
       children: [
-        mainContent,
+        Box({ flexGrow: 1, overflow: 'hidden' }, mainContent),
         Box(
           { width: previewWidth, borderStyle: 'single', padding: 1 },
           Text({ color: 'mutedForeground' }, 'Preview')
@@ -1401,10 +1464,11 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
   }
 
   return VStack({
-    width: typeof width === 'string' ? undefined : width,
-    height: typeof height === 'string' ? undefined : height,
+    width,
+    height,
     children: [
       breadcrumbs,
+      toolbar,
       Box({ flexGrow: 1 }, mainContent),
       statusBar
     ].filter(Boolean) as VNode[]

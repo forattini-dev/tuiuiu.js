@@ -22,7 +22,7 @@ import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 import { getVersion, getVersionSync } from '../version.js';
 
 // Storybook Global State & Logger
-import { storybookStore, interceptConsole } from './store.js';
+import { storybookStore } from './store.js';
 
 // Storybook UI Components
 import {
@@ -37,25 +37,6 @@ import {
   recordMouseClick,
   clearOldKeyPresses,
 } from './components/index.js';
-
-// =============================================================================
-// Initialization
-// =============================================================================
-
-// DISABLED: interceptConsole was causing render issues in some terminals
-// interceptConsole();
-
-// =============================================================================
-// Metrics Tracking
-// =============================================================================
-
-interface Metrics {
-  clicks: number;
-  keystrokes: number;
-  fps: number;
-  lastFrameTime: number;
-  frameCount: number;
-}
 
 // View modes
 type ViewMode = 'preview' | 'playground' | 'comparatives' | 'docs';
@@ -382,7 +363,7 @@ function ControlPanel(props: {
 /**
  * Render inline text input for editing
  */
-function renderTextInputInline(value: string, isActive: boolean, onChange: (value: string) => void): VNode {
+function renderTextInputInline(value: string, isActive: boolean, _onChange: (value: string) => void): VNode {
   const theme = getTheme();
   // Create inline text input with visible cursor
   const cursorChar = '▎';
@@ -637,15 +618,6 @@ function TextEditingIndicator(): VNode {
     Text({ color: theme.foreground.muted }, '[Esc] Cancel  '),
     Text({ color: theme.foreground.muted }, '[Backspace] Delete')
   );
-}
-
-/**
- * Format elapsed time
- */
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 
@@ -1234,7 +1206,7 @@ function StorybookApp(): VNode {
           onTextChange: setEditingTextValue,
           onFocus: () => setFocusArea('controls'),
           onSelectControl: setFocusedControlIndex,
-          onStartTextEdit: (key, value) => {
+          onStartTextEdit: (_key, value) => {
             setEditingTextValue(value);
             setIsEditingText(true);
           },

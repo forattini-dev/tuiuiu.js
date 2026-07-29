@@ -41,6 +41,7 @@ export function createMCPLogger(
   } = {}
 ) {
   const { name = 'tuiuiu', minLevel = 'info', enabled = true } = options;
+  let currentMinLevel = minLevel;
 
   const levels: Record<MCPLogLevel, number> = {
     debug: 0,
@@ -55,7 +56,7 @@ export function createMCPLogger(
 
   const shouldLog = (level: MCPLogLevel): boolean => {
     if (!enabled || !sender) return false;
-    return levels[level] >= levels[minLevel];
+    return levels[level] >= levels[currentMinLevel];
   };
 
   const log = (level: MCPLogLevel, message: string, data?: unknown) => {
@@ -90,6 +91,10 @@ export function createMCPLogger(
     critical: (message: string, data?: unknown) => log('critical', message, data),
     alert: (message: string, data?: unknown) => log('alert', message, data),
     emergency: (message: string, data?: unknown) => log('emergency', message, data),
+    setLevel: (level: MCPLogLevel) => {
+      currentMinLevel = level;
+    },
+    getLevel: (): MCPLogLevel => currentMinLevel,
 
     // Convenience methods
     toolCall: (name: string, args?: unknown) => {

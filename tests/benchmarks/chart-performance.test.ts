@@ -419,9 +419,9 @@ describeOrSkip('Performance Benchmarks: Chart Components', () => {
     });
 
     it('renders all gauge styles efficiently', () => {
-      const styles: Array<'arc' | 'semicircle' | 'linear'> = [
+      const styles: Array<'arc' | 'meter' | 'linear'> = [
         'arc',
-        'semicircle',
+        'meter',
         'linear',
       ];
       const results: Array<{ style: string; avgMs: number }> = [];

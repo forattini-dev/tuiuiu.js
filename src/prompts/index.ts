@@ -104,6 +104,24 @@ export interface AutocompleteOptions<T extends string = string> extends PromptAp
   filter?: (input: string, choice: T) => boolean;
 }
 
+export class PromptCancelledError extends Error {
+  readonly code = 'PROMPT_CANCELLED';
+
+  constructor(message = 'Prompt cancelled') {
+    super(message);
+    this.name = 'PromptCancelledError';
+  }
+}
+
+export class PromptBusyError extends Error {
+  readonly code = 'PROMPT_BUSY';
+
+  constructor() {
+    super('Another prompt is already using stdin');
+    this.name = 'PromptBusyError';
+  }
+}
+
 // =============================================================================
 // ANSI helpers
 // =============================================================================
@@ -115,6 +133,45 @@ const CLEAR_LINE = '\x1b[2K\r';
 const HIDE_CURSOR = '\x1b[?25l';
 const SHOW_CURSOR = '\x1b[?25h';
 const MOVE_UP = '\x1b[1A';
+
+let promptOwnsInput = false;
+
+function acquirePromptInput(): () => void {
+  if (promptOwnsInput) {
+    throw new PromptBusyError();
+  }
+  promptOwnsInput = true;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    promptOwnsInput = false;
+  };
+}
+
+function beginRawPrompt(hideCursor: boolean): () => void {
+  const releaseInput = acquirePromptInput();
+  const rawInput = input as NodeJS.ReadStream & {
+    isRaw?: boolean;
+    isPaused?: () => boolean;
+  };
+  const wasRaw = rawInput.isRaw === true;
+  const wasPaused = rawInput.isPaused?.() ?? true;
+
+  if (hideCursor) output.write(HIDE_CURSOR);
+  if (input.isTTY && !wasRaw) input.setRawMode(true);
+  if (wasPaused) input.resume();
+
+  let finished = false;
+  return () => {
+    if (finished) return;
+    finished = true;
+    if (input.isTTY && !wasRaw) input.setRawMode(false);
+    if (wasPaused) input.pause();
+    if (hideCursor) output.write(SHOW_CURSOR);
+    releaseInput();
+  };
+}
 
 function safeInlineLabel(text: string): string {
   return sanitizeTerminalText(String(text)).replace(/[\r\n\t]/g, ' ');
@@ -244,6 +301,7 @@ export async function promptInput(message: string, options: InputOptions = {}): 
   const { default: defaultValue, placeholder, validate, transform } = options;
   const painter = createPromptPainter(options.theme);
 
+  const releaseInput = acquirePromptInput();
   const rl = createReadlineInterface();
 
   const promptText = buildPromptText(message, defaultValue, placeholder, painter);
@@ -251,6 +309,7 @@ export async function promptInput(message: string, options: InputOptions = {}): 
   return new Promise((resolve) => {
     rl.question(promptText, (answer) => {
       rl.close();
+      releaseInput();
 
       let value = answer.trim() || defaultValue || '';
 
@@ -309,6 +368,7 @@ export async function promptConfirm(message: string, options: ConfirmOptions = {
   const { default: defaultValue = false } = options;
   const painter = createPromptPainter(options.theme);
 
+  const releaseInput = acquirePromptInput();
   const rl = createReadlineInterface();
 
   const hint = defaultValue ? 'Y/n' : 'y/N';
@@ -317,6 +377,7 @@ export async function promptConfirm(message: string, options: ConfirmOptions = {
   return new Promise((resolve) => {
     rl.question(promptText, (answer) => {
       rl.close();
+      releaseInput();
 
       const normalized = answer.trim().toLowerCase();
 
@@ -372,19 +433,11 @@ export async function promptSelect<T extends string>(
 
   const defaultIndex = defaultValue ? choices.indexOf(defaultValue) : 0;
   let selectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
+  const finishRawPrompt = beginRawPrompt(true);
 
-  return new Promise((resolve) => {
-    // Hide cursor during selection
-    output.write(HIDE_CURSOR);
-
+  return new Promise((resolve, reject) => {
     // Render initial state
     renderSelect(message, choices, selectedIndex, painter);
-
-    // Handle raw input
-    if (input.isTTY) {
-      input.setRawMode(true);
-    }
-    input.resume();
 
     const handleKeypress = (chunk: Buffer) => {
       const key = chunk.toString();
@@ -417,7 +470,7 @@ export async function promptSelect<T extends string>(
         cleanup();
         clearSelect(choices.length);
         output.write(`${painter.error()} Cancelled\n`);
-        process.exit(0);
+        reject(new PromptCancelledError());
       }
       // Number keys for quick selection
       else if (key >= '1' && key <= '9') {
@@ -432,11 +485,7 @@ export async function promptSelect<T extends string>(
 
     const cleanup = () => {
       input.removeListener('data', handleKeypress);
-      if (input.isTTY) {
-        input.setRawMode(false);
-      }
-      input.pause();
-      output.write(SHOW_CURSOR);
+      finishRawPrompt();
     };
 
     input.on('data', handleKeypress);
@@ -483,14 +532,10 @@ export async function promptPassword(message: string, options: PasswordOptions =
   const { validate } = options;
   const mask = sanitizeInlineInput(options.mask ?? '*') || '*';
   const painter = createPromptPainter(options.theme);
+  const finishRawPrompt = beginRawPrompt(false);
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     output.write(`${painter.question()} ${bold(message)} `);
-
-    if (input.isTTY) {
-      input.setRawMode(true);
-    }
-    input.resume();
 
     let password = '';
     let maskedDisplay = '';
@@ -533,7 +578,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
       else if (char === '\x03') {
         cleanup();
         output.write('\n');
-        process.exit(0);
+        reject(new PromptCancelledError());
       }
       // Regular character
       else {
@@ -550,11 +595,8 @@ export async function promptPassword(message: string, options: PasswordOptions =
 
     const cleanup = () => {
       input.removeListener('data', handleKeypress);
-      if (input.isTTY) {
-        input.setRawMode(false);
-      }
-      input.pause();
       decoder.end();
+      finishRawPrompt();
     };
 
     input.on('data', handleKeypress);
@@ -594,12 +636,10 @@ export async function promptCheckbox<T extends string>(
 
   let selectedIndex = 0;
   const selected = new Set<T>(defaultValues);
+  const finishRawPrompt = beginRawPrompt(true);
 
-  return new Promise((resolve) => {
-    output.write(HIDE_CURSOR);
+  return new Promise((resolve, reject) => {
     renderCheckbox(message, choices, selectedIndex, selected, painter);
-    input.setRawMode(true);
-    input.resume();
 
     const handleKeypress = (chunk: Buffer) => {
       const key = chunk.toString();
@@ -662,7 +702,7 @@ export async function promptCheckbox<T extends string>(
         cleanup();
         clearCheckbox(choices.length);
         output.write(`${painter.error()} Cancelled\n`);
-        process.exit(0);
+        reject(new PromptCancelledError());
       }
       // 'a' - select all
       else if (key === 'a') {
@@ -678,9 +718,7 @@ export async function promptCheckbox<T extends string>(
 
     const cleanup = () => {
       input.removeListener('data', handleKeypress);
-      input.setRawMode(false);
-      input.pause();
-      output.write(SHOW_CURSOR);
+      finishRawPrompt();
     };
 
     input.on('data', handleKeypress);
@@ -755,12 +793,10 @@ export async function promptAutocomplete<T extends string>(
   let selectedIndex = 0;
   let filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
   const decoder = new StringDecoder('utf8');
+  const finishRawPrompt = beginRawPrompt(true);
 
-  return new Promise((resolve) => {
-    output.write(HIDE_CURSOR);
+  return new Promise((resolve, reject) => {
     renderAutocomplete(message, query, filtered, selectedIndex, painter);
-    input.setRawMode(true);
-    input.resume();
 
     const handleKeypress = (chunk: Buffer) => {
       const key = decoder.write(chunk);
@@ -827,7 +863,7 @@ export async function promptAutocomplete<T extends string>(
         cleanup();
         clearAutocomplete(filtered.length || 1);
         output.write(`${painter.error()} Cancelled\n`);
-        process.exit(0);
+        reject(new PromptCancelledError());
       }
       // Regular character
       else {
@@ -844,10 +880,8 @@ export async function promptAutocomplete<T extends string>(
 
     const cleanup = () => {
       input.removeListener('data', handleKeypress);
-      input.setRawMode(false);
-      input.pause();
       decoder.end();
-      output.write(SHOW_CURSOR);
+      finishRawPrompt();
     };
 
     input.on('data', handleKeypress);

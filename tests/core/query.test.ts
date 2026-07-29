@@ -17,7 +17,7 @@ import {
   countMatches,
   hasMatch,
 } from '../../src/core/query.js';
-import type { VNode } from '../../src/utils/types.js';
+import type { VNode, VNodeType } from '../../src/utils/types.js';
 
 // Helper to create VNode
 function createNode(
@@ -25,7 +25,7 @@ function createNode(
   props: Record<string, any> = {},
   children: VNode[] = []
 ): VNode {
-  return { type, props, children };
+  return { type: type as VNodeType, props, children };
 }
 
 // Create a test tree
@@ -137,6 +137,15 @@ describe('Query API', () => {
       const results = queryAll(root, '.nonexistent');
       expect(results).toEqual([]);
     });
+
+    it('should honor includeText across simple and compound selectors', () => {
+      const root = createTestTree();
+
+      expect(queryAll(root, 'text', { includeText: false })).toEqual([]);
+      expect(queryAll(root, '#header > text', { includeText: false })).toEqual([]);
+      expect(queryAll(root, '*', { includeText: false }).every(node => node.type !== 'text')).toBe(true);
+      expect(queryAll(root, 'text', { includeText: true })).toHaveLength(6);
+    });
   });
 
   describe('queryResults()', () => {
@@ -218,15 +227,27 @@ describe('Query API', () => {
       expect(matches(node, '.primary.highlight')).toBe(true);
       expect(matches(node, '.primary.nonexistent')).toBe(false);
     });
+
+    it('should evaluate complex selectors when a tree root is provided', () => {
+      const root = createTestTree();
+      const title = query(root, '.title')!;
+
+      expect(matches(title, '#root > #header > .title', { root })).toBe(true);
+      expect(matches(title, '#content .title', { root })).toBe(false);
+    });
+
+    it('should reject complex selectors without the required tree context', () => {
+      const node = createNode('text', { className: 'title' });
+
+      expect(() => matches(node, 'box > .title')).toThrow(/context.root/);
+    });
   });
 
   describe('descendant combinator', () => {
     it('should find descendant by type', () => {
       const root = createTestTree();
       const results = queryAll(root, 'box text');
-      // Each box with text children contributes: header(2), items(3), footer(1) = 6
-      // But descendant finds ALL text under ALL boxes = can have duplicates
-      expect(results.length).toBeGreaterThan(0);
+      expect(results).toHaveLength(6);
       results.forEach(r => expect(r.type).toBe('text'));
     });
 
@@ -382,6 +403,14 @@ describe('Query API', () => {
       const label = query(root, '.label');
       const result = closest(label!, '.nonexistent', root);
       expect(result).toBeNull();
+    });
+
+    it('should preserve combinator semantics', () => {
+      const root = createTestTree();
+      const label = query(root, '.label')!;
+
+      expect(closest(label, '#content > .item', root)?.props.className).toContain('item');
+      expect(closest(label, '#header > .item', root)).toBeNull();
     });
   });
 

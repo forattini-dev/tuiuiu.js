@@ -75,6 +75,18 @@ describe('CommandPalette component', () => {
       expect(result).toBeDefined();
     });
 
+    it('should derive filtered items from items and query when omitted', () => {
+      const result = CommandPalette({
+        query: 'settings',
+        items: testItems,
+        selectedIndex: 0,
+      });
+      const output = stripAnsi(renderToString(result));
+
+      expect(output).toContain('Settings');
+      expect(output).not.toContain('Save File');
+    });
+
     it('should render with selected index', () => {
       const result = CommandPalette({
         ...defaultProps,

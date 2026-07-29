@@ -155,16 +155,18 @@ describe('Modal', () => {
         content: Text({}, 'Content'),
       }), 40));
 
-      expect(output.split('\n').every((line) => stringWidth(line) <= 20)).toBe(true);
+      // Modal owns the viewport now, so centered content may have leading
+      // columns; no rendered row may exceed the requested viewport.
+      expect(output.split('\n').every((line) => stringWidth(line) <= 40)).toBe(true);
       expect(output).not.toContain('\uFFFD');
     });
 
-    it('normalizes invalid custom dimensions and padding', () => {
+    it('rejects invalid custom dimensions and padding', () => {
       expect(() => renderOnce(Modal({
         size: { width: Number.NaN, height: -5 },
         padding: Number.POSITIVE_INFINITY,
         content: Text({}, 'Content'),
-      }), 20)).not.toThrow();
+      }), 20)).toThrow(RangeError);
     });
 
     it('should handle closeOnBackdrop', () => {
@@ -176,6 +178,75 @@ describe('Modal', () => {
         content: Text({}, 'Content'),
       });
       expect(node).toBeDefined();
+    });
+
+    it('builds a clickable full-viewport backdrop and a centered layer', () => {
+      const onClose = vi.fn();
+      const node = Modal({
+        backdrop: true,
+        backdropChar: '.',
+        closeOnBackdrop: true,
+        onClose,
+        content: Text({}, 'Content'),
+      });
+
+      expect(node.props).toMatchObject({
+        position: 'relative',
+        width: 'fill',
+        height: 'fill',
+      });
+      expect(node.children[0]?.props).toMatchObject({
+        position: 'absolute',
+        width: 'fill',
+        height: 'fill',
+        __fillChar: '.',
+      });
+      expect(node.children[1]?.props).toMatchObject({
+        alignItems: 'center',
+        justifyContent: 'center',
+      });
+
+      node.children[0]?.props.onClick();
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('uses top, bottom, and custom positions in the viewport layer', () => {
+      const top = Modal({
+        position: 'top',
+        backdrop: false,
+        content: Text({}, 'Top'),
+      });
+      const bottom = Modal({
+        position: 'bottom',
+        backdrop: false,
+        content: Text({}, 'Bottom'),
+      });
+      const custom = Modal({
+        position: { x: 7, y: 3 },
+        backdrop: false,
+        size: { width: 20, height: 6 },
+        content: Text({}, 'Custom'),
+      });
+
+      expect(top.children[0]?.props.justifyContent).toBe('flex-start');
+      expect(bottom.children[0]?.props.justifyContent).toBe('flex-end');
+      expect(custom.children[0]?.props).toMatchObject({
+        left: 7,
+        top: 3,
+        width: 20,
+        height: 6,
+      });
+    });
+
+    it('rejects invalid backdrop characters and positions', () => {
+      expect(() => Modal({
+        backdropChar: 'ab',
+        content: Text({}, 'Content'),
+      })).toThrow(/backdropChar/);
+      expect(() => Modal({
+        position: { x: -1, y: 0 },
+        content: Text({}, 'Content'),
+      })).toThrow(/position/);
     });
   });
 
@@ -281,6 +352,7 @@ describe('Modal', () => {
       expect(state.props).toBeDefined();
       expect(state.toggle).toBeDefined();
       expect(state.confirm).toBeDefined();
+      expect(state.activateSelected).toBeDefined();
       expect(state.cancel).toBeDefined();
     });
 
@@ -342,6 +414,24 @@ describe('Modal', () => {
       state.selectConfirm(); // Select confirm button first
       state.confirm();
       expect(onConfirm).toHaveBeenCalled();
+    });
+
+    it('activates the selected action with an unambiguous method', () => {
+      const onConfirm = vi.fn();
+      const onCancel = vi.fn();
+      const state = createConfirmDialog({
+        title: 'Test',
+        message: 'Test',
+        onConfirm,
+        onCancel,
+      });
+
+      state.activateSelected();
+      state.selectConfirm();
+      state.activateSelected();
+
+      expect(onCancel).toHaveBeenCalledOnce();
+      expect(onConfirm).toHaveBeenCalledOnce();
     });
 
     it('should call onCancel callback when cancel selected', () => {
@@ -412,13 +502,11 @@ describe('Modal', () => {
       expect(node).toBeDefined();
     });
 
-    it('should render with close button', () => {
-      const onClose = vi.fn();
+    it('should render without an icon', () => {
       const node = AlertBox({
         type: 'info',
         message: 'Info',
-        showClose: true,
-        onClose,
+        showIcon: false,
       });
       expect(node).toBeDefined();
     });
@@ -451,14 +539,16 @@ describe('Modal', () => {
       positions.forEach((position) => {
         const node = Toast({ type: 'info', message: 'Toast', position });
         expect(node).toBeDefined();
+        expect(node.props.position).toBe('absolute');
+        expect(position === 'top' ? node.props.top : node.props.bottom).toBe(0);
       });
     });
 
-    it('should accept duration', () => {
+    it('should support full-width layout', () => {
       const node = Toast({
         type: 'info',
         message: 'Toast',
-        duration: 3000,
+        fullWidth: true,
       });
       expect(node).toBeDefined();
     });
@@ -471,65 +561,72 @@ describe('Modal', () => {
     it('should render without errors', () => {
       const node = Window({
         title: 'Window Title',
-        content: Text({}, 'Window content'),
-        x: 5,
-        y: 5,
+        children: Text({}, 'Window content'),
         width: 40,
         height: 10,
       });
       expect(node).toBeDefined();
     });
 
-    it('should render with different border styles', () => {
+    it('should render with a custom color', () => {
       const node = Window({
         title: 'Window',
-        content: Text({}, 'Content'),
-        x: 0,
-        y: 0,
+        children: Text({}, 'Content'),
         width: 30,
         height: 10,
-        borderStyle: 'double',
+        color: 'cyan',
       });
       expect(node).toBeDefined();
     });
 
-    it('should render as active', () => {
+    it('should render a primary variant', () => {
       const node = Window({
         title: 'Active Window',
-        content: Text({}, 'Content'),
-        x: 0,
-        y: 0,
+        children: Text({}, 'Content'),
         width: 30,
         height: 10,
-        isActive: true,
+        variant: 'primary',
       });
       expect(node).toBeDefined();
     });
 
-    it('should render as inactive', () => {
+    it('should render a danger variant', () => {
       const node = Window({
         title: 'Inactive Window',
-        content: Text({}, 'Content'),
-        x: 0,
-        y: 0,
+        children: Text({}, 'Content'),
         width: 30,
         height: 10,
-        isActive: false,
+        variant: 'danger',
       });
       expect(node).toBeDefined();
     });
 
-    it('should render with status bar', () => {
+    it('should render title-bar controls', () => {
       const node = Window({
         title: 'Window',
-        content: Text({}, 'Content'),
-        x: 0,
-        y: 0,
+        children: Text({}, 'Content'),
         width: 30,
         height: 10,
-        statusBar: 'Status: Ready',
+        showMinimize: true,
+        showMaximize: true,
       });
       expect(node).toBeDefined();
+    });
+
+    it('wires the visible close control to onClose', () => {
+      const onClose = vi.fn();
+      const node = Window({
+        title: 'Closable',
+        children: Text({}, 'Content'),
+        onClose,
+      });
+      const titleBar = node.children[0]!;
+      const buttons = titleBar.children[1]!;
+      const closeButton = buttons.children[0]!;
+
+      expect(closeButton.props['aria-label']).toBe('Close window');
+      closeButton.props.onClick?.({} as never);
+      expect(onClose).toHaveBeenCalledOnce();
     });
   });
 });

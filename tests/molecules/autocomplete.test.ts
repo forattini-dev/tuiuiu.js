@@ -516,8 +516,8 @@ describe('Autocomplete Component', () => {
   it('should apply custom colors', () => {
     const vnode = Autocomplete({
       items: sampleItems,
-      activeColor: 'cyan',
-      selectedColor: 'green',
+      colorActive: 'cyan',
+      colorSelected: 'green',
     });
 
     expect(vnode).toBeDefined();
@@ -731,11 +731,29 @@ describe('TagInput Component', () => {
   it('should apply custom colors', () => {
     const vnode = TagInput({
       items: sampleItems,
-      tagColor: 'cyan',
-      activeColor: 'yellow',
+      colorTag: 'cyan',
+      colorActive: 'yellow',
     });
 
     expect(vnode).toBeDefined();
+  });
+
+  it('should highlight the selected suggestion instead of always the first', () => {
+    const state = createTagInput({ items: sampleItems });
+    state.setInput('a');
+    state.selectNext();
+
+    const vnode = TagInput({
+      items: sampleItems,
+      state,
+      colorActive: 'yellow',
+    });
+    const suggestions = vnode.children[1] as any;
+    const firstSuggestionText = suggestions.children[0].children[0];
+    const secondSuggestionText = suggestions.children[1].children[0];
+
+    expect(firstSuggestionText.props.color).toBe('mutedForeground');
+    expect(secondSuggestionText.props.color).toBe('yellow');
   });
 });
 

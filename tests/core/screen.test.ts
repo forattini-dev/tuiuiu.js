@@ -241,6 +241,23 @@ describe('Screen Manager', () => {
       expect(manager.stackSize).toBe(1);
       expect(manager.current?.id).toBe(newScreen.id);
     });
+
+    it('exits only the active screen while discarding inactive history', async () => {
+      const manager = createScreenManager({ transitionDuration: 0 });
+      const homeExit = vi.fn();
+      const settingsExit = vi.fn();
+      const home = createScreen(HomeScreen, { onExit: homeExit });
+      const settings = createScreen(SettingsScreen, { onExit: settingsExit });
+      await manager.push(home);
+      await manager.push(settings);
+      homeExit.mockClear();
+      settingsExit.mockClear();
+
+      await manager.reset(createScreen(ProfileScreen));
+
+      expect(homeExit).not.toHaveBeenCalled();
+      expect(settingsExit).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Lifecycle events', () => {
@@ -580,6 +597,63 @@ describe('Screen Manager', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('acquires the navigation lock before awaiting guards', async () => {
+      let releaseGuard: (() => void) | undefined;
+      const guard = new Promise<void>((resolve) => {
+        releaseGuard = resolve;
+      });
+      const manager = createScreenManager({ transitionDuration: 0 });
+      await manager.push(createScreen(HomeScreen));
+      const slow = createScreen(SettingsScreen, {
+        onBeforeEnter: async () => {
+          await guard;
+          return true;
+        },
+      });
+
+      const firstPush = manager.push(slow);
+      const secondResult = await manager.push(createScreen(ProfileScreen));
+      releaseGuard?.();
+
+      expect(secondResult).toBe(false);
+      await expect(firstPush).resolves.toBe(true);
+      expect(manager.screenStack.map(entry => entry.screen.id)).toEqual([
+        expect.any(String),
+        slow.id,
+      ]);
+      expect(manager.current?.id).toBe(slow.id);
+    });
+
+    it('always releases the navigation lock after a lifecycle exception', async () => {
+      const manager = createScreenManager({ transitionDuration: 0 });
+      await manager.push(createScreen(HomeScreen));
+      const broken = createScreen(SettingsScreen, {
+        onEnter: () => {
+          throw new Error('screen enter failed');
+        },
+      });
+
+      await expect(manager.push(broken)).rejects.toThrow('screen enter failed');
+
+      expect(manager.isTransitioning).toBe(false);
+      expect(manager.currentTransitionDirection).toBe('none');
+      await expect(manager.replace(createScreen(ProfileScreen))).resolves.toBe(true);
+    });
+
+    it('respects guards while popping to the root', async () => {
+      const manager = createScreenManager({ transitionDuration: 0 });
+      const home = createScreen(HomeScreen);
+      const guarded = createScreen(SettingsScreen, {
+        onBeforeExit: () => false,
+      });
+      await manager.push(home);
+      await manager.push(guarded);
+
+      await expect(manager.popToRoot()).resolves.toBe(false);
+      expect(manager.current?.id).toBe(guarded.id);
+      expect(manager.stackSize).toBe(2);
     });
   });
 });

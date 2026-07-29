@@ -245,10 +245,6 @@ export class Parser {
     return this.tokens[this.current];
   }
 
-  private peekNext(): Token | undefined {
-    return this.tokens[this.current + 1];
-  }
-
   private previous(): Token {
     return this.tokens[this.current - 1];
   }
@@ -267,12 +263,6 @@ export class Parser {
   private check(type: TokenType): boolean {
     if (this.isAtEnd()) return false;
     return this.peek().type === type;
-  }
-
-  private checkValue(type: TokenType, value: string): boolean {
-    if (this.isAtEnd()) return false;
-    const token = this.peek();
-    return token.type === type && token.value === value;
   }
 
   private match(...types: TokenType[]): boolean {

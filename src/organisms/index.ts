@@ -85,6 +85,7 @@ export {
   createCriticalOverlay,
   // Types
   type OverlayPriority,
+  type OverlayPosition,
   type OverlayConfig,
   type OverlayEntry,
   type OverlayStackState,

@@ -32,7 +32,7 @@
  */
 
 import type { VNode, BoxStyle } from '../utils/types.js';
-import { Box, Text } from '../primitives/nodes.js';
+import { Box } from '../primitives/nodes.js';
 
 // =============================================================================
 // Types
@@ -131,9 +131,9 @@ export interface GridItemOptions {
   /** Named area to place in */
   area?: string;
   /** Starting column (1-based) */
-  column?: number | `${number} / ${number}` | `span ${number}`;
+  column?: number | `${number} / ${number}` | `span ${number}` | `${number} / span ${number}`;
   /** Starting row (1-based) */
-  row?: number | `${number} / ${number}` | `span ${number}`;
+  row?: number | `${number} / ${number}` | `span ${number}` | `${number} / span ${number}`;
   /** Column span */
   columnSpan?: number;
   /** Row span */
@@ -396,12 +396,16 @@ function parseLineSpec(
   defaultStart: number,
   trackCount: number
 ): { start: number; end: number } {
+  const resolveLine = (line: number): number =>
+    line < 0 ? trackCount + 2 + line : line;
+
   if (spec === undefined) {
     return { start: defaultStart, end: defaultStart + 1 };
   }
 
   if (typeof spec === 'number') {
-    return { start: spec, end: spec + 1 };
+    const start = resolveLine(spec);
+    return { start, end: start + 1 };
   }
 
   // Handle 'span N'
@@ -412,18 +416,18 @@ function parseLineSpec(
   }
 
   // Handle 'start / end'
-  const rangeMatch = spec.match(/^(\d+)\s*\/\s*(\d+)$/);
+  const rangeMatch = spec.match(/^(-?\d+)\s*\/\s*(-?\d+)$/);
   if (rangeMatch) {
     return {
-      start: parseInt(rangeMatch[1]!, 10),
-      end: parseInt(rangeMatch[2]!, 10),
+      start: resolveLine(parseInt(rangeMatch[1]!, 10)),
+      end: resolveLine(parseInt(rangeMatch[2]!, 10)),
     };
   }
 
   // Handle 'start / span N'
-  const startSpanMatch = spec.match(/^(\d+)\s*\/\s*span\s+(\d+)$/);
+  const startSpanMatch = spec.match(/^(-?\d+)\s*\/\s*span\s+(\d+)$/);
   if (startSpanMatch) {
-    const start = parseInt(startSpanMatch[1]!, 10);
+    const start = resolveLine(parseInt(startSpanMatch[1]!, 10));
     const span = parseInt(startSpanMatch[2]!, 10);
     return { start, end: start + span };
   }
@@ -718,7 +722,6 @@ export function Grid(options: GridOptions, ...children: (VNode | null)[]): VNode
 
       // Add spacer for gap before this cell
       if (position.column > currentCol) {
-        const gapCols = position.column - currentCol;
         let spacerWidth = 0;
         for (let c = currentCol; c < position.column; c++) {
           spacerWidth += layout.columnSizes[c - 1] || 0;

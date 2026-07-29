@@ -16,6 +16,8 @@ import type {
   BoxStyle 
 } from '../utils/types.js';
 import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
+import { isRenderingHooks } from '../hooks/context.js';
+import { useConst } from '../hooks/use-const.js';
 
 /**
  * Normalize children into VNode array
@@ -100,9 +102,13 @@ export function Spacer(props: SpacerProps = {}): VNode {
  * Newline({ count: 2 })
  */
 export function Newline(props: NewlineProps = {}): VNode {
+  const count = props.count ?? 1;
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new RangeError('Newline count must be a non-negative safe integer');
+  }
   return {
     type: 'newline',
-    props: { count: props.count ?? 1 },
+    props: { count },
     children: [],
   };
 }
@@ -132,7 +138,7 @@ export function Fragment(...children: TuiChild[]): VNode {
  *   Text({}, 'Loading...')
  * )
  */
-export function When(condition: boolean, ...children: TuiChild[]): VNode | null {
+export function When(condition: unknown, ...children: TuiChild[]): VNode | null {
   if (!condition) return null as any;
   return Fragment(...children);
 }
@@ -174,14 +180,36 @@ export interface TransformProps extends BoxStyle {
 
 export function Transform(props: TransformProps, ...children: TuiChild[]): VNode {
   const { transform, accessibilityLabel, ...boxProps } = props;
+  if (typeof transform !== 'function') {
+    throw new TypeError('Transform requires a transform function');
+  }
+  let lineIndex = 0;
+  const transformNode = (node: VNode): VNode => {
+    if (node.type === 'text') {
+      const lines = String(node.props.children ?? '').split('\n');
+      const transformed = lines.map(line => transform(line, lineIndex++)).join('\n');
+      return {
+        ...node,
+        props: { ...node.props, children: transformed },
+      };
+    }
+    return {
+      ...node,
+      props: { ...node.props },
+      children: node.children.map(transformNode),
+    };
+  };
+  const content = normalizeChildren(
+    children.length > 0 ? children : props.children
+  ).map(transformNode);
+
   return {
     type: 'box',
     props: {
       ...boxProps,
-      __transform: transform,
-      __accessibilityLabel: accessibilityLabel,
+      ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}),
     },
-    children: normalizeChildren(children.length > 0 ? children : props.children),
+    children: content,
   };
 }
 
@@ -207,6 +235,16 @@ export interface StaticProps<T> {
   children: (item: T, index: number) => VNode;
   /** Optional styles for the container */
   style?: BoxStyle;
+  /** Stable component identity when output must survive remounts */
+  id?: string;
+  /** Stable append-only identity for each item (defaults to its index) */
+  getKey?: (item: T, index: number) => string | number;
+}
+
+let nextStaticInstanceId = 1;
+
+function normalizeStaticKey(key: string | number): string {
+  return `${typeof key}:${String(key)}`;
 }
 
 export function Static<T>(props: StaticProps<T>): VNode {
@@ -217,19 +255,46 @@ export function Static<T>(props: StaticProps<T>): VNode {
     '`Static({ items, children: (item, index) => Row(item) })`',
   );
 
-  const { items, children: render, style = {} } = props;
+  const {
+    items,
+    children: render,
+    style = {},
+    id,
+    getKey = (_item: T, index: number) => index,
+  } = props;
+  const state = isRenderingHooks()
+    ? useConst(() => ({
+        instanceId: nextStaticInstanceId++,
+        emittedKeys: new Set<string>(),
+      }))
+    : {
+        instanceId: nextStaticInstanceId++,
+        emittedKeys: new Set<string>(),
+      };
+  const keys = items.map((item, index) =>
+    normalizeStaticKey(getKey(item, index))
+  );
+  if (new Set(keys).size !== keys.length) {
+    throw new Error('Static item keys must be unique');
+  }
 
-  const renderedItems = items.map((item, index) => render(item, index));
+  const pending = items
+    .map((item, index) => ({ item, index, key: keys[index]! }))
+    .filter(entry => !state.emittedKeys.has(entry.key));
+  const renderedItems = pending.map(entry => render(entry.item, entry.index));
+  for (const entry of pending) state.emittedKeys.add(entry.key);
+  const identity = id ?? `static-instance-${state.instanceId}`;
+  const batchIdentity = pending.length > 0
+    ? pending.map(entry => entry.key).join('|')
+    : 'empty';
 
-  // Static content occupies space in the normal flow (above dynamic content)
-  // It's rendered as a regular column box, not absolute positioned,
-  // so it pushes dynamic content below it.
   return {
     type: 'box',
     props: {
       ...style,
       flexDirection: 'column',
       __static: true,
+      __staticId: `${identity}:${batchIdentity}`,
     },
     children: renderedItems,
   };

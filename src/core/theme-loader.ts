@@ -45,6 +45,29 @@ export interface ThemeDefinition {
   borderRadius?: BorderRadius;
 }
 
+type DeepPartial<T> = {
+  [Key in keyof T]?: T[Key] extends object ? DeepPartial<T[Key]> : T[Key];
+};
+
+/**
+ * Theme fields that can be safely overlaid by mergeThemes().
+ * Palette scales are replaced atomically; token groups are merged deeply.
+ */
+export interface ThemeOverrides {
+  name?: string;
+  mode?: ThemeMode;
+  meta?: Partial<ThemeMeta>;
+  palette?: ThemePalette;
+  background?: Partial<ThemeBackground>;
+  foreground?: DeepPartial<ThemeForeground>;
+  accents?: Partial<ThemeAccent>;
+  states?: DeepPartial<ThemeStates>;
+  borders?: Partial<ThemeBorders>;
+  opacity?: Partial<ThemeOpacity>;
+  components?: DeepPartial<ComponentTokens>;
+  borderRadius?: BorderRadius;
+}
+
 /**
  * Define a theme with full type checking.
  *
@@ -98,7 +121,7 @@ export function shade(scale: ColorScale, value: keyof ColorScale = 500): string 
  */
 export function mergeThemes(
   base: Theme,
-  overrides: Partial<ThemeDefinition>
+  overrides: ThemeOverrides
 ): Theme {
   return {
     name: overrides.name ?? base.name,
@@ -143,7 +166,7 @@ export function mergeThemes(
  */
 function mergeComponents(
   base: ComponentTokens,
-  overrides?: Partial<ComponentTokens>
+  overrides?: DeepPartial<ComponentTokens>
 ): ComponentTokens {
   if (!overrides) return base;
 

@@ -75,14 +75,9 @@ function storybookReducer(state: StorybookState = initialState, action: Storyboo
         newLogs.shift(); // Remove oldest
       }
 
-      // Auto-open on error if desired, or keep current state
-      const shouldOpen = action.payload.level === 'error' ? true : state.isLogOpen;
-
       return {
         ...state,
         logs: newLogs,
-        // Uncomment to auto-open on error:
-        // isLogOpen: shouldOpen
       };
     }
 

@@ -20,11 +20,8 @@ describe('layout primitives', () => {
     const sidebarNode = Sidebar({});
     const panelNode = Panel({});
 
-    const termWidth = process.stdout.columns || 80;
-    const termHeight = process.stdout.rows || 24;
-
-    expect(screenNode.props.width).toBe(termWidth);
-    expect(screenNode.props.height).toBe(termHeight);
+    expect(screenNode.props.width).toBe('fill');
+    expect(screenNode.props.height).toBe('fill');
     expect(headerNode.props.height).toBe('auto');
     expect(headerNode.props.width).toBe('fill');
     expect(mainNode.props.height).toBe('fill');

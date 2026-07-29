@@ -17,7 +17,7 @@
 
 import { createContext, useContext, hasContext } from '../primitives/context.js';
 import type { FocusManager } from './types.js';
-import { FocusZoneManagerAdapter } from './use-focus.js';
+import { FocusZoneManagerAdapter } from './focus-adapter.js';
 
 /**
  * Context for focus management

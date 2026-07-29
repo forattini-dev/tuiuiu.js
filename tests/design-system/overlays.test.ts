@@ -110,7 +110,8 @@ describe('Overlay Components', () => {
       const node = Modal({
         title: 'Hint',
         content: Text({}, 'Content'),
-        hint: 'Press ESC to close',
+        showCloseHint: true,
+        closeHint: 'Press ESC to close',
       });
       const output = renderToString(node, 80);
       expect(output).toContain('Press ESC');

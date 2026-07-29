@@ -21,11 +21,20 @@ export {
   createDebounced,
 } from './signal.js';
 
+export type {
+  DisposableAccessor,
+  EffectOptions,
+  EffectScheduler,
+} from './signal.js';
+
 export {
   createContext,
   useContext,
   hasContext,
+  withContext,
   type Context,
+  type ContextChild,
+  type ContextRenderResult,
   type ContextProviderProps,
 } from './context.js';
 
@@ -42,6 +51,8 @@ export {
   // Internal (not re-exported from main index)
   isReactiveVNode,
   refreshReactiveVNode,
+  refreshReactiveVNodes,
+  disposeReactiveVNodes,
   isMemoVNode,
   refreshMemoVNode,
 } from './computed-node.js';

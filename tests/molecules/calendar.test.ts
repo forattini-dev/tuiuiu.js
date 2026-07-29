@@ -526,6 +526,27 @@ describe('Calendar', () => {
       expect(output).toMatch(/[•*]/);
     });
 
+    it('should apply colorEvent and expose event labels on the indicator', () => {
+      const node = Calendar({
+        initialDate: new Date(2024, 5, 15),
+        events: [{ date: '2024-06-15', label: 'Release' }],
+        colorEvent: 'magenta',
+      });
+      const visit = (value: any): any => {
+        if (!value || typeof value !== 'object') return undefined;
+        if (value.props?.['aria-label'] === 'Release') return value;
+        for (const child of value.children ?? []) {
+          const match = visit(child);
+          if (match) return match;
+        }
+        return undefined;
+      };
+
+      const indicator = visit(node);
+      expect(indicator).toBeDefined();
+      expect(indicator.props.color).toBe('magenta');
+    });
+
     it('should handle isActive=false', () => {
       const node = Calendar({ isActive: false });
       expect(node).toBeDefined();
@@ -599,6 +620,16 @@ describe('Calendar', () => {
     it('should format single selected date', () => {
       state.selectCursor();
       expect(state.formattedValue()).toBe('2024-06-15');
+    });
+
+    it('should honor the configured display format', () => {
+      state = createDatePicker({
+        initialDate: fixedDate,
+        format: 'DD/MM/YYYY',
+      });
+      state.selectCursor();
+
+      expect(state.formattedValue()).toBe('15/06/2024');
     });
 
     it('should format date range', () => {

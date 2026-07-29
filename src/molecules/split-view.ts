@@ -294,7 +294,6 @@ export function SplitView<T>(props: SplitViewProps<T>): VNode {
 
   // Get current values
   const items = internalState.items();
-  const selectedIdx = internalState.selectedIndex();
   const selectedItem = internalState.selectedItem();
 
   // Calculate dimensions

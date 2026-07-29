@@ -45,6 +45,7 @@ export function createTerminalSession(
   const initialRawMode = Boolean(stdin.isRaw);
   const inputWasPaused =
     typeof stdin.isPaused === 'function' && stdin.isPaused();
+  const outputSupportsTerminalModes = Boolean(stdout.isTTY);
 
   let started = false;
   let isDisposed = false;
@@ -81,8 +82,8 @@ export function createTerminalSession(
 
     setRawMode(true);
     stdin.resume();
-    if (focusEvents) write(enableFocusEvents());
-    if (bracketedPaste) write(enableBracketedPaste());
+    if (outputSupportsTerminalModes && focusEvents) write(enableFocusEvents());
+    if (outputSupportsTerminalModes && bracketedPaste) write(enableBracketedPaste());
   };
 
   const dispose = (): void => {
@@ -110,8 +111,12 @@ export function createTerminalSession(
         stdin.pause();
       }
     });
-    if (focusEvents) attempt(() => write(disableFocusEvents()));
-    if (bracketedPaste) attempt(() => write(disableBracketedPaste()));
+    if (outputSupportsTerminalModes && focusEvents) {
+      attempt(() => write(disableFocusEvents()));
+    }
+    if (outputSupportsTerminalModes && bracketedPaste) {
+      attempt(() => write(disableBracketedPaste()));
+    }
 
     if (firstError) {
       throw firstError;

@@ -772,6 +772,7 @@ export {
   // Solver
   ConstraintSolver,
   ConstraintLayoutManager,
+  UnsatisfiedConstraintError,
   Solver,
 } from './constraint.js';
 
@@ -785,6 +786,8 @@ export type {
   ConstraintSolution,
   ConstraintElement,
   ConstraintLayoutOptions,
+  ConstraintLayout,
+  ConstraintLayoutResult,
 } from './constraint.js';
 
 // Hotkeys & Input Processing
@@ -1053,6 +1056,7 @@ export {
 export type {
   QueryOptions,
   QueryResult,
+  MatchContext,
   SelectorPart,
   ParsedSelector,
   Combinator,

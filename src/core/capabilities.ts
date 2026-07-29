@@ -8,7 +8,11 @@
 import { createSignal, untrack } from '../primitives/signal.js';
 import type { TerminalProfile, MultiplexerInfo, NotificationProtocol } from './terminal-profile.js';
 import { detectTerminalProfile, detectMultiplexer } from './terminal-profile.js';
-import { getProgressiveOverrides, getProgressiveVersion, hasNerdFonts } from './progressive.js';
+import {
+  getProgressiveOverrides,
+  getProgressiveVersion,
+  hasNerdFonts,
+} from './progressive-state.js';
 import {
   getRuntimeResource,
   getDefaultRuntimeResource,

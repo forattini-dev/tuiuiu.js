@@ -217,6 +217,7 @@ export type {
   UseCompositorResult,
   SlideOptions,
   FadeOptions,
+  ScaleOptions,
   ShimmerOptions,
   SpringMotionOptions,
   RevealOptions,
@@ -266,6 +267,9 @@ export type {
   Middleware,
   PersistedStoreOptions,
   PersistOptions,
+  PersistController,
+  PersistMiddleware,
+  PersistedStore,
   SyncStorageAdapter,
 } from './primitives/store.js';
 
@@ -291,6 +295,11 @@ export {
   Subtitle,
   Caption,
   Label,
+  // Tree-scoped context
+  createContext,
+  useContext,
+  hasContext,
+  withContext,
   // Fine-grained reactive nodes
   Computed,
   ComputedText,
@@ -330,6 +339,13 @@ export {
 } from './primitives/index.js';
 
 export type {
+  DisposableAccessor,
+  EffectOptions,
+  EffectScheduler,
+  Context,
+  ContextChild,
+  ContextRenderResult,
+  ContextProviderProps,
   TransformProps,
   StaticProps,
   AppendListProps,
@@ -779,6 +795,8 @@ export {
   createThreadBus,
   createTaskBridge,
   createTaskBridgePool,
+  THREAD_BUS_EVENT_KIND,
+  THREAD_BUS_TASK_TYPE,
   createDebounced as debouncedFn,
   createThrottled as throttledFn,
   createNodeFsStorage,
@@ -802,6 +820,7 @@ export type {
   LogUpdate,
   LogUpdateOptions,
   BackgroundExecutor,
+  BackgroundExecutorState,
   BackgroundTaskError,
   BackgroundTaskEvent,
   BackgroundTaskEventListener,
@@ -812,8 +831,6 @@ export type {
   BackgroundTaskRequest,
   BackgroundTaskResult,
   InterThreadBusMessage,
-  THREAD_BUS_EVENT_KIND,
-  THREAD_BUS_TASK_TYPE,
   TaskBridge,
   TaskBridgePoolOptions,
   TaskBridgePoolScheduler,
@@ -1017,6 +1034,7 @@ export {
   // Solver
   ConstraintSolver,
   ConstraintLayoutManager,
+  UnsatisfiedConstraintError,
   Solver,
 } from './core/index.js';
 
@@ -1028,6 +1046,8 @@ export type {
   ConstraintElement,
   ConstraintSolution,
   ConstraintLayoutOptions,
+  ConstraintLayout,
+  ConstraintLayoutResult,
 } from './core/index.js';
 
 // =============================================================================
@@ -1508,6 +1528,8 @@ export {
   setPromptTheme,
   getPromptTheme,
   resetPromptTheme,
+  PromptCancelledError,
+  PromptBusyError,
   type PromptTheme,
   type PromptThemeOptions,
   type PromptAppearanceOptions,

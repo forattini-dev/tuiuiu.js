@@ -9,6 +9,9 @@
  */
 
 import { createSignal } from '../primitives/signal.js';
+import { isRenderingHooks } from '../hooks/context.js';
+import { useConst } from '../hooks/use-const.js';
+import { useEffect } from '../hooks/use-effect.js';
 import {
   deleteRuntimeResource,
   getDefaultRuntimeResource,
@@ -19,7 +22,6 @@ import {
 import {
   createHarmonicaSpring,
   useAnimation,
-  easingFunctions,
   lerp,
   type HarmonicaSpringOptions,
   type EasingName,
@@ -273,10 +275,13 @@ export function calculateTransitionOffsets(
   width: number,
   height: number
 ): TransitionOffsets {
-  const { progress, type, direction } = state;
-
-  // For backward navigation, we often want to reverse the visual effect
-  const effectiveProgress = progress;
+  const { type } = state;
+  // Transition types are absolute visual directions. Navigation direction is
+  // metadata and is used by ScreenTransitionManager to select the forward or
+  // backward configuration; it does not silently invert an explicit type.
+  const effectiveProgress = Number.isFinite(state.progress)
+    ? Math.max(0, Math.min(1, state.progress))
+    : 0;
 
   // Default: no offset
   const offsets: TransitionOffsets = {
@@ -387,6 +392,7 @@ export class ScreenTransitionManager {
   private spring: ReturnType<typeof createHarmonicaSpring> | null = null;
   private frameCallback: TransitionFrameCallback | null = null;
   private completeCallback: (() => void) | null = null;
+  private pendingResolve: (() => void) | null = null;
 
   constructor(options: ScreenTransitionManagerOptions = {}) {
     this.width = options.width ?? 80;
@@ -496,6 +502,16 @@ export class ScreenTransitionManager {
     this.frameCallback = onFrame ?? null;
 
     return new Promise<void>((resolve) => {
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (this.pendingResolve === settle) {
+          this.pendingResolve = null;
+        }
+        resolve();
+      };
+      this.pendingResolve = settle;
       this.completeCallback = () => {
         this._state[1]((prev) => ({
           ...prev,
@@ -505,7 +521,8 @@ export class ScreenTransitionManager {
         this.animation = null;
         this.spring = null;
         this.frameCallback = null;
-        resolve();
+        this.completeCallback = null;
+        settle();
       };
 
       const updateProgress = (progress: number) => {
@@ -553,6 +570,9 @@ export class ScreenTransitionManager {
    * Stop the current transition
    */
   stop(): void {
+    const settlePending = this.pendingResolve;
+    this.pendingResolve = null;
+
     if (this.animation) {
       this.animation.stop();
       this.animation = null;
@@ -572,6 +592,7 @@ export class ScreenTransitionManager {
 
     this.frameCallback = null;
     this.completeCallback = null;
+    settlePending?.();
   }
 
   /**
@@ -729,8 +750,11 @@ export function applyVerticalOffset(
  * This is a simplified terminal approximation of opacity
  */
 export function applyOpacity(content: string, opacity: number): string {
-  if (opacity >= 1) return content;
-  if (opacity <= 0) {
+  const normalizedOpacity = Number.isFinite(opacity)
+    ? Math.max(0, Math.min(1, opacity))
+    : 0;
+  if (normalizedOpacity >= 1) return content;
+  if (normalizedOpacity <= 0) {
     // Return empty lines preserving structure
     return content
       .split('\n')
@@ -738,11 +762,60 @@ export function applyOpacity(content: string, opacity: number): string {
       .join('\n');
   }
 
-  // For terminals, we approximate opacity by dimming
-  // At 50% opacity, we could use dim ANSI codes
-  // This is a simplified version that just returns content
-  // Real implementation would use ANSI dim codes or color interpolation
-  return content;
+  // Terminals do not support alpha. Dim is the stable, capability-independent
+  // approximation; compositeScreens adds ordered dithering between both
+  // screens so intermediate progress remains visibly progressive.
+  return content
+    .split('\n')
+    .map((line) => line.length > 0 ? `\x1b[2m${line}\x1b[22m` : line)
+    .join('\n');
+}
+
+/**
+ * Approximate scale in a cell grid by revealing a centered rectangle.
+ *
+ * Terminal glyphs cannot be geometrically resized, so clipping is preferable
+ * to pretending that a font scale exists. The returned frame preserves the
+ * requested viewport dimensions.
+ */
+export function applyScale(
+  content: string,
+  scale: number,
+  width: number,
+  height: number,
+): string {
+  if (!Number.isSafeInteger(width) || width < 0) {
+    throw new RangeError('Scale width must be a non-negative safe integer');
+  }
+  if (!Number.isSafeInteger(height) || height < 0) {
+    throw new RangeError('Scale height must be a non-negative safe integer');
+  }
+  const normalizedScale = Number.isFinite(scale)
+    ? Math.max(0, Math.min(1, scale))
+    : 0;
+  const sourceLines = content.split('\n').slice(0, height);
+  while (sourceLines.length < height) sourceLines.push('');
+  if (normalizedScale >= 1) {
+    return sourceLines.join('\n');
+  }
+
+  const visibleWidth = Math.max(0, Math.round(width * normalizedScale));
+  const visibleHeight = Math.max(0, Math.round(height * normalizedScale));
+  const left = Math.floor((width - visibleWidth) / 2);
+  const top = Math.floor((height - visibleHeight) / 2);
+  const bottom = top + visibleHeight;
+
+  return sourceLines.map((line, row) => {
+    if (row < top || row >= bottom || visibleWidth === 0) {
+      return ' '.repeat(width);
+    }
+    const clipped = sliceAnsi(line, left, left + visibleWidth);
+    return (
+      ' '.repeat(left)
+      + padTextToWidth(clipped, visibleWidth)
+      + ' '.repeat(Math.max(0, width - left - visibleWidth))
+    );
+  }).join('\n');
 }
 
 /**
@@ -759,6 +832,18 @@ export function compositeScreens(
   // Apply offsets to each screen's content
   let fromRendered = fromContent;
   let toRendered = toContent;
+
+  if (offsets.from.scale !== 1) {
+    fromRendered = applyScale(
+      fromRendered,
+      offsets.from.scale,
+      width,
+      height,
+    );
+  }
+  if (offsets.to.scale !== 1) {
+    toRendered = applyScale(toRendered, offsets.to.scale, width, height);
+  }
 
   // Apply horizontal/vertical offsets
   if (offsets.from.y !== 0) {
@@ -794,14 +879,71 @@ export function compositeScreens(
       // During vertical transition, both are shifted - show the visible parts
       result.push(toLine || fromLine);
     }
-    // For fade, crossfade based on opacity
+    // For fade/scale, use cell-level ordered dithering. This avoids the old
+    // abrupt switch at 50% while remaining deterministic across terminals.
     else {
-      // At opacity threshold, switch from 'from' to 'to'
-      result.push(offsets.to.opacity > 0.5 ? toLine : fromLine);
+      result.push(compositeLineDithered(
+        fromLine,
+        toLine,
+        offsets.to.opacity,
+        width,
+        i,
+      ));
     }
   }
 
   return result.slice(0, height).join('\n');
+}
+
+const DITHER_4X4 = [
+  0, 8, 2, 10,
+  12, 4, 14, 6,
+  3, 11, 1, 9,
+  15, 7, 13, 5,
+] as const;
+
+function compositeLineDithered(
+  fromLine: string,
+  toLine: string,
+  toOpacity: number,
+  width: number,
+  row: number,
+): string {
+  const opacity = Number.isFinite(toOpacity)
+    ? Math.max(0, Math.min(1, toOpacity))
+    : 0;
+  if (opacity <= 0) return fromLine;
+  if (opacity >= 1) return toLine;
+
+  const fromCells = lineToCompositeCells(fromLine);
+  const toCells = lineToCompositeCells(toLine);
+  const contentWidth = Math.min(
+    width,
+    Math.max(fromCells.length, toCells.length),
+  );
+  const result: string[] = [];
+  let x = 0;
+
+  while (x < contentWidth) {
+    const threshold = (
+      DITHER_4X4[(row % 4) * 4 + (x % 4)]! + 0.5
+    ) / 16;
+    const preferTo = opacity >= threshold;
+    const primary = preferTo ? toCells[x] : fromCells[x];
+    const fallback = preferTo ? fromCells[x] : toCells[x];
+    const chosen = primary ?? fallback;
+
+    if (chosen && x + chosen.width <= width) {
+      result.push(chosen.text);
+      x += chosen.width;
+      continue;
+    }
+
+    result.push(' ');
+    x++;
+  }
+
+  return result.join('').trimEnd();
 }
 
 /**
@@ -926,9 +1068,13 @@ function lineToCompositeCells(
  * ```
  */
 export function useScreenTransition(options: ScreenTransitionManagerOptions = {}) {
-  const manager = createScreenTransitionManager(options);
+  const manager = isRenderingHooks()
+    ? useConst(() => createScreenTransitionManager(options))
+    : createScreenTransitionManager(options);
 
-  const [_content, setContent] = createSignal('');
+  if (isRenderingHooks()) {
+    useEffect(() => () => manager.stop());
+  }
 
   const run = async (
     from: Screen | null,

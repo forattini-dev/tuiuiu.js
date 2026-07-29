@@ -273,12 +273,13 @@ function assertLocalMarkdownLinksResolve(): void {
 function assertStorybookCoverageIsCurrent(): void {
   const result = buildStorybookCoverageDocument();
   const current = readFileSync(path.join(rootDir, 'docs', 'core', 'storybook-coverage.md'), 'utf8');
+  const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n');
 
   if (result.unresolved.length > 0) {
     fail(`Storybook coverage is incomplete:\n- ${result.unresolved.join('\n- ')}`);
   }
 
-  if (current !== result.content) {
+  if (normalizeNewlines(current) !== normalizeNewlines(result.content)) {
     fail('Storybook coverage checklist is out of date. Run `pnpm storybook:coverage`.');
   }
 }

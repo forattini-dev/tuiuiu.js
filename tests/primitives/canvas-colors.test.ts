@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createCanvas, Canvas } from '../../src/primitives/canvas.js';
+import { stripAnsi, stringWidth } from '../../src/utils/text-utils.js';
 
 describe('Canvas color integration', () => {
   describe('setPixel with color', () => {
@@ -261,6 +262,109 @@ describe('Canvas color integration', () => {
 
       expect(result).toContain('\n');
       expect(result.split('\n')).toHaveLength(2);
+    });
+  });
+
+  describe('declared canvas styles', () => {
+    it('applies default foreground and background to rendered cells', () => {
+      const canvas = createCanvas({
+        width: 2,
+        height: 1,
+        foreground: 'red',
+        background: 'blue',
+      });
+
+      const line = canvas.renderLine(0);
+
+      expect(line).toContain('\x1b[31m');
+      expect(line).toContain('\x1b[44m');
+      expect(stripAnsi(line)).toBe('  ');
+    });
+
+    it('renders text color, bold, italic, and terminal-width graphemes', () => {
+      const canvas = createCanvas({ width: 6, height: 1 });
+
+      canvas.text(0, 0, 'A😀B', {
+        color: 'cyan',
+        bold: true,
+        italic: true,
+      });
+      const line = canvas.renderLine(0);
+
+      expect(line).toContain('\x1b[36m');
+      expect(line).toContain('\x1b[1m');
+      expect(line).toContain('\x1b[3m');
+      expect(stripAnsi(line)).toContain('A😀B');
+      expect(stringWidth(stripAnsi(line))).toBe(6);
+    });
+
+    it('honors line and fill styles instead of ignoring them', () => {
+      const canvas = createCanvas({ width: 10, height: 4 });
+
+      canvas.line(0, 0, 9, 0, {
+        color: 'green',
+        dashed: true,
+        dashPattern: [2, 1],
+      });
+      canvas.rect(1, 1, 3, 2, true, {
+        color: 'magenta',
+        pattern: '#',
+      });
+
+      expect(canvas.getPixel(0, 0)).not.toBe(' ');
+      expect(canvas.getPixel(2, 0)).toBe(' ');
+      expect(canvas.getPixel(1, 1)).toBe('#');
+      expect(canvas.renderLine(0)).toContain('\x1b[32m');
+      expect(canvas.renderLine(1)).toContain('\x1b[35m');
+    });
+
+    it('keeps colors in braille and block render modes', () => {
+      const braille = createCanvas({
+        width: 2,
+        height: 1,
+        mode: 'braille',
+        foreground: 'yellow',
+      });
+      const block = createCanvas({
+        width: 2,
+        height: 1,
+        mode: 'block',
+      });
+
+      braille.setPixel(0, 0);
+      block.setPixel(0, 0, undefined, 'red');
+
+      expect(stripAnsi(braille.renderLine(0))).toBe('  ');
+      expect(braille.render()[0]).toContain('\x1b[33m');
+      expect(block.render()[0]).toContain('\x1b[31m');
+    });
+  });
+
+  describe('numeric safety boundaries', () => {
+    it('rejects unbounded geometry and allocations synchronously', () => {
+      const canvas = createCanvas({ width: 10, height: 10 });
+
+      expect(() => canvas.line(0, 0, Number.POSITIVE_INFINITY, 1))
+        .toThrow(RangeError);
+      expect(() => canvas.circle(5, 5, Number.POSITIVE_INFINITY))
+        .toThrow(RangeError);
+      expect(() => createCanvas({ width: 10_000, height: 10_000 }))
+        .toThrow(RangeError);
+      expect(() => canvas.rect(0, 0, Number.NaN, 2))
+        .toThrow(RangeError);
+      expect(() => canvas.line(0, 0, 2, 2, { dashPattern: [0] }))
+        .toThrow(RangeError);
+    });
+
+    it('rejects multi-cell pixel glyphs while text handles them explicitly', () => {
+      const canvas = createCanvas({ width: 4, height: 1 });
+
+      expect(() => canvas.setPixel(0, 0, '😀')).toThrow(RangeError);
+      expect(() => createCanvas({
+        width: 2,
+        height: 1,
+        fillChar: '😀',
+      })).toThrow(RangeError);
     });
   });
 });

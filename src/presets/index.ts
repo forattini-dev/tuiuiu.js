@@ -22,9 +22,9 @@
  * ```
  */
 
-import type { ButtonProps, ButtonVariant, ButtonSize } from '../atoms/button.js';
-import type { BadgeProps, BadgeVariant, BadgeStyle } from '../atoms/badge.js';
-import type { ModalProps, ModalSize } from '../organisms/modal.js';
+import type { ButtonProps } from '../atoms/button.js';
+import type { BadgeProps } from '../atoms/badge.js';
+import type { ModalProps } from '../organisms/modal.js';
 
 // =============================================================================
 // Button Presets

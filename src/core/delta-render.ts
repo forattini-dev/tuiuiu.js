@@ -49,6 +49,7 @@ import type {
   DrawTerminalImageCommand,
   DrawTextCommand,
   FrameSnapshot,
+  Bounds,
   ReservedRegion,
 } from './frame.js';
 import {
@@ -95,7 +96,11 @@ function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
     left.order !== right.order ||
     left.zIndex !== right.zIndex ||
     left.id !== right.id ||
-    left.nodeType !== right.nodeType
+    left.nodeType !== right.nodeType ||
+    left.clip?.x !== right.clip?.x ||
+    left.clip?.y !== right.clip?.y ||
+    left.clip?.width !== right.clip?.width ||
+    left.clip?.height !== right.clip?.height
   ) {
     return false;
   }
@@ -107,10 +112,13 @@ function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
       left.width === right.width &&
       left.height === right.height &&
       left.backgroundColor === right.backgroundColor &&
+      left.fillChar === right.fillChar &&
       left.borderStyle === right.borderStyle &&
       left.borderColor === right.borderColor &&
       left.borderText === right.borderText &&
       left.borderTextAlign === right.borderTextAlign &&
+      left.borderTextColor === right.borderTextColor &&
+      left.borderTextBold === right.borderTextBold &&
       left.borderSides?.top === right.borderSides?.top &&
       left.borderSides?.bottom === right.borderSides?.bottom &&
       left.borderSides?.left === right.borderSides?.left &&
@@ -650,16 +658,34 @@ function getTextCommandBounds(command: DrawTextCommand): DamageRect {
 }
 
 function getCommandBounds(command: DrawCommand): DamageRect {
-  if (command.type === 'box' || command.type === 'terminal-image') {
-    return {
+  const bounds = command.type === 'box' || command.type === 'terminal-image'
+    ? {
       x: command.x,
       y: command.y,
       width: command.width,
       height: command.height,
-    };
-  }
+    }
+    : getTextCommandBounds(command);
 
-  return getTextCommandBounds(command);
+  if (!command.clip) return bounds;
+
+  const x = Math.max(bounds.x, command.clip.x);
+  const y = Math.max(bounds.y, command.clip.y);
+  const right = Math.min(
+    bounds.x + bounds.width,
+    command.clip.x + command.clip.width,
+  );
+  const bottom = Math.min(
+    bounds.y + bounds.height,
+    command.clip.y + command.clip.height,
+  );
+
+  return {
+    x,
+    y,
+    width: Math.max(0, right - x),
+    height: Math.max(0, bottom - y),
+  };
 }
 
 function collectDirtyRegions(
@@ -724,9 +750,21 @@ function writeCharReservedAware(
   fg?: Color,
   bg?: Color,
   attrs: CellAttrs = {},
+  clip?: Bounds,
 ): void {
   const width = Math.max(1, stringWidth(char));
   for (let offset = 0; offset < width; offset++) {
+    if (
+      clip &&
+      (
+        x + offset < clip.x ||
+        x + offset >= clip.x + clip.width ||
+        y < clip.y ||
+        y >= clip.y + clip.height
+      )
+    ) {
+      return;
+    }
     if (isReservedCell(regions, x + offset, y)) {
       return;
     }
@@ -745,9 +783,18 @@ function fillRowReservedAware(
   fg?: Color,
   bg?: Color,
   attrs: CellAttrs = {},
+  clip?: Bounds,
 ): void {
   for (let col = 0; col < width; col++) {
-    if (!isReservedCell(regions, x + col, y)) {
+    if (
+      (!clip || (
+        x + col >= clip.x &&
+        x + col < clip.x + clip.width &&
+        y >= clip.y &&
+        y < clip.y + clip.height
+      )) &&
+      !isReservedCell(regions, x + col, y)
+    ) {
       buffer.writeChar(x + col, y, char, fg, bg, attrs);
     }
   }
@@ -831,12 +878,30 @@ function renderBoxToBuffer(
   buffer: CellBuffer,
   reservedRegions: readonly ReservedRegion[],
 ): void {
-  const { x, y, width, height, backgroundColor, borderStyle, borderColor, borderSides, borderText, borderTextAlign } = command;
+  const {
+    x,
+    y,
+    width,
+    height,
+    backgroundColor,
+    fillChar = ' ',
+    borderStyle,
+    borderColor,
+    borderSides,
+    borderText,
+    borderTextAlign,
+    borderTextColor,
+    borderTextBold,
+    clip,
+  } = command;
   const boxBg = backgroundColor ? parseColor(backgroundColor) : undefined;
   const parsedBorderColor = borderColor ? parseColor(borderColor) : undefined;
+  const parsedBorderTextColor = borderTextColor
+    ? parseColor(borderTextColor)
+    : parsedBorderColor;
 
   // Fill background if specified
-  if (boxBg) {
+  if (boxBg || fillChar !== ' ') {
     const borderSize = borderStyle && borderStyle !== 'none' ? 1 : 0;
     const fillX = x + borderSize;
     const fillY = y + borderSize;
@@ -844,7 +909,18 @@ function renderBoxToBuffer(
     const fillHeight = Math.max(0, height - borderSize * 2);
 
     for (let row = 0; row < fillHeight; row++) {
-      fillRowReservedAware(buffer, reservedRegions, fillX, fillY + row, fillWidth, ' ', undefined, boxBg, {});
+      fillRowReservedAware(
+        buffer,
+        reservedRegions,
+        fillX,
+        fillY + row,
+        fillWidth,
+        fillChar,
+        undefined,
+        boxBg,
+        {},
+        clip,
+      );
     }
   }
 
@@ -861,13 +937,13 @@ function renderBoxToBuffer(
     // Top border
     if (showTop) {
       const tlChar = showLeft ? borderChars.topLeft : borderChars.top;
-      writeCharReservedAware(buffer, reservedRegions, x, y, tlChar, parsedBorderColor, undefined, attrs);
+      writeCharReservedAware(buffer, reservedRegions, x, y, tlChar, parsedBorderColor, undefined, attrs, clip);
       for (let i = 1; i < width - 1; i++) {
-        writeCharReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x + i, y, borderChars.top, parsedBorderColor, undefined, attrs, clip);
       }
       if (width > 1) {
         const trChar = showRight ? borderChars.topRight : borderChars.top;
-        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y, trChar, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y, trChar, parsedBorderColor, undefined, attrs, clip);
       }
 
       // Border text overlay
@@ -902,9 +978,10 @@ function renderBoxToBuffer(
             column,
             y,
             symbol.symbol,
-            parsedBorderColor,
+            parsedBorderTextColor,
             undefined,
-            attrs,
+            borderTextBold ? { ...attrs, bold: true } : attrs,
+            clip,
           );
           column += symbolWidth;
         }
@@ -914,23 +991,23 @@ function renderBoxToBuffer(
     // Side borders
     for (let row = 1; row < height - 1; row++) {
       if (showLeft) {
-        writeCharReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x, y + row, borderChars.left, parsedBorderColor, undefined, attrs, clip);
       }
       if (showRight && width > 1) {
-        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + row, borderChars.right, parsedBorderColor, undefined, attrs, clip);
       }
     }
 
     // Bottom border
     if (showBottom && height > 1) {
       const blChar = showLeft ? borderChars.bottomLeft : borderChars.bottom;
-      writeCharReservedAware(buffer, reservedRegions, x, y + height - 1, blChar, parsedBorderColor, undefined, attrs);
+      writeCharReservedAware(buffer, reservedRegions, x, y + height - 1, blChar, parsedBorderColor, undefined, attrs, clip);
       for (let i = 1; i < width - 1; i++) {
-        writeCharReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x + i, y + height - 1, borderChars.bottom, parsedBorderColor, undefined, attrs, clip);
       }
       if (width > 1) {
         const brChar = showRight ? borderChars.bottomRight : borderChars.bottom;
-        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + height - 1, brChar, parsedBorderColor, undefined, attrs);
+        writeCharReservedAware(buffer, reservedRegions, x + width - 1, y + height - 1, brChar, parsedBorderColor, undefined, attrs, clip);
       }
     }
   }
@@ -955,6 +1032,7 @@ function renderTerminalImageToBuffer(
       maxWidth: command.width,
       text: getTerminalImagePayload(command),
       style: {},
+      clip: command.clip,
     },
     buffer,
     [],
@@ -1039,7 +1117,17 @@ function collectProtocolImageCommands(frame: FrameSnapshot | null): DrawTerminal
 
   return frame.drawCommands.filter(
     (command): command is DrawTerminalImageCommand =>
-      command.type === 'terminal-image' && !command.cellRender,
+      command.type === 'terminal-image' &&
+      !command.cellRender &&
+      (
+        !command.clip ||
+        (
+          command.x >= command.clip.x &&
+          command.y >= command.clip.y &&
+          command.x + command.width <= command.clip.x + command.clip.width &&
+          command.y + command.height <= command.clip.y + command.clip.height
+        )
+      ),
   );
 }
 
@@ -1382,7 +1470,17 @@ function renderTextToBuffer(
         }
         const charWidth = stringWidth(char);
         if (charWidth > 0) {
-          writeCharReservedAware(buffer, reservedRegions, x + col, y + row, char, segment.fg, segment.bg, segment.attrs);
+          writeCharReservedAware(
+            buffer,
+            reservedRegions,
+            x + col,
+            y + row,
+            char,
+            segment.fg,
+            segment.bg,
+            segment.attrs,
+            command.clip,
+          );
           col += charWidth;
         }
         index = symbol.nextIndex;
@@ -1403,7 +1501,17 @@ function renderTextToBuffer(
         if (col >= maxWidth) break;
         const charWidth = stringWidth(char);
         if (charWidth > 0) {
-          writeCharReservedAware(buffer, reservedRegions, x + col, y + i, char, baseFg, baseBg, baseAttrs);
+          writeCharReservedAware(
+            buffer,
+            reservedRegions,
+            x + col,
+            y + i,
+            char,
+            baseFg,
+            baseBg,
+            baseAttrs,
+            command.clip,
+          );
           col += charWidth;
         }
         index = symbol.nextIndex;

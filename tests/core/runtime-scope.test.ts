@@ -41,7 +41,7 @@ describe('RuntimeScope', () => {
     const resource = Symbol('test-resource');
 
     await runInRuntimeScope(first, async () => {
-      getRuntimeResource(resource, () => []).push('first');
+      getRuntimeResource<string[]>(resource, () => []).push('first');
       await Promise.resolve();
       expect(getRuntimeResource<string[]>(resource, () => [])).toEqual(['first']);
     });

@@ -68,7 +68,10 @@ interface ParsedSelector {
  * Query options
  */
 export interface QueryOptions {
-  /** Include text nodes in results */
+  /**
+   * Include text VNodes in results.
+   * @default true
+   */
   includeText?: boolean;
   /** Debug mode - log matches */
   debug?: boolean;
@@ -83,6 +86,18 @@ export interface QueryResult {
   parent?: VNode;     // Parent node
   index: number;      // Index in parent
   depth: number;      // Nesting depth
+}
+
+export interface MatchContext {
+  /** Position of the node within siblings, used by structural pseudo-classes. */
+  index?: number;
+  /** Sibling list containing the node. */
+  siblings?: VNode[];
+  /**
+   * Root of the tree. Required when matching a selector with combinators,
+   * because VNodes do not carry parent pointers.
+   */
+  root?: VNode;
 }
 
 // =============================================================================
@@ -431,6 +446,10 @@ function matchesSelectorPart(
 // Query Implementation
 // =============================================================================
 
+function canIncludeNode(node: VNode, options: QueryOptions): boolean {
+  return options.includeText !== false || node.type.toLowerCase() !== 'text';
+}
+
 /**
  * Find all nodes matching the first selector part
  */
@@ -447,7 +466,7 @@ function findInitialMatches(
       siblings: parent?.children || [node],
     };
 
-    if (matchesSelectorPart(node, part, context)) {
+    if (canIncludeNode(node, options) && matchesSelectorPart(node, part, context)) {
       results.push({ node, path: [...path], parent, index, depth });
     }
 
@@ -468,7 +487,7 @@ function applyCombinator(
   results: QueryResult[],
   combinator: Combinator,
   nextPart: SelectorPart,
-  _options: QueryOptions
+  options: QueryOptions
 ): QueryResult[] {
   const filtered: QueryResult[] = [];
 
@@ -478,7 +497,7 @@ function applyCombinator(
     switch (combinator) {
       case 'descendant':
         // Find any descendant matching nextPart
-        function findDescendants(current: VNode, path: number[], parentNode: VNode | undefined, idx: number, depth: number): void {
+        function findDescendants(current: VNode, path: number[], depth: number): void {
           for (let i = 0; i < current.children.length; i++) {
             const child = current.children[i];
             if (!child) continue;
@@ -489,7 +508,7 @@ function applyCombinator(
               siblings: current.children,
             };
 
-            if (matchesSelectorPart(child, nextPart, context)) {
+            if (canIncludeNode(child, options) && matchesSelectorPart(child, nextPart, context)) {
               filtered.push({
                 node: child,
                 path: childPath,
@@ -499,10 +518,10 @@ function applyCombinator(
               });
             }
 
-            findDescendants(child, childPath, current, i, depth + 1);
+            findDescendants(child, childPath, depth + 1);
           }
         }
-        findDescendants(node, result.path, result.parent, result.index, result.depth);
+        findDescendants(node, result.path, result.depth);
         break;
 
       case 'child':
@@ -516,7 +535,7 @@ function applyCombinator(
             siblings: node.children,
           };
 
-          if (matchesSelectorPart(child, nextPart, context)) {
+          if (canIncludeNode(child, options) && matchesSelectorPart(child, nextPart, context)) {
             filtered.push({
               node: child,
               path: [...result.path, i],
@@ -539,7 +558,7 @@ function applyCombinator(
               siblings: result.parent.children,
             };
 
-            if (matchesSelectorPart(sibling, nextPart, context)) {
+            if (canIncludeNode(sibling, options) && matchesSelectorPart(sibling, nextPart, context)) {
               const newPath = [...result.path];
               newPath[newPath.length - 1] = nextIndex;
               filtered.push({
@@ -564,7 +583,7 @@ function applyCombinator(
               siblings: result.parent.children,
             };
 
-            if (matchesSelectorPart(sibling, nextPart, context)) {
+            if (canIncludeNode(sibling, options) && matchesSelectorPart(sibling, nextPart, context)) {
               const newPath = [...result.path];
               newPath[newPath.length - 1] = i;
               filtered.push({
@@ -606,7 +625,15 @@ function executeSelector(
     results = applyCombinator(results, combinator, nextPart, options);
   }
 
-  return results;
+  // A node may be reachable from multiple initial matches (for example
+  // `box text` when boxes are nested). Query APIs follow selector semantics
+  // and return each matching node once.
+  const seen = new Set<VNode>();
+  return results.filter(result => {
+    if (seen.has(result.node)) return false;
+    seen.add(result.node);
+    return true;
+  });
 }
 
 // =============================================================================
@@ -672,26 +699,25 @@ export function queryResults(root: VNode, selector: string, options: QueryOption
  *   // Node matches!
  * }
  */
-export function matches(node: VNode, selector: string, context?: { index?: number; siblings?: VNode[] }): boolean {
+export function matches(node: VNode, selector: string, context: MatchContext = {}): boolean {
   const parsed = parseSelector(selector);
 
   // For simple selectors (no combinators), just match the last part
   if (parsed.parts.length === 1 && parsed.combinators.length === 0) {
     const ctx = {
-      index: context?.index ?? 0,
-      siblings: context?.siblings ?? [node],
+      index: context.index ?? 0,
+      siblings: context.siblings ?? [node],
     };
     return matchesSelectorPart(node, parsed.parts[0]!, ctx);
   }
 
-  // For complex selectors, we'd need the full tree context
-  // For now, just match against the final part
-  const lastPart = parsed.parts[parsed.parts.length - 1]!;
-  const ctx = {
-    index: context?.index ?? 0,
-    siblings: context?.siblings ?? [node],
-  };
-  return matchesSelectorPart(node, lastPart, ctx);
+  if (!context.root) {
+    throw new TypeError(
+      'matches() requires context.root for selectors containing combinators'
+    );
+  }
+
+  return executeSelector(context.root, parsed, {}).some(result => result.node === node);
 }
 
 /**
@@ -726,16 +752,12 @@ export function closest(
     return null;
   }
 
-  // Check each ancestor from closest to furthest
-  const parsed = parseSelector(selector);
+  // Check each ancestor from closest to furthest. Resolve the selector against
+  // the complete tree first so combinators retain their normal semantics.
+  const matchingNodes = new Set(queryAll(root, selector));
   for (let i = path.length - 2; i >= 0; i--) {
     const ancestor = path[i]!;
-    const parent = i > 0 ? path[i - 1] : undefined;
-    const siblings = parent?.children || [ancestor];
-    const index = siblings.indexOf(ancestor);
-
-    const ctx = { index, siblings };
-    if (parsed.parts.length === 1 && matchesSelectorPart(ancestor, parsed.parts[0]!, ctx)) {
+    if (matchingNodes.has(ancestor)) {
       return ancestor;
     }
   }

@@ -413,7 +413,7 @@ function getFontHeight(font: BigTextFont): number {
 /**
  * Apply color gradient to text
  */
-function applyGradient(text: string, colors: ColorValue[], index: number): ColorValue {
+function applyGradient(colors: ColorValue[], index: number): ColorValue {
   if (colors.length === 0) return 'foreground';
   if (colors.length === 1) return colors[0]!;
   return colors[index % colors.length]!;
@@ -462,7 +462,7 @@ export function BigText(props: BigTextOptions): VNode {
       const charDef = getCharacter(char, font);
       const charLine = charDef[row] || '';
 
-      const charColor = gradient ? applyGradient(charLine, gradient, i) : color;
+      const charColor = gradient ? applyGradient(gradient, i) : color;
 
       lineParts.push(Text({ color: charColor }, charLine));
 

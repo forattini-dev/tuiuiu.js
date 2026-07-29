@@ -79,6 +79,13 @@ let prevCpuCoreStats: CpuStats[] = [];
 let prevProcessCpuTimes: Map<number, { utime: number; stime: number; timestamp: number }> =
   new Map();
 
+/** Reset process-wide sampling baselines used to calculate CPU deltas. */
+export function resetSystemDataSampling(): void {
+  prevCpuStats = null;
+  prevCpuCoreStats = [];
+  prevProcessCpuTimes.clear();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // File Reading Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -305,7 +312,9 @@ export function getProcessList(): ProcessInfo[] {
       // Parse stat - format: pid (comm) state ppid pgrp session tty_nr tpgid flags
       // minflt cminflt majflt cmajflt utime stime cutime cstime priority nice
       // num_threads itrealvalue starttime vsize rss ...
-      const statMatch = statContent.match(/^(\d+)\s+\((.+?)\)\s+(\S)\s+(.+)$/);
+      // Linux comm values may themselves contain ')'. Match through the last
+      // closing parenthesis before the one-character process state.
+      const statMatch = statContent.match(/^(\d+)\s+\((.+)\)\s+(\S)\s+(.+)$/);
       if (!statMatch) continue;
 
       const name = statMatch[2];

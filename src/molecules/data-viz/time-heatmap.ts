@@ -51,7 +51,19 @@ export interface TimeHeatmapOptions {
  * Parse date
  */
 function parseDate(date: Date | string): Date {
-  return typeof date === 'string' ? new Date(date) : date;
+  let parsed: Date;
+  if (typeof date !== 'string') {
+    parsed = new Date(date);
+  } else {
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    parsed = dateOnly
+      ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+      : new Date(date);
+  }
+  if (!Number.isFinite(parsed.getTime())) {
+    throw new RangeError(`TimeHeatmap received an invalid date: ${String(date)}`);
+  }
+  return parsed;
 }
 
 /**
@@ -73,6 +85,14 @@ function getPeriodStart(date: Date, granularity: TimeGranularity): Date {
       return d;
     }
   }
+}
+
+function getLocalDateKey(date: Date): string {
+  return [
+    String(date.getFullYear()).padStart(4, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 /**
@@ -151,6 +171,16 @@ export function TimeHeatmap(props: TimeHeatmapOptions): VNode {
     return Text({ color: 'gray', dim: true }, 'No data');
   }
 
+  const rangeStart = customStart === undefined
+    ? undefined
+    : getPeriodStart(parseDate(customStart), granularity);
+  const rangeEnd = customEnd === undefined
+    ? undefined
+    : getPeriodStart(parseDate(customEnd), granularity);
+  if (rangeStart && rangeEnd && rangeStart.getTime() > rangeEnd.getTime()) {
+    throw new RangeError('TimeHeatmap startDate must be before or equal to endDate');
+  }
+
   // Build data map
   const dataMap = new Map<string, number>();
   let maxValue = 0;
@@ -158,11 +188,17 @@ export function TimeHeatmap(props: TimeHeatmapOptions): VNode {
   for (const item of data) {
     const d = parseDate(item.date);
     const periodStart = getPeriodStart(d, granularity);
-    const key = periodStart.toISOString().split('T')[0]!;
+    if (rangeStart && periodStart.getTime() < rangeStart.getTime()) continue;
+    if (rangeEnd && periodStart.getTime() > rangeEnd.getTime()) continue;
+    const key = getLocalDateKey(periodStart);
     const existing = dataMap.get(key) ?? 0;
     const newValue = existing + item.value;
     dataMap.set(key, newValue);
     maxValue = Math.max(maxValue, newValue);
+  }
+
+  if (dataMap.size === 0) {
+    return Text({ color: 'gray', dim: true }, 'No data in selected range');
   }
 
   // Build display
@@ -180,8 +216,7 @@ export function TimeHeatmap(props: TimeHeatmapOptions): VNode {
   // Date labels and values
   const rows: VNode[] = [];
   const sortedDates = Array.from(dataMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(0, 12); // Limit to 12 rows
+    .sort((a, b) => a[0].localeCompare(b[0]));
 
   for (const [dateStr, value] of sortedDates) {
     const date = new Date(dateStr + 'T00:00:00');
@@ -195,7 +230,16 @@ export function TimeHeatmap(props: TimeHeatmapOptions): VNode {
     rowItems.push(Text({ color: 'gray', dim: true }, padTextToWidth(label, 12)));
     rowItems.push(Text({ color }, intensity.repeat(5) + ` ${value}`));
 
-    rows.push(Box({ flexDirection: 'row', gap: 1 }, ...rowItems));
+    rows.push(
+      Box(
+        {
+          flexDirection: 'row',
+          gap: 1,
+          'aria-label': `${dateStr}: ${value}`,
+        },
+        ...rowItems,
+      )
+    );
   }
 
   displayLines.push(Box({ flexDirection: 'column' }, ...rows));

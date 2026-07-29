@@ -17,6 +17,7 @@ import {
   resetErrorBoundary,
 } from '../../src/core/error-boundary.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { Text } from '../../src/primitives/nodes.js';
 
 describe('parseStackLine', () => {
   it('should parse Node.js style stack line with function name', () => {
@@ -248,7 +249,7 @@ describe('withErrorBoundary', () => {
   });
 
   it('should render normally when no error', () => {
-    const render = () => ({ type: 'text' as const, props: {}, children: ['Hello'] });
+    const render = () => Text({}, 'Hello');
     const wrapped = withErrorBoundary(render);
 
     const result = wrapped();
@@ -258,7 +259,7 @@ describe('withErrorBoundary', () => {
   it('should show error when current error exists', () => {
     setError(new Error('Existing error'));
 
-    const render = () => ({ type: 'text' as const, props: {}, children: ['Hello'] });
+    const render = () => Text({}, 'Hello');
     const wrapped = withErrorBoundary(render);
 
     const result = wrapped();

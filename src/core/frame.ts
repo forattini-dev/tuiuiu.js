@@ -31,6 +31,7 @@ import {
 } from './dirty.js';
 import { fingerprintValue } from './structural-fingerprint.js';
 import type { BorderStyleName, BoxStyle, LayoutNode, TextStyle, VNode } from '../utils/types.js';
+import { stringWidth } from '../utils/text-utils.js';
 import {
   getRuntimeResource,
   type RuntimeScope,
@@ -140,6 +141,8 @@ export interface DrawCommandBase {
   id?: string;
   nodeType?: string;
   compositorKeys?: string[];
+  /** Ancestor overflow bounds applied while rasterizing this command */
+  clip?: Bounds;
 }
 
 export interface DrawBoxCommand extends DrawCommandBase {
@@ -149,6 +152,8 @@ export interface DrawBoxCommand extends DrawCommandBase {
   width: number;
   height: number;
   backgroundColor?: string;
+  /** Optional single-cell character used instead of spaces for the box fill */
+  fillChar?: string;
   borderStyle?: BorderStyleName;
   borderColor?: string;
   /** Per-side border visibility (all true if omitted) */
@@ -157,6 +162,8 @@ export interface DrawBoxCommand extends DrawCommandBase {
   borderText?: string;
   /** Alignment of borderText: 'left' | 'center' | 'right' (default: 'center') */
   borderTextAlign?: 'left' | 'center' | 'right';
+  borderTextColor?: string;
+  borderTextBold?: boolean;
 }
 
 export interface DrawTextCommand extends DrawCommandBase {
@@ -277,12 +284,32 @@ const DRAW_FINGERPRINT_IGNORE_KEYS = new Set(['__terminalImage', '__compositor']
 const BOX_DRAW_KEYS = new Set([
   'id',
   'backgroundColor',
+  '__fillChar',
   'borderStyle',
   'borderColor',
+  'borderTopColor',
+  'borderBottomColor',
+  'borderLeftColor',
+  'borderRightColor',
+  'borderDim',
+  'borderDimTop',
+  'borderDimBottom',
+  'borderDimLeft',
+  'borderDimRight',
+  'borderTop',
+  'borderBottom',
+  'borderLeft',
+  'borderRight',
+  'borderText',
+  'borderTextAlign',
+  'borderTextColor',
+  'borderTextBold',
 ]);
 const TEXT_DRAW_KEYS = new Set([
   'id',
   'children',
+  '__divider',
+  '__splitDivider',
   'color',
   'backgroundColor',
   'bold',
@@ -695,11 +722,31 @@ function createDrawCommandCacheKey(
   offsetY: number,
   parentBackgroundColor?: string,
   activeCompositorKeys: readonly string[] = [],
+  clip?: Bounds,
 ): string {
   const compositorKeySignature = activeCompositorKeys.length > 0
     ? fingerprintValue(activeCompositorKeys)
     : '';
-  return `${offsetX}:${offsetY}:${parentBackgroundColor ?? ''}:${compositorKeySignature}`;
+  const clipSignature = clip
+    ? `${clip.x},${clip.y},${clip.width},${clip.height}`
+    : '';
+  return `${offsetX}:${offsetY}:${parentBackgroundColor ?? ''}:${compositorKeySignature}:${clipSignature}`;
+}
+
+function intersectBounds(left: Bounds | undefined, right: Bounds): Bounds {
+  if (!left) return right;
+
+  const x = Math.max(left.x, right.x);
+  const y = Math.max(left.y, right.y);
+  const rightEdge = Math.min(left.x + left.width, right.x + right.width);
+  const bottomEdge = Math.min(left.y + left.height, right.y + right.height);
+
+  return {
+    x,
+    y,
+    width: Math.max(0, rightEdge - x),
+    height: Math.max(0, bottomEdge - y),
+  };
 }
 
 function createDrawCommandFingerprint(
@@ -1016,7 +1063,19 @@ function createTerminalImageCommand(
 
 function buildReservedRegions(drawCommands: readonly DrawCommand[]): ReservedRegion[] {
   return drawCommands.flatMap((command) => {
-    if (command.type !== 'terminal-image' || command.cellRender) {
+    if (
+      command.type !== 'terminal-image' ||
+      command.cellRender ||
+      (
+        command.clip &&
+        (
+          command.x < command.clip.x ||
+          command.y < command.clip.y ||
+          command.x + command.width > command.clip.x + command.clip.width ||
+          command.y + command.height > command.clip.y + command.clip.height
+        )
+      )
+    ) {
       return [];
     }
 
@@ -1038,6 +1097,7 @@ function buildCachedDrawCommands(
   offsetY = 0,
   parentBackgroundColor?: string,
   activeCompositorKeys: readonly string[] = [],
+  activeClip?: Bounds,
 ): CachedDrawCommandBuildResult {
   const { node, x, y, width, height, children } = current;
   const absX = offsetX + x;
@@ -1047,6 +1107,10 @@ function buildCachedDrawCommands(
     id?: string;
     __terminalImage?: unknown;
     __prebuiltAnsi?: boolean;
+    __divider?: 'horizontal' | 'vertical';
+    __splitDivider?: { top: string; bottom: string };
+    __scrollOffsetY?: number;
+    __fillChar?: string;
   };
   const compositor = getCompositorNodeMetadata(node);
   const compositorKeys = compositor
@@ -1058,7 +1122,13 @@ function buildCachedDrawCommands(
     imageCommand
       ? `:${imageCommand.protocol}:${imageCommand.source.hash}:${imageCommand.width}x${imageCommand.height}:${imageCommand.fit}:${imageCommand.threshold ?? ''}:${imageCommand.dither ? 1 : 0}:${imageCommand.preserveAspectRatio ? 1 : 0}`
       : '';
-  const cacheKey = createDrawCommandCacheKey(offsetX, offsetY, parentBackgroundColor, compositorKeys) + imageCacheKey;
+  const cacheKey = createDrawCommandCacheKey(
+    offsetX,
+    offsetY,
+    parentBackgroundColor,
+    compositorKeys,
+    activeClip,
+  ) + imageCacheKey;
   let fingerprint: string | undefined;
   const getFingerprint = () => {
     if (fingerprint === undefined) {
@@ -1086,8 +1156,27 @@ function buildCachedDrawCommands(
   const paddingLeft = props.paddingLeft ?? props.paddingX ?? props.padding ?? 0;
   const borderSize = props.borderStyle && props.borderStyle !== 'none' ? 1 : 0;
   const contentOffsetX = absX + paddingLeft + borderSize;
-  const contentOffsetY = absY + paddingTop + borderSize;
+  const scrollOffsetY =
+    typeof props.__scrollOffsetY === 'number' && Number.isFinite(props.__scrollOffsetY)
+      ? Math.max(0, Math.floor(props.__scrollOffsetY))
+      : 0;
+  const contentOffsetY = absY + paddingTop + borderSize - scrollOffsetY;
   const nextBackgroundColor = backgroundColor ?? parentBackgroundColor;
+  const clipsX = props.overflow === 'hidden' || props.overflowX === 'hidden';
+  const clipsY = props.overflow === 'hidden' || props.overflowY === 'hidden';
+  const ownClip: Bounds = {
+    x: clipsX ? absX : (activeClip?.x ?? Number.MIN_SAFE_INTEGER),
+    y: clipsY ? absY : (activeClip?.y ?? Number.MIN_SAFE_INTEGER),
+    width: clipsX
+      ? width
+      : (activeClip?.width ?? Number.MAX_SAFE_INTEGER * 2),
+    height: clipsY
+      ? height
+      : (activeClip?.height ?? Number.MAX_SAFE_INTEGER * 2),
+  };
+  const childClip = clipsX || clipsY
+    ? intersectBounds(activeClip, ownClip)
+    : activeClip;
 
   for (const child of children) {
     const childResult = buildCachedDrawCommands(
@@ -1096,6 +1185,7 @@ function buildCachedDrawCommands(
       contentOffsetY,
       nextBackgroundColor,
       compositorKeys,
+      childClip,
     );
     childResults.push(childResult);
     hasCompositor ||= childResult.hasCompositor;
@@ -1139,7 +1229,14 @@ function buildCachedDrawCommands(
   }
 
   const commands: CachedDrawCommand[] = [];
-  if (node.type === 'box' && (backgroundColor || (props.borderStyle && props.borderStyle !== 'none'))) {
+  if (
+    node.type === 'box'
+    && (
+      backgroundColor
+      || props.__fillChar
+      || (props.borderStyle && props.borderStyle !== 'none')
+    )
+  ) {
     // Build per-side border visibility flags
     const hasSideOverrides = props.borderTop !== undefined || props.borderBottom !== undefined ||
       props.borderLeft !== undefined || props.borderRight !== undefined;
@@ -1160,22 +1257,41 @@ function buildCachedDrawCommands(
       width,
       height,
       backgroundColor,
+      fillChar: typeof props.__fillChar === 'string' ? props.__fillChar : undefined,
       borderStyle: props.borderStyle,
       borderColor: typeof props.borderColor === 'string' ? props.borderColor : undefined,
       borderSides,
       borderText: typeof props.borderText === 'string' ? props.borderText : undefined,
       borderTextAlign: props.borderTextAlign,
+      borderTextColor: typeof props.borderTextColor === 'string'
+        ? props.borderTextColor
+        : undefined,
+      borderTextBold: props.borderTextBold === true,
+      clip: activeClip,
     });
   } else if (node.type === 'text') {
+    const rawText = String(props.children ?? '');
+    const dividerWidth = Math.max(1, stringWidth(rawText));
+    const text = props.__splitDivider
+      ? [
+        props.__splitDivider.top,
+        ...Array.from({ length: Math.max(0, Math.floor(height)) }, () => rawText),
+        props.__splitDivider.bottom,
+      ].join('\n')
+      : props.__divider === 'horizontal'
+      ? rawText.repeat(Math.ceil(width / dividerWidth))
+      : props.__divider === 'vertical'
+        ? Array.from({ length: Math.max(0, Math.floor(height)) }, () => rawText).join('\n')
+        : rawText;
     commands.push({
       type: 'text',
       id,
       nodeType: node.type,
       compositorKeys: compositorKeys.length > 0 ? [...compositorKeys] : undefined,
       x: absX,
-      y: absY,
+      y: props.__splitDivider ? absY - 1 : absY,
       maxWidth: width,
-      text: String(props.children ?? ''),
+      text,
       style: {
         color: props.color,
         backgroundColor: props.backgroundColor,
@@ -1188,6 +1304,7 @@ function buildCachedDrawCommands(
         wrap: props.wrap,
       },
       inheritedBackgroundColor: parentBackgroundColor,
+      clip: activeClip,
       ...(props.__prebuiltAnsi ? { prebuiltAnsi: true } : undefined),
     });
   }
@@ -1196,6 +1313,7 @@ function buildCachedDrawCommands(
     commands.push({
       ...imageCommand,
       compositorKeys: compositorKeys.length > 0 ? [...compositorKeys] : undefined,
+      clip: activeClip,
     });
   }
 

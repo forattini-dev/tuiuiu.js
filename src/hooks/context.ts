@@ -69,6 +69,12 @@ interface HookRuntimeState {
   hookCleanups: Map<number, Set<() => void>>;
   mouseHandlers: MouseHandlerEntry[];
   mouseHandlerIdCounter: number;
+  lastMouseClick: {
+    x: number;
+    y: number;
+    time: number;
+    button: MouseEventType['button'];
+  } | null;
   pasteHandlers: PasteHandlerEntry[];
   pasteHandlerIdCounter: number;
 }
@@ -90,6 +96,7 @@ function createHookRuntimeState(): HookRuntimeState {
     hookCleanups: new Map(),
     mouseHandlers: [],
     mouseHandlerIdCounter: 0,
+    lastMouseClick: null,
     pasteHandlers: [],
     pasteHandlerIdCounter: 0,
   };
@@ -431,9 +438,11 @@ export function removeMouseHandlerById(id: number): boolean {
  * Emit mouse event to all handlers
  */
 export function emitMouseEvent(event: MouseEventType): void {
-  for (const entry of getHookRuntimeState().mouseHandlers) {
+  const runtime = getHookRuntimeState();
+  const processedEvent = classifyMouseClick(runtime, event);
+  for (const entry of [...runtime.mouseHandlers]) {
     try {
-      entry.handler(event);
+      entry.handler(processedEvent);
     } catch (error) {
       console.error('[tuiuiu] Error in mouse handler:', error);
     }
@@ -447,6 +456,42 @@ export function clearMouseHandlers(scope?: RuntimeScope): void {
   const runtime = getHookRuntimeState(scope);
   runtime.mouseHandlers.length = 0;
   runtime.mouseHandlerIdCounter = 0;
+  runtime.lastMouseClick = null;
+}
+
+const DOUBLE_CLICK_THRESHOLD = 300;
+const DOUBLE_CLICK_DISTANCE = 2;
+
+function classifyMouseClick(
+  runtime: HookRuntimeState,
+  event: MouseEventType
+): MouseEventType {
+  if (event.action !== 'click') return event;
+
+  const now = Date.now();
+  const last = runtime.lastMouseClick;
+  if (
+    last
+    && last.button === event.button
+    && now - last.time < DOUBLE_CLICK_THRESHOLD
+    && Math.abs(event.x - last.x) <= DOUBLE_CLICK_DISTANCE
+    && Math.abs(event.y - last.y) <= DOUBLE_CLICK_DISTANCE
+  ) {
+    runtime.lastMouseClick = null;
+    return { ...event, action: 'double-click' };
+  }
+
+  runtime.lastMouseClick = {
+    x: event.x,
+    y: event.y,
+    time: now,
+    button: event.button,
+  };
+  return event;
+}
+
+export function resetMouseClickState(scope?: RuntimeScope): void {
+  getHookRuntimeState(scope).lastMouseClick = null;
 }
 
 /**

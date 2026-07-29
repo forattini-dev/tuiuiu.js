@@ -24,7 +24,8 @@ export interface JsonRpcError {
 
 export interface JsonRpcResponse<T = unknown> {
   jsonrpc: '2.0';
-  id: string | number;
+  /** null is used only when an invalid request did not expose a usable ID. */
+  id: string | number | null;
   result?: T;
   error?: JsonRpcError;
 }
