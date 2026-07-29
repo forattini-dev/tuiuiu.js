@@ -83,9 +83,9 @@ These tests do **not** mean every historical OpenSpec change in the repository i
 
 They are specifically the contract for:
 
-- [stabilize-public-devx-contracts](../../openspec/changes/stabilize-public-devx-contracts/tasks.md)
-- [expand-rerender-safe-interactive-components](../../openspec/changes/expand-rerender-safe-interactive-components/tasks.md)
-- [stabilize-residual-interactive-devx](../../openspec/changes/stabilize-residual-interactive-devx/tasks.md)
+- `stabilize-public-devx-contracts`
+- `expand-rerender-safe-interactive-components`
+- `stabilize-residual-interactive-devx`
 
 ## When To Run It
 

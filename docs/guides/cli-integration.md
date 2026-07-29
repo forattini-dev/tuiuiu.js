@@ -1,12 +1,17 @@
 # CLI Integration Guide
 
-Build complete CLI applications with **cli-args-parser** + **tuiuiu.js** — zero external dependencies.
+Use `tuiuiu.js/prompts` with Node's `parseArgs`, a local parser, or any CLI
+parser you prefer. Tuiuiu does not require or bundle an argument parser.
+
+This guide uses the optional `cli-args-parser` package for its longer schema
+examples. The runnable repository example includes its own small parser in
+`examples/_shared`, so cloning Tuiuiu does not require a sibling repository.
 
 ## Overview
 
 | Library | Purpose |
 |---------|---------|
-| **cli-args-parser** | Argument parsing, subcommands, help generation |
+| **cli-args-parser** (optional) | Argument parsing, subcommands, help generation |
 | **tuiuiu.js/prompts** | Interactive prompts (input, select, checkbox) |
 | **tuiuiu.js/colors** | Terminal colors and styling |
 | **tuiuiu.js** (full) | Reactive TUI applications |
@@ -129,7 +134,10 @@ const port = await prompt.number('Port:', {
 
 ## CLI Arguments API
 
-See [cli-args-parser documentation](https://github.com/forattini-dev/cli-args-parser) for full API.
+The schema below belongs to the optional `cli-args-parser` integration, not to
+Tuiuiu's public API. See the
+[cli-args-parser documentation](https://github.com/forattini-dev/cli-args-parser)
+for its full contract.
 
 ### Basic Schema
 

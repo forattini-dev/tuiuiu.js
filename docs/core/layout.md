@@ -1,6 +1,8 @@
 # Layout System
 
-Tuiuiu implements a simplified **Flexbox** layout engine optimized for terminals. It supports most common Flexbox properties, allowing you to build complex interfaces easily.
+Tuiuiu implements a **Flexbox-inspired** layout engine optimized for terminal
+cells. Its typed props borrow familiar names, but no browser CSS engine or
+stylesheet is involved.
 
 The layout system is built into the `Box` component, which serves as the fundamental building block for all UI elements.
 
@@ -8,7 +10,8 @@ The layout system is built into the `Box` component, which serves as the fundame
 
 ## The Box Model
 
-Every visual element in Tuiuiu is a rectangular box. The layout engine calculates the size and position of these boxes based on the CSS Box Model:
+Every visual element in Tuiuiu is a rectangular box. The terminal layout engine
+calculates size and position using content, padding, border, and margin regions:
 
 ```
 ┌───────────────────────────────────────┐

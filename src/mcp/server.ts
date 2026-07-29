@@ -360,7 +360,7 @@ const tools: MCPTool[] = [
   },
   {
     name: 'tuiuiu_validate_code',
-    description: 'Validate a Tuiuiu code snippet against known runtime pitfalls. Detects createSignal inside component render, setTheme after render, and common API-pattern mismatches.',
+    description: 'Validate a Tuiuiu code snippet against known runtime pitfalls. Detects createSignal inside component render and common API-pattern mismatches.',
     inputSchema: {
       type: 'object',
       properties: {

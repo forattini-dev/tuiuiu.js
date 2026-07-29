@@ -14,7 +14,7 @@ Box({ padding: 1 },
 
 ## Flexbox Layout
 
-Box uses Flexbox for layout, just like CSS:
+Box uses typed, Flexbox-inspired terminal layout props:
 
 ```typescript
 // Row layout (default)

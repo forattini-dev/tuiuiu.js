@@ -97,6 +97,12 @@ const { waitUntilExit, rerender } = render(App);
 await waitUntilExit();
 ```
 
+For explicit terminal ownership, use `renderInline()`, `renderFullscreen()`,
+or `renderAlternateScreen()`, or pass
+`screenMode: 'inline' | 'fullscreen' | 'alternate'`. The returned
+`TuiInstance.writeLine(text)` method safely writes application output above the
+live region. The same method is available as `useApp().writeLine(text)`.
+
 **Options:**
 - `stdout?: NodeJS.WriteStream` - Output stream (default: process.stdout)
 - `stdin?: NodeJS.ReadStream` - Input stream (default: process.stdin)
@@ -689,7 +695,7 @@ Legacy scrollable area. **Prefer `ScrollList` or `Scroll`.**
 
 #### `Grid(props: GridProps): VNode`
 
-CSS Grid-like layout.
+Grid-inspired terminal layout.
 
 ```typescript
 Grid({

@@ -349,4 +349,4 @@ function VimNav() {
 
 See also:
 - [Programmatic Control Guide](/guides/programmatic-control.md)
-- [Examples Directory](/examples/)
+- [Examples Catalog](/resources/examples.md)

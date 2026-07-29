@@ -127,6 +127,9 @@ export type {
 // App lifecycle
 export {
   render,
+  renderInline,
+  renderFullscreen,
+  renderAlternateScreen,
   renderOnce,
 } from '../app/render-loop.js';
 
@@ -134,6 +137,7 @@ export type {
   FixedStepOptions,
   FixedStepUpdate,
   RenderOptions,
+  ScreenMode,
   TuiInstance,
 } from '../app/render-loop.js';
 

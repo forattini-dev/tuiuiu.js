@@ -20,7 +20,7 @@
 | **📦 Zero Dependencies** | Lightweight, secure, easy to audit |
 | **🎨 50+ Components** | Everything from buttons to data tables |
 | **🖱️ Mouse Support** | Click, hover, scroll — all work natively |
-| **📐 Flexbox Layout** | Use the CSS model you already know |
+| **📐 Terminal Flexbox** | Typed layout props measured in character cells—no browser CSS |
 | **🎭 Theming** | Dark/light modes, custom themes |
 
 ## Quick Example

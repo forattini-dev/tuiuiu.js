@@ -44,6 +44,12 @@ function getDefaultController(): ShellSessionController {
   return defaultController;
 }
 
+function destroyDefaultController(): void {
+  const controller = defaultController;
+  defaultController = null;
+  controller?.destroy();
+}
+
 const promptModes = createPromptModeRegistry({
   defaultMode: {
     id: 'text',
@@ -281,7 +287,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
       }
     }
 
-    if (key.up) {
+    if (key.upArrow) {
       const history = snapshot().commandHistory;
       if (history.length === 0) {
         return false;
@@ -305,7 +311,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
       return true;
     }
 
-    if (key.down) {
+    if (key.downArrow) {
       const history = snapshot().commandHistory;
       if (history.length === 0 || historyCursor.index < 0) {
         return false;
@@ -351,7 +357,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
     Text({ color: 'cyan', bold: true }, 'Shell Session Workbench'),
     Text({ color: 'gray', dim: true }, 'This example keeps shell execution, replay, and reconnect logic in app code. The library only contributes input, layout, and prompt-mode primitives.'),
     Text({ color: 'gray', dim: true }, 'The default demo persists replayable transcript and command history locally, but it never resumes an active process after restart.'),
-    Divider({ marginTop: 1, marginBottom: 1 }),
+    Divider(),
     Box(
       { flexDirection: 'row', gap: 1 as any, alignItems: 'flex-start' as any },
       Box(
@@ -413,7 +419,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
         Text({ color: 'gray', dim: true }, 'Persisted replay does not resume active processes'),
       ),
     ),
-    Divider({ marginTop: 1, marginBottom: 1 }),
+    Divider(),
     TextInput({
       state: prompt,
       borderStyle: 'round',
@@ -439,5 +445,5 @@ if (isMainModule()) {
     maxFps: 30,
   });
   await waitUntilExit();
-  defaultController?.destroy();
+  destroyDefaultController();
 }

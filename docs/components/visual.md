@@ -121,7 +121,7 @@ Small indicators for status or categories.
 ```typescript
 import { Badge, Tag } from 'tuiuiu.js';
 
-Badge({ text: 'NEW', color: 'green', variant: 'solid' })
+Badge({ label: 'NEW', color: 'green', style: 'solid' })
 
 Tag({ label: 'TypeScript', color: 'cyan', removable: true })
 ```

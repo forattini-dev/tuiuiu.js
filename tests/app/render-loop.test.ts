@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, renderOnce } from '../../src/app/render-loop.js';
+import {
+  render,
+  renderAlternateScreen,
+  renderFullscreen,
+  renderInline,
+  renderOnce,
+} from '../../src/app/render-loop.js';
 import { Text, Box } from '../../src/primitives/index.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { EventEmitter } from 'node:events';
@@ -175,7 +181,43 @@ describe('render-loop', () => {
       expect(instance).toHaveProperty('unmount');
       expect(instance).toHaveProperty('waitUntilExit');
       expect(instance).toHaveProperty('clear');
+      expect(instance).toHaveProperty('writeLine');
 
+      instance.unmount();
+    });
+
+    it('provides explicit inline, fullscreen, and alternate-screen presets', () => {
+      const inline = renderInline(Text({}, 'inline'), { stdin, stdout });
+      expect(stdout.output).not.toContain('\x1b[?1049h');
+      expect(stdout.output).not.toContain('\x1b[2J');
+      inline.unmount();
+
+      stdin = createMockStdin();
+      stdout = createMockStdout();
+      const fullscreen = renderFullscreen(Text({}, 'fullscreen'), { stdin, stdout });
+      expect(stdout.output).not.toContain('\x1b[?1049h');
+      expect(stdout.output).toContain('\x1b[2J');
+      fullscreen.unmount();
+
+      stdin = createMockStdin();
+      stdout = createMockStdout();
+      const alternate = renderAlternateScreen(Text({}, 'alternate'), { stdin, stdout });
+      expect(stdout.output).toContain('\x1b[?1049h');
+      expect(stdout.output).toContain('\x1b[2J');
+      alternate.unmount();
+    });
+
+    it('lets explicit legacy booleans override a screen preset', () => {
+      const instance = render(Text({}, 'overridden'), {
+        stdin,
+        stdout,
+        screenMode: 'inline',
+        alternateScreen: true,
+        clearOnStart: true,
+      });
+
+      expect(stdout.output).toContain('\x1b[?1049h');
+      expect(stdout.output).toContain('\x1b[2J');
       instance.unmount();
     });
 
@@ -288,6 +330,58 @@ describe('render-loop', () => {
       // Clear should write clear sequence
       expect(stdout.output).toContain('\x1b[2J');
 
+      instance.unmount();
+    });
+
+    it('writes sanitized lines above the live UI and resets their offset on clear', async () => {
+      const node = Text({}, 'live ui');
+      const instance = renderInline(node, {
+        stdin,
+        stdout,
+        maxFps: 0,
+        showCursor: true,
+        useDeltaRenderer: false,
+      });
+
+      stdout.output = '';
+      instance.writeLine('build \x1b[2Jok');
+      await Promise.resolve();
+
+      expect(stdout.output).toContain('build ok');
+      expect(stdout.output).toContain('live ui');
+      expect(stdout.output).not.toContain('\x1b[2J');
+      expect(stdout.output).toContain('\x1b[2H');
+
+      stdout.output = '';
+      instance.clear();
+
+      expect(stdout.output).not.toContain('build ok');
+      expect(stdout.output.lastIndexOf('\x1b[2H')).toBeLessThan(
+        stdout.output.lastIndexOf('\x1b[2J'),
+      );
+      expect(stdout.output).toContain('live ui');
+      instance.unmount();
+    });
+
+    it('exposes the safe line writer through useApp()', async () => {
+      let app: ReturnType<typeof useApp> | undefined;
+      const instance = renderInline(() => {
+        app = useApp();
+        return Text({}, 'ready');
+      }, {
+        stdin,
+        stdout,
+        maxFps: 0,
+        showCursor: true,
+        useDeltaRenderer: false,
+      });
+
+      stdout.output = '';
+      app!.writeLine('worker complete');
+      await Promise.resolve();
+
+      expect(stdout.output).toContain('worker complete');
+      expect(stdout.output).toContain('ready');
       instance.unmount();
     });
 

@@ -2,7 +2,7 @@
 /**
  * Complete CLI Wizard Example
  *
- * Demonstrates cli-args-parser + tuiuiu.js/prompts working together
+ * Demonstrates a small argument parser + tuiuiu.js/prompts working together
  * for a complete CLI experience with zero external dependencies.
  *
  * Run with: pnpm tsx examples/cli-wizard.ts
@@ -13,17 +13,11 @@
  */
 
 /**
- * NOTE: This example requires cli-args-parser to be installed.
- *
- * In a monorepo/workspace:
- *   import { createCLI } from '../../cli-args-parser/src/index.js'
- *
- * In a standalone project:
- *   pnpm add cli-args-parser tuiuiu.js
- *   import { createCLI } from 'cli-args-parser'
- *   import { prompt, c } from 'tuiuiu.js'
+ * The argument parser lives in examples/_shared so this example remains
+ * runnable from a standalone clone. In an application, it can be replaced
+ * by any preferred CLI parser without changing the tuiuiu.js prompt code.
  */
-import { createCLI, type Formatter } from '../../cli-args-parser/src/index.js'
+import { createCLI, type Formatter } from './_shared/cli-args-parser.js'
 import { prompt } from '../src/index.js'
 import { c } from '../src/colors/index.js'
 
@@ -56,7 +50,7 @@ const theme: Formatter = {
 const cli = createCLI({
   name: 'wizard',
   version: '1.0.0',
-  description: 'Example CLI demonstrating cli-args-parser + tuiuiu.js prompts',
+  description: 'Example CLI demonstrating argument parsing + tuiuiu.js prompts',
   formatter: theme,
   autoShort: true,
 

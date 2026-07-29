@@ -239,7 +239,10 @@ function MouseEventsDemo() {
         minWidth: 50,
         flexGrow: 1,
       },
-      Text({ color: 'white', bold: true, marginBottom: 1 }, 'Event Log'),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'white', bold: true }, 'Event Log')
+      ),
       ...logs().map((log) =>
         Text(
           { key: String(log.id), color: log.color as any },
@@ -278,7 +281,10 @@ function MouseEventsDemo() {
 
     // Header
     Text({ color: 'cyan', bold: true }, '🖱️  Mouse Events Demo'),
-    Text({ color: 'gray', marginBottom: 1 }, 'All mouse events in Tuiuiu | q=quit c=clear'),
+    Box(
+      { marginBottom: 1 },
+      Text({ color: 'gray' }, 'All mouse events in Tuiuiu | q=quit c=clear')
+    ),
 
     // Stats
     Stats(),

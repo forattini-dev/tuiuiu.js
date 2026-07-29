@@ -44,7 +44,7 @@ pnpm example tuiuiu-snake
 - The header includes live FPS via [`useFps`](/hooks/use-fps.md).
 - The arena uses `createCanvas()` for consistent colored cell output.
 - Help, pause, and crash states use [`Modal`](/components/organisms/modal.md).
-- The HUD combines [`Digits`](/components/visual.md), [`Badge`](/components/atoms/badge.md), [`DataRow`](/components/atoms/data-row.md), and [`Panel`](/templates/layout.md).
+- The HUD combines [`Digits`](/components/visual.md), [`Badge`](/components/atoms/badge.md), [`DataRow`](/components/atoms/data-row.md), and [`Panel`](/components/layout.md).
 
 ## Exported Gameplay Helpers
 

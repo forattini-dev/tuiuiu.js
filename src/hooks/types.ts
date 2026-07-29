@@ -126,6 +126,11 @@ export interface AppContext {
   /** Clear the screen and reset render state (use for splash->main transitions) */
   clearScreen?: () => void;
   /**
+   * Write trusted application text above the live UI without corrupting its
+   * render region. Terminal control protocols are stripped; SGR colors remain.
+   */
+  writeLine: (text: string) => void;
+  /**
    * Enqueue an external async update so bursty producers can be coalesced
    * before mutating reactive state.
    */

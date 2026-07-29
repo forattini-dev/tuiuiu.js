@@ -46,7 +46,7 @@ import { Spinner, createSpinner, renderSpinner } from '../src/atoms/spinner.js';
 import { ProgressBar, createProgressBar } from '../src/atoms/progress-bar.js';
 import { Badge } from '../src/atoms/badge.js';
 import { Menu, type MenuEntry } from '../src/molecules/menu.js';
-import { CodeBlock } from '../src/molecules/code-block.js';
+import { CodeBlock, type Language } from '../src/molecules/code-block.js';
 import { KeyValueTable } from '../src/molecules/table.js';
 import { Divider } from '../src/primitives/divider.js';
 // Modal not used — we build overlays with Box + border directly to avoid hook ordering issues
@@ -68,7 +68,7 @@ interface Message {
   cost?: number;
   duration?: number;
   toolName?: string;
-  codeBlock?: { language: string; code: string };
+  codeBlock?: { language: Language; code: string };
 }
 
 interface AppSettings {
@@ -87,7 +87,7 @@ const MODELS = [
   { value: 'haiku-4.5', label: 'Haiku 4.5', description: 'Fastest, lightweight' },
 ];
 
-const SIMULATED_RESPONSES: Array<{ text: string; tool?: string; code?: { language: string; code: string } }> = [
+const SIMULATED_RESPONSES: Array<{ text: string; tool?: string; code?: { language: Language; code: string } }> = [
   { text: 'I found the issue. The function is missing a null check on line 42.' },
   {
     text: 'Here\'s the fix:',
@@ -222,8 +222,8 @@ function MessageBubble(props: { message: Message; maxWidth: number }): VNode {
           CodeBlock({
             code: message.codeBlock.code,
             language: message.codeBlock.language,
-            showLineNumbers: true,
-            width: Math.min(58, maxWidth - 6),
+            lineNumbers: true,
+            maxWidth: Math.min(58, maxWidth - 6),
           }),
         )
       : Text({}, ''),
@@ -625,7 +625,7 @@ function AiAssistantApp(): VNode {
         setOverlay('settings');
         break;
       case 'code': {
-        const lang = args[0] || 'typescript';
+        const lang: Language = args[0] === 'python' ? 'python' : 'typescript';
         addMessage({
           role: 'assistant',
           content: 'Here\'s an example:',
@@ -671,17 +671,19 @@ function AiAssistantApp(): VNode {
     }
 
     // Normal mode shortcuts
-    if (key.ctrl && char === 'l') { setMessages([]); chatList.scrollToBottom(); return; }
-    if (key.ctrl && char === 'm') { setOverlay('model-selector'); return; }
-    if (key.ctrl && char === 't') { setOverlay('settings'); return; }
+    if (key.ctrl && char === 'l') { setMessages([]); chatList.scrollToBottom(); return true; }
+    if (key.ctrl && char === 'm') { setOverlay('model-selector'); return true; }
+    if (key.ctrl && char === 't') { setOverlay('settings'); return true; }
     if (key.tab && !key.shift) {
       const next = getNextTheme(currentTheme);
       setTheme(next);
-      return;
+      return true;
     }
     if (char === '?' && !key.ctrl && !key.meta) {
-      if (!textInputState().value()) { setOverlay('help'); return; }
+      if (!textInputState().value()) { setOverlay('help'); return true; }
     }
+
+    return false;
   }, { priority: 'modal', stopPropagation: true });
 
   // Render

@@ -89,6 +89,7 @@ export {
   initializeApp,
   cleanupApp,
   setClearScreen,
+  setOutputWriter,
   setExternalUpdateIngress,
   type InitAppOptions,
   type ExternalUpdateIngress,

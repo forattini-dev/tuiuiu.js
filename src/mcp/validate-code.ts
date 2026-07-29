@@ -219,67 +219,6 @@ function findComponentFunctions(code: string): ComponentFunctionBlock[] {
   return blocks.sort((left, right) => left.start - right.start);
 }
 
-function findTopLevelCalls(code: string, callee: string): number[] {
-  const positions: number[] = [];
-  let braceDepth = 0;
-
-  for (let index = 0; index < code.length; index++) {
-    const char = code[index]!;
-    const next = code[index + 1];
-
-    if (char === '"' || char === '\'' || char === '`') {
-      index = skipString(code, index, char);
-      continue;
-    }
-
-    if (char === '/' && next === '/') {
-      while (index < code.length && code[index] !== '\n') {
-        index++;
-      }
-      continue;
-    }
-
-    if (char === '/' && next === '*') {
-      index += 2;
-      while (index < code.length && !(code[index] === '*' && code[index + 1] === '/')) {
-        index++;
-      }
-      index++;
-      continue;
-    }
-
-    if (char === '{') {
-      braceDepth++;
-      continue;
-    }
-
-    if (char === '}') {
-      braceDepth = Math.max(0, braceDepth - 1);
-      continue;
-    }
-
-    if (braceDepth !== 0) {
-      continue;
-    }
-
-    if (code.startsWith(callee, index)) {
-      const before = code[index - 1];
-      const after = code[index + callee.length];
-      if ((!before || !/[A-Za-z0-9_$]/.test(before)) && after?.match(/\s|\(/)) {
-        let cursor = index + callee.length;
-        while (cursor < code.length && /\s/.test(code[cursor]!)) {
-          cursor++;
-        }
-        if (code[cursor] === '(') {
-          positions.push(index);
-        }
-      }
-    }
-  }
-
-  return positions;
-}
-
 function findComponentCalls(code: string, names: readonly string[]): ParsedCall[] {
   const calls: ParsedCall[] = [];
 
@@ -349,32 +288,6 @@ function validateSignalsInsideRender(code: string): CodeValidationIssue[] {
   }
 
   return issues;
-}
-
-function validateThemeTiming(code: string): CodeValidationIssue[] {
-  const renderCalls = findTopLevelCalls(code, 'render');
-  const setThemeCalls = findTopLevelCalls(code, 'setTheme');
-
-  if (renderCalls.length === 0 || setThemeCalls.length === 0) {
-    return [];
-  }
-
-  const firstRender = renderCalls[0]!;
-  const hasThemeBeforeRender = setThemeCalls.some((position) => position < firstRender);
-  const lateTheme = setThemeCalls.find((position) => position > firstRender);
-
-  if (hasThemeBeforeRender || lateTheme === undefined) {
-    return [];
-  }
-
-  return [
-    makeIssue(
-      'theme-after-render',
-      'warning',
-      lineNumberAt(code, lateTheme),
-      'Top-level setTheme() appears after the first render() call.',
-    ),
-  ];
 }
 
 function validateApiPatterns(code: string): CodeValidationIssue[] {
@@ -458,7 +371,6 @@ function dedupeIssues(issues: CodeValidationIssue[]): CodeValidationIssue[] {
 export function validateTuiuiuCode(code: string): CodeValidationResult {
   const issues = dedupeIssues([
     ...validateSignalsInsideRender(code),
-    ...validateThemeTiming(code),
     ...validateApiPatterns(code),
   ]).sort((left, right) => (left.line ?? 0) - (right.line ?? 0));
 

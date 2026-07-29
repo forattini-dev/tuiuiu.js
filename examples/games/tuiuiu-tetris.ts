@@ -335,8 +335,14 @@ function scoreForLineClear(lines: number, level: number): number {
 function clearCompletedLines(board: Cell[][]): { board: Cell[][]; cleared: number } {
   const keptRows = board.filter((row) => row.some((cell) => cell === null));
   const cleared = WELL_HEIGHT - keptRows.length;
-  const nextBoard: Cell[][] = Array.from({ length: cleared }, () => Array.from({ length: WELL_WIDTH }, () => null))
-    .concat(keptRows.map((row) => row.slice()));
+  const emptyRows = Array.from(
+    { length: cleared },
+    () => Array<Cell>(WELL_WIDTH).fill(null)
+  );
+  const nextBoard: Cell[][] = [
+    ...emptyRows,
+    ...keptRows.map((row) => row.slice()),
+  ];
 
   return {
     board: nextBoard,

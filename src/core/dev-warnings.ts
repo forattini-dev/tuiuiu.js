@@ -14,7 +14,6 @@ const currentFilePath = path.normalize(fileURLToPath(import.meta.url));
 const srcRoot = path.dirname(path.dirname(currentFilePath));
 const packageRoot = path.dirname(srcRoot);
 
-let activeAppRenderSessions = 0;
 let signalCreationSuppressionDepth = 0;
 
 function isDevWarningEnabled(): boolean {
@@ -92,14 +91,6 @@ export function warnOnce(key: string, message: string): void {
   console.warn(`[tuiuiu] ${message}`);
 }
 
-export function beginAppRenderSession(): void {
-  activeAppRenderSessions++;
-}
-
-export function endAppRenderSession(): void {
-  activeAppRenderSessions = Math.max(0, activeAppRenderSessions - 1);
-}
-
 export function allowInternalSignalCreationDuringRender<T>(fn: () => T): T {
   signalCreationSuppressionDepth++;
   try {
@@ -127,17 +118,6 @@ export function warnIfCreateSignalDuringComponentRender(stack: string | undefine
   warnOnce(
     `create-signal-in-render:${location}`,
     `createSignal() was called during component render at ${location}. This recreates state every render. Move it to module scope or use useState(). ${getCommonMistakeReference('signals-inside-component-render')}`,
-  );
-}
-
-export function warnIfThemeSetAfterRenderStarted(): void {
-  if (activeAppRenderSessions <= 0) {
-    return;
-  }
-
-  warnOnce(
-    'theme-after-render-start',
-    `setTheme() was called after render() started. Apply the theme before render() so theming and runtime setup stay consistent. ${getCommonMistakeReference('theme-after-render')}`,
   );
 }
 
@@ -206,6 +186,5 @@ export function warnIfUnexpectedPropProvided(
 
 export function __resetDevWarningsForTesting(): void {
   warnedKeys.clear();
-  activeAppRenderSessions = 0;
   signalCreationSuppressionDepth = 0;
 }

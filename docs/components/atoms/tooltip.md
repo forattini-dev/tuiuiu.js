@@ -1,11 +1,11 @@
-# Tooltip, Badge & Popover
+# Tooltip & Popover
 
 Informational overlay components for contextual help and status indicators.
 
 ## Import
 
 ```typescript
-import { Tooltip, WithTooltip, HelpTooltip, Badge, Popover, InfoBox } from 'tuiuiu.js'
+import { Tooltip, WithTooltip, helpTooltip, Popover, InfoBox } from 'tuiuiu.js'
 ```
 
 ## Tooltip
@@ -64,7 +64,7 @@ Question mark icon with tooltip - ideal for form field help:
 ```typescript
 Box({ flexDirection: 'row', gap: 1 },
   Text({}, 'Username'),
-  HelpTooltip({ content: 'Your unique identifier' })
+  helpTooltip('Your unique identifier', { active: true })
 )
 ```
 
@@ -74,73 +74,15 @@ Output: `Username [?]` → hover shows "Your unique identifier"
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `content` | `string` | - | Help text |
+| `text` | `string` | - | Help text, passed as the first argument |
 | `icon` | `string` | `'?'` | Trigger icon |
-| `color` | `ColorValue` | `'info'` | Icon color |
+| `iconColor` | `ColorValue` | `'primary'` | Icon color |
+| `active` | `boolean` | `false` | Show the tooltip |
 
 ## Badge
 
-Small status indicator or counter.
-
-### Basic Usage
-
-```typescript
-// Status badge
-Badge({ label: 'NEW', color: 'success' })
-
-// Counter badge
-Badge({ label: '42', color: 'primary' })
-
-// Dot badge (no label)
-Badge({ dot: true, color: 'danger' })
-```
-
-### Props
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `label` | `string` | - | Badge text |
-| `color` | `ColorValue` | `'primary'` | Background color |
-| `foreground` | `ColorValue` | auto | Text color |
-| `variant` | `'solid' \| 'outline' \| 'subtle'` | `'solid'` | Style variant |
-| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | Size |
-| `dot` | `boolean` | `false` | Dot-only mode |
-| `pulse` | `boolean` | `false` | Animated pulse |
-
-### Variants
-
-```typescript
-// Solid (default)
-Badge({ label: 'Active', color: 'success', variant: 'solid' })
-
-// Outline
-Badge({ label: 'Pending', color: 'warning', variant: 'outline' })
-
-// Subtle
-Badge({ label: 'Draft', color: 'neutral', variant: 'subtle' })
-```
-
-### Common Patterns
-
-```typescript
-// Unread count
-Box({ flexDirection: 'row', gap: 1 },
-  Text({}, 'Messages'),
-  Badge({ label: '5', color: 'danger' })
-)
-
-// Status indicator
-Box({ flexDirection: 'row', gap: 1 },
-  Badge({ dot: true, color: 'success' }),
-  Text({}, 'Online')
-)
-
-// Notification dot
-Box({},
-  Text({}, 'Inbox'),
-  Badge({ dot: true, color: 'danger', pulse: true })
-)
-```
+Badge has its own reference with the current semantic `variant` and visual
+`style` properties: [Badge](/components/atoms/badge.md).
 
 ## Popover
 
@@ -149,8 +91,8 @@ Larger floating panel for extended content:
 ```typescript
 Popover({
   visible: isOpen,
-  title: 'Settings',
   content: Box({ flexDirection: 'column' },
+    Text({ bold: true }, 'Settings'),
     Text({}, 'Configure your preferences'),
     Switch({ label: 'Dark mode' })
   ),
@@ -162,10 +104,10 @@ Popover({
 | Prop | Type | Description |
 |------|------|-------------|
 | `visible` | `boolean` | Show popover |
-| `title` | `string` | Popover title |
 | `content` | `VNode` | Popover content |
 | `position` | `Position` | Placement |
-| `onClose` | `() => void` | Close handler |
+| `width` | `number` | Fixed width |
+| `arrow` | `boolean` | Show the position arrow |
 
 ## InfoBox
 
@@ -174,8 +116,8 @@ Styled information box for help text:
 ```typescript
 InfoBox({
   title: 'Tip',
-  content: 'Press Tab to navigate between fields',
-  variant: 'info',
+  message: 'Press Tab to navigate between fields',
+  type: 'info',
 })
 ```
 
@@ -197,7 +139,7 @@ function FormField({ label, help, children }) {
   return Box({ flexDirection: 'column', gap: 1 },
     Box({ flexDirection: 'row', gap: 1 },
       Text({}, label),
-      HelpTooltip({ content: help })
+      helpTooltip(help, { active: true })
     ),
     children
   )
@@ -218,8 +160,7 @@ function NavItem({ label, count }) {
     Text({}, label),
     count > 0 && Badge({
       label: count > 99 ? '99+' : String(count),
-      color: 'danger',
-      size: 'sm',
+      variant: 'danger',
     })
   )
 }
@@ -229,17 +170,17 @@ function NavItem({ label, count }) {
 
 ```typescript
 function StatusBadge({ status }) {
-  const colors = {
+  const variants = {
     active: 'success',
     pending: 'warning',
     error: 'danger',
-    inactive: 'neutral',
+    inactive: 'default',
   }
 
   return Badge({
     label: status.toUpperCase(),
-    color: colors[status],
-    variant: 'subtle',
+    variant: variants[status],
+    style: 'subtle',
   })
 }
 ```

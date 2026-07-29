@@ -228,7 +228,7 @@ Small status label with background color and multiple variants.
 // Status badges
 Badge({ label: 'ONLINE', color: 'green' })
 Badge({ label: 'OFFLINE', color: 'red' })
-Badge({ label: 'PENDING', color: 'yellow', variant: 'outline' })
+Badge({ label: 'PENDING', color: 'yellow', style: 'outline' })
 
 // With presets
 import { statusSuccess, statusWarning, statusError } from 'tuiuiu.js'

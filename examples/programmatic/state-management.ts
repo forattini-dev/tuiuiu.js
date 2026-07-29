@@ -275,7 +275,10 @@ function ExternalStateDemo() {
     // Metrics panel
     Box(
       { marginTop: 1, flexDirection: 'column' },
-      Text({ color: 'white', bold: true, marginBottom: 1 }, 'System Metrics'),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'white', bold: true }, 'System Metrics')
+      ),
       MetricBar({ label: 'CPU', value: metrics.cpu, max: 100, color: metrics.cpu > 80 ? 'red' : 'cyan' }),
       MetricBar({ label: 'Memory', value: metrics.memory, max: 100, color: metrics.memory > 90 ? 'red' : 'green' }),
       MetricBar({ label: 'Disk', value: metrics.disk, max: 100, color: metrics.disk > 85 ? 'yellow' : 'blue' }),
@@ -295,7 +298,10 @@ function ExternalStateDemo() {
     // Notifications panel
     Box(
       { marginTop: 1, flexDirection: 'column' },
-      Text({ color: 'white', bold: true, marginBottom: 1 }, `Notifications (${notifications.length})`),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'white', bold: true }, `Notifications (${notifications.length})`)
+      ),
       NotificationList({ notifications })
     ),
 

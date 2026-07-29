@@ -478,10 +478,18 @@ export function resetHitTestRegistry(scope?: RuntimeScope): void {
 /**
  * Register elements from a layout tree
  */
-export function registerHitTestFromLayout(layout: LayoutNode): void {
+export function registerHitTestFromLayout(layout: LayoutNode, offsetY = 0): void {
   const registry = getHitTestRegistry();
   registry.clear();
-  registry.registerFromLayout(layout);
+  if (offsetY === 0) {
+    registry.registerFromLayout(layout);
+    return;
+  }
+
+  walkHitTestLayout(layout, (node, x, y, width, height, parent) => {
+    if (!hasMouseHandlers(node)) return;
+    registry.register(node, x, y + offsetY, width, height, parent);
+  });
 }
 
 /**

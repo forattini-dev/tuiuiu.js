@@ -1,6 +1,6 @@
 {
   "name": "tuiuiu.js",
-  "version": "1.0.69",
+  "version": "1.0.70",
   "description": "Zero-dependency Terminal UI library with Component-based experience for Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -50,6 +50,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./minimal": {
+      "types": "./dist/minimal.d.ts",
+      "import": "./dist/minimal.js"
     },
     "./core": {
       "types": "./dist/core/index.d.ts",
@@ -119,6 +123,18 @@
       "types": "./dist/colors/index.d.ts",
       "import": "./dist/colors/index.js"
     },
+    "./styling": {
+      "types": "./dist/styling/index.d.ts",
+      "import": "./dist/styling/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "import": "./dist/jsx-dev-runtime.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
@@ -135,7 +151,9 @@
     "test:performance:stress": "vitest run tests/benchmarks/runtime-stress.test.ts",
     "test:devx-contracts": "vitest run tests/forms/interactive-state-hooks.test.ts tests/forms/interactive-wave1-state.test.ts tests/forms/interactive-wave2-state.test.ts tests/organisms/interactive-wave2-organisms-state.test.ts tests/integration/residual-interactive-devx.test.ts tests/primitives/scroll.test.ts tests/layout/tabs-mouse.test.ts tests/molecules/data-viz/legend.test.ts tests/components/data-viz.test.ts tests/organisms/scroll-area.test.ts tests/organisms/scroll-list.test.ts tests/organisms/data-table.test.ts",
     "test:runtime-contracts": "vitest run tests/core/frame.test.ts tests/core/frame-commands.test.ts tests/core/frame-queries.test.ts tests/core/renderer.test.ts tests/core/delta-render.test.ts tests/app/render-loop.test.ts tests/dev-tools/debugger.test.ts tests/dev-tools/inspector-snapshot.test.ts tests/primitives/scroll.test.ts tests/organisms/scroll-area.test.ts tests/layout/tabs-mouse.test.ts tests/layout/scroll-area-mouse.test.ts",
-    "typecheck": "tsc --noEmit",
+    "test:pty": "vitest run tests/integration/pty-session.test.ts",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.jsx-contract.json",
+    "typecheck:examples": "tsc --project tsconfig.examples.json",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "docs": "tsx scripts/serve-docs.ts",
     "docs:gifs": "bash scripts/generate-gifs.sh",

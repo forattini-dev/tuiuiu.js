@@ -105,6 +105,7 @@ export {
 export {
   TextInput,
   createTextInput,
+  getVisualLines,
   renderTextInput,
   useTextInputState,
   type TextInputProps,

@@ -47,7 +47,7 @@ pnpm example tuiuiu-tetris
 - The header includes live FPS via [`useFps`](/hooks/use-fps.md).
 - The well and previews are rendered with `createCanvas()` for predictable per-cell color output.
 - Help, pause, and game-over states use [`Modal`](/components/organisms/modal.md).
-- The HUD combines [`Digits`](/components/visual.md), [`Badge`](/components/atoms/badge.md), [`DataRow`](/components/atoms/data-row.md), and [`Panel`](/templates/layout.md).
+- The HUD combines [`Digits`](/components/visual.md), [`Badge`](/components/atoms/badge.md), [`DataRow`](/components/atoms/data-row.md), and [`Panel`](/components/layout.md).
 
 ## Exported Gameplay Helpers
 

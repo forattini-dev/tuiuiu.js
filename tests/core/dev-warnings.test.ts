@@ -141,8 +141,8 @@ describe('developer warnings', () => {
     });
   });
 
-  describe('theme timing guardrail', () => {
-    it('warns when setTheme is called after render() has started', () => {
+  describe('runtime theme switching', () => {
+    it('allows setTheme after render() has started', () => {
       const instance = render(() => Text({}, 'hello'), {
         stdin: createMockStdin(),
         stdout: createMockStdout(),
@@ -151,9 +151,7 @@ describe('developer warnings', () => {
 
       setTheme(lightTheme);
 
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(warnSpy.mock.calls[0]?.[0]).toContain('setTheme() was called after render() started');
-      expect(warnSpy.mock.calls[0]?.[0]).toContain('docs/resources/common-mistakes.md#theme-after-render');
+      expect(warnSpy).not.toHaveBeenCalled();
 
       instance.unmount();
     });

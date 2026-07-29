@@ -14,6 +14,7 @@
 import { showHelp } from './commands/help.js';
 import { runStorybookCommand } from './commands/storybook.js';
 import { runMcpCommand } from './commands/mcp.js';
+import { runInitCommand } from './commands/init.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -36,6 +37,11 @@ async function main() {
   // Storybook command
   if (command === 'storybook') {
     await runStorybookCommand();
+    return;
+  }
+
+  if (command === 'init') {
+    await runInitCommand(args.slice(1));
     return;
   }
 

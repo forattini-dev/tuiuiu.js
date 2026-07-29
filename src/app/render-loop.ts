@@ -12,6 +12,7 @@ import {
   enableMouseTracking,
   disableMouseTracking,
   setClearScreen,
+  setOutputWriter,
   setExternalUpdateIngress,
 } from '../hooks/index.js';
 import { enableAlternateScreen, disableAlternateScreen } from '../core/input.js';
@@ -37,7 +38,6 @@ import {
 import { cleanLayoutTree, clearChanges } from '../core/dirty.js';
 import { onTerminalFocusChange, readTerminalFocus } from '../core/terminal-focus.js';
 import { invalidateCellSize } from '../core/graphics.js';
-import { beginAppRenderSession, endAppRenderSession } from '../core/dev-warnings.js';
 import { recordCommittedFrame } from '../core/perf-inspector.js';
 import { configureMotionRuntime } from '../core/motion-runtime.js';
 import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
@@ -48,6 +48,7 @@ import {
   destroyRuntimeScope,
   runInRuntimeScope,
 } from '../core/runtime-scope.js';
+import { sanitizeTerminalText } from '../utils/terminal-sanitize.js';
 
 const PRODUCTION_FRAME_OPTIONS = {
   eagerHitTargets: false,
@@ -153,10 +154,44 @@ export interface RenderOptions {
    *  When enabled, the terminal switches to a separate screen on startup and
    *  restores the original screen on exit, preserving your scrollback history. */
   alternateScreen?: boolean;
+  /**
+   * Explicit terminal-screen preset. Legacy booleans override preset values
+   * when both are provided. Omit to preserve the 1.x defaults.
+   */
+  screenMode?: ScreenMode;
   /** Optional fixed-step update loop for game-like workloads.
    *  Updates run at a fixed cadence while presentation remains capped by `maxFps`. */
   fixedStep?: FixedStepOptions;
 }
+
+/**
+ * Terminal region used by the interactive renderer.
+ *
+ * - `inline`: keep scrollback; do not clear; render only content height
+ * - `fullscreen`: use the primary buffer, clear it, and fill its height
+ * - `alternate`: use the alternate buffer, clear it, and fill its height
+ */
+export type ScreenMode = 'inline' | 'fullscreen' | 'alternate';
+
+type ScreenPreset = Pick<Required<RenderOptions>, 'clearOnStart' | 'fullHeight' | 'alternateScreen'>;
+
+const SCREEN_PRESETS: Record<ScreenMode, ScreenPreset> = {
+  inline: {
+    clearOnStart: false,
+    fullHeight: false,
+    alternateScreen: false,
+  },
+  fullscreen: {
+    clearOnStart: true,
+    fullHeight: true,
+    alternateScreen: false,
+  },
+  alternate: {
+    clearOnStart: true,
+    fullHeight: true,
+    alternateScreen: true,
+  },
+};
 
 export interface FixedStepUpdate {
   /** Fixed logical step size in milliseconds */
@@ -187,6 +222,11 @@ export interface TuiInstance {
   waitUntilExit: () => Promise<void>;
   /** Clear the output */
   clear: () => void;
+  /**
+   * Write trusted application text above the live UI. Unsafe terminal control
+   * protocols are stripped while SGR color sequences are preserved.
+   */
+  writeLine: (text: string) => void;
 }
 
 /**
@@ -197,6 +237,9 @@ export interface TuiInstance {
  * await waitUntilExit();
  */
 export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions = {}): TuiInstance {
+  const screenPreset = options.screenMode
+    ? SCREEN_PRESETS[options.screenMode]
+    : undefined;
   const {
     stdout = process.stdout,
     stdin = process.stdin,
@@ -208,14 +251,14 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     escapeSequenceTimeoutMs,
     pasteTimeoutMs,
     maxFps = 30,
-    clearOnStart = true,
     showCursor = false,
     autoTabNavigation = true,
-    fullHeight = false,
     useDeltaRenderer = true,
-    alternateScreen = true,
     fixedStep,
   } = options;
+  const clearOnStart = options.clearOnStart ?? screenPreset?.clearOnStart ?? true;
+  const fullHeight = options.fullHeight ?? screenPreset?.fullHeight ?? false;
+  const alternateScreen = options.alternateScreen ?? screenPreset?.alternateScreen ?? true;
 
   // Initialize app context FIRST (before calling component functions)
   const appContext = initializeApp(stdin, stdout, {
@@ -233,8 +276,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     throw new Error('[tuiuiu] Failed to create the app runtime scope');
   }
   const runtimeScope = resolvedRuntimeScope;
-  beginAppRenderSession();
-
   // Install centralized panic hooks to restore terminal on crash
   let releasePanicHooks: () => void = () => {};
   const unregisterPanicCleanups: Array<() => void> = [];
@@ -270,7 +311,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     } catch {
       // Preserve the original startup error.
     }
-    endAppRenderSession();
     appContext.dispose();
     destroyRuntimeScope(runtimeScope);
     throw error;
@@ -371,27 +411,8 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let currentNode: VNode | null = null;
   let lastOutput = '';
   let isUnmounted = false;
+  let pendingOutputLines: string[] = [];
 
-  // Expose clearScreen to app context for splash->main transitions
-  // This properly resets logUpdate state to avoid incremental render corruption
-  runInRuntimeScope(runtimeScope, () => setClearScreen(() => {
-    // 1. Clear logUpdate state first (sets previousOutput='' and previousLines=[])
-    //    This ensures next render will be a full redraw since previousOutput.length === 0
-    logUpdate.clear();
-    // 2. Clear terminal completely (moves cursor to home position 0,0)
-    writeOutput(ansi.clearTerminal);
-    // 3. Reset render loop state
-    lastOutput = '';
-    renderedStaticIds.clear();
-    staticLineCount = 0;
-    logUpdateTopOffset = 0;
-    logUpdate = createLogUpdate(outputStream, {
-      showCursor,
-      incremental: false,
-      fullScreen: fullHeight,
-      topOffset: 0,
-    });
-  }));
   let exitPromise: Promise<void>;
   let resolveExit: () => void;
   let rejectExit: (error: Error) => void;
@@ -399,6 +420,37 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Static content tracking
   const renderedStaticIds = new Set<string>();
   let staticLineCount = 0; // Track how many lines of static content we've written
+
+  const recreateLogUpdate = (): void => {
+    logUpdateTopOffset = staticLineCount;
+    logUpdate = createLogUpdate(outputStream, {
+      showCursor,
+      incremental: false,
+      fullScreen: fullHeight,
+      topOffset: logUpdateTopOffset,
+    });
+    lastOutput = '';
+  };
+
+  const resetOutputState = (): void => {
+    logUpdate.clear();
+    writeOutput(ansi.clearTerminal);
+    lastOutput = '';
+    renderedStaticIds.clear();
+    staticLineCount = 0;
+    pendingOutputLines = [];
+    recreateLogUpdate();
+  };
+
+  const appendPermanentOutput = (text: string): void => {
+    logUpdate.clear();
+    writeOutput(`${text}\n`);
+    staticLineCount += text.split('\n').length;
+    recreateLogUpdate();
+  };
+
+  // Expose clearScreen to app context for splash->main transitions.
+  runInRuntimeScope(runtimeScope, () => setClearScreen(resetOutputState));
 
   // Create exit promise
   exitPromise = new Promise((resolve, reject) => {
@@ -551,6 +603,20 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     renderTimer = setTimeout(flushScheduledRender, delay);
   }
 
+  const writeLine = (text: string): void => runInRuntimeScope(runtimeScope, () => {
+    if (isUnmounted) {
+      return;
+    }
+
+    const safeText = sanitizeTerminalText(String(text))
+      .replace(/\r\n?/g, '\n')
+      .replace(/\n+$/u, '');
+    pendingOutputLines.push(safeText);
+    scheduleRenderCallback(doRender);
+  });
+
+  runInRuntimeScope(runtimeScope, () => setOutputWriter(writeLine));
+
   function scheduleFixedStepLoop(): void {
     if (!fixedStep || isUnmounted) {
       return;
@@ -649,7 +715,27 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const runtimeStartAt = pendingRuntimeStartAt ?? Date.now();
 
     const width = stdout.columns || 80;
-    const height = stdout.rows || 24;
+    const terminalHeight = stdout.rows || 24;
+
+    if (pendingOutputLines.length > 0) {
+      // Delta rendering assumes ownership of absolute screen coordinates. A
+      // permanent output region needs a vertical origin, so switch once to the
+      // string renderer, which supports top offsets explicitly.
+      if (deltaRenderer) {
+        deltaRenderer.cleanup();
+        deltaRenderer = null;
+        writeOutput(ansi.clearTerminal);
+        renderedStaticIds.clear();
+        staticLineCount = 0;
+        recreateLogUpdate();
+      }
+
+      const lines = pendingOutputLines;
+      pendingOutputLines = [];
+      appendPermanentOutput(lines.join('\n'));
+    }
+
+    const height = Math.max(1, terminalHeight - staticLineCount);
 
     // Delta renderer path: optimized cell-level updates
     if (deltaRenderer && !debug) {
@@ -662,7 +748,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       setCommittedFrameSnapshot(frame);
 
       // Register elements in hit-test registry for mouse events
-      registerHitTestFromLayout(frame.layout);
+      registerHitTestFromLayout(frame.layout, staticLineCount);
 
       // Enable/disable mouse tracking based on clickable elements
       const hitTestRegistry = getHitTestRegistry();
@@ -699,22 +785,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         const staticOutput = renderToString(staticNode, width);
 
         if (staticOutput.trim()) {
-          // Clear the interactive area before writing static
-          logUpdate.clear();
-
-          // Write static content (it becomes permanent)
-          writeOutput(staticOutput + '\n');
-          staticLineCount += staticOutput.split('\n').length;
-
-          if (staticLineCount !== logUpdateTopOffset) {
-            logUpdateTopOffset = staticLineCount;
-            logUpdate = createLogUpdate(outputStream, {
-              showCursor,
-              incremental: false,
-              topOffset: logUpdateTopOffset,
-            });
-            lastOutput = '';
-          }
+          appendPermanentOutput(staticOutput);
 
           renderedStaticIds.add(staticId);
         }
@@ -733,7 +804,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     setCommittedFrameSnapshot(frame);
 
     // Register elements in hit-test registry for mouse events
-    registerHitTestFromLayout(frame.layout);
+    registerHitTestFromLayout(frame.layout, staticLineCount);
 
     // Enable/disable mouse tracking based on clickable elements
     const hitTestRegistry = getHitTestRegistry();
@@ -822,6 +893,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     externalUpdateBatcher.cancel();
     externalUpdateQueue = [];
     setExternalUpdateIngress(null);
+    setOutputWriter(null);
 
     // Disable mouse tracking if enabled
     if (mouseTrackingEnabled) {
@@ -852,7 +924,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
     attempt(releasePanicHooks);
     attempt(() => clearCommittedFrameSnapshot());
-    attempt(() => endAppRenderSession());
     attempt(() => destroyRuntimeScope(runtimeScope));
   }
 
@@ -942,9 +1013,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         scheduledRender = false;
         renderMicrotaskQueued = false;
         pendingRender = false;
-        logUpdate.clear();
-        writeOutput(ansi.clearTerminal);
-        lastOutput = '';
+        resetOutputState();
         if (outputBackpressured) {
           scheduleRenderCallback(() => {
             doRender();
@@ -954,7 +1023,33 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
         }
       }
     }),
+
+    writeLine,
   };
+}
+
+/** Render in the primary screen without clearing scrollback. */
+export function renderInline(
+  nodeOrFn: VNode | (() => VNode),
+  options: Omit<RenderOptions, 'screenMode'> = {},
+): TuiInstance {
+  return render(nodeOrFn, { ...options, screenMode: 'inline' });
+}
+
+/** Render full-height in the primary screen buffer. */
+export function renderFullscreen(
+  nodeOrFn: VNode | (() => VNode),
+  options: Omit<RenderOptions, 'screenMode'> = {},
+): TuiInstance {
+  return render(nodeOrFn, { ...options, screenMode: 'fullscreen' });
+}
+
+/** Render full-height in an alternate buffer that restores scrollback on exit. */
+export function renderAlternateScreen(
+  nodeOrFn: VNode | (() => VNode),
+  options: Omit<RenderOptions, 'screenMode'> = {},
+): TuiInstance {
+  return render(nodeOrFn, { ...options, screenMode: 'alternate' });
 }
 
 /**

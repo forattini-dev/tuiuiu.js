@@ -5,29 +5,21 @@ Build a simple interactive counter in 5 minutes.
 ## 1. Create a New Project
 
 ```bash
-mkdir my-tui-app
+npx tuiuiu.js@latest init my-tui-app
 cd my-tui-app
-npm init -y
-npm install tuiuiu.js
+pnpm install
 ```
 
-Add `"type": "module"` to `package.json`:
-
-```json
-{
-  "type": "module"
-}
-```
+The generated project is TypeScript, ESM, uses the compact
+`tuiuiu.js/minimal` entry, and refuses to overwrite a non-empty directory.
+Pass `--jsx` to opt into the [JSX runtime](/getting-started/jsx.md).
 
 ## 2. Create Your First App
 
-Create `index.ts`:
+The generated `src/index.ts` can be expanded into this counter:
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp, setTheme, darkTheme } from 'tuiuiu.js';
-
-// ⚠️ IMPORTANT: Set theme BEFORE render()
-setTheme(darkTheme);
+import { renderInline, Box, Text, useState, useInput, useApp } from 'tuiuiu.js/minimal';
 
 function Counter() {
   // useState persists state across re-renders (it's a hook!)
@@ -46,22 +38,25 @@ function Counter() {
     Box({ borderStyle: 'round', borderColor: 'blue', padding: 1, marginTop: 1 },
       Text({ color: 'yellow', bold: true }, `Count: ${count()}`)
     ),
-    Text({ color: 'gray', dim: true, marginTop: 1 },
-      '↑/k: up  ↓/j: down  r: reset  Esc: quit'
+    Box({ marginTop: 1 },
+      Text({ color: 'gray', dim: true },
+        '↑/k: up  ↓/j: down  r: reset  Esc: quit'
+      )
     )
   );
 }
 
-const { waitUntilExit } = render(Counter);
+const { waitUntilExit } = renderInline(Counter);
 await waitUntilExit();
 ```
 
-> ⚠️ **Important**: Always call `setTheme()` before `render()` for proper input handling!
+Tuiuiu starts with a default theme. `setTheme()` is optional and only changes
+visual tokens; it is not required for keyboard input.
 
 ## 3. Run It
 
 ```bash
-npx tsx index.ts
+pnpm dev
 ```
 
 Use arrow keys to increment/decrement, `r` to reset, `Esc` to exit.
@@ -71,12 +66,12 @@ Use arrow keys to increment/decrement, `r` to reset, `Esc` to exit.
 ### Imports
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { renderInline, Box, Text, useState, useInput, useApp } from 'tuiuiu.js/minimal';
 ```
 
-- `render` — Starts the app and takes over the terminal
-- `Box` — Layout container (like `<div>`)
-- `Text` — Text content (like `<span>`)
+- `renderInline` — Starts the app without clearing shell scrollback
+- `Box` — Terminal layout container
+- `Text` — Styled terminal text
 - `useState` — Reactive state hook
 - `useInput` — Keyboard input handler
 - `useApp` — App control (exit, etc.)
@@ -112,7 +107,8 @@ Box({ flexDirection: 'column', padding: 1 },
 )
 ```
 
-Uses CSS Flexbox model. Common props:
+Uses Tuiuiu's typed, flexbox-inspired terminal layout. These are component
+props, not browser CSS. Common props:
 - `flexDirection`: `'row'` | `'column'`
 - `justifyContent`: `'flex-start'` | `'center'` | `'space-between'`
 - `alignItems`: `'flex-start'` | `'center'` | `'stretch'`

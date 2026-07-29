@@ -201,7 +201,7 @@ const [messageInputHeight, setMessageInputHeight] = createSignal(3);
 const MESSAGE_INPUT_MAX_LINES = 5;
 
 // Scroll states
-const chatScrollState = createScrollList({ initialScrollTop: 999 });
+const chatScrollState = createScrollList({ inverted: true });
 const contactsScrollState = createScrollList({});
 
 // Text input states (created once, outside components)
@@ -434,7 +434,7 @@ function ContactItem(props: { contact: Contact; isSelected: boolean; width: numb
       contact.unread > 0
         ? Badge({
             label: contact.unread.toString(),
-            variant: 'solid',
+            style: 'solid',
             color: colors.unread,
           })
         : null,
@@ -745,8 +745,8 @@ function WhatsAppClone(): VNode {
   const { exit } = useApp();
   const termSize = useTerminalSize();
   // Fallback to default terminal size if not available
-  const width = termSize.width || process.stdout.columns || 80;
-  const height = termSize.height || process.stdout.rows || 24;
+  const width = termSize.columns || process.stdout.columns || 80;
+  const height = termSize.rows || process.stdout.rows || 24;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const contentHeight = Math.max(10, height);
   const contactsListHeight = Math.max(5, contentHeight - 5);

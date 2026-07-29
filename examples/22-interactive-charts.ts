@@ -37,7 +37,7 @@ const lineSeriesData = [
  */
 function InteractiveScatterDemo(): any {
   const [selectedPoints, setSelectedPoints] = useState<number[]>([]);
-  const [hoveredPoint, setHoveredPoint] = useState<number | undefined>();
+  const [hoveredPoint, setHoveredPoint] = useState<number | undefined>(undefined);
 
   // Keyboard navigation for points
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -52,12 +52,12 @@ function InteractiveScatterDemo(): any {
     }
 
     // Select with Enter
-    if (key.enter) {
+    if (key.return) {
       setSelectedPoints((selected) => {
-        if (selected().includes(currentIndex())) {
-          return selected().filter((i) => i !== currentIndex());
+        if (selected.includes(currentIndex())) {
+          return selected.filter((i) => i !== currentIndex());
         }
-        return [...selected(), currentIndex()];
+        return [...selected, currentIndex()];
       });
     }
 
@@ -85,7 +85,7 @@ function InteractiveScatterDemo(): any {
     Spacer(),
 
     // Selection info
-    When(selectedPoints().length > 0, () =>
+    When(selectedPoints().length > 0,
       Box(
         { flexDirection: 'column', gap: 1 },
         Text({ color: 'yellow' }, `📌 Selected Points: ${selectedPoints().length}`),
@@ -106,7 +106,7 @@ function InteractiveScatterDemo(): any {
  */
 function InteractiveLineChartDemo(): any {
   const [focusedSeries, setFocusedSeries] = useState(0);
-  const [hoveredValue, setHoveredValue] = useState<number | undefined>();
+  const [hoveredValue, setHoveredValue] = useState<number | undefined>(undefined);
 
   useInput((char, key) => {
     // Navigate between series

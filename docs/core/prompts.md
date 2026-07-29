@@ -398,6 +398,6 @@ async function init(options: Options) {
 
 ## See Also
 
-- [CLI Integration Guide](/guides/cli-integration.md) — Using prompts with cli-args-parser
+- [CLI Integration Guide](/guides/cli-integration.md) — Using prompts with any argument parser
 - [TextInput Component](/components/atoms/text-input.md) — Reactive text input for TUI apps
 - [Select Component](/components/molecules/select.md) — Reactive select for TUI apps

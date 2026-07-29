@@ -333,7 +333,6 @@ function RecentPings() {
       Sparkline({
         data: recentPings,
         width: width - 10,
-        height: 1,
         color: resolveColor('primary'),
       }),
     ),

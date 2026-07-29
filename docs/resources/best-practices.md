@@ -4,11 +4,12 @@ To build scalable, maintainable, and performant Tuiuiu applications, follow thes
 
 ## Start Here
 
-Before optimizing anything else, avoid the three mistakes the runtime warns about:
+Before optimizing anything else, avoid the mistakes the runtime warns about:
 
 - `createSignal()` inside component render
-- `setTheme()` after `render()`
 - component API-pattern mismatches (`Page`/`AppShell` props pattern, `ScrollList` render-function pattern, `Tabs` data-driven pattern)
+
+Theme changes are reactive: `setTheme()` is valid before or after `render()`.
 
 Reference: [Common Mistakes](/resources/common-mistakes.md)
 
