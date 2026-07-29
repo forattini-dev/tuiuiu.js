@@ -29,6 +29,14 @@ public API changes and update examples that use the affected API. New unstable
 components should be exported from `tuiuiu.js/experimental` until their
 behavior, accessibility, and lifecycle contracts are tested.
 
+The root `tuiuiu.js` entry point is compatibility-frozen during the 1.x line.
+Add focused APIs to the most specific existing subpath instead of re-exporting
+them from the root or introducing another alias. `pnpm verify:contracts`
+fingerprints the runtime and TypeScript surface of every entry point and fails
+when an export is added, removed, renamed, or moved without an explicit
+baseline update. Treat a baseline change as a semver decision and explain it
+in the pull request.
+
 The framework owns terminal raw mode, paste mode, cursor visibility, signal
 handlers, and process listeners only while an app is mounted. Changes in those
 areas must test setup, cleanup, repeated cleanup, errors, and fragmented input.

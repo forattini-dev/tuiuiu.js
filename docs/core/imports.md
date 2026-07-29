@@ -1,8 +1,10 @@
 # Import Map
 
-All public APIs organized by category. Import from `tuiuiu.js` for convenience,
-`tuiuiu.js/minimal` for the compact application runtime, or dedicated
-subpaths as the application grows.
+All public APIs organized by category. The root `tuiuiu.js` entry point remains
+available as a compatibility aggregation during the 1.x line. Prefer
+`tuiuiu.js/minimal` for the compact application runtime and dedicated subpaths
+for larger applications: they provide clearer ownership and avoid ambiguous
+aliases.
 
 ## Signals & State
 
@@ -172,7 +174,7 @@ console.log(c.green.bold('Success!'));
 
 | Path | Contents |
 |------|----------|
-| `tuiuiu.js` | Everything |
+| `tuiuiu.js` | Compatibility aggregation frozen during 1.x |
 | `tuiuiu.js/minimal` | render, primitives, signals, essential hooks, and themes without component catalogs or tooling |
 | `tuiuiu.js/primitives` | Box, Text, signals, store |
 | `tuiuiu.js/atoms` | Button, Spinner, TextInput, etc. |
