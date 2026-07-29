@@ -32,6 +32,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { getTheme } from '../core/theme.js';
+import { padTextToWidth } from '../utils/text-utils.js';
 
 /**
  * Border characters for split dividers
@@ -159,24 +160,7 @@ function PanelHeader(props: {
 }): VNode {
   const { title, width, color = 'primary', align = 'left' } = props;
 
-  let paddedTitle = title;
-  const padding = width - title.length;
-
-  if (padding > 0) {
-    switch (align) {
-      case 'center':
-        const leftPad = Math.floor(padding / 2);
-        paddedTitle = ' '.repeat(leftPad) + title + ' '.repeat(padding - leftPad);
-        break;
-      case 'right':
-        paddedTitle = ' '.repeat(padding) + title;
-        break;
-      default:
-        paddedTitle = title + ' '.repeat(padding);
-    }
-  }
-
-  return Text({ color, bold: true }, paddedTitle.slice(0, width));
+  return Text({ color, bold: true }, padTextToWidth(title, width, align));
 }
 
 /**

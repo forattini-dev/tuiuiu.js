@@ -39,6 +39,7 @@ import {
   handleOverlayClick,
   handleOverlayEscape,
 } from '../../src/core/overlay.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 
 // =============================================================================
 // Test Setup
@@ -426,6 +427,22 @@ describe('Modal', () => {
     expect(content).toBeDefined();
     expect(content?.some((line) => line.includes('My Title'))).toBe(true);
   });
+
+  it('should size, center, and truncate Unicode modal content by columns', () => {
+    setOverlayTerminalSize(20, 10);
+
+    const id = showModal({
+      title: '界界界',
+      content: ['🙂'],
+      size: { width: 6 },
+    });
+    const layer = getLayer(id);
+    const content = layer?.content() ?? [];
+
+    expect(layer?.position.x).toBe(7);
+    expect(content.every((line) => stringWidth(line) === 6)).toBe(true);
+    expect(content.join('\n')).not.toContain('\uFFFD');
+  });
 });
 
 // =============================================================================
@@ -503,6 +520,21 @@ describe('Toast', () => {
     const content = layer?.content().join('');
 
     expect(content).toContain('✓');
+  });
+
+  it('should size and sanitize Unicode toast content', () => {
+    setOverlayTerminalSize(8, 5);
+    const id = showToast({
+      message: '界\n\x1b[2Jx',
+      position: 'top-right',
+    });
+    const layer = getLayer(id);
+    const content = layer?.content() ?? [];
+
+    expect(content.every((line) => stringWidth(line) === layer?.size.width)).toBe(true);
+    expect(content.join('')).not.toContain('\n');
+    expect(content.join('')).not.toContain('[2J');
+    expect(layer?.position.x).toBeGreaterThanOrEqual(0);
   });
 
   it('should call onDismiss callback', () => {
@@ -650,6 +682,19 @@ describe('Tooltip', () => {
 
     expect(content?.length).toBeGreaterThan(2); // Multiple lines + borders
   });
+
+  it('should wrap and border Unicode tooltip text by columns', () => {
+    showTooltip({
+      text: '界界界',
+      target: { x: 20, y: 10 },
+      maxWidth: 4,
+      delay: 0,
+    });
+
+    const content = getLayers()[0]?.content() ?? [];
+    expect(content).toHaveLength(4);
+    expect(content.every((line) => stringWidth(line) === 6)).toBe(true);
+  });
 });
 
 // =============================================================================
@@ -751,6 +796,20 @@ describe('Menu', () => {
     expect(content).toContain('├');
     expect(content).toContain('┤');
   });
+
+  it('should align Unicode labels, icons, and shortcuts by columns', () => {
+    const id = showMenu({
+      items: [
+        { icon: '🙂', label: '界', shortcut: '⌘K' },
+        { label: 'plain' },
+      ],
+      position: { x: 0, y: 0 },
+    });
+
+    const content = getLayer(id)?.content() ?? [];
+    const widths = content.map(stringWidth);
+    expect(new Set(widths).size).toBe(1);
+  });
 });
 
 // =============================================================================
@@ -839,6 +898,20 @@ describe('Hit Testing', () => {
 
     const miss = isPointInOverlay(0, 0);
     expect(miss).toBeUndefined();
+  });
+
+  it('should hit-test the continuation column of a wide grapheme', () => {
+    addLayer({
+      id: 'wide',
+      type: 'custom',
+      position: { x: 5, y: 2 },
+      size: {},
+      content: () => ['界'],
+      visible: true,
+    });
+
+    expect(isPointInOverlay(6, 2)?.id).toBe('wide');
+    expect(isPointInOverlay(7, 2)).toBeUndefined();
   });
 
   it('should return topmost layer at point', () => {

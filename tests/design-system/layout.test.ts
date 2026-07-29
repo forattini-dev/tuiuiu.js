@@ -301,6 +301,21 @@ describe('Layout Components', () => {
       expect(output).toContain('Content');
     });
 
+    it('should truncate panel titles at grapheme boundaries', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const node = SplitPanel({
+        left: Text({}, 'L'),
+        right: Text({}, 'R'),
+        width: 8,
+        leftWidth: 3,
+        leftTitle: `A${family}`,
+      });
+      const output = renderToString(node, 12);
+
+      expect(output).toContain(`A${family}`);
+      expect(output).not.toContain('\uFFFD');
+    });
+
     it('should render vertical split', () => {
       const node = SplitPanel({
         left: Text({}, 'Top'),

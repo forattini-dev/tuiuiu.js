@@ -8,6 +8,7 @@ import { Table, SimpleTable, KeyValueTable } from '../../src/molecules/table.js'
 import { CodeBlock, InlineCode } from '../../src/molecules/code-block.js';
 import { Markdown, renderMarkdown } from '../../src/molecules/markdown.js';
 import { TerminalMessage } from '../../src/molecules/terminal-message.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 
 describe('Data Display Components', () => {
   describe('Table', () => {
@@ -260,6 +261,19 @@ describe('Data Display Components', () => {
         expect(output).toBeDefined();
       }
     });
+
+    it('should truncate code by columns without splitting a grapheme', () => {
+      const node = CodeBlock({
+        code: '界界',
+        lineNumbers: false,
+        maxWidth: 3,
+        borderStyle: 'none',
+      });
+      const output = stripAnsi(renderToString(node, 20));
+
+      expect(output).toContain('界…');
+      expect(output).not.toContain('\uFFFD');
+    });
   });
 
   describe('InlineCode', () => {
@@ -361,6 +375,20 @@ describe('Data Display Components', () => {
       const node = Markdown({ content: '[Link](https://example.com)' });
       const output = renderToString(node, 80);
       expect(output).toContain('Link');
+    });
+
+    it('should align Unicode table cells by terminal columns', () => {
+      const node = Markdown({
+        content: '| Name | Value |\n| --- | --- |\n| 界 | 🙂 |',
+      });
+      const output = stripAnsi(renderToString(node, 80));
+      const rows = output
+        .split('\n')
+        .filter((line) => line.includes('│'))
+        .map((line) => line.split('│').slice(1, -1).map(stringWidth));
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toEqual(rows[1]);
     });
   });
 

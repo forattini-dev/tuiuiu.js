@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 import {
   getHitTestRegistry,
   registerHitTestFromLayout,
@@ -291,6 +292,18 @@ describe('Data Visualization Components', () => {
       ];
       const result = renderBarChartStrings(data, { width: 20 });
       expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('aligns Unicode labels by terminal columns', () => {
+      const result = renderBarChartStrings(
+        [
+          { label: '界', value: 1 },
+          { label: 'a', value: 1 },
+        ],
+        { maxBarLength: 1, showValues: false },
+      );
+
+      expect(result.map(stringWidth)).toEqual([4, 4]);
     });
   });
 
@@ -661,6 +674,21 @@ describe('Data Visualization Components', () => {
     it('renders heatmap with cell values', () => {
       const node = Heatmap({ data: sampleData, showValues: true });
       expect(node).not.toBeNull();
+    });
+
+    it('fits Unicode headers and values without splitting graphemes', () => {
+      const node = Heatmap({
+        data: [[{ value: 1, label: '👨‍👩‍👧‍👦x' }]],
+        columnHeaders: ['🙂x'],
+        rowHeaders: ['界'],
+        cellWidth: 3,
+        showValues: true,
+      });
+      const output = renderToString(node, 20);
+
+      expect(output).toContain('🙂x');
+      expect(output).toContain('👨‍👩‍👧‍👦');
+      expect(output).not.toContain('\uFFFD');
     });
 
     it('renders heatmap with border', () => {

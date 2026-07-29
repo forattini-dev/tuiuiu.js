@@ -16,6 +16,7 @@ import { createSignal } from '../../primitives/signal.js';
 import { useInput } from '../../hooks/index.js';
 import { useFactoryState } from '../../hooks/factory-state.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import { padTextToWidth, stringWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -406,18 +407,24 @@ export function Heatmap(props: HeatmapProps): VNode {
 
   const selectedRow = state?.selectedRow() ?? -1;
   const selectedCol = state?.selectedCol() ?? -1;
+  const safeCellWidth = Number.isFinite(cellWidth)
+    ? Math.max(1, Math.trunc(cellWidth))
+    : 3;
+  const rowHeaderWidth = Math.max(
+    0,
+    ...(rowHeaders ?? []).map(stringWidth),
+  );
 
   // Build header row
   const headerRow: VNode[] = [];
   if (columnHeaders && columnHeaders.length > 0) {
     // Empty cell for row header column
     if (rowHeaders) {
-      const maxRowHeaderLen = Math.max(...rowHeaders.map((h) => h.length));
-      headerRow.push(Text({ dim: true }, ' '.repeat(maxRowHeaderLen + 1)));
+      headerRow.push(Text({ dim: true }, ' '.repeat(rowHeaderWidth + 1)));
     }
 
     columnHeaders.forEach((header, i) => {
-      const padded = header.slice(0, cellWidth).padEnd(cellWidth);
+      const padded = padTextToWidth(header, safeCellWidth);
       headerRow.push(
         Box(
           { marginRight: showBorder ? 0 : 1 },
@@ -438,11 +445,13 @@ export function Heatmap(props: HeatmapProps): VNode {
 
     // Row header
     if (rowHeaders && rowHeaders[rowIdx]) {
-      const maxRowHeaderLen = Math.max(...rowHeaders.map((h) => h.length));
       rowCells.push(
         Box(
           { marginRight: 1 },
-          Text({ color: 'mutedForeground', dim: true }, rowHeaders[rowIdx]!.padEnd(maxRowHeaderLen))
+          Text(
+            { color: 'mutedForeground', dim: true },
+            padTextToWidth(rowHeaders[rowIdx]!, rowHeaderWidth),
+          )
         )
       );
     }
@@ -457,10 +466,10 @@ export function Heatmap(props: HeatmapProps): VNode {
 
       let cellContent: string;
       if (showValues) {
-        cellContent = (label ?? formatValue(value)).slice(0, cellWidth).padEnd(cellWidth);
+        cellContent = padTextToWidth(label ?? formatValue(value), safeCellWidth);
       } else {
         const char = getIntensityChar(normalized, isAscii);
-        cellContent = char.repeat(cellWidth);
+        cellContent = char.repeat(safeCellWidth);
       }
 
       rowCells.push(
@@ -484,13 +493,15 @@ export function Heatmap(props: HeatmapProps): VNode {
 
     // Horizontal border between rows
     if (showBorder && rowIdx < data.length - 1) {
-      const borderLine = '─'.repeat((cellWidth + 1) * row.length - 1);
+      const borderLine = '─'.repeat(
+        Math.max(0, (safeCellWidth + 1) * row.length - 1),
+      );
       dataRows.push(
         Box({ flexDirection: 'row' }, ...rowCells),
         Box(
           { flexDirection: 'row' },
           rowHeaders
-            ? Text({ dim: true }, ' '.repeat(Math.max(...rowHeaders.map((h) => h.length)) + 1))
+            ? Text({ dim: true }, ' '.repeat(rowHeaderWidth + 1))
             : null,
           Text({ color: borderColor }, borderLine)
         )

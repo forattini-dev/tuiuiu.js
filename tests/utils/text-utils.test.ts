@@ -7,6 +7,7 @@ import {
   stripAnsi,
   stringWidth,
   fitTextToWidth,
+  padTextToWidth,
   wrapText,
   truncateText,
   sliceAnsi,
@@ -26,6 +27,20 @@ import {
 } from '../../src/utils/text-utils.js';
 
 describe('Text Utilities', () => {
+  describe('terminal-column fitting', () => {
+    it('pads and aligns wide graphemes by terminal columns', () => {
+      expect(padTextToWidth('界a', 4)).toBe('界a ');
+      expect(padTextToWidth('界', 4, 'right')).toBe('  界');
+      expect(padTextToWidth('界', 4, 'center')).toBe(' 界 ');
+      expect(stringWidth(padTextToWidth('👨‍👩‍👧‍👦x', 2))).toBe(2);
+    });
+
+    it('hard-wraps without splitting an extended grapheme', () => {
+      const family = '👨‍👩‍👧‍👦';
+      expect(wrapText(`A${family}B`, 2)).toBe(`A\n${family}\nB`);
+    });
+  });
+
   describe('stripAnsi', () => {
     it('should strip ANSI codes', () => {
       const input = '\x1b[31mred\x1b[0m';

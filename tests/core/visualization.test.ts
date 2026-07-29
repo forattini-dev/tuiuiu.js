@@ -21,6 +21,7 @@ import {
   normalizeData,
   scaleData,
 } from '../../src/core/visualization.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 
 // =============================================================================
 // Sparkline
@@ -177,6 +178,19 @@ describe('barChart', () => {
     });
 
     expect(result.length).toBe(1);
+  });
+
+  it('should align Unicode labels by terminal columns', () => {
+    const result = barChart({
+      data: [
+        { value: 1, label: '界' },
+        { value: 1, label: 'a' },
+      ],
+      width: 1,
+      showValues: false,
+    });
+
+    expect(result.map(stringWidth)).toEqual([4, 4]);
   });
 });
 

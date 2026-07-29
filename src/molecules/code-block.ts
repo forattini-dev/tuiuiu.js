@@ -17,6 +17,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
 
 export type Language =
   | 'javascript'
@@ -409,9 +410,16 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
     // Code content
     let displayLine = line;
     if (maxWidth && !wrap) {
-      const availableWidth = maxWidth - (lineNumbers ? lineNumWidth + 3 : 0) - (isHighlighted ? 2 : 0);
-      if (displayLine.length > availableWidth) {
-        displayLine = displayLine.slice(0, availableWidth - 1) + '…';
+      const availableWidth = Math.max(
+        0,
+        Math.trunc(maxWidth) -
+          (lineNumbers ? lineNumWidth + 3 : 0) -
+          (isHighlighted ? 2 : 0),
+      );
+      if (stringWidth(displayLine) > availableWidth) {
+        displayLine = truncateText(displayLine, availableWidth, {
+          truncationCharacter: '…',
+        });
       }
     }
 

@@ -387,6 +387,34 @@ export function fitTextToWidth(
   return result;
 }
 
+/**
+ * Truncate and pad one line to an exact number of terminal columns.
+ */
+export function padTextToWidth(
+  text: string,
+  columns: number,
+  align: 'left' | 'center' | 'right' = 'left',
+): string {
+  const safeColumns = Number.isFinite(columns)
+    ? Math.max(0, Math.trunc(columns))
+    : 0;
+  if (safeColumns === 0) return '';
+
+  const fitted = truncateText(text, safeColumns, {
+    truncationCharacter: '',
+  });
+  const padding = Math.max(0, safeColumns - stringWidth(fitted));
+
+  if (align === 'right') {
+    return ' '.repeat(padding) + fitted;
+  }
+  if (align === 'center') {
+    const left = Math.floor(padding / 2);
+    return ' '.repeat(left) + fitted + ' '.repeat(padding - left);
+  }
+  return fitted + ' '.repeat(padding);
+}
+
 function wrapRenderableLine(line: string, columns: number): string[] {
   if (stringWidth(line) <= columns) {
     return [line];
@@ -522,7 +550,7 @@ function wrapLine(text: string, columns: number, options: WrapOptions): string {
     }
 
     // Track current style
-    const styleMatches = word.match(/\u001B\[\d+m/g);
+    const styleMatches = word.match(/\u001B\[[0-9;:]*m/g);
     if (styleMatches) {
       for (const match of styleMatches) {
         if (match === '\u001B[0m') {
@@ -547,45 +575,44 @@ function wrapLine(text: string, columns: number, options: WrapOptions): string {
  */
 function wrapWord(rows: string[], word: string, columns: number, currentStyle: string): void {
   let visible = stringWidth(rows[rows.length - 1]);
-  let charIndex = 0;
-  const chars: string[] = [];
-  for (const char of word) {
-    chars.push(char);
-  }
+  let index = 0;
+  let activeStyle = currentStyle;
 
-  while (charIndex < chars.length) {
-    const char = chars[charIndex];
-    const charWidth = stringWidth(char);
-
-    // Skip ANSI escape sequences
-    if (char === ESC) {
-      let escapeSequence = char;
-      charIndex++;
-      while (charIndex < chars.length && !chars[charIndex].match(/[a-zA-Z]/)) {
-        escapeSequence += chars[charIndex];
-        charIndex++;
+  while (index < word.length) {
+    if (word[index] === ESC) {
+      const sequence = readTerminalSequence(word, index);
+      if (sequence) {
+        index = sequence.end;
+        if (sequence.kind === 'sgr') {
+          rows[rows.length - 1] += sequence.value;
+          activeStyle = sequence.value === '\u001B[0m'
+            ? ''
+            : activeStyle + sequence.value;
+        }
+        continue;
       }
-      if (charIndex < chars.length) {
-        escapeSequence += chars[charIndex];
-        charIndex++;
-      }
-      rows[rows.length - 1] += escapeSequence;
-      continue;
     }
 
+    const grapheme = readGrapheme(word, index);
+    if (!grapheme) {
+      index++;
+      continue;
+    }
+    index = grapheme.end;
+    const charWidth = stringWidth(grapheme.segment);
+    if (charWidth <= 0) continue;
+
     if (visible + charWidth <= columns) {
-      rows[rows.length - 1] += char;
+      rows[rows.length - 1] += grapheme.segment;
       visible += charWidth;
     } else {
       // Start new line
-      if (currentStyle) {
+      if (activeStyle) {
         rows[rows.length - 1] += '\u001B[0m';
       }
-      rows.push(currentStyle + char);
+      rows.push(activeStyle + grapheme.segment);
       visible = charWidth;
     }
-
-    charIndex++;
   }
 }
 

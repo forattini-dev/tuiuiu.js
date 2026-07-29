@@ -17,8 +17,12 @@ import {
   fitTextToWidth,
   readRenderableSymbol,
   stringWidth,
+  truncateText,
 } from '../utils/text-utils.js';
-import { readTerminalSequence } from '../utils/terminal-sanitize.js';
+import {
+  readTerminalSequence,
+  sanitizeInlineInput,
+} from '../utils/terminal-sanitize.js';
 import {
   CellBuffer,
   DoubleBuffer,
@@ -869,16 +873,40 @@ function renderBoxToBuffer(
       // Border text overlay
       if (borderText && width > 4) {
         const maxTextLen = width - 4;
-        const truncated = borderText.length > maxTextLen ? borderText.slice(0, maxTextLen) : borderText;
+        const truncated = truncateText(
+          sanitizeInlineInput(borderText),
+          maxTextLen,
+          { truncationCharacter: '' },
+        );
         const textWithPad = ` ${truncated} `;
+        const textWidth = stringWidth(textWithPad);
         const align = borderTextAlign ?? 'center';
         const startCol = align === 'left'
           ? x + 1
           : align === 'right'
-            ? x + Math.max(1, width - 1 - textWithPad.length)
-            : x + Math.max(1, Math.floor((width - textWithPad.length) / 2));
-        for (let i = 0; i < textWithPad.length && startCol + i < x + width - 1; i++) {
-          writeCharReservedAware(buffer, reservedRegions, startCol + i, y, textWithPad[i]!, parsedBorderColor, undefined, attrs);
+            ? x + Math.max(1, width - 1 - textWidth)
+            : x + Math.max(1, Math.floor((width - textWidth) / 2));
+        let index = 0;
+        let column = startCol;
+        while (index < textWithPad.length && column < x + width - 1) {
+          const symbol = readRenderableSymbol(textWithPad, index);
+          if (!symbol) break;
+          index = symbol.nextIndex;
+          const symbolWidth = stringWidth(symbol.symbol);
+          if (symbolWidth <= 0 || column + symbolWidth > x + width - 1) {
+            continue;
+          }
+          writeCharReservedAware(
+            buffer,
+            reservedRegions,
+            column,
+            y,
+            symbol.symbol,
+            parsedBorderColor,
+            undefined,
+            attrs,
+          );
+          column += symbolWidth;
         }
       }
     }

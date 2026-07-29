@@ -27,6 +27,7 @@ import {
   type TransitionOffsets,
 } from '../../src/core/transitions.js';
 import { createScreen, type Screen } from '../../src/core/screen.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 
 // Mock timers for animation testing
 vi.useFakeTimers();
@@ -332,6 +333,11 @@ describe('Screen Transitions', () => {
       const result = applyHorizontalOffset(content, 2, width);
       expect(result).toBe('  Line1\n  Line2');
     });
+
+    it('should shift by terminal columns without splitting graphemes', () => {
+      expect(applyHorizontalOffset('界a', 1, 3)).toBe(' 界');
+      expect(applyHorizontalOffset('界a', -2, 4)).toBe('a   ');
+    });
   });
 
   describe('applyVerticalOffset', () => {
@@ -381,6 +387,10 @@ describe('Screen Transitions', () => {
       expect(result).toBe('  \n   ');
     });
 
+    it('should preserve terminal width at zero opacity', () => {
+      expect(applyOpacity('界a', 0)).toBe('   ');
+    });
+
     it('should return content at partial opacity (simplified)', () => {
       // Current implementation returns content as-is for partial opacity
       const content = 'Hello';
@@ -419,7 +429,19 @@ describe('Screen Transitions', () => {
       const lines = result.split('\n');
 
       // Should have mix of content due to horizontal offset
-      expect(lines[0]?.length).toBe(width);
+      expect(lines[0]).toBe('AAAAABBBBB');
+    });
+
+    it('should composite wide graphemes as indivisible terminal cells', () => {
+      const offsets: TransitionOffsets = {
+        from: { x: -2, y: 0, opacity: 1, scale: 1 },
+        to: { x: 2, y: 0, opacity: 1, scale: 1 },
+      };
+
+      const result = compositeScreens('界aa', '界bb', offsets, 4, 1);
+
+      expect(result).toBe('aa界');
+      expect(stringWidth(result)).toBe(4);
     });
   });
 

@@ -12,6 +12,8 @@
  * 
  */
 
+import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -298,7 +300,7 @@ export function barChart(options: BarChartOptions): string[] {
 
   const maxValue = options.max ?? Math.max(...data.map((d) => d.value));
   const maxLabelLen = showLabels
-    ? Math.max(...data.map((d) => (d.label ?? '').length))
+    ? Math.max(...data.map((d) => stringWidth(d.label ?? '')))
     : 0;
 
   const lines: string[] = [];
@@ -311,7 +313,7 @@ export function barChart(options: BarChartOptions): string[] {
 
     // Label
     if (showLabels) {
-      const label = (point.label ?? '').padEnd(maxLabelLen);
+      const label = padTextToWidth(point.label ?? '', maxLabelLen);
       line += label + ' ';
     }
 

@@ -8,6 +8,11 @@
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import {
+  padTextToWidth,
+  stringWidth,
+  truncateText,
+} from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -149,6 +154,16 @@ function normalizeValues(
   return { normalized, min: actualMin, max: actualMax };
 }
 
+function resolveLabelWidth(
+  data: Array<{ label: string }>,
+  explicitWidth?: number,
+): number {
+  const naturalWidth = Math.max(0, ...data.map((item) => stringWidth(item.label)));
+  return Number.isFinite(explicitWidth)
+    ? Math.max(0, Math.trunc(explicitWidth!))
+    : naturalWidth;
+}
+
 /**
  * Render a horizontal bar string
  */
@@ -200,8 +215,7 @@ export function renderBarChartStrings(
   const { normalized, max: actualMax } = normalizeValues(data, min, max);
 
   // Calculate label width
-  const maxLabelLen =
-    labelWidth ?? Math.max(...data.map((d) => d.label.length));
+  const maxLabelLen = resolveLabelWidth(data, labelWidth);
 
   const lines: string[] = [];
 
@@ -210,7 +224,7 @@ export function renderBarChartStrings(
     const norm = normalized[i] ?? 0;
 
     // Pad label
-    const label = item.label.padEnd(maxLabelLen);
+    const label = padTextToWidth(item.label, maxLabelLen);
 
     // Render bar
     const bar = renderHorizontalBar(norm, maxBarLength, chars);
@@ -306,8 +320,7 @@ export function BarChart(options: BarChartOptions): VNode {
   const { normalized, max: actualMax } = normalizeValues(data, min, max);
 
   // Calculate label width
-  const maxLabelLen =
-    labelWidth ?? Math.max(...data.map((d) => d.label.length));
+  const maxLabelLen = resolveLabelWidth(data, labelWidth);
 
   // Calculate value width if needed
   let maxValueLen = 0;
@@ -347,7 +360,13 @@ export function BarChart(options: BarChartOptions): VNode {
 
     return Box(
       { flexDirection: 'row', gap: 1, marginBottom: gap },
-      Box({ width: maxLabelLen }, Text({ color: labelColor }, item.label)),
+      Box(
+        { width: maxLabelLen },
+        Text(
+          { color: labelColor },
+          truncateText(item.label, maxLabelLen, { truncationCharacter: '' }),
+        ),
+      ),
       Text({ color: itemColor }, bar),
       showBackground
         ? Text({ color: 'mutedForeground', dim: true }, chars.empty.repeat(emptyLen))
@@ -407,7 +426,7 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
     const available = Math.max(0, width - totalGap);
     colWidth = Math.floor(available / data.length);
   } else {
-    colWidth = Math.max(...data.map(d => d.label.length), 3);
+    colWidth = Math.max(...data.map(d => stringWidth(d.label)), 3);
   }
   
   // Ensure minimum width
@@ -473,7 +492,10 @@ export function VerticalBarChart(options: VerticalBarChartOptions): VNode {
   const labels = data.map((item) => {
     return Box(
       { width: colWidth, justifyContent: 'center' },
-      Text({ color: labelColor }, item.label.slice(0, colWidth))
+      Text(
+        { color: labelColor },
+        truncateText(item.label, colWidth, { truncationCharacter: '' }),
+      )
     );
   });
   rows.push(Box({ flexDirection: 'row', gap }, ...labels));
@@ -560,8 +582,7 @@ export function StackedBarChart(options: StackedBarChartOptions): VNode {
   const maxTotal = Math.max(...totals);
 
   // Calculate label width
-  const maxLabelLen =
-    labelWidth ?? Math.max(...data.map((d) => d.label.length));
+  const maxLabelLen = resolveLabelWidth(data, labelWidth);
 
   const bars = data.map((item, rowIndex) => {
     const total = totals[rowIndex] ?? 0;
@@ -592,7 +613,13 @@ export function StackedBarChart(options: StackedBarChartOptions): VNode {
 
     return Box(
       { flexDirection: 'row', gap: 1 },
-      Box({ width: maxLabelLen }, Text({ color: labelColor }, item.label)),
+      Box(
+        { width: maxLabelLen },
+        Text(
+          { color: labelColor },
+          truncateText(item.label, maxLabelLen, { truncationCharacter: '' }),
+        ),
+      ),
       ...segmentNodes,
       showTotal
         ? Text({ color: 'foreground', dim: true }, ` ${total}`)

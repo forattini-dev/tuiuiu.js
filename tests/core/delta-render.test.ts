@@ -377,6 +377,27 @@ describe('Delta Renderer', () => {
       expect(buffer.get(9, 0)?.bg).toBeUndefined();
     });
 
+    it('renders border text by terminal columns without splitting graphemes', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const frame = createFrameSnapshot(
+        Box(
+          {
+            width: 10,
+            height: 3,
+            borderStyle: 'single',
+            borderText: `A${family}`,
+          },
+          Text({}, 'x'),
+        ),
+        { width: 10, height: 3 },
+      );
+      const output = renderFrameToString(frame);
+
+      expect(output).toContain(`A${family}`);
+      expect(output).not.toContain('\uFFFD');
+      expect(output.split('\n').every((line) => stringWidth(line) === 10)).toBe(true);
+    });
+
     it('should track render statistics', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,

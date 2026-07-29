@@ -21,6 +21,7 @@
 import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { CodeBlock, type CodeBlockOptions, type Language } from './code-block.js';
+import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
 
 type MarkdownCodeBlockOptions = Partial<Omit<CodeBlockOptions, 'code'>>;
 
@@ -507,9 +508,9 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
 
       // Calculate column widths
       const widths = headers.map((h, i) => {
-        let max = h.length;
+        let max = stringWidth(h);
         for (const row of rows) {
-          if (row[i]) max = Math.max(max, row[i].length);
+          if (row[i]) max = Math.max(max, stringWidth(row[i]));
         }
         return max + 2;
       });
@@ -523,7 +524,10 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
           { flexDirection: 'row' },
           Text({ color: 'border' }, '│'),
           ...headers.map((h, i) => [
-            Text({ color: 'foreground', bold: true }, ` ${h.padEnd(widths[i] - 1)}`),
+            Text(
+              { color: 'foreground', bold: true },
+              ` ${padTextToWidth(h, widths[i] - 1)}`,
+            ),
             Text({ color: 'border' }, '│'),
           ]).flat()
         )
@@ -548,7 +552,7 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
             { flexDirection: 'row' },
             Text({ color: 'border' }, '│'),
             ...headers.map((_, i) => [
-              Text({}, ` ${(row[i] || '').padEnd(widths[i] - 1)}`),
+              Text({}, ` ${padTextToWidth(row[i] || '', widths[i] - 1)}`),
               Text({ color: 'border' }, '│'),
             ]).flat()
           )

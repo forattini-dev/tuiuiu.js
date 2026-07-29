@@ -27,6 +27,9 @@ import {
   type AnimationControls,
 } from './animation.js';
 import type { Screen } from './screen.js';
+import { padTextToWidth, sliceAnsi, stringWidth } from '../utils/text-utils.js';
+import { readGrapheme } from '../utils/grapheme.js';
+import { readTerminalSequence } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -681,12 +684,12 @@ export function applyHorizontalOffset(
       if (offset > 0) {
         // Shift right: add spaces on left, truncate on right
         const shifted = ' '.repeat(offset) + line;
-        return shifted.slice(0, width);
+        return sliceAnsi(shifted, 0, width);
       } else {
         // Shift left: remove from left, pad on right
         const absOffset = -offset;
-        const shifted = line.slice(absOffset);
-        return shifted.padEnd(width, ' ').slice(0, width);
+        const shifted = sliceAnsi(line, absOffset);
+        return padTextToWidth(shifted, width);
       }
     })
     .join('\n');
@@ -731,7 +734,7 @@ export function applyOpacity(content: string, opacity: number): string {
     // Return empty lines preserving structure
     return content
       .split('\n')
-      .map((line) => ' '.repeat(line.length))
+      .map((line) => ' '.repeat(stringWidth(line)))
       .join('\n');
   }
 
@@ -758,14 +761,8 @@ export function compositeScreens(
   let toRendered = toContent;
 
   // Apply horizontal/vertical offsets
-  if (offsets.from.x !== 0) {
-    fromRendered = applyHorizontalOffset(fromRendered, offsets.from.x, width);
-  }
   if (offsets.from.y !== 0) {
     fromRendered = applyVerticalOffset(fromRendered, offsets.from.y, height);
-  }
-  if (offsets.to.x !== 0) {
-    toRendered = applyHorizontalOffset(toRendered, offsets.to.x, width);
   }
   if (offsets.to.y !== 0) {
     toRendered = applyVerticalOffset(toRendered, offsets.to.y, height);
@@ -816,9 +813,12 @@ function compositeLineHorizontal(
   offsets: TransitionOffsets,
   width: number
 ): string {
+  const fromCells = lineToCompositeCells(fromLine);
+  const toCells = lineToCompositeCells(toLine);
   const result: string[] = [];
+  let x = 0;
 
-  for (let x = 0; x < width; x++) {
+  while (x < width) {
     // Determine which character to show at this position
     const fromVisible =
       offsets.from.opacity > 0 &&
@@ -829,16 +829,72 @@ function compositeLineHorizontal(
       x >= offsets.to.x &&
       x < offsets.to.x + width;
 
-    if (toVisible && toLine[x - offsets.to.x]) {
-      result.push(toLine[x - offsets.to.x]!);
-    } else if (fromVisible && fromLine[x - offsets.from.x]) {
-      result.push(fromLine[x - offsets.from.x]!);
-    } else {
-      result.push(' ');
+    const toCell = toVisible ? toCells[x - offsets.to.x] : undefined;
+    const fromCell = fromVisible ? fromCells[x - offsets.from.x] : undefined;
+    const chosen = toCell !== undefined ? toCell : fromCell;
+
+    if (chosen && x + chosen.width <= width) {
+      result.push(chosen.text);
+      x += chosen.width;
+      continue;
     }
+
+    result.push(' ');
+    x++;
   }
 
   return result.join('');
+}
+
+interface CompositeCell {
+  text: string;
+  width: number;
+}
+
+function lineToCompositeCells(
+  line: string,
+): Array<CompositeCell | null | undefined> {
+  const cells: Array<CompositeCell | null | undefined> = [];
+  let activeStyle = '';
+  let index = 0;
+  let column = 0;
+
+  while (index < line.length) {
+    if (line[index] === '\u001B') {
+      const sequence = readTerminalSequence(line, index);
+      if (sequence) {
+        index = sequence.end;
+        if (sequence.kind === 'sgr') {
+          activeStyle = sequence.value === '\u001B[0m'
+            ? ''
+            : activeStyle + sequence.value;
+        }
+        continue;
+      }
+    }
+
+    const grapheme = readGrapheme(line, index);
+    if (!grapheme) {
+      index++;
+      continue;
+    }
+    index = grapheme.end;
+    const graphemeWidth = stringWidth(grapheme.segment);
+    if (graphemeWidth <= 0) continue;
+
+    cells[column] = {
+      text: activeStyle
+        ? `${activeStyle}${grapheme.segment}\u001B[0m`
+        : grapheme.segment,
+      width: graphemeWidth,
+    };
+    for (let continuation = 1; continuation < graphemeWidth; continuation++) {
+      cells[column + continuation] = null;
+    }
+    column += graphemeWidth;
+  }
+
+  return cells;
 }
 
 // =============================================================================

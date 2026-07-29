@@ -20,6 +20,13 @@ import {
   RUNTIME_RESOURCE_DISPOSE,
   type RuntimeScope,
 } from './runtime-scope.js';
+import {
+  padTextToWidth,
+  stringWidth,
+  truncateText,
+  wrapText as wrapTextByColumns,
+} from '../utils/text-utils.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -458,32 +465,39 @@ export function hasLayer(id: string): boolean {
 export function showModal(options: ModalOptions): string {
   const state = getOverlayRuntimeState();
   const id = options.id ?? generateId('modal');
+  const contentFn =
+    typeof options.content === 'function'
+      ? options.content
+      : () => buildModalContent(options.title, options.content as string[], options.size?.width);
+  const initialContent = contentFn();
+  const contentWidth = Math.max(0, ...initialContent.map(stringWidth));
+  const measuredWidth = Number.isFinite(options.size?.width)
+    ? Math.max(0, Math.trunc(options.size!.width!))
+    : contentWidth;
+  const measuredHeight = Number.isFinite(options.size?.height)
+    ? Math.max(0, Math.trunc(options.size!.height!))
+    : initialContent.length;
 
   // Calculate position
   let position: OverlayPosition;
   if (options.position === 'center' || !options.position) {
-    const width = options.size?.width ?? 40;
-    const height = options.content.length + (options.title ? 2 : 0) + 2; // Add border
-
     position = {
-      x: Math.floor((state.terminalSize.width - width) / 2),
-      y: Math.floor((state.terminalSize.height - height) / 2),
+      x: Math.max(0, Math.floor((state.terminalSize.width - measuredWidth) / 2)),
+      y: Math.max(0, Math.floor((state.terminalSize.height - measuredHeight) / 2)),
     };
   } else {
     position = options.position;
   }
 
-  // Create content function
-  const contentFn =
-    typeof options.content === 'function'
-      ? options.content
-      : () => buildModalContent(options.title, options.content as string[], options.size?.width);
-
   addLayer({
     id,
     type: 'modal',
     position,
-    size: options.size ?? {},
+    size: {
+      ...options.size,
+      width: measuredWidth,
+      height: measuredHeight,
+    },
     content: contentFn,
     visible: true,
     backdrop: options.backdrop ?? true,
@@ -529,14 +543,27 @@ function buildModalContent(
   content: string[],
   width?: number
 ): string[] {
-  const contentWidth = width ?? Math.max(...content.map((l) => l.length), title?.length ?? 0) + 4;
+  const safeTitle = title ? sanitizeInlineInput(title) : undefined;
+  const safeContent = content.map(sanitizeInlineInput);
+  const naturalWidth =
+    Math.max(
+      0,
+      ...safeContent.map(stringWidth),
+      safeTitle ? stringWidth(safeTitle) : 0,
+    ) + 4;
+  const contentWidth = Number.isFinite(width)
+    ? Math.max(2, Math.trunc(width!))
+    : naturalWidth;
   const innerWidth = contentWidth - 2;
   const lines: string[] = [];
 
   // Top border with title
-  if (title) {
-    const titlePadded = ` ${title} `;
-    const remaining = innerWidth - titlePadded.length;
+  if (safeTitle) {
+    const fittedTitle = truncateText(safeTitle, Math.max(0, innerWidth - 2), {
+      truncationCharacter: '',
+    });
+    const titlePadded = innerWidth >= 2 ? ` ${fittedTitle} ` : '';
+    const remaining = Math.max(0, innerWidth - stringWidth(titlePadded));
     const left = Math.floor(remaining / 2);
     const right = remaining - left;
     lines.push('┌' + '─'.repeat(left) + titlePadded + '─'.repeat(right) + '┐');
@@ -545,9 +572,8 @@ function buildModalContent(
   }
 
   // Content
-  for (const line of content) {
-    const padded = line.padEnd(innerWidth);
-    lines.push('│' + padded.slice(0, innerWidth) + '│');
+  for (const line of safeContent) {
+    lines.push('│' + padTextToWidth(line, innerWidth) + '│');
   }
 
   // Bottom border
@@ -569,18 +595,19 @@ export function showToast(options: ToastOptions): string {
   const duration = options.duration ?? 3000;
   const position = options.position ?? 'bottom-right';
 
+  // Build toast content and calculate its terminal-column width.
+  const content = buildToastContent(options.message, options.type, options.dismissible);
+  const width = Math.max(0, ...content.map(stringWidth));
+
   // Calculate position based on anchor and existing toasts
   const toastIndex = state.toastQueue.length;
-  const { x, y } = calculateToastPosition(position, toastIndex, options.message.length + 4);
-
-  // Build toast content
-  const content = buildToastContent(options.message, options.type, options.dismissible);
+  const { x, y } = calculateToastPosition(position, toastIndex, width);
 
   addLayer({
     id,
     type: 'toast',
     position: { x, y },
-    size: { width: options.message.length + 4 },
+    size: { width },
     content: () => content,
     visible: true,
     backdrop: false,
@@ -627,27 +654,42 @@ function calculateToastPosition(
   const { width: termWidth, height: termHeight } = state.terminalSize;
   const offset = index * 3; // Stack toasts vertically
 
+  let position: OverlayPosition;
   switch (anchor) {
     case 'top':
-      return { x: Math.floor((termWidth - width) / 2), y: 1 + offset };
+      position = { x: Math.floor((termWidth - width) / 2), y: 1 + offset };
+      break;
     case 'top-left':
-      return { x: 1, y: 1 + offset };
+      position = { x: 1, y: 1 + offset };
+      break;
     case 'top-right':
-      return { x: termWidth - width - 1, y: 1 + offset };
+      position = { x: termWidth - width - 1, y: 1 + offset };
+      break;
     case 'bottom':
-      return { x: Math.floor((termWidth - width) / 2), y: termHeight - 3 - offset };
+      position = { x: Math.floor((termWidth - width) / 2), y: termHeight - 3 - offset };
+      break;
     case 'bottom-left':
-      return { x: 1, y: termHeight - 3 - offset };
+      position = { x: 1, y: termHeight - 3 - offset };
+      break;
     case 'bottom-right':
     default:
-      return { x: termWidth - width - 1, y: termHeight - 3 - offset };
+      position = { x: termWidth - width - 1, y: termHeight - 3 - offset };
+      break;
     case 'center':
-      return { x: Math.floor((termWidth - width) / 2), y: Math.floor(termHeight / 2) };
+      position = { x: Math.floor((termWidth - width) / 2), y: Math.floor(termHeight / 2) };
+      break;
     case 'left':
-      return { x: 1, y: Math.floor(termHeight / 2) + offset };
+      position = { x: 1, y: Math.floor(termHeight / 2) + offset };
+      break;
     case 'right':
-      return { x: termWidth - width - 1, y: Math.floor(termHeight / 2) + offset };
+      position = { x: termWidth - width - 1, y: Math.floor(termHeight / 2) + offset };
+      break;
   }
+
+  return {
+    x: Math.max(0, Math.min(position.x, Math.max(0, termWidth - width))),
+    y: Math.max(0, Math.min(position.y, Math.max(0, termHeight - 3))),
+  };
 }
 
 /**
@@ -660,9 +702,10 @@ function buildToastContent(
 ): string[] {
   const icon = getToastIcon(type);
   const dismissBtn = dismissible ? ' ✕' : '';
-  const content = `${icon} ${message}${dismissBtn}`;
+  const content = `${icon} ${sanitizeInlineInput(message)}${dismissBtn}`;
+  const width = stringWidth(content);
 
-  return [`╭${'─'.repeat(content.length)}╮`, `│${content}│`, `╰${'─'.repeat(content.length)}╯`];
+  return [`╭${'─'.repeat(width)}╮`, `│${content}│`, `╰${'─'.repeat(width)}╯`];
 }
 
 /**
@@ -702,7 +745,7 @@ export function showPopup(options: PopupOptions): string {
   const position = calculateAnchoredPosition(
     options.target,
     anchor,
-    Math.max(...content.map((l) => l.length)),
+    Math.max(0, ...content.map(stringWidth)),
     content.length,
     offset.x ?? 0,
     offset.y ?? 0
@@ -812,8 +855,14 @@ export function showTooltip(options: TooltipOptions): string {
   const delay = options.delay ?? 500;
 
   const show = () => {
-    const lines = wrapText(options.text, options.maxWidth ?? 40);
-    const width = Math.max(...lines.map((l) => l.length)) + 2;
+    const maxWidth = Number.isFinite(options.maxWidth)
+      ? Math.max(1, Math.trunc(options.maxWidth!))
+      : 40;
+    const lines = wrapTextByColumns(
+      sanitizeInlineInput(options.text),
+      maxWidth,
+    ).split('\n');
+    const width = Math.max(0, ...lines.map(stringWidth)) + 2;
     const height = lines.length + 2;
 
     const position = calculateTooltipPosition(
@@ -904,7 +953,7 @@ function calculateTooltipPosition(
   if (x < 0) {
     x = 0;
   } else if (x + width > termWidth) {
-    x = termWidth - width;
+    x = Math.max(0, termWidth - width);
   }
 
   return { x, y };
@@ -914,46 +963,16 @@ function calculateTooltipPosition(
  * Build tooltip content with border
  */
 function buildTooltipContent(lines: string[]): string[] {
-  const width = Math.max(...lines.map((l) => l.length));
+  const width = Math.max(0, ...lines.map(stringWidth));
   const result: string[] = [];
 
   result.push('╭' + '─'.repeat(width) + '╮');
   for (const line of lines) {
-    result.push('│' + line.padEnd(width) + '│');
+    result.push('│' + padTextToWidth(line, width) + '│');
   }
   result.push('╰' + '─'.repeat(width) + '╯');
 
   return result;
-}
-
-/**
- * Simple text wrapping
- */
-function wrapText(text: string, maxWidth: number): string[] {
-  if (text.length <= maxWidth) {
-    return [text];
-  }
-
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    if (currentLine.length + word.length + 1 <= maxWidth) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine);
-      }
-      currentLine = word;
-    }
-  }
-
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-
-  return lines;
 }
 
 // =============================================================================
@@ -1051,13 +1070,19 @@ function buildMenuContent(
   minWidth?: number,
   selectedIndex = 0
 ): string[] {
+  const safeMinWidth = Number.isFinite(minWidth)
+    ? Math.max(0, Math.trunc(minWidth!))
+    : 0;
   const maxLabelLen = Math.max(
-    minWidth ?? 0,
+    safeMinWidth,
     ...items.map((item) => {
       if (item.separator) return 0;
-      const iconLen = item.icon ? 2 : 0;
-      const shortcutLen = item.shortcut ? item.shortcut.length + 2 : 0;
-      return iconLen + item.label.length + shortcutLen;
+      const icon = item.icon ? `${sanitizeInlineInput(item.icon)} ` : '';
+      const label = sanitizeInlineInput(item.label);
+      const shortcut = item.shortcut
+        ? ` ${sanitizeInlineInput(item.shortcut)}`
+        : '';
+      return stringWidth(icon + label + shortcut);
     })
   );
 
@@ -1073,19 +1098,23 @@ function buildMenuContent(
     } else {
       const isSelected = itemIndex === selectedIndex;
       const prefix = isSelected ? '▸ ' : '  ';
-      const icon = item.icon ? item.icon + ' ' : '';
-      const shortcut = item.shortcut ? ` ${item.shortcut}` : '';
-      const label = icon + item.label;
-      const padding = width - label.length - shortcut.length - 2;
+      const icon = item.icon ? sanitizeInlineInput(item.icon) + ' ' : '';
+      const shortcut = item.shortcut
+        ? ` ${sanitizeInlineInput(item.shortcut)}`
+        : '';
+      const label = icon + sanitizeInlineInput(item.label);
+      const padding = width - stringWidth(label) - stringWidth(shortcut) - 2;
 
       let line = prefix + label + ' '.repeat(Math.max(0, padding)) + shortcut;
 
       if (item.disabled) {
         // Could add dim styling marker
-        line = '  ' + label.slice(0, width - 2);
+        line = '  ' + truncateText(label, Math.max(0, width - 2), {
+          truncationCharacter: '',
+        });
       }
 
-      lines.push('│' + line.slice(0, width) + '│');
+      lines.push('│' + padTextToWidth(line, width) + '│');
       itemIndex++;
     }
   }
@@ -1138,7 +1167,7 @@ export function isPointInOverlay(x: number, y: number): OverlayLayer | undefined
 
   for (const layer of layers) {
     const content = layer.content();
-    const width = Math.max(...content.map((l) => l.length));
+    const width = Math.max(0, ...content.map(stringWidth));
     const height = content.length;
 
     if (
