@@ -26,40 +26,75 @@ import {
   sanitizeInlineInput,
   sanitizeTerminalText,
 } from '../utils/terminal-sanitize.js';
-import { stringWidth } from '../utils/text-utils.js';
+import { colorize, stringWidth } from '../utils/text-utils.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface InputOptions {
+export interface PromptTheme {
+  symbols: {
+    /** Prefix shown before every prompt */
+    question: string;
+    /** Prefix shown before validation errors and cancellations */
+    error: string;
+    /** Cursor shown beside the active option */
+    pointer: string;
+    /** Marker shown beside selected checkbox options */
+    selected: string;
+    /** Marker shown beside unselected checkbox options */
+    unselected: string;
+    /** Cursor shown after autocomplete input */
+    cursor: string;
+  };
+  colors: {
+    /** Prompt prefix and active-option color */
+    accent: string | null;
+    /** Final answers, pointers, and selected-option color */
+    answer: string | null;
+    /** Validation error and cancellation color */
+    error: string | null;
+  };
+}
+
+export interface PromptThemeOptions {
+  symbols?: Partial<PromptTheme['symbols']>;
+  colors?: Partial<PromptTheme['colors']>;
+}
+
+export interface PromptAppearanceOptions {
+  /** Appearance override for this prompt only */
+  theme?: PromptThemeOptions;
+}
+
+export interface InputOptions extends PromptAppearanceOptions {
   default?: string;
   placeholder?: string;
   validate?: (value: string) => boolean | string;
   transform?: (value: string) => string;
 }
 
-export interface ConfirmOptions {
+export interface ConfirmOptions extends PromptAppearanceOptions {
   default?: boolean;
 }
 
-export interface SelectOptions<T extends string = string> {
+export interface SelectOptions<T extends string = string> extends PromptAppearanceOptions {
   default?: T;
 }
 
-export interface PasswordOptions {
+export interface PasswordOptions extends PromptAppearanceOptions {
   mask?: string;
   validate?: (value: string) => boolean | string;
 }
 
-export interface CheckboxOptions<T extends string = string> {
+export interface CheckboxOptions<T extends string = string> extends PromptAppearanceOptions {
   default?: T[];
   min?: number;
   max?: number;
   validate?: (values: T[]) => boolean | string;
 }
 
-export interface AutocompleteOptions<T extends string = string> {
+export interface AutocompleteOptions<T extends string = string> extends PromptAppearanceOptions {
   default?: T;
   /** Minimum characters before showing suggestions */
   minInput?: number;
@@ -73,9 +108,6 @@ export interface AutocompleteOptions<T extends string = string> {
 // ANSI helpers
 // =============================================================================
 
-const CYAN = '\x1b[36m';
-const GREEN = '\x1b[32m';
-const YELLOW = '\x1b[33m';
 const DIM = '\x1b[2m';
 const BOLD = '\x1b[1m';
 const RESET = '\x1b[0m';
@@ -88,16 +120,60 @@ function safeInlineLabel(text: string): string {
   return sanitizeTerminalText(String(text)).replace(/[\r\n\t]/g, ' ');
 }
 
-function cyan(text: string): string {
-  return `${CYAN}${safeInlineLabel(text)}${RESET}`;
+const DEFAULT_PROMPT_THEME: PromptTheme = {
+  symbols: {
+    question: '?',
+    error: '!',
+    pointer: '❯',
+    selected: '◉',
+    unselected: '○',
+    cursor: '▌',
+  },
+  colors: {
+    accent: 'cyan',
+    answer: 'green',
+    error: 'yellow',
+  },
+};
+
+let configuredPromptTheme = mergePromptTheme(DEFAULT_PROMPT_THEME);
+
+function mergePromptTheme(
+  base: PromptTheme,
+  override: PromptThemeOptions = {},
+): PromptTheme {
+  return {
+    symbols: {
+      ...base.symbols,
+      ...override.symbols,
+    },
+    colors: {
+      ...base.colors,
+      ...override.colors,
+    },
+  };
 }
 
-function green(text: string): string {
-  return `${GREEN}${safeInlineLabel(text)}${RESET}`;
+/**
+ * Replace the process-wide prompt theme.
+ *
+ * Unspecified fields use the built-in defaults. Use the `theme` option on an
+ * individual prompt when only one call should look different.
+ */
+export function setPromptTheme(theme: PromptThemeOptions): PromptTheme {
+  configuredPromptTheme = mergePromptTheme(DEFAULT_PROMPT_THEME, theme);
+  return getPromptTheme();
 }
 
-function yellow(text: string): string {
-  return `${YELLOW}${safeInlineLabel(text)}${RESET}`;
+/** Return a defensive copy of the process-wide prompt theme. */
+export function getPromptTheme(): PromptTheme {
+  return mergePromptTheme(configuredPromptTheme);
+}
+
+/** Restore the built-in prompt theme. */
+export function resetPromptTheme(): PromptTheme {
+  configuredPromptTheme = mergePromptTheme(DEFAULT_PROMPT_THEME);
+  return getPromptTheme();
 }
 
 function dim(text: string): string {
@@ -106,6 +182,37 @@ function dim(text: string): string {
 
 function bold(text: string): string {
   return `${BOLD}${safeInlineLabel(text)}${RESET}`;
+}
+
+interface PromptPainter {
+  question: () => string;
+  error: () => string;
+  pointer: () => string;
+  selected: () => string;
+  unselected: () => string;
+  cursor: () => string;
+  accent: (text: string) => string;
+  answer: (text: string) => string;
+}
+
+function paint(text: string, color: string | null): string {
+  const safeText = safeInlineLabel(text);
+  return color ? colorize(safeText, color) : safeText;
+}
+
+function createPromptPainter(override?: PromptThemeOptions): PromptPainter {
+  const theme = mergePromptTheme(configuredPromptTheme, override);
+
+  return {
+    question: () => paint(theme.symbols.question, theme.colors.accent),
+    error: () => paint(theme.symbols.error, theme.colors.error),
+    pointer: () => paint(theme.symbols.pointer, theme.colors.answer),
+    selected: () => paint(theme.symbols.selected, theme.colors.answer),
+    unselected: () => dim(theme.symbols.unselected),
+    cursor: () => paint(theme.symbols.cursor, theme.colors.accent),
+    accent: (text) => paint(text, theme.colors.accent),
+    answer: (text) => paint(text, theme.colors.answer),
+  };
 }
 
 // =============================================================================
@@ -135,10 +242,11 @@ function createReadlineInterface(): readline.Interface {
  */
 export async function promptInput(message: string, options: InputOptions = {}): Promise<string> {
   const { default: defaultValue, placeholder, validate, transform } = options;
+  const painter = createPromptPainter(options.theme);
 
   const rl = createReadlineInterface();
 
-  const promptText = buildPromptText(message, defaultValue, placeholder);
+  const promptText = buildPromptText(message, defaultValue, placeholder, painter);
 
   return new Promise((resolve) => {
     rl.question(promptText, (answer) => {
@@ -154,21 +262,26 @@ export async function promptInput(message: string, options: InputOptions = {}): 
         const result = validate(value);
         if (result !== true) {
           const errorMsg = typeof result === 'string' ? result : 'Invalid input';
-          output.write(`${CLEAR_LINE}${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
+          output.write(`${CLEAR_LINE}${painter.error()} ${safeInlineLabel(errorMsg)}\n`);
           resolve(promptInput(message, options));
           return;
         }
       }
 
       // Rewrite the line with the final answer
-      output.write(`${MOVE_UP}${CLEAR_LINE}${cyan('?')} ${bold(message)} ${green(value)}\n`);
+      output.write(`${MOVE_UP}${CLEAR_LINE}${painter.question()} ${bold(message)} ${painter.answer(value)}\n`);
       resolve(value);
     });
   });
 }
 
-function buildPromptText(message: string, defaultValue?: string, placeholder?: string): string {
-  let text = `${cyan('?')} ${bold(message)} `;
+function buildPromptText(
+  message: string,
+  defaultValue: string | undefined,
+  placeholder: string | undefined,
+  painter: PromptPainter,
+): string {
+  let text = `${painter.question()} ${bold(message)} `;
 
   if (defaultValue) {
     text += dim(`(${defaultValue}) `);
@@ -194,11 +307,12 @@ function buildPromptText(message: string, defaultValue?: string, placeholder?: s
  */
 export async function promptConfirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
   const { default: defaultValue = false } = options;
+  const painter = createPromptPainter(options.theme);
 
   const rl = createReadlineInterface();
 
   const hint = defaultValue ? 'Y/n' : 'y/N';
-  const promptText = `${cyan('?')} ${bold(message)} ${dim(`(${hint})`)} `;
+  const promptText = `${painter.question()} ${bold(message)} ${dim(`(${hint})`)} `;
 
   return new Promise((resolve) => {
     rl.question(promptText, (answer) => {
@@ -218,7 +332,7 @@ export async function promptConfirm(message: string, options: ConfirmOptions = {
       }
 
       const displayValue = result ? 'Yes' : 'No';
-      output.write(`${MOVE_UP}${CLEAR_LINE}${cyan('?')} ${bold(message)} ${green(displayValue)}\n`);
+      output.write(`${MOVE_UP}${CLEAR_LINE}${painter.question()} ${bold(message)} ${painter.answer(displayValue)}\n`);
       resolve(result);
     });
   });
@@ -243,6 +357,7 @@ export async function promptSelect<T extends string>(
   options: SelectOptions<T> = {}
 ): Promise<T> {
   const { default: defaultValue } = options;
+  const painter = createPromptPainter(options.theme);
 
   if (choices.length === 0) {
     throw new Error('prompt.select requires at least one choice');
@@ -251,7 +366,7 @@ export async function promptSelect<T extends string>(
   // Non-TTY fallback: return default or first choice
   if (!input.isTTY) {
     const result = defaultValue ?? choices[0]!;
-    output.write(`${cyan('?')} ${bold(message)} ${green(result)} ${dim('(non-interactive)')}\n`);
+    output.write(`${painter.question()} ${bold(message)} ${painter.answer(result)} ${dim('(non-interactive)')}\n`);
     return result;
   }
 
@@ -263,7 +378,7 @@ export async function promptSelect<T extends string>(
     output.write(HIDE_CURSOR);
 
     // Render initial state
-    renderSelect(message, choices, selectedIndex);
+    renderSelect(message, choices, selectedIndex, painter);
 
     // Handle raw input
     if (input.isTTY) {
@@ -278,13 +393,13 @@ export async function promptSelect<T extends string>(
       if (key === '\x1b[A' || key === 'k') {
         selectedIndex = (selectedIndex - 1 + choices.length) % choices.length;
         clearSelect(choices.length);
-        renderSelect(message, choices, selectedIndex);
+        renderSelect(message, choices, selectedIndex, painter);
       }
       // Arrow down or j
       else if (key === '\x1b[B' || key === 'j') {
         selectedIndex = (selectedIndex + 1) % choices.length;
         clearSelect(choices.length);
-        renderSelect(message, choices, selectedIndex);
+        renderSelect(message, choices, selectedIndex, painter);
       }
       // Enter
       else if (key === '\r' || key === '\n') {
@@ -293,7 +408,7 @@ export async function promptSelect<T extends string>(
 
         // Clear and show final result
         clearSelect(choices.length);
-        output.write(`${cyan('?')} ${bold(message)} ${green(selected)}\n`);
+        output.write(`${painter.question()} ${bold(message)} ${painter.answer(selected)}\n`);
 
         resolve(selected);
       }
@@ -301,7 +416,7 @@ export async function promptSelect<T extends string>(
       else if (key === '\x03' || key === '\x1b') {
         cleanup();
         clearSelect(choices.length);
-        output.write(`${yellow('!')} Cancelled\n`);
+        output.write(`${painter.error()} Cancelled\n`);
         process.exit(0);
       }
       // Number keys for quick selection
@@ -310,7 +425,7 @@ export async function promptSelect<T extends string>(
         if (num < choices.length) {
           selectedIndex = num;
           clearSelect(choices.length);
-          renderSelect(message, choices, selectedIndex);
+          renderSelect(message, choices, selectedIndex, painter);
         }
       }
     };
@@ -328,12 +443,17 @@ export async function promptSelect<T extends string>(
   });
 }
 
-function renderSelect<T extends string>(message: string, choices: readonly T[], selectedIndex: number): void {
-  output.write(`${cyan('?')} ${bold(message)}\n`);
+function renderSelect<T extends string>(
+  message: string,
+  choices: readonly T[],
+  selectedIndex: number,
+  painter: PromptPainter,
+): void {
+  output.write(`${painter.question()} ${bold(message)}\n`);
 
   choices.forEach((choice, index) => {
-    const prefix = index === selectedIndex ? green('❯') : ' ';
-    const text = index === selectedIndex ? cyan(choice) : safeInlineLabel(choice);
+    const prefix = index === selectedIndex ? painter.pointer() : ' ';
+    const text = index === selectedIndex ? painter.accent(choice) : safeInlineLabel(choice);
     output.write(`  ${prefix} ${text}\n`);
   });
 }
@@ -362,9 +482,10 @@ function clearSelect(choicesCount: number): void {
 export async function promptPassword(message: string, options: PasswordOptions = {}): Promise<string> {
   const { validate } = options;
   const mask = sanitizeInlineInput(options.mask ?? '*') || '*';
+  const painter = createPromptPainter(options.theme);
 
   return new Promise((resolve) => {
-    output.write(`${cyan('?')} ${bold(message)} `);
+    output.write(`${painter.question()} ${bold(message)} `);
 
     if (input.isTTY) {
       input.setRawMode(true);
@@ -387,7 +508,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
           const result = validate(password);
           if (result !== true) {
             const errorMsg = typeof result === 'string' ? result : 'Invalid input';
-            output.write(`\n${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
+            output.write(`\n${painter.error()} ${safeInlineLabel(errorMsg)}\n`);
             resolve(promptPassword(message, options));
             return;
           }
@@ -459,6 +580,7 @@ export async function promptCheckbox<T extends string>(
   options: CheckboxOptions<T> = {}
 ): Promise<T[]> {
   const { default: defaultValues = [], min = 0, max = choices.length, validate } = options;
+  const painter = createPromptPainter(options.theme);
 
   if (choices.length === 0) {
     throw new Error('prompt.checkbox requires at least one choice');
@@ -466,7 +588,7 @@ export async function promptCheckbox<T extends string>(
 
   // Non-TTY fallback: return defaults or empty array
   if (!input.isTTY) {
-    output.write(`${cyan('?')} ${bold(message)} ${dim('(non-interactive)')}\n`);
+    output.write(`${painter.question()} ${bold(message)} ${dim('(non-interactive)')}\n`);
     return defaultValues;
   }
 
@@ -475,7 +597,7 @@ export async function promptCheckbox<T extends string>(
 
   return new Promise((resolve) => {
     output.write(HIDE_CURSOR);
-    renderCheckbox(message, choices, selectedIndex, selected);
+    renderCheckbox(message, choices, selectedIndex, selected, painter);
     input.setRawMode(true);
     input.resume();
 
@@ -486,13 +608,13 @@ export async function promptCheckbox<T extends string>(
       if (key === '\x1b[A' || key === 'k') {
         selectedIndex = (selectedIndex - 1 + choices.length) % choices.length;
         clearCheckbox(choices.length);
-        renderCheckbox(message, choices, selectedIndex, selected);
+        renderCheckbox(message, choices, selectedIndex, selected, painter);
       }
       // Arrow down or j
       else if (key === '\x1b[B' || key === 'j') {
         selectedIndex = (selectedIndex + 1) % choices.length;
         clearCheckbox(choices.length);
-        renderCheckbox(message, choices, selectedIndex, selected);
+        renderCheckbox(message, choices, selectedIndex, selected, painter);
       }
       // Space - toggle selection
       else if (key === ' ') {
@@ -503,7 +625,7 @@ export async function promptCheckbox<T extends string>(
           selected.add(choice);
         }
         clearCheckbox(choices.length);
-        renderCheckbox(message, choices, selectedIndex, selected);
+        renderCheckbox(message, choices, selectedIndex, selected, painter);
       }
       // Enter - confirm
       else if (key === '\r' || key === '\n') {
@@ -512,8 +634,8 @@ export async function promptCheckbox<T extends string>(
         // Check min constraint
         if (values.length < min) {
           clearCheckbox(choices.length);
-          output.write(`${yellow('!')} Select at least ${min} item(s)\n`);
-          renderCheckbox(message, choices, selectedIndex, selected);
+          output.write(`${painter.error()} Select at least ${min} item(s)\n`);
+          renderCheckbox(message, choices, selectedIndex, selected, painter);
           return;
         }
 
@@ -523,8 +645,8 @@ export async function promptCheckbox<T extends string>(
           if (result !== true) {
             const errorMsg = typeof result === 'string' ? result : 'Invalid selection';
             clearCheckbox(choices.length);
-            output.write(`${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
-            renderCheckbox(message, choices, selectedIndex, selected);
+            output.write(`${painter.error()} ${safeInlineLabel(errorMsg)}\n`);
+            renderCheckbox(message, choices, selectedIndex, selected, painter);
             return;
           }
         }
@@ -532,14 +654,14 @@ export async function promptCheckbox<T extends string>(
         cleanup();
         clearCheckbox(choices.length);
         const display = values.length > 0 ? values.join(', ') : dim('(none)');
-        output.write(`${cyan('?')} ${bold(message)} ${green(display)}\n`);
+        output.write(`${painter.question()} ${bold(message)} ${painter.answer(display)}\n`);
         resolve(values);
       }
       // Ctrl+C or Escape
       else if (key === '\x03' || key === '\x1b') {
         cleanup();
         clearCheckbox(choices.length);
-        output.write(`${yellow('!')} Cancelled\n`);
+        output.write(`${painter.error()} Cancelled\n`);
         process.exit(0);
       }
       // 'a' - select all
@@ -550,7 +672,7 @@ export async function promptCheckbox<T extends string>(
           choices.slice(0, max).forEach(c => selected.add(c));
         }
         clearCheckbox(choices.length);
-        renderCheckbox(message, choices, selectedIndex, selected);
+        renderCheckbox(message, choices, selectedIndex, selected, painter);
       }
     };
 
@@ -569,17 +691,18 @@ function renderCheckbox<T extends string>(
   message: string,
   choices: readonly T[],
   selectedIndex: number,
-  selected: Set<T>
+  selected: Set<T>,
+  painter: PromptPainter,
 ): void {
   const hint = dim(`(space to toggle, a to toggle all, enter to confirm)`);
-  output.write(`${cyan('?')} ${bold(message)} ${hint}\n`);
+  output.write(`${painter.question()} ${bold(message)} ${hint}\n`);
 
   choices.forEach((choice, index) => {
     const isCurrent = index === selectedIndex;
     const isSelected = selected.has(choice);
-    const cursor = isCurrent ? green('❯') : ' ';
-    const checkbox = isSelected ? green('◉') : dim('○');
-    const text = isCurrent ? cyan(choice) : safeInlineLabel(choice);
+    const cursor = isCurrent ? painter.pointer() : ' ';
+    const checkbox = isSelected ? painter.selected() : painter.unselected();
+    const text = isCurrent ? painter.accent(choice) : safeInlineLabel(choice);
     output.write(`  ${cursor} ${checkbox} ${text}\n`);
   });
 }
@@ -616,6 +739,7 @@ export async function promptAutocomplete<T extends string>(
     maxSuggestions = 7,
     filter = defaultFuzzyFilter,
   } = options;
+  const painter = createPromptPainter(options.theme);
 
   if (choices.length === 0) {
     throw new Error('prompt.autocomplete requires at least one choice');
@@ -623,7 +747,7 @@ export async function promptAutocomplete<T extends string>(
 
   // Non-TTY fallback
   if (!input.isTTY) {
-    output.write(`${cyan('?')} ${bold(message)} ${dim('(non-interactive)')}\n`);
+    output.write(`${painter.question()} ${bold(message)} ${dim('(non-interactive)')}\n`);
     return defaultValue ?? choices[0]!;
   }
 
@@ -634,7 +758,7 @@ export async function promptAutocomplete<T extends string>(
 
   return new Promise((resolve) => {
     output.write(HIDE_CURSOR);
-    renderAutocomplete(message, query, filtered, selectedIndex);
+    renderAutocomplete(message, query, filtered, selectedIndex, painter);
     input.setRawMode(true);
     input.resume();
 
@@ -647,7 +771,7 @@ export async function promptAutocomplete<T extends string>(
         if (filtered.length > 0) {
           selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
           clearAutocomplete(filtered.length);
-          renderAutocomplete(message, query, filtered, selectedIndex);
+          renderAutocomplete(message, query, filtered, selectedIndex, painter);
         }
       }
       // Arrow down
@@ -655,7 +779,7 @@ export async function promptAutocomplete<T extends string>(
         if (filtered.length > 0) {
           selectedIndex = (selectedIndex + 1) % filtered.length;
           clearAutocomplete(filtered.length);
-          renderAutocomplete(message, query, filtered, selectedIndex);
+          renderAutocomplete(message, query, filtered, selectedIndex, painter);
         }
       }
       // Tab - complete with selected
@@ -664,7 +788,7 @@ export async function promptAutocomplete<T extends string>(
         filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
         selectedIndex = 0;
         clearAutocomplete(filtered.length || 1);
-        renderAutocomplete(message, query, filtered, selectedIndex);
+        renderAutocomplete(message, query, filtered, selectedIndex, painter);
       }
       // Enter
       else if (key === '\r' || key === '\n') {
@@ -677,14 +801,14 @@ export async function promptAutocomplete<T extends string>(
         } else {
           // No match - re-prompt
           clearAutocomplete(filtered.length || 1);
-          output.write(`${yellow('!')} Please select a valid option\n`);
-          renderAutocomplete(message, query, filtered, selectedIndex);
+          output.write(`${painter.error()} Please select a valid option\n`);
+          renderAutocomplete(message, query, filtered, selectedIndex, painter);
           return;
         }
 
         cleanup();
         clearAutocomplete(filtered.length || 1);
-        output.write(`${cyan('?')} ${bold(message)} ${green(result)}\n`);
+        output.write(`${painter.question()} ${bold(message)} ${painter.answer(result)}\n`);
         resolve(result);
       }
       // Backspace
@@ -695,14 +819,14 @@ export async function promptAutocomplete<T extends string>(
           filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
           selectedIndex = 0;
           clearAutocomplete(prevLength);
-          renderAutocomplete(message, query, filtered, selectedIndex);
+          renderAutocomplete(message, query, filtered, selectedIndex, painter);
         }
       }
       // Ctrl+C or Escape
       else if (key === '\x03' || key === '\x1b') {
         cleanup();
         clearAutocomplete(filtered.length || 1);
-        output.write(`${yellow('!')} Cancelled\n`);
+        output.write(`${painter.error()} Cancelled\n`);
         process.exit(0);
       }
       // Regular character
@@ -714,7 +838,7 @@ export async function promptAutocomplete<T extends string>(
         filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
         selectedIndex = 0;
         clearAutocomplete(prevLength);
-        renderAutocomplete(message, query, filtered, selectedIndex);
+        renderAutocomplete(message, query, filtered, selectedIndex, painter);
       }
     };
 
@@ -768,19 +892,19 @@ function renderAutocomplete<T extends string>(
   message: string,
   query: string,
   filtered: T[],
-  selectedIndex: number
+  selectedIndex: number,
+  painter: PromptPainter,
 ): void {
-  const cursor = '▌';
   const displayQuery = query || dim('Type to search...');
-  output.write(`${cyan('?')} ${bold(message)} ${displayQuery}${query ? cursor : ''}\n`);
+  output.write(`${painter.question()} ${bold(message)} ${displayQuery}${query ? painter.cursor() : ''}\n`);
 
   if (filtered.length === 0) {
     output.write(`  ${dim('No matches')}\n`);
   } else {
     filtered.forEach((choice, index) => {
       const isCurrent = index === selectedIndex;
-      const prefix = isCurrent ? green('❯') : ' ';
-      const text = isCurrent ? cyan(choice) : safeInlineLabel(choice);
+      const prefix = isCurrent ? painter.pointer() : ' ';
+      const text = isCurrent ? painter.accent(choice) : safeInlineLabel(choice);
       output.write(`  ${prefix} ${text}\n`);
     });
   }
@@ -799,7 +923,7 @@ function clearAutocomplete(suggestionCount: number): void {
 // prompt.number()
 // =============================================================================
 
-export interface NumberOptions {
+export interface NumberOptions extends PromptAppearanceOptions {
   default?: number;
   min?: number;
   max?: number;
@@ -827,6 +951,7 @@ export async function promptNumber(message: string, options: NumberOptions = {})
 
   const result = await promptInput(message + hint, {
     default: defaultValue?.toString(),
+    theme: options.theme,
     validate: (value) => {
       const num = parseFloat(value);
       if (isNaN(num)) return 'Please enter a valid number';
@@ -853,6 +978,9 @@ export const prompt = {
   checkbox: promptCheckbox,
   autocomplete: promptAutocomplete,
   number: promptNumber,
+  setTheme: setPromptTheme,
+  getTheme: getPromptTheme,
+  resetTheme: resetPromptTheme,
 };
 
 export default prompt;

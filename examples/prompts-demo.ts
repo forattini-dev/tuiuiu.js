@@ -8,6 +8,18 @@
 import { prompt } from '../src/index.js';
 
 async function main() {
+  prompt.setTheme({
+    symbols: {
+      question: '◆',
+      pointer: '›',
+    },
+    colors: {
+      accent: '#cba6f7',
+      answer: 'greenBright',
+      error: 'redBright',
+    },
+  });
+
   console.log('\n╭─────────────────────────────────────╮');
   console.log('│     Tuiuiu Prompts Demo             │');
   console.log('╰─────────────────────────────────────╯\n');

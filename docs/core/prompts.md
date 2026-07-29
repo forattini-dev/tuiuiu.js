@@ -13,6 +13,10 @@ Tuiuiu provides two ways to handle user interaction:
 
 This page covers the **blocking prompts** API — perfect for CLI tools that need simple question/answer flows.
 
+Every prompt options object also accepts `theme?: PromptThemeOptions`. Use it
+to customize one call, or use `prompt.setTheme()` to configure every blocking
+prompt in the process.
+
 ## Quick Start
 
 ```typescript
@@ -52,6 +56,7 @@ const name = await prompt.input('Your name:', {
 | `placeholder` | `string` | Hint text shown before input |
 | `validate` | `(value: string) => boolean \| string` | Return `true` or error message |
 | `transform` | `(value: string) => string` | Transform input before returning |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 ---
 
@@ -72,6 +77,7 @@ const dangerous = await prompt.confirm('Delete all?', { default: false })
 | Option | Type | Description |
 |--------|------|-------------|
 | `default` | `boolean` | Default value (affects Y/n display) |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 ---
 
@@ -98,6 +104,7 @@ const env = await prompt.select(
 | Option | Type | Description |
 |--------|------|-------------|
 | `default` | `T` | Pre-selected choice |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 ---
 
@@ -132,6 +139,7 @@ const features = await prompt.checkbox(
 | `min` | `number` | Minimum selections required |
 | `max` | `number` | Maximum selections allowed |
 | `validate` | `(values: T[]) => boolean \| string` | Custom validation |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 ---
 
@@ -166,6 +174,7 @@ const country = await prompt.autocomplete(
 | `minInput` | `number` | Characters before filtering starts (default: 0) |
 | `maxSuggestions` | `number` | Max visible suggestions (default: 7) |
 | `filter` | `(input: string, choice: T) => boolean` | Custom filter function |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 **Fuzzy Matching:**
 
@@ -193,6 +202,7 @@ const token = await prompt.password('API Token:', {
 |--------|------|-------------|
 | `mask` | `string` | Character to display (default: `'*'`) |
 | `validate` | `(value: string) => boolean \| string` | Validation function |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
 
 ---
 
@@ -223,6 +233,60 @@ const price = await prompt.number('Price:', {
 | `max` | `number` | Maximum allowed value |
 | `integer` | `boolean` | Require integer (no decimals) |
 | `validate` | `(value: number) => boolean \| string` | Custom validation |
+| `theme` | `PromptThemeOptions` | Symbols and colors for this call |
+
+---
+
+## Customizing Prompt Appearance
+
+Configure symbols and colors once for an entire CLI:
+
+```typescript
+import { prompt } from 'tuiuiu.js'
+
+prompt.setTheme({
+  symbols: {
+    question: '◆',
+    error: '×',
+    pointer: '›',
+    selected: '●',
+    unselected: '○',
+    cursor: '▌',
+  },
+  colors: {
+    accent: '#cba6f7',
+    answer: 'greenBright',
+    error: 'redBright',
+  },
+})
+```
+
+The same shape can override one call without mutating the global theme:
+
+```typescript
+const environment = await prompt.select(
+  'Environment:',
+  ['development', 'production'] as const,
+  {
+    theme: {
+      symbols: { question: 'λ', pointer: '→' },
+      colors: { accent: 'magenta' },
+    },
+  },
+)
+```
+
+Colors accept named ANSI colors, `#rgb`, `#rrggbb`, `rgb(r, g, b)`,
+`ansi256(n)`, or `null` to disable that color role.
+
+| Color role | Used for |
+|------------|----------|
+| `accent` | Question prefix and active option |
+| `answer` | Final answer, pointer, and selected checkbox |
+| `error` | Validation and cancellation marker |
+
+`prompt.getTheme()` returns a defensive copy. `prompt.resetTheme()` restores
+the built-in symbols and cyan/green/yellow color roles.
 
 ---
 

@@ -26,14 +26,18 @@ vi.mock('node:process', async () => {
 });
 
 import {
+  getPromptTheme,
+  prompt,
   promptAutocomplete,
   promptPassword,
   promptSelect,
+  resetPromptTheme,
 } from '../../src/prompts/index.js';
 
 describe('interactive prompt Unicode input', () => {
   beforeEach(() => {
     processMocks.write.mockClear();
+    resetPromptTheme();
   });
 
   it('decodes split UTF-8 and deletes one password grapheme at a time', async () => {
@@ -78,5 +82,85 @@ describe('interactive prompt Unicode input', () => {
     expect(output).not.toContain('owned-title');
     expect(output).not.toContain('payload');
     expect(output).toContain('visible');
+  });
+
+  it('supports a per-call theme without changing the global theme', async () => {
+    const resultPromise = promptSelect('Choose', ['One', 'Two'], {
+      theme: {
+        symbols: {
+          question: 'λ',
+          pointer: '→',
+        },
+        colors: {
+          accent: 'magenta',
+          answer: 'blue',
+        },
+      },
+    });
+
+    processMocks.stdin.emit('data', Buffer.from('\r'));
+    await expect(resultPromise).resolves.toBe('One');
+
+    const output = processMocks.write.mock.calls.flat().join('');
+    expect(output).toContain('\x1b[35mλ\x1b[0m');
+    expect(output).toContain('\x1b[34m→\x1b[0m');
+    expect(output).toContain('\x1b[34mOne\x1b[0m');
+    expect(getPromptTheme().symbols.question).toBe('?');
+  });
+
+  it('configures and resets the process-wide prompt theme', async () => {
+    prompt.setTheme({
+      symbols: { question: '>' },
+      colors: { accent: null, answer: null },
+    });
+
+    const configured = prompt.getTheme();
+    configured.symbols.question = 'mutated copy';
+    expect(prompt.getTheme().symbols.question).toBe('>');
+
+    const resultPromise = promptSelect('Choose', ['One']);
+    processMocks.stdin.emit('data', Buffer.from('\r'));
+    await expect(resultPromise).resolves.toBe('One');
+
+    const output = processMocks.write.mock.calls.flat().join('');
+    expect(output).toContain('> \x1b[1mChoose\x1b[0m');
+    expect(output).not.toContain('\x1b[36m>\x1b[0m');
+
+    prompt.resetTheme();
+    expect(prompt.getTheme()).toEqual({
+      symbols: {
+        question: '?',
+        error: '!',
+        pointer: '❯',
+        selected: '◉',
+        unselected: '○',
+        cursor: '▌',
+      },
+      colors: {
+        accent: 'cyan',
+        answer: 'green',
+        error: 'yellow',
+      },
+    });
+  });
+
+  it('sanitizes user-defined prompt symbols', async () => {
+    const resultPromise = promptSelect('Choose', ['One'], {
+      theme: {
+        symbols: {
+          question: `?\x1b]52;c;payload\x07\nowned`,
+          pointer: `→\x1b]0;title\x07`,
+        },
+      },
+    });
+
+    processMocks.stdin.emit('data', Buffer.from('\r'));
+    await expect(resultPromise).resolves.toBe('One');
+
+    const output = processMocks.write.mock.calls.flat().join('');
+    expect(output).not.toContain('\x1b]');
+    expect(output).not.toContain('payload');
+    expect(output).not.toContain('title');
+    expect(output).toContain('? owned');
   });
 });

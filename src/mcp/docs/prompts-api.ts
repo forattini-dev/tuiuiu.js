@@ -30,6 +30,7 @@ export const promptsApiDocs: PromptDoc[] = [
       { name: 'placeholder', type: 'string', required: false, description: 'Hint text shown before user starts typing' },
       { name: 'validate', type: '(value: string) => boolean | string', required: false, description: 'Return true if valid, or error message string' },
       { name: 'transform', type: '(value: string) => string', required: false, description: 'Transform input before returning' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<string>',
     examples: [
@@ -46,6 +47,7 @@ export const promptsApiDocs: PromptDoc[] = [
     signature: 'prompt.confirm(message: string, options?: ConfirmOptions): Promise<boolean>',
     options: [
       { name: 'default', type: 'boolean', required: false, default: 'false', description: 'Default value (affects Y/n vs y/N display)' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<boolean>',
     examples: [
@@ -61,6 +63,7 @@ export const promptsApiDocs: PromptDoc[] = [
     signature: 'prompt.select<T extends string>(message: string, choices: readonly T[], options?: SelectOptions<T>): Promise<T>',
     options: [
       { name: 'default', type: 'T', required: false, description: 'Pre-selected choice' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<T>',
     controls: [
@@ -87,6 +90,7 @@ export const promptsApiDocs: PromptDoc[] = [
       { name: 'min', type: 'number', required: false, description: 'Minimum selections required' },
       { name: 'max', type: 'number', required: false, description: 'Maximum selections allowed' },
       { name: 'validate', type: '(values: T[]) => boolean | string', required: false, description: 'Custom validation function' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<T[]>',
     controls: [
@@ -114,6 +118,7 @@ export const promptsApiDocs: PromptDoc[] = [
       { name: 'minInput', type: 'number', required: false, default: '0', description: 'Characters before filtering starts' },
       { name: 'maxSuggestions', type: 'number', required: false, default: '7', description: 'Max visible suggestions' },
       { name: 'filter', type: '(input: string, choice: T) => boolean', required: false, description: 'Custom filter function' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<T>',
     controls: [
@@ -146,6 +151,7 @@ export const promptsApiDocs: PromptDoc[] = [
       { name: 'max', type: 'number', required: false, description: 'Maximum allowed value' },
       { name: 'integer', type: 'boolean', required: false, default: 'false', description: 'Require integer (no decimals)' },
       { name: 'validate', type: '(value: number) => boolean | string', required: false, description: 'Custom validation' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<number>',
     examples: [
@@ -168,6 +174,7 @@ export const promptsApiDocs: PromptDoc[] = [
     options: [
       { name: 'mask', type: 'string', required: false, default: "'*'", description: 'Character to display' },
       { name: 'validate', type: '(value: string) => boolean | string', required: false, description: 'Validation function' },
+      { name: 'theme', type: 'PromptThemeOptions', required: false, description: 'Symbols and colors for this prompt only' },
     ],
     returns: 'Promise<string>',
     examples: [
@@ -221,6 +228,40 @@ console.log({ name, useTs, framework, features, country, port })
 | \`prompt.autocomplete()\` | Type-ahead with fuzzy matching |
 | \`prompt.number()\` | Numeric input with constraints |
 | \`prompt.password()\` | Masked input for secrets |
+
+## Appearance
+
+Set a process-wide prompt theme, or pass the same shape as \`options.theme\`
+to override a single call:
+
+\`\`\`typescript
+prompt.setTheme({
+  symbols: {
+    question: '◆',
+    error: '×',
+    pointer: '›',
+    selected: '●',
+    unselected: '○',
+    cursor: '▌',
+  },
+  colors: {
+    accent: '#cba6f7',
+    answer: 'greenBright',
+    error: 'redBright',
+  },
+})
+
+await prompt.select('Environment:', ['dev', 'prod'], {
+  theme: {
+    symbols: { question: 'λ' },
+    colors: { accent: 'magenta' },
+  },
+})
+\`\`\`
+
+Colors support ANSI names, hex, RGB, ANSI 256, or \`null\` to disable a
+color role. Use \`prompt.getTheme()\` to inspect a defensive copy and
+\`prompt.resetTheme()\` to restore the defaults.
 
 ## Non-TTY Behavior
 
