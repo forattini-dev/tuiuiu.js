@@ -35,8 +35,8 @@ pnpm dev
 ```
 
 Tuiuiu is ESM-only and requires Node.js 22.12 or newer.
-Use `--jsx` with `init` for the optional automatic JSX runtime; the functional
-API remains the default. The scaffolder never overwrites a non-empty target.
+Its public component model uses typed function composition. The scaffolder
+never overwrites a non-empty target.
 
 ```typescript
 import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js/minimal';

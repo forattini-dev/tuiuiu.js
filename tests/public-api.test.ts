@@ -27,5 +27,7 @@ describe('public package boundaries', () => {
       './themes',
       './dev-tools',
     ]));
+    expect(packageJson.exports).not.toHaveProperty('./jsx-runtime');
+    expect(packageJson.exports).not.toHaveProperty('./jsx-dev-runtime');
   });
 });

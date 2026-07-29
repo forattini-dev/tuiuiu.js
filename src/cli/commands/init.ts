@@ -9,7 +9,6 @@ import { getVersion } from '../../version.js';
 
 export interface InitCommandOptions {
   directory: string;
-  jsx: boolean;
   help: boolean;
 }
 
@@ -20,10 +19,9 @@ export interface ScaffoldProjectOptions extends InitCommandOptions {
 
 const INIT_HELP = `
 Usage:
-  tuiuiu init [directory] [--jsx]
+  tuiuiu init [directory]
 
 Options:
-  --jsx       Configure the optional Tuiuiu JSX runtime
   --help, -h  Show this command help
 
 The target must not contain existing project files. The command never installs
@@ -36,14 +34,9 @@ export function showInitHelp(): void {
 
 export function parseInitArgs(args: string[]): InitCommandOptions {
   let directory: string | undefined;
-  let jsx = false;
   let help = false;
 
   for (const argument of args) {
-    if (argument === '--jsx') {
-      jsx = true;
-      continue;
-    }
     if (argument === '--help' || argument === '-h') {
       help = true;
       continue;
@@ -59,7 +52,6 @@ export function parseInitArgs(args: string[]): InitCommandOptions {
 
   return {
     directory: directory ?? 'tuiuiu-app',
-    jsx,
     help,
   };
 }
@@ -106,7 +98,7 @@ function createPackageJson(name: string, version: string): string {
   }, null, 2)}\n`;
 }
 
-function createTsConfig(jsx: boolean): string {
+function createTsConfig(): string {
   const compilerOptions: Record<string, unknown> = {
     target: 'ES2022',
     module: 'NodeNext',
@@ -116,46 +108,13 @@ function createTsConfig(jsx: boolean): string {
     strict: true,
     skipLibCheck: true,
   };
-  if (jsx) {
-    compilerOptions.jsx = 'react-jsx';
-    compilerOptions.jsxImportSource = 'tuiuiu.js';
-  }
-
   return `${JSON.stringify({
     compilerOptions,
-    include: ['src/**/*.ts', 'src/**/*.tsx'],
+    include: ['src/**/*.ts'],
   }, null, 2)}\n`;
 }
 
-function createEntrySource(jsx: boolean): string {
-  if (jsx) {
-    return `import {
-  Box,
-  Text,
-  renderInline,
-  useApp,
-  useInput,
-} from 'tuiuiu.js/minimal';
-
-function App() {
-  const app = useApp();
-  useInput((input) => {
-    if (input === 'q') app.exit();
-  });
-
-  return (
-    <Box flexDirection="column" padding={1} borderStyle="round">
-      <Text bold color="cyan">Hello from Tuiuiu</Text>
-      <Text dim>Press q to exit.</Text>
-    </Box>
-  );
-}
-
-const tui = renderInline(App);
-await tui.waitUntilExit();
-`;
-  }
-
+function createEntrySource(): string {
   return `import {
   Box,
   Text,
@@ -182,10 +141,10 @@ await tui.waitUntilExit();
 `;
 }
 
-function createReadme(name: string, jsx: boolean): string {
+function createReadme(name: string): string {
   return `# ${name}
 
-Minimal Tuiuiu terminal application${jsx ? ' using the optional JSX runtime' : ''}.
+Minimal Tuiuiu terminal application using the functional component API.
 
 \`\`\`sh
 pnpm install
@@ -210,13 +169,12 @@ export async function scaffoldProject(options: ScaffoldProjectOptions): Promise<
   }
 
   const name = packageNameFromDirectory(target);
-  const entryName = options.jsx ? 'index.tsx' : 'index.ts';
   const files = new Map<string, string>([
     ['package.json', createPackageJson(name, version)],
-    ['tsconfig.json', createTsConfig(options.jsx)],
+    ['tsconfig.json', createTsConfig()],
     ['.gitignore', 'node_modules/\ndist/\n'],
-    ['README.md', createReadme(name, options.jsx)],
-    [path.join('src', entryName), createEntrySource(options.jsx)],
+    ['README.md', createReadme(name)],
+    [path.join('src', 'index.ts'), createEntrySource()],
   ]);
 
   for (const relativePath of files.keys()) {
