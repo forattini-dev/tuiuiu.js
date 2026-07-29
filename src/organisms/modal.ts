@@ -382,14 +382,11 @@ export interface ConfirmDialogProps {
  * });
  *
  * // Render
- * ConfirmDialog({
- *   ...dialog.props,
- *   selected: dialog.selected
- * })
+ * ConfirmDialog(dialog.props)
  *
  * // Handle input
  * useInput((_, key) => {
- *   if (key.left || key.right) dialog.toggle();
+ *   if (key.leftArrow || key.rightArrow) dialog.toggle();
  *   if (key.return) dialog.confirm();
  *   if (key.escape) dialog.cancel();
  * });
@@ -470,7 +467,7 @@ export function createConfirmDialog(options: {
   onConfirm?: () => void;
   onCancel?: () => void;
 }) {
-  let selected = 0;
+  const [selected, setSelected] = createSignal(0);
 
   return {
     get props(): ConfirmDialogProps {
@@ -480,23 +477,25 @@ export function createConfirmDialog(options: {
         confirmText: options.confirmText,
         cancelText: options.cancelText,
         type: options.type,
-        selected,
+        selected: selected(),
+        onConfirm: options.onConfirm,
+        onCancel: options.onCancel,
       };
     },
     get selected() {
-      return selected;
+      return selected();
     },
     toggle: () => {
-      selected = selected === 0 ? 1 : 0;
+      setSelected(current => current === 0 ? 1 : 0);
     },
     selectCancel: () => {
-      selected = 0;
+      setSelected(0);
     },
     selectConfirm: () => {
-      selected = 1;
+      setSelected(1);
     },
     confirm: () => {
-      if (selected === 1) {
+      if (selected() === 1) {
         options.onConfirm?.();
       } else {
         options.onCancel?.();

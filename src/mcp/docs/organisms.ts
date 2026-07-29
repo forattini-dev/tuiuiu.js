@@ -80,11 +80,11 @@ const dialog = createConfirmDialog({
   onCancel: closeDialog,
 })
 
-ConfirmDialog({ ...dialog.props, selected: dialog.selected })
+ConfirmDialog(dialog.props)
 
 // Handle input
 useInput((_, key) => {
-  if (key.left || key.right) dialog.toggle()
+  if (key.leftArrow || key.rightArrow || key.tab) dialog.toggle()
   if (key.return) dialog.confirm()
   if (key.escape) dialog.cancel()
 })`,
@@ -214,16 +214,16 @@ overlays.push(createCriticalOverlay({
 
 // Input handling
 useInput((_, key) => {
-  if (key.escape && handleOverlayEscape(overlays)) return
-  if (shouldBlockInput(overlays)) return
+  if (key.escape && handleOverlayEscape(overlays)) return true
+  if (shouldBlockInput(overlays)) return true
   // Normal input handling
-})`,
+}, { priority: 'modal', stopPropagation: true })`,
     ],
   },
   {
     name: 'OverlayContainer',
     category: 'organisms',
-    description: 'Container component that renders all overlays from an overlay stack. Used with createOverlayStack() for modal/dialog management.',
+    description: 'Full-screen absolute container that centers and layers overlays from createOverlayStack(). Render it last inside a full-size, position: relative root.',
     props: [
       { name: 'stack', type: 'OverlayStackState', required: true, description: 'Overlay stack from createOverlayStack()' },
       { name: 'renderBackdrop', type: '(entry: OverlayEntry) => VNode | null', required: false, description: 'Custom backdrop renderer' },
@@ -240,8 +240,8 @@ overlays.push({
   closeOnEscape: true,
 })
 
-// Render in your app
-Box({},
+// Render last in your app
+Box({ position: 'relative', width: 'fill', height: 'fill' },
   MainContent(),
   OverlayContainer({ stack: overlays })
 )
@@ -252,9 +252,9 @@ useInput((_, key) => {
     if (overlays.current()?.closeOnEscape) {
       overlays.pop()
     }
-    return
+    return true
   }
-})`,
+}, { priority: 'modal', stopPropagation: true })`,
     ],
   },
 

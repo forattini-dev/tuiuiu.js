@@ -14,6 +14,7 @@ import {
   type WindowProps,
 } from '../../src/organisms/modal.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
+import { createEffect } from '../../src/primitives/signal.js';
 import { renderOnce } from '../../src/app/render-loop.js';
 import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 
@@ -246,19 +247,21 @@ describe('Modal', () => {
       const node = ConfirmDialog({
         title: 'Delete',
         message: 'Delete this item?',
-        confirmLabel: 'Yes, Delete',
-        cancelLabel: 'No, Keep',
+        confirmText: 'Yes, Delete',
+        cancelText: 'No, Keep',
         onConfirm: () => {},
         onCancel: () => {},
       });
-      expect(node).toBeDefined();
+      const output = renderOnce(node, 60);
+      expect(output).toContain('Yes, Delete');
+      expect(output).toContain('No, Keep');
     });
 
     it('should render with danger style', () => {
       const node = ConfirmDialog({
         title: 'Danger',
         message: 'This is dangerous!',
-        danger: true,
+        type: 'danger',
         onConfirm: () => {},
         onCancel: () => {},
       });
@@ -291,6 +294,23 @@ describe('Modal', () => {
       expect(state.selected).toBe(1);
       state.toggle();
       expect(state.selected).toBe(0);
+    });
+
+    it('should notify reactive consumers when the selected button changes', () => {
+      const state = createConfirmDialog({
+        title: 'Test',
+        message: 'Test',
+      });
+      let observed = -1;
+      const dispose = createEffect(() => {
+        observed = state.props.selected ?? -1;
+      });
+
+      expect(observed).toBe(0);
+      state.selectConfirm();
+      expect(observed).toBe(1);
+
+      dispose();
     });
 
     it('should select cancel', () => {
@@ -337,18 +357,27 @@ describe('Modal', () => {
     });
 
     it('should return correct props', () => {
+      const onConfirm = vi.fn();
+      const onCancel = vi.fn();
       const state = createConfirmDialog({
         title: 'My Title',
         message: 'My Message',
         confirmText: 'Yes',
         cancelText: 'No',
         type: 'danger',
+        onConfirm,
+        onCancel,
       });
       expect(state.props.title).toBe('My Title');
       expect(state.props.message).toBe('My Message');
       expect(state.props.confirmText).toBe('Yes');
       expect(state.props.cancelText).toBe('No');
       expect(state.props.type).toBe('danger');
+      expect(state.props.onConfirm).toBe(onConfirm);
+      expect(state.props.onCancel).toBe(onCancel);
+
+      state.selectConfirm();
+      expect(state.props.selected).toBe(1);
     });
   });
 

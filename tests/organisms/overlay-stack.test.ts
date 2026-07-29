@@ -490,6 +490,13 @@ describe('OverlayContainer', () => {
     const result = OverlayContainer({ stack });
 
     expect(result.type).toBe('box');
+    expect(result.props).toMatchObject({
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: 'fill',
+      height: 'fill',
+    });
     expect(result.children).toEqual([]);
   });
 
@@ -520,8 +527,8 @@ describe('OverlayContainer', () => {
 
     // Low priority should be first (bottom), normal second (top)
     const children = result.children as Array<{ props?: { key?: string } }>;
-    expect(children[0]?.props?.key).toBe('low');
-    expect(children[1]?.props?.key).toBe('normal');
+    expect(children[0]?.props?.key).toBe('low-content');
+    expect(children[1]?.props?.key).toBe('normal-content');
   });
 
   it('should render backdrop when provided', () => {
@@ -537,6 +544,36 @@ describe('OverlayContainer', () => {
 
     expect(renderBackdrop).toHaveBeenCalled();
     expect(result.children?.length).toBe(2); // backdrop + modal
+  });
+
+  it('renders a full-screen local backdrop by default', () => {
+    stack.push({
+      id: 'modal',
+      component: () => Text({}, 'Modal'),
+      showBackdrop: true,
+      backdropColor: 'blue',
+      closeOnClickOutside: true,
+    });
+
+    const result = OverlayContainer({ stack });
+    const [backdrop, content] = result.children;
+
+    expect(backdrop?.props).toMatchObject({
+      key: 'modal-backdrop',
+      position: 'absolute',
+      width: 'fill',
+      height: 'fill',
+      backgroundColor: 'blue',
+    });
+    expect(content?.props).toMatchObject({
+      key: 'modal-content',
+      position: 'absolute',
+      alignItems: 'center',
+      justifyContent: 'center',
+    });
+
+    (backdrop?.props.onClick as (() => void) | undefined)?.();
+    expect(stack.hasOverlay()).toBe(false);
   });
 
   it('should not render backdrop when showBackdrop is false', () => {

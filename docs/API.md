@@ -865,15 +865,28 @@ Modal dialog.
 ```typescript
 Modal({
   title: 'Confirm',
-  visible: showModal,
+  content: Text({}, 'Continue with this operation?'),
   onClose: () => setShowModal(false),
   size: 'medium',
-}, content)
+})
 ```
 
 #### `ConfirmDialog(props: ConfirmDialogProps): VNode`
 
 Confirmation modal.
+
+```typescript
+const dialog = createConfirmDialog({
+  title: 'Quit?',
+  message: 'Unsaved work will be lost.',
+  onConfirm: quit,
+  onCancel: closeDialog,
+})
+
+ConfirmDialog(dialog.props)
+```
+
+See the [complete ConfirmDialog + OverlayContainer example](/components/organisms/modal.md#complete-quit-confirmation).
 
 #### `Toast(props: ToastProps): VNode`
 

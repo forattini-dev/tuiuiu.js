@@ -42,6 +42,14 @@ export const examplesManifest: ExampleManifestEntry[] = [
     validate: true,
   },
   {
+    name: 'confirm-dialog-overlay',
+    file: 'confirm-dialog-overlay.ts',
+    description: 'Complete keyboard-and-mouse quit confirmation using ConfirmDialog and OverlayContainer.',
+    category: 'interaction',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
     name: 'app-forms',
     file: 'app-forms.ts',
     description: 'Interactive form with TextInput and Select.',
@@ -78,6 +86,7 @@ export const examplesManifest: ExampleManifestEntry[] = [
     description: 'Standalone prompts API walkthrough.',
     category: 'prompts',
     difficulty: 'easy',
+    validate: true,
   },
   {
     name: 'rich-prompt-workbench',

@@ -92,7 +92,7 @@ Modal({
 
 ## ConfirmDialog
 
-Pre-built confirmation dialog with Yes/No buttons.
+Pre-built confirmation dialog with keyboard- and mouse-accessible actions.
 
 ```typescript
 ConfirmDialog({
@@ -109,11 +109,133 @@ ConfirmDialog({
 |------|------|---------|-------------|
 | `title` | `string` | required | Dialog title |
 | `message` | `string` | required | Dialog message |
-| `confirmLabel` | `string` | `'Yes'` | Confirm button label |
-| `cancelLabel` | `string` | `'No'` | Cancel button label |
-| `confirmColor` | `ColorValue` | `'error'` | Confirm button color |
+| `confirmText` | `string` | `'Confirm'` | Confirm button label |
+| `cancelText` | `string` | `'Cancel'` | Cancel button label |
+| `confirmColor` | `string` | Theme positive color | Confirm button color |
+| `cancelColor` | `string` | Theme muted color | Cancel button color |
+| `selected` | `number` | `0` | Selected button: cancel is `0`, confirm is `1` |
+| `type` | `'info' \| 'warning' \| 'danger'` | `'info'` | Dialog color treatment |
 | `onConfirm` | `() => void` | - | Confirm callback |
 | `onCancel` | `() => void` | - | Cancel callback |
+
+Use `createConfirmDialog()` when the selection should respond to keyboard input.
+Its `props` getter is reactive and includes the configured callbacks:
+
+```typescript
+const dialog = createConfirmDialog({
+  title: 'Delete file?',
+  message: 'This cannot be undone.',
+  type: 'danger',
+  onConfirm: deleteFile,
+  onCancel: closeDialog,
+})
+
+useInput((_, key) => {
+  if (key.leftArrow || key.rightArrow || key.tab) dialog.toggle()
+  if (key.return) dialog.confirm()
+  if (key.escape) dialog.cancel()
+})
+
+ConfirmDialog(dialog.props)
+```
+
+### Complete Quit Confirmation
+
+This is a complete application: the button opens a centered overlay, the
+dialog owns input while open, `Enter` invokes the selected action, `Esc`
+cancels, and both dialog actions are clickable.
+
+```typescript
+import {
+  Box,
+  Button,
+  ConfirmDialog,
+  OverlayContainer,
+  Text,
+  createConfirmDialog,
+  createModalOverlay,
+  createOverlayStack,
+  render,
+  useApp,
+  useConst,
+  useInput,
+  useState,
+} from 'tuiuiu.js'
+
+const DIALOG_ID = 'confirm-quit'
+
+function App() {
+  const app = useApp()
+  const overlays = useConst(createOverlayStack)
+  const [status, setStatus] = useState('Ready')
+
+  const dialog = useConst(() => createConfirmDialog({
+    title: 'Quit?',
+    message: 'Unsaved work will be lost.',
+    confirmText: 'Quit',
+    cancelText: 'Keep working',
+    type: 'danger',
+    onConfirm: () => {
+      overlays.close(DIALOG_ID)
+      app.exit()
+    },
+    onCancel: () => {
+      overlays.close(DIALOG_ID)
+      setStatus('Quit cancelled')
+    },
+  }))
+
+  const openQuitDialog = () => {
+    if (overlays.isOpen(DIALOG_ID)) return
+    dialog.selectCancel()
+    overlays.push(createModalOverlay({
+      id: DIALOG_ID,
+      closeOnEscape: false,
+      component: () => ConfirmDialog(dialog.props),
+    }))
+  }
+
+  useInput((input, key) => {
+    if (overlays.hasOverlay()) {
+      if (key.leftArrow || key.rightArrow || key.tab) dialog.toggle()
+      else if (key.return) dialog.confirm()
+      else if (key.escape) dialog.cancel()
+      return true
+    }
+
+    if (input.toLowerCase() === 'q' || key.return) openQuitDialog()
+  }, { priority: 'modal', stopPropagation: true })
+
+  return Box(
+    {
+      position: 'relative',
+      width: 'fill',
+      height: 'fill',
+      flexDirection: 'column',
+      padding: 1,
+    },
+    Text({ bold: true, color: 'cyan' }, 'Overlay example'),
+    Button({ label: 'Quit application', color: 'red', onClick: openQuitDialog }),
+    Text({ color: 'gray' }, status()),
+    OverlayContainer({ stack: overlays }),
+  )
+}
+
+const { waitUntilExit } = render(App, {
+  fullHeight: true,
+  autoTabNavigation: false,
+})
+await waitUntilExit()
+```
+
+Run the checked-in version with:
+
+```powershell
+pnpm example confirm-dialog-overlay
+```
+
+The command and key handling are portable to Windows 10/11 in Windows
+Terminal or PowerShell; they do not depend on POSIX shell features.
 
 ## Toast
 
@@ -173,15 +295,15 @@ Manage multiple overlays with proper stacking.
 ```typescript
 const overlays = createOverlayStack()
 
-// Add overlays
-overlays.push({ id: 'modal1', content: Modal1() })
-overlays.push({ id: 'modal2', content: Modal2() })
+overlays.push(createModalOverlay({
+  id: 'settings',
+  component: () => SettingsModal(),
+}))
 
-// Remove top overlay
-overlays.pop()
+overlays.close('settings') // or overlays.pop()
 
-// Render
-OverlayStack({ stack: overlays })
+// Place this last in a position: 'relative' root container.
+OverlayContainer({ stack: overlays })
 ```
 
 ## Patterns

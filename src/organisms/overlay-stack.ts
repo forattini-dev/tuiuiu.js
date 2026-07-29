@@ -26,8 +26,8 @@
  *   closeOnEscape: true,
  * });
  *
- * // In your app
- * Box({},
+ * // In your app (render the overlay container last)
+ * Box({ position: 'relative', width: 'fill', height: 'fill' },
  *   MainContent(),
  *   OverlayContainer({ stack: overlays })
  * )
@@ -38,11 +38,10 @@
  *     if (key.escape && overlays.current()?.closeOnEscape) {
  *       overlays.pop();
  *     }
- *     // Don't propagate input to main content
- *     return;
+ *     return true; // Don't propagate input to main content
  *   }
  *   // Normal input handling
- * });
+ * }, { priority: 'modal', stopPropagation: true });
  * ```
  */
 
@@ -313,12 +312,12 @@ export interface OverlayContainerProps {
 }
 
 /**
- * Container component that renders all overlays in the stack
+ * Full-screen absolute container that renders all overlays in the stack
  *
  * @example
  * ```typescript
  * // At the end of your main component
- * Box({},
+ * Box({ position: 'relative', width: 'fill', height: 'fill' },
  *   MainContent(),
  *   OverlayContainer({ stack: overlays })
  * )
@@ -327,30 +326,66 @@ export interface OverlayContainerProps {
 export function OverlayContainer(props: OverlayContainerProps): VNode {
   const { stack, renderBackdrop } = props;
   const overlays = stack.all();
+  const containerProps = {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    width: 'fill' as const,
+    height: 'fill' as const,
+  };
 
   if (overlays.length === 0) {
-    return Box({});
+    return Box(containerProps);
   }
 
   const children: VNode[] = [];
 
   for (const entry of overlays) {
     // Backdrop
-    if (entry.showBackdrop && renderBackdrop) {
-      const backdrop = renderBackdrop(entry);
-      if (backdrop) {
-        children.push(backdrop);
-      }
+    if (entry.showBackdrop) {
+      const backdrop = renderBackdrop?.(entry);
+      children.push(
+        Box(
+          {
+            key: `${entry.id}-backdrop`,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: 'fill',
+            height: 'fill',
+            backgroundColor: backdrop ? undefined : (entry.backdropColor ?? 'black'),
+            onClick: entry.closeOnClickOutside
+              ? () => stack.close(entry.id)
+              : undefined,
+          },
+          ...(backdrop ? [backdrop] : []),
+        ),
+      );
     }
 
-    // Overlay component
+    // Each component gets its own full-screen layer. Absolute siblings render
+    // in stack order, so later/higher-priority overlays cover earlier ones.
     const component = entry.component();
     if (component) {
-      children.push(component);
+      children.push(
+        Box(
+          {
+            key: `${entry.id}-content`,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: 'fill',
+            height: 'fill',
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          component,
+        ),
+      );
     }
   }
 
-  return Box({ flexDirection: 'column' }, ...children);
+  return Box(containerProps, ...children);
 }
 
 // =============================================================================
@@ -378,16 +413,16 @@ export interface UseOverlayInputOptions {
  *     if (current?.closeOnEscape) {
  *       overlays.pop();
  *     }
- *     return; // Block further input
+ *     return true; // Block further input
  *   }
  *
  *   // Block all input when overlay is active
  *   if (shouldBlockInput(overlays)) {
- *     return;
+ *     return true;
  *   }
  *
  *   // Normal input handling...
- * });
+ * }, { priority: 'modal', stopPropagation: true });
  * ```
  */
 export function shouldBlockInput(stack: OverlayStackState): boolean {

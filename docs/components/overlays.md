@@ -49,21 +49,34 @@ A manager for handling multiple overlapping overlays (modals, dialogs, etc.) wit
 ### Usage
 
 ```typescript
-import { createOverlayStack, OverlayContainer } from 'tuiuiu.js';
+import {
+  ConfirmDialog,
+  OverlayContainer,
+  createModalOverlay,
+  createOverlayStack,
+} from 'tuiuiu.js';
 
 // Create global stack
 const overlays = createOverlayStack();
 
 // Push an overlay
-overlays.push({
+overlays.push(createModalOverlay({
   id: 'confirm-delete',
-  component: () => ConfirmDialog({ ... }),
-  priority: 'normal'
-});
+  component: () => ConfirmDialog({
+    title: 'Delete file?',
+    message: 'This action cannot be undone.',
+  }),
+}));
 
-// Render the container (usually at root of app)
+// Render last inside a full-size, position: 'relative' root Box.
 OverlayContainer({ stack: overlays });
 ```
+
+`OverlayContainer` occupies the root as an absolute layer, centers each
+overlay, and keeps later/higher-priority entries above earlier ones. See the
+[complete quit-confirmation example](/components/organisms/modal.md#complete-quit-confirmation)
+for keyboard handling, cancellation, callbacks, mouse input, and a PowerShell
+run command.
 
 ## GoToDialog
 
