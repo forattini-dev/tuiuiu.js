@@ -1,5 +1,5 @@
 export interface CommonMistakeEntry {
-  code: 'signals-inside-component-render' | 'theme-after-render' | 'api-pattern-mismatch' | 'arrow-key-empty-input' | 'hooks-called-conditionally' | 'hooks-outside-component' | 'missing-effect-cleanup' | 'nested-hooks-in-computed';
+  code: 'signals-inside-component-render' | 'api-pattern-mismatch' | 'arrow-key-empty-input' | 'hooks-called-conditionally' | 'hooks-outside-component' | 'missing-effect-cleanup' | 'nested-hooks-in-computed';
   title: string;
   anchor: string;
   summary: string;
@@ -21,19 +21,6 @@ export const commonMistakes: CommonMistakeEntry[] = [
     ],
     wrongExample: `function App() {\n  const [count, setCount] = createSignal(0);\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
     rightExample: `function App() {\n  const [count, setCount] = useState(0);\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}\n\n// Or keep createSignal() at module scope.\nconst [sharedCount, setSharedCount] = createSignal(0);`,
-  },
-  {
-    code: 'theme-after-render',
-    title: 'Calling setTheme() After render()',
-    anchor: 'theme-after-render',
-    summary: 'Call setTheme() before render() so theming and runtime setup initialize consistently.',
-    whyItBreaks: [
-      'Theme-dependent setup has already started by the time the app is mounted.',
-      'Input/runtime behavior can diverge from what the new theme expects.',
-      'Late theme changes are valid for explicit theme switching, but initial setup should happen first.',
-    ],
-    wrongExample: `const app = render(App);\nsetTheme(darkTheme);`,
-    rightExample: `setTheme(darkTheme);\nconst app = render(App);`,
   },
   {
     code: 'api-pattern-mismatch',

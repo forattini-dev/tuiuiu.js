@@ -870,7 +870,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
     { flexDirection: 'column', padding: 1 },
     Text({ color: 'cyan', bold: true }, 'Rich Prompt Workbench'),
     Text({ color: 'gray', dim: true }, 'Core owns structured input, completion anchors, and worker contracts. App code still owns prompt semantics, task orchestration, and PTY decisions.'),
-    Divider({ marginTop: 1, marginBottom: 1 }),
+    Divider(),
     Box(
       {
         flexDirection: 'row',
@@ -898,16 +898,16 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
         },
         Text({ color: 'yellow', bold: true }, 'Slash Context'),
         SlashContextPanel({ context: slashContext }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
+        Divider(),
         Text({ color: 'yellow', bold: true }, 'Semantic Tokens'),
         TokenList({ segments: prompt.segments() }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
+        Divider(),
         Text({ color: 'yellow', bold: true }, 'Prompt Mode'),
         PromptModePanel({ mode: promptMode }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
+        Divider(),
         Text({ color: 'yellow', bold: true }, 'Async Completions'),
         CompletionPanel({ completion }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
+        Divider(),
         Text({ color: 'yellow', bold: true }, 'Runtime'),
         Text({}, `executor: worker_threads`),
         Text({}, `busy: ${busy() ? 'yes' : 'no'}`),
@@ -924,7 +924,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
         Text({ color: 'gray', dim: true }, 'Ctrl+L reset  Ctrl+C exit'),
       ),
     ),
-    Divider({ marginTop: 1, marginBottom: 1 }),
+    Divider(),
     TextInput({
       state: prompt,
       borderStyle: 'round',
@@ -936,7 +936,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
       { flexDirection: 'column', marginTop: 1 },
       Box(
         { flexDirection: 'row' },
-        busy() ? Spinner({ style: 'dots', color: 'yellow', label: '' }) : Text({ color: 'green' }, '•'),
+        busy() ? Spinner({ style: 'dots', color: 'yellow' }) : Text({ color: 'green' }, '•'),
         Text({ color: busy() ? 'yellow' : 'gray' }, ` ${busy() ? 'Working' : 'Ready'}  ${status()}`)
       ),
       ProgressBar({

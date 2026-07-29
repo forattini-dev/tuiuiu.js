@@ -346,6 +346,6 @@ Box({ flexDirection: 'column' },
 ## Related
 
 - [Select](/components/molecules/select.md) - Dropdown selection
-- [Collapsible](/components/molecules/collapsible.md) - Expandable sections
+- [Collapsible](/components/collapsible.md) - Expandable sections
 - [Table](/components/molecules/table.md) - Data tables
 

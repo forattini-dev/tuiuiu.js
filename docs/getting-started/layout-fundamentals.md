@@ -1,6 +1,8 @@
 # Layout Fundamentals
 
-Tuiuiu uses flexbox for terminal layouts. If you know CSS flexbox, you already know 90% of this.
+Tuiuiu uses a flexbox-inspired engine for terminal layouts. Familiar names
+make the API approachable, but the values are typed component props measured
+in terminal cells—not browser CSS.
 
 ## Box is everything
 

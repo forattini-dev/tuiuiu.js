@@ -7,10 +7,14 @@
 // Render loop
 export {
   render,
+  renderInline,
+  renderFullscreen,
+  renderAlternateScreen,
   renderOnce,
   type FixedStepOptions,
   type FixedStepUpdate,
   type RenderOptions,
+  type ScreenMode,
   type TuiInstance,
 } from './render-loop.js';
 

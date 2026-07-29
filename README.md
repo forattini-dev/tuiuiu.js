@@ -28,16 +28,18 @@ Build beautiful, reactive terminal apps with a Modern Component API.
 ## Quick Start
 
 ```bash
-npm install tuiuiu.js
+npx tuiuiu.js@latest init my-tui
+cd my-tui
+pnpm install
+pnpm dev
 ```
 
 Tuiuiu is ESM-only and requires Node.js 22.12 or newer.
+Use `--jsx` with `init` for the optional automatic JSX runtime; the functional
+API remains the default. The scaffolder never overwrites a non-empty target.
 
 ```typescript
-import { render, Box, Text, useState, useInput, useApp, setTheme, darkTheme } from 'tuiuiu.js';
-
-// ⚠️ IMPORTANT: Set theme BEFORE render() for proper input handling!
-setTheme(darkTheme);
+import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js/minimal';
 
 function Counter() {
   // useState persists across re-renders (it's a hook!)
@@ -61,7 +63,9 @@ const { waitUntilExit } = render(Counter);
 await waitUntilExit();
 ```
 
-> ⚠️ **Critical**: Always call `setTheme()` before `render()` for proper input handling!
+Tuiuiu includes a default theme. `setTheme()` is reactive: call it before the
+first render for a different initial theme or later for live switching. Theming
+does not affect input handling.
 
 ## Background Workers (DX-first)
 
@@ -362,7 +366,8 @@ setCount(5); // → "Count: 5, Doubled: 10"
 
 ### 📦 Flexbox Layout
 
-Build complex layouts with the CSS Flexbox model you already know.
+Build complex terminal layouts with typed, flexbox-inspired `Box` props. No
+browser CSS, DOM, or stylesheet is involved.
 
 ```typescript
 Box({

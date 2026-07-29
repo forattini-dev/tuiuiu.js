@@ -88,6 +88,9 @@ export {
   resetPerfInspector,
   // App
   render,
+  renderInline,
+  renderFullscreen,
+  renderAlternateScreen,
   renderOnce,
   // Hotkeys
   isHotkey,
@@ -102,6 +105,7 @@ export type {
   FixedStepOptions,
   FixedStepUpdate,
   RenderOptions,
+  ScreenMode,
   TuiInstance,
   FrameInput,
   FrameSnapshotOptions,
@@ -353,6 +357,7 @@ export type {
   VNode,
   TuiNode,
   AccessibilityProps,
+  MouseEventData,
   BoxProps,
   TextProps,
   LayoutRect,
@@ -1127,9 +1132,14 @@ export type {
 } from './core/index.js';
 
 // =============================================================================
-// Styling - TCSS (Terminal CSS)
+// Optional style-rule resolver
 // =============================================================================
 
+/**
+ * @deprecated Import the opt-in style-rule parser from `tuiuiu.js/styling`.
+ * Root-level aliases remain available throughout the 1.x line for compatibility.
+ * Tuiuiu rendering does not apply these rules automatically.
+ */
 export {
   // Tokenizer
   TokenType,
@@ -1145,6 +1155,9 @@ export {
   stringifyValue,
 } from './styling/index.js';
 
+/**
+ * @deprecated Import these types from `tuiuiu.js/styling`.
+ */
 export type {
   Token,
   TokenizerError,
@@ -1182,6 +1195,9 @@ export type {
   StyleProps,
 } from './styling/index.js';
 
+/**
+ * @deprecated Import the opt-in style-rule resolver from `tuiuiu.js/styling`.
+ */
 export {
   // Specificity
   calculateSpecificity,

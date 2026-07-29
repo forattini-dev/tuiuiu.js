@@ -1,7 +1,11 @@
 /**
  * Styling module exports
  *
- * TCSS (Terminal CSS) - A CSS-like styling system for TUI applications.
+ * Optional terminal style-rule parser and resolver.
+ *
+ * This is not browser CSS and is not wired into render(), Box(), or Text().
+ * Applications opt in by resolving rules and passing the returned typed props
+ * to components explicitly.
  */
 
 // Tokenizer

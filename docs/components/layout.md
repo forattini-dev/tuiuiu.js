@@ -144,7 +144,7 @@ Screen({},
 
 ## Grid
 
-CSS Grid-like layout system.
+Grid-inspired terminal layout system.
 
 ### Usage
 

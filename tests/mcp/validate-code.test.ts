@@ -15,14 +15,13 @@ describe('MCP code validation', () => {
     expect(result.issues.some((issue) => issue.code === 'signals-inside-component-render')).toBe(true);
   });
 
-  it('detects setTheme after top-level render', () => {
+  it('allows reactive theme switching after render', () => {
     const result = validateTuiuiuCode(`
       const app = render(App);
       setTheme(darkTheme);
     `);
 
-    expect(result.ok).toBe(false);
-    expect(result.issues.some((issue) => issue.code === 'theme-after-render')).toBe(true);
+    expect(result.ok).toBe(true);
   });
 
   it('detects API pattern mismatches', () => {

@@ -34,29 +34,6 @@ function App() {
 const [sharedCount, setSharedCount] = createSignal(0);
 ```
 
-## Theme After Render
-
-Call `setTheme()` before `render()` so theming and runtime setup initialize consistently.
-
-Why it breaks:
-- Theme-dependent setup has already started by the time the app is mounted.
-- Input/runtime behavior can diverge from what the new theme expects.
-- Late theme changes are valid for explicit theme switching, but initial setup should happen first.
-
-Wrong:
-
-```typescript
-const app = render(App);
-setTheme(darkTheme);
-```
-
-Right:
-
-```typescript
-setTheme(darkTheme);
-const app = render(App);
-```
-
 ## API Pattern Mismatch
 
 Use the child/content pattern each component expects: variadic, props, render-function, or data-driven.

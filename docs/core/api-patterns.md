@@ -631,6 +631,6 @@ The pattern matches the component's **purpose**:
 
 ## Related
 
-- [Primitives](./primitives.md) - Box, Text, and layout basics
-- [Component Hierarchy](./hierarchy.md) - Atoms, Molecules, Organisms
+- [Primitives](/components/primitives.md) - Box, Text, and layout basics
+- [Component Hierarchy](/core/component-hierarchy.md) - Atoms, Molecules, Organisms
 - [Signals](./signals.md) - Reactive state management

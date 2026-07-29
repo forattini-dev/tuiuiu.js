@@ -20,12 +20,19 @@ pnpm example app-dashboard
 |---------|------------|----------------|
 | `app-counter` | Easy | Smallest loop with `useState()` and keyboard input |
 | `app-layout` | Easy | Layout primitives like `Screen`, `Header`, `Main`, `Footer` |
+| `append-list` | Easy | Append-only output above a live region |
 | `cli-wizard` | Easy | Prompt-oriented flow with low UI complexity |
+| `prompts-demo` | Easy | Standalone prompts API walkthrough |
 | `app-chat` | Medium | Real app composition and scrolling |
+| `nested-input-components` | Medium | Focus routing between nested interactive components |
+| `confirm-dialog-overlay` | Medium | Complete keyboard-and-mouse confirmation overlay |
+| `dashboard-metrics` | Medium | Operational metrics and reusable data-display atoms |
+| `mouse-events` | Medium | Click, hover, drag, context-menu, and wheel events |
 | `app-forms` | Advanced | Canonical interactive inputs with `useTextInputState()` / `useSelectState()` |
 | `rich-prompt-workbench` | Advanced | Structured prompt composition with semantic tokens, slash commands, async completions, and background status feedback |
 | `shell-session-workbench` | Advanced | App-owned subprocess transcript routing, streamed output, persisted replay restoration, live status, and line-based stdin bridging |
 | `app-dashboard` | Advanced | Heavy composition, metrics, and animation-like updates |
+| `app-ai-assistant` | Advanced | Assistant-style composition, overlays, streaming, code, and settings |
 
 ## Showcase Examples
 
@@ -39,11 +46,16 @@ These are good for inspiration, not as a first implementation reference.
 | `whatsapp-clone` | Advanced | Large messaging UI |
 | `tuiuiu-brush` | Advanced | Interactive drawing |
 | `tuiuiu-player` | Advanced | Media-player style interface |
+| `advanced-charts` | Advanced | Advanced data visualization composition |
+| `interactive-charts` | Advanced | Keyboard navigation and chart selection |
+| `terminal-image-pipeline` | Medium | Protocol selection, fallback, and terminal-image resize |
 | `tuiuiu-invaders` | Advanced | Literal Space Invaders clone |
 | [`tuiuiu-meteor`](/resources/examples/tuiuiu-meteor.md) | Advanced | Asteroids-style meteor splitter |
 | [`tuiuiu-sideblaster`](/resources/examples/tuiuiu-sideblaster.md) | Advanced | Horizontal shoot'em up showcase |
 | [`tuiuiu-tetris`](/resources/examples/tuiuiu-tetris.md) | Advanced | Falling-block puzzle showcase |
 | [`tuiuiu-snake`](/resources/examples/tuiuiu-snake.md) | Advanced | Grid-chase snake showcase |
+| `tuiuiu-doom` | Advanced | Raycasting, strafing, combat, and minimap HUD |
+| `tuiuiu-defence` | Advanced | Tower-defence game with waves, placement, and upgrades |
 
 ## Arcade Showcase Notes
 
@@ -111,6 +123,7 @@ These show lower-level control flows and are better after you understand the can
 | `programmatic-scroll-control` | Medium | Scroll control APIs |
 | `programmatic-external-triggers` | Medium | Out-of-band updates |
 | `thread-pool-demo` | Advanced | `createTaskBridgePool` with multiple workers + parallel jobs |
+| `performance-demo` | Advanced | Rendering and update performance instrumentation |
 | `programmatic-runtime-contracts` | Medium | Committed-frame queries, scroll-by-ID, and inspector usage |
 
 Run it with:

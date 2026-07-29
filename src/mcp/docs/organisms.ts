@@ -734,7 +734,7 @@ VirtualList({
   {
     name: 'Grid',
     category: 'organisms',
-    description: 'CSS Grid-like layout for terminal. Supports tracks, areas, and alignment.',
+    description: 'Grid-inspired terminal layout. Supports tracks, areas, and alignment.',
     props: [
       { name: 'columns', type: 'string | TrackSize[] | number', required: false, description: 'Column tracks (e.g., "1fr 2fr 1fr", [10, "1fr"], or 3 for equal columns)' },
       { name: 'rows', type: 'string | TrackSize[] | number', required: false, description: 'Row tracks' },

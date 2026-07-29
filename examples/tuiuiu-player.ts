@@ -27,6 +27,7 @@ import {
   useState,
   useEffect,
   useConst,
+  Waveform,
 } from '../src/index.js';
 import { orangeTheme } from '../src/themes/index.js';
 

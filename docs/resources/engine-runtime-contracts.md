@@ -96,7 +96,7 @@ Guarantees:
 
 These checks validate the runtime contract defined by:
 
-- [define-engine-runtime-contracts](../../openspec/changes/define-engine-runtime-contracts/tasks.md)
+- `define-engine-runtime-contracts`
 
 They do **not** mean:
 

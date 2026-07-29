@@ -64,6 +64,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Test real PTY lifecycle
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: pnpm test:pty
+        env:
+          TUIUIU_RUN_PTY: 'true'
+
       - name: Test
         run: pnpm test:run
 

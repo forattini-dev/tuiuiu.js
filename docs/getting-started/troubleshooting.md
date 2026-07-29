@@ -23,16 +23,18 @@ const [count, setCount] = createSignal(0);
 
 ## "Theme colors don't work"
 
-**Cause:** `setTheme()` called after `render()`.
+`setTheme()` is reactive and can be called before or after `render()`. If a
+color does not change, verify that the component uses a semantic theme token
+instead of a fixed ANSI color.
 
 ```typescript
-// ❌ Wrong
-render(App);
-setTheme(darkTheme);
+// Fixed color: intentionally unaffected by theme changes
+Text({ color: 'red' }, 'Fixed');
 
-// ✅ Fix: theme first, render second
-setTheme(darkTheme);
-render(App);
+// Semantic token: follows the active theme
+Text({ color: theme.colors.primary }, 'Themed');
+
+setTheme(darkTheme); // Updates mounted apps reactively
 ```
 
 ## "Arrow keys don't work in useInput"

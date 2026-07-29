@@ -107,7 +107,7 @@ CodeBlock({
   return \`Hello, \${name}!\`;
 }`,
   language: 'typescript',
-  showLineNumbers: true,
+  lineNumbers: true,
 })
 ```
 
@@ -116,8 +116,8 @@ CodeBlock({
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `code` | `string` | required | Source code |
-| `language` | `string` | `'text'` | Language for highlighting |
-| `showLineNumbers` | `boolean` | `false` | Show line numbers |
+| `language` | `string` | `'plain'` | Language for highlighting |
+| `lineNumbers` | `boolean` | `true` | Show line numbers |
 | `startLine` | `number` | `1` | Starting line number |
 | `highlightLines` | `number[]` | `[]` | Lines to highlight |
 

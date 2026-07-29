@@ -50,7 +50,9 @@ function formatMs(ms: number): string {
 
 async function main() {
   const start = performance.now();
-  const handles = jobs.map((job) => pool.submit(job));
+  const handles = jobs.map((job) =>
+    pool.submit<DemoTask['payload'], unknown>(job)
+  );
   const completed = new Map<string, boolean>();
 
   handles.forEach((handle, index) => {

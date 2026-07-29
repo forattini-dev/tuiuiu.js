@@ -106,6 +106,8 @@ interface RenderOptions {
   autoTabNavigation?: boolean;    // Tab/Shift+Tab navigation (default: true)
   fullHeight?: boolean;           // Fill entire terminal (default: false)
   useDeltaRenderer?: boolean;     // Use delta renderer (default: true)
+  alternateScreen?: boolean;      // Use alternate buffer (default: true)
+  screenMode?: 'inline' | 'fullscreen' | 'alternate';
   fixedStep?: FixedStepOptions;   // Fixed-step logical updates for game-like workloads
 }
 ```
@@ -147,9 +149,14 @@ Renders an interactive application with input handling.
 ```typescript
 import { render } from 'tuiuiu.js';
 
-const { waitUntilExit, rerender, unmount, clear } = render(App);
+const { waitUntilExit, rerender, unmount, clear, writeLine } = render(App);
 await waitUntilExit();
 ```
+
+For new applications, prefer the explicit `renderInline()`,
+`renderFullscreen()`, or `renderAlternateScreen()` helpers. `writeLine()` is
+the safe way to publish imperative output above a live frame; direct writes to
+the same terminal stream can corrupt the renderer's cursor state.
 
 ### `renderToString(node, width, height)`
 

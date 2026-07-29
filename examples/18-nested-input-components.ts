@@ -48,6 +48,8 @@ function NestedInputDemo(): VNode {
       setFocusArea((current) => (current === 'tabs' ? 'buttons' : 'tabs'));
       return true;
     }
+
+    return false;
   });
 
   const handleAction = (action: string) => {
@@ -89,9 +91,10 @@ function NestedInputDemo(): VNode {
     // Tabs with isActive controlled by focusArea
     Tabs({
       tabs: [
-        { label: '📁 Files', content: FilesTab() },
-        { label: '⚙️ Settings', content: SettingsTab() },
+        { key: 0, label: '📁 Files', content: FilesTab() },
+        { key: 1, label: '⚙️ Settings', content: SettingsTab() },
         {
+          key: 2,
           label: '🎬 Actions',
           content: ActionsTab({
             isActive: focusArea() === 'buttons',
@@ -99,7 +102,7 @@ function NestedInputDemo(): VNode {
           }),
         },
       ],
-      activeIndex: activeTab(),
+      initialTab: activeTab(),
       onChange: setActiveTab,
       isActive: focusArea() === 'tabs', // Only handle ← → when tabs have focus
     }),

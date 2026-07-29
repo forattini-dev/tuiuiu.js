@@ -239,10 +239,11 @@ function createIncremental(stream: Writable, options: LogUpdateOptions = {}): Lo
  * Clears everything and redraws - simple but reliable
  */
 function createFullScreen(stream: Writable, options: LogUpdateOptions = {}): LogUpdate {
-  const { showCursor: showCursorOption = false } = options;
+  const { showCursor: showCursorOption = false, topOffset = 0 } = options;
   let previousOutput = '';
   let previousLineCount = 0;
   let hasHiddenCursor = false;
+  const cursorHomeWithOffset = topOffset > 0 ? `${ESC}${topOffset + 1}H` : cursorHome;
 
   const render = (content: string) => {
     if (!showCursorOption && !hasHiddenCursor) {
@@ -276,14 +277,14 @@ function createFullScreen(stream: Writable, options: LogUpdateOptions = {}): Log
     }
 
     // Move cursor home and write
-    stream.write(cursorHome + finalOutput + clearFromCursor);
+    stream.write(cursorHomeWithOffset + finalOutput + clearFromCursor);
 
     previousOutput = output;
     previousLineCount = currentLineCount;
   };
 
   render.clear = () => {
-    stream.write(cursorHome + clearFromCursor);
+    stream.write(cursorHomeWithOffset + clearFromCursor);
     previousOutput = '';
     previousLineCount = 0;
   };

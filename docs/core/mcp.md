@@ -335,7 +335,6 @@ tuiuiu_validate_code({
 
 **Detects:**
 - `createSignal()` inside component render
-- `setTheme()` after top-level `render()`
 - props/data/render API-pattern mismatches for `Page`, `AppShell`, `Modal`, `ScrollList`, `Static`, `Tabs`, and `Accordion`
 
 ---

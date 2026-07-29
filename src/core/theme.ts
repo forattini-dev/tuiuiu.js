@@ -10,7 +10,6 @@
 
 import { createSignal, untrack } from '../primitives/signal.js';
 import { colors, type ColorPalette, type ColorShade } from './colors.js';
-import { warnIfThemeSetAfterRenderStarted } from './dev-warnings.js';
 import {
   getDefaultRuntimeResource,
   getRuntimeResource,
@@ -207,7 +206,6 @@ export function useComponentTokens<K extends ComponentName>(
  * Set the current runtime theme.
  */
 export function setTheme(theme: Theme): void {
-  warnIfThemeSetAfterRenderStarted();
   getThemeRuntimeState().setCurrentTheme(theme);
 }
 

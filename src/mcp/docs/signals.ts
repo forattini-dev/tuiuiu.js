@@ -45,7 +45,7 @@ function App() {
 5. Updates go to old signals, UI reads new signals = nothing updates
 
 ### Also remember:
-- Call \`setTheme(darkTheme)\` BEFORE \`render()\`
+- \`setTheme(theme)\` is optional and reactive: call it before the first frame or later for live switching
 - Arrow keys have empty \`input\` string (check \`key.upArrow\` instead)
 - Read \`tuiuiu://guide/common-mistakes\` for the runtime guardrails behind these warnings
 `;

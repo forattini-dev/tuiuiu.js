@@ -1,6 +1,8 @@
 # Import Map
 
-All public APIs organized by category. Import from `tuiuiu.js` or use subpath imports for tree-shaking.
+All public APIs organized by category. Import from `tuiuiu.js` for convenience,
+`tuiuiu.js/minimal` for the compact application runtime, or dedicated
+subpaths as the application grows.
 
 ## Signals & State
 
@@ -151,7 +153,7 @@ import {
 import {
   render,        // Mount app to terminal
   renderOnce,    // Render single frame (no interactivity)
-  setTheme,      // Set color theme (call before render!)
+  setTheme,      // Select or reactively switch the runtime theme
   darkTheme,     // Built-in dark theme
   lightTheme,    // Built-in light theme
 } from 'tuiuiu.js';
@@ -171,11 +173,13 @@ console.log(c.green.bold('Success!'));
 | Path | Contents |
 |------|----------|
 | `tuiuiu.js` | Everything |
+| `tuiuiu.js/minimal` | render, primitives, signals, essential hooks, and themes without component catalogs or tooling |
 | `tuiuiu.js/primitives` | Box, Text, signals, store |
 | `tuiuiu.js/atoms` | Button, Spinner, TextInput, etc. |
 | `tuiuiu.js/molecules` | Select, Tabs, Table, etc. |
 | `tuiuiu.js/organisms` | Modal, DataTable, FileBrowser, CommandPalette |
 | `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable APIs |
+| `tuiuiu.js/styling` | Optional standalone terminal style-rule parser/resolver; not used automatically by rendering |
 | `tuiuiu.js/templates` | AppShell, Page, VStack, HStack |
 | `tuiuiu.js/hooks` | All hooks |
 | `tuiuiu.js/app` | render, renderOnce |

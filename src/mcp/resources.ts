@@ -841,7 +841,8 @@ Box({},
 function getLayoutGuide(): string {
   return `# Layout System in Tuiuiu
 
-Tuiuiu uses a **flexbox-based layout system** similar to CSS flexbox.
+Tuiuiu uses a **flexbox-inspired terminal layout system** measured in character
+cells. It does not load or apply browser CSS.
 
 ## Basic Layout
 

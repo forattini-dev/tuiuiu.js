@@ -76,6 +76,8 @@ export function ConfirmDialogOverlayExample(): VNode {
     } else if (key.ctrl && input.toLowerCase() === 'c') {
       app.exit();
     }
+
+    return false;
   }, { priority: 'modal', stopPropagation: true });
 
   return Box(

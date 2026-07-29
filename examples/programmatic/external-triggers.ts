@@ -272,7 +272,10 @@ function ExternalTriggersDemo() {
 
     return Box(
       { flexDirection: 'column' },
-      Text({ color: 'cyan', bold: true, marginBottom: 1 }, 'Animation Controller'),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'cyan', bold: true }, 'Animation Controller')
+      ),
 
       // Current animation display
       Box(
@@ -317,7 +320,10 @@ function ExternalTriggersDemo() {
 
     return Box(
       { flexDirection: 'column' },
-      Text({ color: 'yellow', bold: true, marginBottom: 1 }, 'Command Queue'),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'yellow', bold: true }, 'Command Queue')
+      ),
 
       // Queue status
       Box(
@@ -340,12 +346,15 @@ function ExternalTriggersDemo() {
         { flexDirection: 'column', borderStyle: 'single', borderColor: 'gray', padding: 1, height: 6 },
         commands.length === 0
           ? Text({ color: 'gray', dim: true }, 'Queue is empty')
-          : commands.slice(0, 5).map((cmd, i) =>
-              Box(
-                { key: `cmd-${i}` },
-                Text({ color: 'cyan' }, `${i + 1}. `),
-                Text({ color: 'white' }, cmd.type),
-                Text({ color: 'gray' }, `: ${JSON.stringify(cmd).slice(0, 40)}...`)
+          : Box(
+              { flexDirection: 'column' },
+              ...commands.slice(0, 5).map((cmd, i) =>
+                Box(
+                  { key: `cmd-${i}` },
+                  Text({ color: 'cyan' }, `${i + 1}. `),
+                  Text({ color: 'white' }, cmd.type),
+                  Text({ color: 'gray' }, `: ${JSON.stringify(cmd).slice(0, 40)}...`)
+                )
               )
             )
       ),
@@ -363,7 +372,10 @@ function ExternalTriggersDemo() {
 
     return Box(
       { flexDirection: 'column' },
-      Text({ color: 'green', bold: true, marginBottom: 1 }, 'Event Stream'),
+      Box(
+        { marginBottom: 1 },
+        Text({ color: 'green', bold: true }, 'Event Stream')
+      ),
 
       // Event count
       Box(
@@ -377,21 +389,24 @@ function ExternalTriggersDemo() {
         { flexDirection: 'column', borderStyle: 'single', borderColor: 'gray', padding: 1, height: 8 },
         events.length === 0
           ? Text({ color: 'gray', dim: true }, 'No events yet')
-          : events.slice(-8).map((evt) => {
-              const colors: Record<string, string> = {
-                'data:received': 'cyan',
-                'user:action': 'yellow',
-                'system:update': 'green',
-                'api:response': 'magenta',
-                'command:processed': 'blue',
-              };
-              return Box(
-                { key: `evt-${evt.id}` },
-                Text({ color: 'gray' }, `[${evt.time.toLocaleTimeString()}] `),
-                Text({ color: (colors[evt.type] || 'white') as any }, evt.type),
-                Text({ color: 'gray', dim: true }, ` ${JSON.stringify(evt.data).slice(0, 30)}`)
-              );
-            })
+          : Box(
+              { flexDirection: 'column' },
+              ...events.slice(-8).map((evt) => {
+                const colors: Record<string, string> = {
+                  'data:received': 'cyan',
+                  'user:action': 'yellow',
+                  'system:update': 'green',
+                  'api:response': 'magenta',
+                  'command:processed': 'blue',
+                };
+                return Box(
+                  { key: `evt-${evt.id}` },
+                  Text({ color: 'gray' }, `[${evt.time.toLocaleTimeString()}] `),
+                  Text({ color: (colors[evt.type] || 'white') as any }, evt.type),
+                  Text({ color: 'gray', dim: true }, ` ${JSON.stringify(evt.data).slice(0, 30)}`)
+                );
+              })
+            )
       ),
 
       // Info

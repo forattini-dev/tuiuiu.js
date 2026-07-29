@@ -12,12 +12,15 @@ tuiuiu.js v${version} - Zero-dependency Terminal UI library
 
 Usage:
   tuiuiu                  Show this help message
+  tuiuiu init [directory] Create a minimal TypeScript project
+  tuiuiu init app --jsx   Create a project with the optional JSX runtime
   tuiuiu storybook        Run the component storybook
   tuiuiu mcp              Start MCP server (stdio transport)
   tuiuiu --version, -v    Show version
   tuiuiu --help, -h       Show this help message
 
 Commands:
+  init         Scaffold a safe, minimal Tuiuiu project
   storybook    Interactive component explorer with live previews
   mcp          Model Context Protocol server for AI assistants
 
@@ -35,6 +38,12 @@ MCP Options:
   --debug, -d             Enable debug logging to stderr
 
 Examples:
+  # Create a functional-API project
+  npx tuiuiu.js init my-tui
+
+  # Create a JSX project
+  npx tuiuiu.js init my-tui --jsx
+
   # For Claude Code (stdio)
   npx tuiuiu.js mcp
 

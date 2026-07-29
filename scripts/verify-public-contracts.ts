@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { examplesManifest } from '../examples/manifest.ts';
 import { buildStorybookCoverageDocument } from './storybook-coverage.ts';
@@ -92,6 +92,49 @@ function assertExampleManifestAndScripts(): void {
     }
   }
 
+  const duplicateNames = examplesManifest
+    .map((example) => example.name)
+    .filter((name, index, names) => names.indexOf(name) !== index);
+  if (duplicateNames.length > 0) {
+    fail(`Example manifest contains duplicate names: ${[...new Set(duplicateNames)].join(', ')}`);
+  }
+
+  const duplicateFiles = examplesManifest
+    .map((example) => example.file)
+    .filter((file, index, files) => files.indexOf(file) !== index);
+  if (duplicateFiles.length > 0) {
+    fail(`Example manifest contains duplicate files: ${[...new Set(duplicateFiles)].join(', ')}`);
+  }
+
+  const manifestFiles = new Set(
+    examplesManifest.map((example) => example.file.replaceAll('\\', '/'))
+  );
+  const unlistedExamples = walkFiles(path.join(rootDir, 'examples'))
+    .filter((file) => file.endsWith('.ts'))
+    .map((file) => path.relative(path.join(rootDir, 'examples'), file).replaceAll('\\', '/'))
+    .filter((file) =>
+      file !== 'manifest.ts' &&
+      file !== 'programmatic/index.ts' &&
+      !file.startsWith('_') &&
+      !file.startsWith('_shared/')
+    )
+    .filter((file) => !manifestFiles.has(file));
+
+  if (unlistedExamples.length > 0) {
+    fail(`Runnable examples are missing from the manifest:\n- ${unlistedExamples.join('\n- ')}`);
+  }
+
+  const examplesCatalog = readFileSync(
+    path.join(rootDir, 'docs', 'resources', 'examples.md'),
+    'utf8'
+  );
+  const undocumentedExamples = examplesManifest
+    .filter((example) => !examplesCatalog.includes(`\`${example.name}\``))
+    .map((example) => example.name);
+  if (undocumentedExamples.length > 0) {
+    fail(`Manifest examples are missing from the documentation catalog:\n- ${undocumentedExamples.join('\n- ')}`);
+  }
+
   for (const [scriptName, scriptValue] of Object.entries(packageJson.scripts ?? {})) {
     if (!scriptName.startsWith('example')) {
       continue;
@@ -148,6 +191,53 @@ function assertDocsDoNotReferenceKnownBadPatterns(): void {
   }
 }
 
+function assertLocalMarkdownLinksResolve(): void {
+  const docsDir = path.join(rootDir, 'docs');
+  const files = [
+    path.join(rootDir, 'README.md'),
+    ...walkFiles(docsDir).filter((file) => file.endsWith('.md')),
+  ];
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const content = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
+    const linkPattern = /!?\[[^\]]*]\(([^)]+)\)/g;
+
+    for (const match of content.matchAll(linkPattern)) {
+      const rawTarget = match[1]?.trim().replace(/^<|>$/g, '');
+      if (
+        !rawTarget ||
+        /^['"]/.test(rawTarget) ||
+        /^(?:https?:|mailto:|data:|#)/i.test(rawTarget)
+      ) {
+        continue;
+      }
+
+      const target = decodeURIComponent(
+        rawTarget.split(/\s+["']/)[0]!.split(/[?#]/)[0]!
+      );
+      if (!target) continue;
+
+      const candidate = target.startsWith('/')
+        ? path.join(docsDir, target.slice(1))
+        : path.resolve(path.dirname(file), target);
+      const candidates = path.extname(candidate)
+        ? [candidate]
+        : [candidate, `${candidate}.md`, path.join(candidate, 'README.md')];
+
+      if (!candidates.some((entry) => existsSync(entry))) {
+        failures.push(
+          `${path.relative(rootDir, file)} -> ${rawTarget}`
+        );
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    fail(`Broken local documentation links:\n- ${failures.join('\n- ')}`);
+  }
+}
+
 function assertStorybookCoverageIsCurrent(): void {
   const result = buildStorybookCoverageDocument();
   const current = readFileSync(path.join(rootDir, 'docs', 'core', 'storybook-coverage.md'), 'utf8');
@@ -161,36 +251,71 @@ function assertStorybookCoverageIsCurrent(): void {
   }
 }
 
-function compileCuratedExamples(): void {
-  const curated = examplesManifest
-    .filter((example) => example.validate)
-    .map((example) => path.join('examples', example.file));
+async function assertExperimentalValuesStayIsolated(): Promise<void> {
+  const stable = await import(pathToFileURL(path.join(distDir, 'index.js')).href);
+  const experimental = await import(
+    pathToFileURL(path.join(distDir, 'experimental', 'index.js')).href
+  );
+  const leaked = Object.keys(experimental).filter((name) =>
+    Object.prototype.hasOwnProperty.call(stable, name)
+  );
 
-  if (curated.length === 0) {
-    fail('No curated examples are marked for validation.');
+  if (leaked.length > 0) {
+    fail(
+      `Experimental runtime exports leaked into the stable root entry point: ${leaked.join(', ')}`
+    );
+  }
+}
+
+async function assertMinimalEntryPointIsFocused(): Promise<void> {
+  const minimal = await import(
+    pathToFileURL(path.join(distDir, 'minimal.js')).href
+  );
+  const required = [
+    'render',
+    'Box',
+    'Text',
+    'useState',
+    'useInput',
+    'useApp',
+    'setTheme',
+  ];
+  const missing = required.filter((name) =>
+    !Object.prototype.hasOwnProperty.call(minimal, name)
+  );
+  if (missing.length > 0) {
+    fail(`Minimal entry point is missing core APIs: ${missing.join(', ')}`);
   }
 
+  const excluded = [
+    'createStyleSheet',
+    'VirtualDataTable',
+    'startMcpServer',
+    'createStorybook',
+  ];
+  const leaked = excluded.filter((name) =>
+    Object.prototype.hasOwnProperty.call(minimal, name)
+  );
+  if (leaked.length > 0) {
+    fail(`Minimal entry point includes optional or unstable APIs: ${leaked.join(', ')}`);
+  }
+}
+
+function compileExamples(): void {
   runCommand(process.execPath, [
     path.join(rootDir, 'node_modules', 'typescript', 'bin', 'tsc'),
-    '--noEmit',
-    '--module',
-    'NodeNext',
-    '--moduleResolution',
-    'NodeNext',
-    '--target',
-    'ES2022',
-    '--lib',
-    'ES2022',
-    '--types',
-    'node',
-    ...curated,
+    '--project',
+    path.join(rootDir, 'tsconfig.examples.json'),
   ]);
 }
 
 assertPackageExports();
 assertExampleManifestAndScripts();
 assertDocsDoNotReferenceKnownBadPatterns();
+assertLocalMarkdownLinksResolve();
 assertStorybookCoverageIsCurrent();
-compileCuratedExamples();
+await assertExperimentalValuesStayIsolated();
+await assertMinimalEntryPointIsFocused();
+compileExamples();
 
 console.log('[verify:contracts] OK');

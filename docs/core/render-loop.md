@@ -5,6 +5,8 @@ This page documents how the interactive runtime decides **when** to evaluate, **
 Use it when you need:
 
 - the exact render scheduling model behind `render()`
+- an explicit inline, fullscreen, or alternate-screen terminal contract
+- safe output from jobs, subprocesses, and other imperative producers
 - predictable update behavior for games or animation-heavy apps
 - the performance rationale for `maxFps`, fixed-step updates, and backpressure handling
 
@@ -29,6 +31,70 @@ That separation matters because the fastest terminal app is usually **not** the 
 5. If the output stream applies backpressure, stale intermediate frames are dropped and the runtime resumes with the newest pending frame after `drain`.
 
 In practice this gives the runtime a **latest-state-wins** policy.
+
+## Screen Modes
+
+The 1.x `render()` defaults remain unchanged for compatibility. New
+applications should choose their terminal ownership explicitly:
+
+```typescript
+import {
+  renderAlternateScreen,
+  renderFullscreen,
+  renderInline,
+} from 'tuiuiu.js/minimal';
+
+// Progress, prompts, and output that should stay in shell scrollback.
+renderInline(ProgressApp);
+
+// Full-height app on the primary buffer.
+renderFullscreen(Dashboard);
+
+// Full-height app that restores the user's primary screen on exit.
+renderAlternateScreen(Editor);
+```
+
+The equivalent low-level option is:
+
+```typescript
+render(App, {
+  screenMode: 'inline', // 'inline' | 'fullscreen' | 'alternate'
+});
+```
+
+If a legacy `clearOnStart`, `fullHeight`, or `alternateScreen` boolean is
+provided with `screenMode`, that explicit boolean wins. This makes migration
+incremental instead of changing existing 1.x behavior.
+
+## Safe External Output
+
+Writing directly to `process.stdout` while a live frame owns the terminal can
+split ANSI sequences or leave ghost rows. Use `writeLine()` instead:
+
+```typescript
+const tui = renderInline(App);
+
+worker.on('message', (message) => {
+  tui.writeLine(`worker: ${message}`);
+});
+```
+
+Components can access the same writer through `useApp()`:
+
+```typescript
+const { writeLine } = useApp();
+writeLine('download complete');
+```
+
+The writer batches with the render scheduler, places output above the live
+region, adjusts mouse coordinates, and repaints the app. It preserves SGR color
+codes but strips terminal control protocols such as screen clears and OSC
+commands. Do not call it unconditionally during component evaluation; invoke it
+from input handlers, effects, or external-event callbacks.
+
+The first `writeLine()` call moves that render session from the coordinate-only
+delta path to the offset-aware ANSI renderer. This is an intentional
+correctness trade-off for sessions that mix permanent logs with a live frame.
 
 ## Presentation Cap
 

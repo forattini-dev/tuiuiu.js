@@ -37,6 +37,7 @@ import { getHitTestRegistry } from '../core/hit-test.js';
 import { readTerminalFocus, resetTerminalFocusState, setTerminalFocusState } from '../core/terminal-focus.js';
 import { FocusZoneManagerAdapter } from './use-focus.js';
 import type { AppContext } from './types.js';
+import { sanitizeTerminalText } from '../utils/terminal-sanitize.js';
 import {
   bindRuntimeScope,
   createRuntimeScope,
@@ -396,6 +397,10 @@ export function initializeApp(
     dispose,
     stdin,
     stdout,
+    writeLine: (text: string) => {
+      const safeText = sanitizeTerminalText(String(text)).replace(/\r\n?/g, '\n');
+      stdout.write(`${safeText.replace(/\n+$/u, '')}\n`);
+    },
     onExit: (callback) => {
       exitCallbacks.add(callback);
       return () => {
@@ -456,6 +461,21 @@ export function setClearScreen(clearScreen: () => void): void {
   if (appContext) {
     appContext.clearScreen = clearScreen;
   }
+}
+
+/**
+ * Install the render-loop-aware writer used by useApp().writeLine().
+ */
+export function setOutputWriter(writeLine: ((text: string) => void) | null): void {
+  const appContext = getAppContext();
+  if (!appContext) {
+    return;
+  }
+
+  appContext.writeLine = writeLine ?? ((text: string) => {
+    const safeText = sanitizeTerminalText(String(text)).replace(/\r\n?/g, '\n');
+    appContext.stdout.write(`${safeText.replace(/\n+$/u, '')}\n`);
+  });
 }
 
 /**
