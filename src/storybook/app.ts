@@ -15,6 +15,8 @@ import type { Story } from './types.js';
 import { allStories } from './stories/index.js';
 import { COLORS, TUIUIU_BIRD_COLORED } from './data/ascii-art.js';
 import { ImpactSplashScreen, createSplashScreen } from '../molecules/splash-screen.js';
+import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // Version
 import { getVersion, getVersionSync } from '../version.js';
@@ -876,14 +878,22 @@ function StorybookApp(): VNode {
       // Backspace - delete character from query
       if (key.backspace) {
         const current = storeState.searchQuery;
-        storybookStore.dispatch({ type: 'SET_SEARCH_QUERY', payload: current.slice(0, -1) });
+        storybookStore.dispatch({
+          type: 'SET_SEARCH_QUERY',
+          payload: current.slice(0, previousGraphemeBoundary(current, current.length)),
+        });
         setSearchSelectedIndex(0);
         return;
       }
 
       // Regular character input - append to search query
       if (input && input.length > 0 && !key.ctrl && !key.meta) {
-        storybookStore.dispatch({ type: 'SET_SEARCH_QUERY', payload: storeState.searchQuery + input });
+        const cleanInput = sanitizeInlineInput(input);
+        if (!cleanInput) return;
+        storybookStore.dispatch({
+          type: 'SET_SEARCH_QUERY',
+          payload: storeState.searchQuery + cleanInput,
+        });
         setSearchSelectedIndex(0);
         return;
       }
@@ -916,13 +926,18 @@ function StorybookApp(): VNode {
 
       // Backspace - delete character
       if (key.backspace) {
-        setEditingTextValue((v) => v.slice(0, -1));
+        setEditingTextValue((value) => (
+          value.slice(0, previousGraphemeBoundary(value, value.length))
+        ));
         return;
       }
 
       // Regular character input - append to value
       if (input && input.length > 0 && !key.ctrl && !key.meta) {
-        setEditingTextValue((v) => v + input);
+        const cleanInput = sanitizeInlineInput(input);
+        if (cleanInput) {
+          setEditingTextValue((value) => value + cleanInput);
+        }
         return;
       }
 

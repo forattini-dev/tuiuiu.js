@@ -46,12 +46,15 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
-import { stringWidth } from '../utils/text-utils.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 import { createSignal } from '../primitives/signal.js';
-import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import {
+  previousGraphemeBoundary,
+  segmentGraphemes,
+} from '../utils/grapheme.js';
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
@@ -165,23 +168,29 @@ function fuzzyMatch(query: string, text: string): number {
 
   const queryLower = query.toLowerCase();
   const textLower = text.toLowerCase();
+  const queryGraphemes = segmentGraphemes(queryLower).map(({ segment }) => segment);
+  const textGraphemes = segmentGraphemes(textLower).map(({ segment }) => segment);
 
   // Exact match gets highest score
   if (textLower === queryLower) return 1000;
 
   // Starts with query gets high score
-  if (textLower.startsWith(queryLower)) return 500 + (queryLower.length / textLower.length) * 100;
+  if (textLower.startsWith(queryLower)) {
+    return 500 + (queryGraphemes.length / Math.max(1, textGraphemes.length)) * 100;
+  }
 
   // Contains query gets medium score
-  if (textLower.includes(queryLower)) return 200 + (queryLower.length / textLower.length) * 100;
+  if (textLower.includes(queryLower)) {
+    return 200 + (queryGraphemes.length / Math.max(1, textGraphemes.length)) * 100;
+  }
 
   // Fuzzy character match
   let queryIndex = 0;
   let score = 0;
   let consecutive = 0;
 
-  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
-    if (textLower[i] === queryLower[queryIndex]) {
+  for (let i = 0; i < textGraphemes.length && queryIndex < queryGraphemes.length; i++) {
+    if (textGraphemes[i] === queryGraphemes[queryIndex]) {
       score += 10 + consecutive * 5;
       consecutive++;
       queryIndex++;
@@ -191,7 +200,7 @@ function fuzzyMatch(query: string, text: string): number {
   }
 
   // All query characters must be found
-  if (queryIndex < queryLower.length) return -1;
+  if (queryIndex < queryGraphemes.length) return -1;
 
   return score;
 }
@@ -202,17 +211,16 @@ function fuzzyMatch(query: string, text: string): number {
 function highlightMatches(text: string, query: string, highlightColor: string): VNode[] {
   if (!query) return [Text({}, text)];
 
-  const queryLower = query.toLowerCase();
-  const textLower = text.toLowerCase();
+  const queryGraphemes = segmentGraphemes(query.toLowerCase()).map(({ segment }) => segment);
+  const textGraphemes = segmentGraphemes(text);
   const result: VNode[] = [];
-  let lastIndex = 0;
 
   // Find character positions to highlight
   const matchPositions: Set<number> = new Set();
   let queryIndex = 0;
 
-  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
-    if (textLower[i] === queryLower[queryIndex]) {
+  for (let i = 0; i < textGraphemes.length && queryIndex < queryGraphemes.length; i++) {
+    if (textGraphemes[i]!.segment.toLowerCase() === queryGraphemes[queryIndex]) {
       matchPositions.add(i);
       queryIndex++;
     }
@@ -222,8 +230,9 @@ function highlightMatches(text: string, query: string, highlightColor: string): 
   let currentRun = '';
   let isHighlight = false;
 
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < textGraphemes.length; i++) {
     const shouldHighlight = matchPositions.has(i);
+    const grapheme = textGraphemes[i]!.segment;
 
     if (shouldHighlight !== isHighlight) {
       if (currentRun) {
@@ -233,10 +242,10 @@ function highlightMatches(text: string, query: string, highlightColor: string): 
             : Text({}, currentRun)
         );
       }
-      currentRun = text[i];
+      currentRun = grapheme;
       isHighlight = shouldHighlight;
     } else {
-      currentRun += text[i];
+      currentRun += grapheme;
     }
   }
 
@@ -424,11 +433,14 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
       // Item row
       const icon = item.icon ? `${item.icon} ` : '';
       const shortcut = showShortcuts && item.shortcut ? item.shortcut : '';
-      const labelWidth = innerWidth - 4 - stringWidth(icon) - stringWidth(shortcut);
-
-      const labelNodes = highlightMatches(item.label, query, highlightColor);
-      const labelText = item.label.slice(0, labelWidth);
-      const padding = Math.max(0, labelWidth - stringWidth(item.label));
+      const labelWidth = Math.max(
+        0,
+        innerWidth - 4 - stringWidth(icon) - stringWidth(shortcut),
+      );
+      const labelText = truncateText(item.label, labelWidth, {
+        truncationCharacter: '',
+      });
+      const padding = Math.max(0, labelWidth - stringWidth(labelText));
 
       rows.push(
         Box(
@@ -459,14 +471,17 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
 
       // Description if present and selected
       if (isSelected && item.description) {
-        const descText = item.description.slice(0, innerWidth - 4);
+        const descriptionWidth = Math.max(0, innerWidth - 4);
+        const descText = truncateText(item.description, descriptionWidth, {
+          truncationCharacter: '',
+        });
         rows.push(
           Box(
             { flexDirection: 'row' },
             chars ? Text({ color: borderColor }, chars.vertical) : null,
             Text({}, '  '),
             Text({ color: 'mutedForeground', dim: true, italic: true }, descText),
-            Text({}, ' '.repeat(Math.max(0, innerWidth - 4 - stringWidth(descText)))),
+            Text({}, ' '.repeat(Math.max(0, descriptionWidth - stringWidth(descText)))),
             chars ? Text({ color: borderColor }, chars.vertical) : null
           )
         );

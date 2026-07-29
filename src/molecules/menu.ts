@@ -22,6 +22,11 @@ import { useFactoryState } from '../hooks/factory-state.js';
 import { getTheme } from '../core/theme.js';
 import { formatHotkeyPlatform } from '../hooks/use-hotkeys.js';
 import { getRenderMode } from '../core/capabilities.js';
+import {
+  padTextToWidth,
+  stringWidth,
+  truncateText,
+} from '../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -227,6 +232,7 @@ export function Menu(props: MenuProps): VNode {
   const submenuIndicator = isAscii ? '>' : '\u25B6'; // ▶
 
   const state = useFactoryState(props.state, props, createMenu);
+  const safeWidth = Number.isFinite(width) ? Math.max(2, Math.trunc(width)) : 30;
 
   // Keyboard handling
   if (isActive) {
@@ -253,7 +259,7 @@ export function Menu(props: MenuProps): VNode {
   }
 
   const currentIndex = state.selectedIndex();
-  const innerWidth = width - 2; // Account for border left/right
+  const innerWidth = Math.max(0, safeWidth - 2); // Account for border left/right
 
   // Build menu rows
   const rows: VNode[] = [];
@@ -265,9 +271,18 @@ export function Menu(props: MenuProps): VNode {
       // Separator line
       if (entry.label) {
         const sepChar = isAscii ? '-' : '\u2500'; // ─
-        const labelPad = entry.label.length + 2;
+        const separatorLabel = truncateText(
+          entry.label,
+          Math.max(0, innerWidth - 2),
+          { truncationCharacter: '' },
+        );
+        const labelPad = stringWidth(separatorLabel) + 2;
         const sideLen = Math.max(0, Math.floor((innerWidth - labelPad) / 2));
-        const line = `${sepChar.repeat(sideLen)} ${entry.label} ${sepChar.repeat(innerWidth - sideLen - labelPad)}`;
+        const line = innerWidth < 2
+          ? sepChar.repeat(innerWidth)
+          : `${sepChar.repeat(sideLen)} ${separatorLabel} ${sepChar.repeat(
+              Math.max(0, innerWidth - sideLen - labelPad),
+            )}`;
         rows.push(Text({ color: 'mutedForeground', dim: true }, line));
       } else {
         const sepChar = isAscii ? '-' : '\u2500';
@@ -294,9 +309,15 @@ export function Menu(props: MenuProps): VNode {
     }
 
     // Pad label to fill width
-    const labelLen = label.length + rightText.length;
-    const padding = Math.max(0, innerWidth - labelLen);
-    const fullLine = `${label}${' '.repeat(padding)}${rightText}`;
+    const fittedRight = truncateText(rightText, innerWidth, {
+      position: 'start',
+      truncationCharacter: '',
+    });
+    const labelWidth = Math.max(0, innerWidth - stringWidth(fittedRight));
+    const fittedLabel = truncateText(label, labelWidth, {
+      truncationCharacter: '',
+    });
+    const fullLine = `${padTextToWidth(fittedLabel, labelWidth)}${fittedRight}`;
 
     if (isDisabled) {
       rows.push(Text({ dim: true }, fullLine));
@@ -312,7 +333,7 @@ export function Menu(props: MenuProps): VNode {
       flexDirection: 'column',
       borderStyle,
       borderColor,
-      width,
+      width: safeWidth,
       paddingLeft: 1,
       paddingRight: 1,
     },

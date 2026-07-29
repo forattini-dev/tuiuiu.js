@@ -10,6 +10,7 @@
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import { stringWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -224,13 +225,13 @@ export function LinearGauge(options: GaugeOptions): VNode {
   // Calculate peripheral widths
   let extrasWidth = 0;
   
-  if (label) extrasWidth += label.length + 1; // + margin
+  if (label) extrasWidth += stringWidth(label) + 1; // + margin
   if (showMinMax) {
     extrasWidth += String(min).length + 1;
     extrasWidth += String(max).length + 1;
   }
   if (showValue && (valuePosition === 'left' || valuePosition === 'right')) {
-    extrasWidth += valueStr.length + 1; // + margin
+    extrasWidth += stringWidth(valueStr) + 1; // + margin
   }
 
   // Calculate bar width

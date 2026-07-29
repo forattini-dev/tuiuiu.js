@@ -22,6 +22,7 @@ import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfDataDrivenPatternMisused } from '../core/dev-warnings.js';
 import { getContrastColor, getTheme } from '../core/theme.js';
+import { stringWidth } from '../utils/text-utils.js';
 
 /** Variant type for Tabs component */
 export type TabsVariant = 'primary' | 'secondary' | 'default';
@@ -294,18 +295,12 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
       const isTabActive = tab.key === activeKey;
       const isFocused = i === focusIdx;
       const isDisabled = tab.disabled;
+      const tabLabel = `${tab.icon ? `${tab.icon} ` : ''}${tab.label}${
+        closable && tab.closable !== false ? ' ×' : ''
+      }`;
+      const tabLabelWidth = stringWidth(tabLabel);
 
       let tabContent: VNode;
-
-      // Build tab label
-      const labelParts: VNode[] = [];
-      if (tab.icon) {
-        labelParts.push(Text({}, tab.icon + ' '));
-      }
-      labelParts.push(Text({}, tab.label));
-      if (closable && tab.closable !== false) {
-        labelParts.push(Text({ dim: true }, ' ×'));
-      }
 
       // Style-specific rendering
       switch (style) {
@@ -324,7 +319,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
               : 'foreground';
 
           if (isAscii) {
-            const wrapper = isTabActive ? '[' + tab.label + ']' : ' ' + tab.label + ' ';
+            const wrapper = isTabActive ? `[${tabLabel}]` : ` ${tabLabel} `;
             tabContent = Text(
               { color: isDisabled ? 'mutedForeground' : borderColor, dim: isDisabled },
               wrapper
@@ -343,7 +338,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
                   backgroundColor: bgColor,
                   dim: isDisabled,
                 },
-                tab.icon ? `${tab.icon} ${tab.label}` : tab.label
+                tabLabel
               )
             );
           }
@@ -361,8 +356,8 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
 
           if (isAscii) {
             const wrapper = isTabActive
-              ? `(${tab.label})`
-              : ` ${tab.label} `;
+              ? `(${tabLabel})`
+              : ` ${tabLabel} `;
             tabContent = Text(
               {
                 color: isTabActive ? colorActive : isDisabled ? 'mutedForeground' : 'foreground',
@@ -382,7 +377,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
                   backgroundColor: pillBg,
                   dim: isDisabled,
                 },
-                tab.icon ? `${tab.icon} ${tab.label}` : tab.label
+                tabLabel
               )
             );
           }
@@ -399,36 +394,26 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
 
           const underline = isTabActive
             ? isAscii
-              ? '─'.repeat(tab.label.length + (tab.icon ? 2 : 0))
-              : '━'.repeat(tab.label.length + (tab.icon ? 2 : 0))
+              ? '─'.repeat(tabLabelWidth)
+              : '━'.repeat(tabLabelWidth)
             : '';
 
           tabContent = Box(
             { flexDirection: 'column' },
             Box(
               { flexDirection: 'row' },
-              ...labelParts.map((n) =>
-                Text(
-                  {
-                    color: lineColor,
-                    dim: isDisabled,
-                    bold: isTabActive,
-                  },
-                  ''
-                )
-              ),
               Text(
                 {
                   color: lineColor,
                   dim: isDisabled,
                   bold: isTabActive,
                 },
-                tab.icon ? `${tab.icon} ${tab.label}` : tab.label
+                tabLabel
               )
             ),
             isTabActive
               ? Text({ color: colorActive }, underline)
-              : Text({ dim: true }, ' '.repeat(tab.label.length + (tab.icon ? 2 : 0)))
+              : Text({ dim: true }, ' '.repeat(tabLabelWidth))
           );
           break;
         }

@@ -10,6 +10,7 @@
 
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
+import { padTextToWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -158,7 +159,7 @@ export function GanttChart(props: GanttChartOptions): VNode {
     // Task name
     const nameCell = Text(
       { color: 'gray' },
-      task.name.slice(0, 20).padEnd(20)
+      padTextToWidth(task.name, 20)
     );
 
     // Build bar

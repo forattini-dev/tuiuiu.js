@@ -16,6 +16,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { getTick } from '../core/tick.js';
 import { getTheme } from '../core/theme.js';
 import { getPrefersReducedMotion } from '../core/motion-runtime.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 export interface ShimmerTextProps {
   /** The text to animate */
@@ -85,7 +86,8 @@ export function ShimmerText(props: ShimmerTextProps): VNode {
   const effectiveStartTime = startTime ?? _shimmerStartTime;
 
   const tick = getTick();
-  const textLen = text.length;
+  const graphemes = segmentGraphemes(text);
+  const textLen = graphemes.length;
   if (textLen === 0) return Text({}, '');
 
   // Bidirectional sweep: 0 → textLen → 0
@@ -105,7 +107,7 @@ export function ShimmerText(props: ShimmerTextProps): VNode {
     const distance = Math.abs(i - focalPoint);
     const isHighlighted = distance < width;
     const charColor = isHighlighted ? effectiveShimmerColor : baseColor;
-    chars.push(Text({ color: charColor }, text[i]!));
+    chars.push(Text({ color: charColor }, graphemes[i]!.segment));
   }
 
   return Box({ flexDirection: 'row' }, ...chars);

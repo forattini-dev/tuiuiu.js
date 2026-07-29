@@ -86,6 +86,15 @@ describe('Fuzzy Search', () => {
       const long = fuzzyMatch('ab', 'abcdefghij');
       expect(short!.score).toBeGreaterThan(long!.score);
     });
+
+    it('matches and highlights whole grapheme clusters', () => {
+      const result = fuzzyMatch('👩‍💻', 'Deploy 👩‍💻 now');
+      expect(result).not.toBeNull();
+
+      const segments = highlightMatches('Deploy 👩‍💻 now', result!.matches);
+      expect(segments).toContainEqual({ text: '👩‍💻', highlight: true });
+      expect(segments.map((segment) => segment.text).join('')).toBe('Deploy 👩‍💻 now');
+    });
   });
 
   describe('searchCommands', () => {
@@ -127,6 +136,7 @@ describe('Fuzzy Search', () => {
       const results = searchCommands(commands, 'pref');
       expect(results.length).toBe(1);
       expect(results[0].command.label).toBe('Settings');
+      expect(results[0].matches).toEqual([]);
     });
 
     it('should match tags', () => {
@@ -135,6 +145,7 @@ describe('Fuzzy Search', () => {
       ];
       const results = searchCommands(cmds, 'source');
       expect(results.length).toBe(1);
+      expect(results[0].matches).toEqual([]);
     });
 
     it('should match description', () => {

@@ -13,6 +13,7 @@
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import { padTextToWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -276,7 +277,7 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
       yLabels.push(
         Box(
           { height: Math.round(height / yTicks) },
-          Text({ color: 'gray', dim: true }, label.padStart(6))
+          Text({ color: 'gray', dim: true }, padTextToWidth(label, 6, 'right'))
         )
       );
     }
@@ -294,7 +295,7 @@ export function ScatterPlot(props: ScatterPlotProps): VNode {
     xLabels.push(
       Box(
         { width: spacing },
-        Text({ color: 'gray', dim: true }, label.padStart(spacing))
+        Text({ color: 'gray', dim: true }, padTextToWidth(label, spacing, 'right'))
       )
     );
   }

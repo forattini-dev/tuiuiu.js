@@ -9,6 +9,7 @@
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import { padTextToWidth, stringWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -496,7 +497,7 @@ export function LineChart(options: LineChartOptions): VNode {
   let yLabelWidth = 6; // minimum width
   for (let i = 0; i <= yTicks; i++) {
     const value = bounds.yMax - (i / yTicks) * (bounds.yMax - bounds.yMin);
-    const labelLen = formatTick(value, yAxis.formatter).length;
+    const labelLen = stringWidth(formatTick(value, yAxis.formatter));
     if (labelLen > yLabelWidth) yLabelWidth = labelLen;
   }
 
@@ -505,7 +506,11 @@ export function LineChart(options: LineChartOptions): VNode {
   for (let i = 0; i <= yTicks; i++) {
     const value =
       bounds.yMax - (i / yTicks) * (bounds.yMax - bounds.yMin);
-    const label = formatTick(value, yAxis.formatter).padStart(yLabelWidth);
+    const label = padTextToWidth(
+      formatTick(value, yAxis.formatter),
+      yLabelWidth,
+      'right',
+    );
     const rowIndex = Math.round((i / yTicks) * (chartLines.length - 1));
 
     if (i === 0 || i === yTicks || i === Math.floor(yTicks / 2)) {
@@ -531,7 +536,10 @@ export function LineChart(options: LineChartOptions): VNode {
     xLabels.push(
       Box(
         { width: i === xTicks ? undefined : spacing },
-        Text({ color: 'gray', dim: true }, i === 0 ? label : label.padStart(spacing))
+        Text(
+          { color: 'gray', dim: true },
+          i === 0 ? label : padTextToWidth(label, spacing, 'right'),
+        )
       )
     );
   }

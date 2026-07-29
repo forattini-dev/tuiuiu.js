@@ -17,6 +17,16 @@
 
 import * as readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
+import { StringDecoder } from 'node:string_decoder';
+import {
+  previousGraphemeBoundary,
+  segmentGraphemes,
+} from '../utils/grapheme.js';
+import {
+  sanitizeInlineInput,
+  sanitizeTerminalText,
+} from '../utils/terminal-sanitize.js';
+import { stringWidth } from '../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -74,24 +84,28 @@ const HIDE_CURSOR = '\x1b[?25l';
 const SHOW_CURSOR = '\x1b[?25h';
 const MOVE_UP = '\x1b[1A';
 
+function safeInlineLabel(text: string): string {
+  return sanitizeTerminalText(String(text)).replace(/[\r\n\t]/g, ' ');
+}
+
 function cyan(text: string): string {
-  return `${CYAN}${text}${RESET}`;
+  return `${CYAN}${safeInlineLabel(text)}${RESET}`;
 }
 
 function green(text: string): string {
-  return `${GREEN}${text}${RESET}`;
+  return `${GREEN}${safeInlineLabel(text)}${RESET}`;
 }
 
 function yellow(text: string): string {
-  return `${YELLOW}${text}${RESET}`;
+  return `${YELLOW}${safeInlineLabel(text)}${RESET}`;
 }
 
 function dim(text: string): string {
-  return `${DIM}${text}${RESET}`;
+  return `${DIM}${safeInlineLabel(text)}${RESET}`;
 }
 
 function bold(text: string): string {
-  return `${BOLD}${text}${RESET}`;
+  return `${BOLD}${safeInlineLabel(text)}${RESET}`;
 }
 
 // =============================================================================
@@ -140,7 +154,7 @@ export async function promptInput(message: string, options: InputOptions = {}): 
         const result = validate(value);
         if (result !== true) {
           const errorMsg = typeof result === 'string' ? result : 'Invalid input';
-          output.write(`${CLEAR_LINE}${yellow('!')} ${errorMsg}\n`);
+          output.write(`${CLEAR_LINE}${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
           resolve(promptInput(message, options));
           return;
         }
@@ -319,7 +333,7 @@ function renderSelect<T extends string>(message: string, choices: readonly T[], 
 
   choices.forEach((choice, index) => {
     const prefix = index === selectedIndex ? green('❯') : ' ';
-    const text = index === selectedIndex ? cyan(choice) : choice;
+    const text = index === selectedIndex ? cyan(choice) : safeInlineLabel(choice);
     output.write(`  ${prefix} ${text}\n`);
   });
 }
@@ -346,7 +360,8 @@ function clearSelect(choicesCount: number): void {
  * ```
  */
 export async function promptPassword(message: string, options: PasswordOptions = {}): Promise<string> {
-  const { mask = '*', validate } = options;
+  const { validate } = options;
+  const mask = sanitizeInlineInput(options.mask ?? '*') || '*';
 
   return new Promise((resolve) => {
     output.write(`${cyan('?')} ${bold(message)} `);
@@ -358,9 +373,11 @@ export async function promptPassword(message: string, options: PasswordOptions =
 
     let password = '';
     let maskedDisplay = '';
+    const decoder = new StringDecoder('utf8');
 
     const handleKeypress = (chunk: Buffer) => {
-      const char = chunk.toString();
+      const char = decoder.write(chunk);
+      if (!char) return;
 
       // Enter
       if (char === '\r' || char === '\n') {
@@ -370,7 +387,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
           const result = validate(password);
           if (result !== true) {
             const errorMsg = typeof result === 'string' ? result : 'Invalid input';
-            output.write(`\n${yellow('!')} ${errorMsg}\n`);
+            output.write(`\n${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
             resolve(promptPassword(message, options));
             return;
           }
@@ -382,9 +399,13 @@ export async function promptPassword(message: string, options: PasswordOptions =
       // Backspace
       else if (char === '\x7f' || char === '\b') {
         if (password.length > 0) {
-          password = password.slice(0, -1);
-          maskedDisplay = maskedDisplay.slice(0, -1);
-          output.write('\b \b');
+          const boundary = previousGraphemeBoundary(password, password.length);
+          password = password.slice(0, boundary);
+          const displayBoundary = Math.max(0, maskedDisplay.length - mask.length);
+          const removedMask = maskedDisplay.slice(displayBoundary);
+          maskedDisplay = maskedDisplay.slice(0, displayBoundary);
+          const eraseWidth = stringWidth(removedMask);
+          output.write('\b'.repeat(eraseWidth) + ' '.repeat(eraseWidth) + '\b'.repeat(eraseWidth));
         }
       }
       // Ctrl+C
@@ -394,10 +415,15 @@ export async function promptPassword(message: string, options: PasswordOptions =
         process.exit(0);
       }
       // Regular character
-      else if (char.length === 1 && char >= ' ') {
-        password += char;
-        maskedDisplay += mask;
-        output.write(mask);
+      else {
+        const cleanInput = sanitizeInlineInput(char);
+        if (cleanInput) {
+          const graphemeCount = segmentGraphemes(cleanInput).length;
+          const display = mask.repeat(graphemeCount);
+          password += cleanInput;
+          maskedDisplay += display;
+          output.write(display);
+        }
       }
     };
 
@@ -407,6 +433,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
         input.setRawMode(false);
       }
       input.pause();
+      decoder.end();
     };
 
     input.on('data', handleKeypress);
@@ -496,7 +523,7 @@ export async function promptCheckbox<T extends string>(
           if (result !== true) {
             const errorMsg = typeof result === 'string' ? result : 'Invalid selection';
             clearCheckbox(choices.length);
-            output.write(`${yellow('!')} ${errorMsg}\n`);
+            output.write(`${yellow('!')} ${safeInlineLabel(errorMsg)}\n`);
             renderCheckbox(message, choices, selectedIndex, selected);
             return;
           }
@@ -552,7 +579,7 @@ function renderCheckbox<T extends string>(
     const isSelected = selected.has(choice);
     const cursor = isCurrent ? green('❯') : ' ';
     const checkbox = isSelected ? green('◉') : dim('○');
-    const text = isCurrent ? cyan(choice) : choice;
+    const text = isCurrent ? cyan(choice) : safeInlineLabel(choice);
     output.write(`  ${cursor} ${checkbox} ${text}\n`);
   });
 }
@@ -603,6 +630,7 @@ export async function promptAutocomplete<T extends string>(
   let query = defaultValue ?? '';
   let selectedIndex = 0;
   let filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
+  const decoder = new StringDecoder('utf8');
 
   return new Promise((resolve) => {
     output.write(HIDE_CURSOR);
@@ -611,7 +639,8 @@ export async function promptAutocomplete<T extends string>(
     input.resume();
 
     const handleKeypress = (chunk: Buffer) => {
-      const key = chunk.toString();
+      const key = decoder.write(chunk);
+      if (!key) return;
 
       // Arrow up
       if (key === '\x1b[A') {
@@ -639,8 +668,6 @@ export async function promptAutocomplete<T extends string>(
       }
       // Enter
       else if (key === '\r' || key === '\n') {
-        cleanup();
-
         // If exact match or selection exists, use it
         let result: T;
         if (filtered.length > 0) {
@@ -651,14 +678,11 @@ export async function promptAutocomplete<T extends string>(
           // No match - re-prompt
           clearAutocomplete(filtered.length || 1);
           output.write(`${yellow('!')} Please select a valid option\n`);
-          output.write(HIDE_CURSOR);
           renderAutocomplete(message, query, filtered, selectedIndex);
-          input.setRawMode(true);
-          input.resume();
-          input.on('data', handleKeypress);
           return;
         }
 
+        cleanup();
         clearAutocomplete(filtered.length || 1);
         output.write(`${cyan('?')} ${bold(message)} ${green(result)}\n`);
         resolve(result);
@@ -667,7 +691,7 @@ export async function promptAutocomplete<T extends string>(
       else if (key === '\x7f' || key === '\b') {
         if (query.length > 0) {
           const prevLength = filtered.length || 1;
-          query = query.slice(0, -1);
+          query = query.slice(0, previousGraphemeBoundary(query, query.length));
           filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
           selectedIndex = 0;
           clearAutocomplete(prevLength);
@@ -682,9 +706,11 @@ export async function promptAutocomplete<T extends string>(
         process.exit(0);
       }
       // Regular character
-      else if (key.length === 1 && key >= ' ') {
+      else {
+        const cleanInput = sanitizeInlineInput(key);
+        if (!cleanInput) return;
         const prevLength = filtered.length || 1;
-        query += key;
+        query += cleanInput;
         filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
         selectedIndex = 0;
         clearAutocomplete(prevLength);
@@ -696,6 +722,7 @@ export async function promptAutocomplete<T extends string>(
       input.removeListener('data', handleKeypress);
       input.setRawMode(false);
       input.pause();
+      decoder.end();
       output.write(SHOW_CURSOR);
     };
 
@@ -753,7 +780,7 @@ function renderAutocomplete<T extends string>(
     filtered.forEach((choice, index) => {
       const isCurrent = index === selectedIndex;
       const prefix = isCurrent ? green('❯') : ' ';
-      const text = isCurrent ? cyan(choice) : choice;
+      const text = isCurrent ? cyan(choice) : safeInlineLabel(choice);
       output.write(`  ${prefix} ${text}\n`);
     });
   }

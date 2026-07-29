@@ -11,6 +11,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import { colorize, stringWidth } from '../utils/text-utils.js';
 import type { VNode } from '../utils/types.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 // =============================================================================
 // COLORED PIXEL ART SUPPORT
@@ -972,10 +973,11 @@ export function createGradientBar(
 export function rainbowText(text: string): string {
   const colors = ['red', 'yellow', 'green', 'cyan', 'blue', 'magenta'];
   let result = '';
+  const graphemes = segmentGraphemes(text);
 
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < graphemes.length; i++) {
     const color = colors[i % colors.length];
-    result += colorize(text[i], color);
+    result += colorize(graphemes[i]!.segment, color);
   }
 
   return result;

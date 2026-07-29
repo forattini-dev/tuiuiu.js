@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
 import { reportMotionFrameCost, resetMotionRuntime } from '../../src/core/motion-runtime.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 
 describe('compositor pipeline', () => {
   beforeEach(() => {
@@ -77,6 +78,28 @@ describe('compositor pipeline', () => {
       text: 'term',
       maxWidth: 4,
     });
+  });
+
+  it('reveals ANSI-styled wide graphemes by terminal columns', () => {
+    const frame = createFrameSnapshot(
+      Text({
+        id: 'revealed-unicode',
+        __compositor: {
+          key: 'reveal-unicode-comp',
+          transforms: [{ kind: 'reveal', direction: 'left', progress: 0.5 }],
+        },
+      } as any, '\x1b[31m界界界界\x1b[0m'),
+      { width: 20, height: 4 },
+    );
+
+    const command = frame.drawCommands.find(
+      (candidate) => candidate.id === 'revealed-unicode',
+    );
+    expect(command).toMatchObject({ type: 'text', maxWidth: 4 });
+    if (command?.type === 'text') {
+      expect(stringWidth(command.text)).toBe(4);
+      expect(command.text).toContain('\x1b[31m');
+    }
   });
 
   it('simplifies shimmer when motion runtime is reduced', () => {

@@ -40,6 +40,11 @@ import { warnIfUnexpectedPropProvided } from '../core/dev-warnings.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 import { createSignal } from '../primitives/signal.js';
+import {
+  padTextToWidth,
+  stringWidth,
+  truncateText,
+} from '../utils/text-utils.js';
 
 /**
  * Border styles for modals - Unicode
@@ -152,22 +157,26 @@ export interface ModalProps {
 function getModalDimensions(size: ModalSize): { width: number; height: number } {
   const termWidth = process.stdout.columns || 80;
   const termHeight = process.stdout.rows || 24;
+  const normalize = (width: number, height: number) => ({
+    width: Number.isFinite(width) ? Math.max(2, Math.trunc(width)) : 2,
+    height: Number.isFinite(height) ? Math.max(1, Math.trunc(height)) : 1,
+  });
 
   if (typeof size === 'object') {
-    return size;
+    return normalize(size.width, size.height);
   }
 
   switch (size) {
     case 'small':
-      return { width: Math.min(40, termWidth - 4), height: Math.min(10, termHeight - 4) };
+      return normalize(Math.min(40, termWidth - 4), Math.min(10, termHeight - 4));
     case 'medium':
-      return { width: Math.min(60, termWidth - 4), height: Math.min(16, termHeight - 4) };
+      return normalize(Math.min(60, termWidth - 4), Math.min(16, termHeight - 4));
     case 'large':
-      return { width: Math.min(80, termWidth - 4), height: Math.min(22, termHeight - 4) };
+      return normalize(Math.min(80, termWidth - 4), Math.min(22, termHeight - 4));
     case 'fullscreen':
-      return { width: termWidth - 2, height: termHeight - 2 };
+      return normalize(termWidth - 2, termHeight - 2);
     default:
-      return { width: Math.min(60, termWidth - 4), height: Math.min(16, termHeight - 4) };
+      return normalize(Math.min(60, termWidth - 4), Math.min(16, termHeight - 4));
   }
 }
 
@@ -221,7 +230,14 @@ export function Modal(props: ModalProps): VNode {
   const { width, height } = getModalDimensions(size);
   const borderChars = getBorderChars();
   const chars = borderStyle !== 'none' ? borderChars[borderStyle] || borderChars.single : null;
-  const contentWidth = width - 2 - padding * 2;
+  const borderColumns = chars ? 2 : 0;
+  const safePadding = Number.isFinite(padding)
+    ? Math.max(
+        0,
+        Math.min(Math.trunc(padding), Math.floor((width - borderColumns) / 2)),
+      )
+    : 0;
+  const contentWidth = Math.max(0, width - borderColumns - safePadding * 2);
 
   const isAscii = getRenderMode() === 'ascii';
   const closeButtonChar = isAscii ? '[X]' : ' × ';
@@ -230,9 +246,16 @@ export function Modal(props: ModalProps): VNode {
 
   // Top border with title and optional close button
   if (chars) {
-    const titleText = title ? ` ${title} ` : '';
-    const titleLen = titleText.length;
-    const closeButtonLen = showCloseButton ? closeButtonChar.length : 0;
+    const closeButtonLen = showCloseButton && onClose
+      ? stringWidth(closeButtonChar)
+      : 0;
+    const titleContent = title
+      ? truncateText(title, Math.max(0, width - 4 - closeButtonLen), {
+          truncationCharacter: '',
+        })
+      : '';
+    const titleText = titleContent ? ` ${titleContent} ` : '';
+    const titleLen = stringWidth(titleText);
     const remainingWidth = width - 2 - titleLen - closeButtonLen;
     const leftPadding = Math.max(0, Math.floor(remainingWidth / 2));
     const rightPadding = Math.max(0, remainingWidth - leftPadding);
@@ -260,7 +283,7 @@ export function Modal(props: ModalProps): VNode {
   }
 
   // Content area
-  const paddingStr = ' '.repeat(padding);
+  const paddingStr = ' '.repeat(safePadding);
   rows.push(
     Box(
       { flexDirection: 'row' },
@@ -274,14 +297,18 @@ export function Modal(props: ModalProps): VNode {
 
   // Close hint
   if (showCloseHint && closeHint) {
-    const hintPadding = Math.max(0, width - 2 - closeHint.length - padding * 2);
+    const fittedHint = truncateText(closeHint, contentWidth, {
+      truncationCharacter: '',
+    });
     rows.push(
       Box(
         { flexDirection: 'row' },
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, ''),
         Text({}, paddingStr),
-        Text({ color: theme.foreground.muted, dim: true }, closeHint),
-        Text({}, ' '.repeat(hintPadding)),
+        Text(
+          { color: theme.foreground.muted, dim: true },
+          padTextToWidth(fittedHint, contentWidth),
+        ),
         Text({}, paddingStr),
         chars ? Text({ color: borderColor }, chars.vertical) : Text({}, '')
       )
@@ -312,7 +339,7 @@ export function Modal(props: ModalProps): VNode {
     );
   }
 
-  return Box({ flexDirection: 'column' }, ...rows);
+  return Box({ flexDirection: 'column', width, minHeight: height }, ...rows);
 }
 
 /**

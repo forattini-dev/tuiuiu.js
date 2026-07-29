@@ -264,6 +264,12 @@ describe('Media Components', () => {
       const result = rainbowText('');
       expect(result).toBe('');
     });
+
+    it('should color complete Unicode grapheme clusters', () => {
+      const result = rainbowText('A👩‍💻界');
+      expect(result).toContain('👩‍💻');
+      expect(result).not.toContain('\uFFFD');
+    });
   });
 
   describe('createShadowedText', () => {

@@ -13,6 +13,8 @@ import { createSolidImage } from '../../src/core/graphics.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
+import { setRenderMode } from '../../src/core/capabilities.js';
+import { stripAnsi } from '../../src/utils/text-utils.js';
 
 describe('Tabs', () => {
   // ==========================================================================
@@ -301,6 +303,25 @@ describe('Tabs', () => {
       ];
       const output = renderOnce(Tabs({ tabs: tabsWithIcon }));
       expect(output).toBeDefined();
+    });
+
+    it('sizes the active indicator by terminal columns and shows close affordances', () => {
+      setRenderMode('unicode');
+      const output = stripAnsi(renderOnce(Tabs({
+        tabs: [
+          {
+            key: 'unicode',
+            label: '界',
+            icon: '🧭',
+            closable: true,
+            content: Text({}, 'Content'),
+          },
+        ],
+        closable: true,
+      })));
+
+      expect(output).toContain('🧭 界 ×');
+      expect(output).toContain('━'.repeat(7));
     });
 
     it('should handle tab with function content', () => {

@@ -8,6 +8,11 @@
 import { createSignal, createEffect, untrack } from '../primitives/signal.js';
 import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
 import {
+  padTextToWidth,
+  sliceAnsi,
+  stringWidth,
+} from '../utils/text-utils.js';
+import {
   cancelAllMotionFrames,
   getMotionRuntimeState,
   requestMotionFrame,
@@ -960,9 +965,15 @@ export function createSwipeTransition(options: SwipeOptions) {
       const leftLine = leftLines[i] || '';
       const rightLine = rightLines[i] || '';
 
-      // Simple slice (for now, use text-utils for ANSI-aware version)
-      const leftVisible = leftLine.slice(-leftWidth).padStart(leftWidth, ' ');
-      const rightVisible = rightLine.slice(0, rightWidth).padEnd(rightWidth, ' ');
+      const leftVisible = padTextToWidth(
+        sliceAnsi(leftLine, Math.max(0, stringWidth(leftLine) - leftWidth)),
+        leftWidth,
+        'right',
+      );
+      const rightVisible = padTextToWidth(
+        sliceAnsi(rightLine, 0, rightWidth),
+        rightWidth,
+      );
 
       result.push(leftVisible + ' '.repeat(gapSize) + rightVisible);
     }

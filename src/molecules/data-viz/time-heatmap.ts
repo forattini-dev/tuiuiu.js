@@ -11,6 +11,7 @@
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
 import { getRenderMode } from '../../core/capabilities.js';
+import { padTextToWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -191,7 +192,7 @@ export function TimeHeatmap(props: TimeHeatmapOptions): VNode {
     const color = colors[colorIdx] ?? colors[colors.length - 1];
 
     const rowItems: VNode[] = [];
-    rowItems.push(Text({ color: 'gray', dim: true }, label.padEnd(12)));
+    rowItems.push(Text({ color: 'gray', dim: true }, padTextToWidth(label, 12)));
     rowItems.push(Text({ color }, intensity.repeat(5) + ` ${value}`));
 
     rows.push(Box({ flexDirection: 'row', gap: 1 }, ...rowItems));

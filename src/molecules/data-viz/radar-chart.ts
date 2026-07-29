@@ -10,6 +10,7 @@
 
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
+import { padTextToWidth } from '../../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -121,7 +122,7 @@ export function RadarChart(props: RadarChartOptions): VNode {
     const rowItems: VNode[] = [];
 
     // Axis name
-    rowItems.push(Text({ color: 'gray', dim: true }, axis.name.padEnd(12)));
+    rowItems.push(Text({ color: 'gray', dim: true }, padTextToWidth(axis.name, 12)));
 
     // Values from each series
     for (let s = 0; s < series.length; s++) {
@@ -133,7 +134,7 @@ export function RadarChart(props: RadarChartOptions): VNode {
       rowItems.push(
         Box(
           { marginRight: 2 },
-          Text({ color }, formattedValue.padStart(8))
+          Text({ color }, padTextToWidth(formattedValue, 8, 'right'))
         )
       );
     }

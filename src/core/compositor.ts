@@ -1,5 +1,6 @@
 import { fingerprintValue } from './structural-fingerprint.js';
 import { getMotionRuntimeState } from './motion-runtime.js';
+import { sliceAnsi } from '../utils/text-utils.js';
 import type {
   Bounds,
   DrawBoxCommand,
@@ -203,8 +204,8 @@ function applyReveal(command: DrawCommand, transform: RevealTransform, bounds: B
       }
 
       const trimLeft = Math.max(0, visibleStart - textStart);
-      const trimRight = Math.max(0, textEnd - visibleEnd);
-      next.text = next.text.slice(trimLeft, next.text.length - trimRight);
+      const sliceEnd = Math.max(trimLeft, visibleEnd - textStart);
+      next.text = sliceAnsi(next.text, trimLeft, sliceEnd);
       next.x = visibleStart;
       next.maxWidth = Math.max(0, visibleEnd - visibleStart);
       return next.maxWidth > 0 && next.text.length > 0 ? next : null;

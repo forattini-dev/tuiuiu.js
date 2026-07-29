@@ -18,6 +18,7 @@ import {
   getRuntimeScope,
   RUNTIME_RESOURCE_DISPOSE,
 } from './runtime-scope.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 // ============================================================================
 // Types
@@ -124,15 +125,26 @@ export function fuzzyMatch(pattern: string, text: string): FuzzyMatch | null {
 
   const patternLower = pattern.toLowerCase();
   const textLower = text.toLowerCase();
+  const patternGraphemes = segmentGraphemes(patternLower);
+  const patternOriginalGraphemes = segmentGraphemes(pattern);
+  const textGraphemes = segmentGraphemes(text);
+  const textLowerGraphemes = segmentGraphemes(textLower);
 
   // Quick check: all pattern chars must exist in text
   let patternIdx = 0;
-  for (let i = 0; i < textLower.length && patternIdx < patternLower.length; i++) {
-    if (textLower[i] === patternLower[patternIdx]) {
+  for (
+    let i = 0;
+    i < textLowerGraphemes.length && patternIdx < patternGraphemes.length;
+    i++
+  ) {
+    if (
+      textLowerGraphemes[i]!.segment ===
+      patternGraphemes[patternIdx]!.segment
+    ) {
       patternIdx++;
     }
   }
-  if (patternIdx !== patternLower.length) {
+  if (patternIdx !== patternGraphemes.length) {
     return null;
   }
 
@@ -142,9 +154,15 @@ export function fuzzyMatch(pattern: string, text: string): FuzzyMatch | null {
   let prevMatchIdx = -1;
   patternIdx = 0;
 
-  for (let i = 0; i < text.length && patternIdx < pattern.length; i++) {
-    if (textLower[i] === patternLower[patternIdx]) {
-      matches.push(i);
+  for (
+    let i = 0;
+    i < textGraphemes.length && patternIdx < patternGraphemes.length;
+    i++
+  ) {
+    const textGrapheme = textGraphemes[i]!;
+    const patternGrapheme = patternGraphemes[patternIdx]!;
+    if (textGrapheme.segment.toLowerCase() === patternGrapheme.segment) {
+      matches.push(textGrapheme.index);
 
       // Base score for match
       score += 1;
@@ -163,17 +181,20 @@ export function fuzzyMatch(pattern: string, text: string): FuzzyMatch | null {
       }
 
       // Word start bonus
-      if (i > 0 && WORD_SEPARATORS.has(text[i - 1])) {
+      if (i > 0 && WORD_SEPARATORS.has(textGraphemes[i - 1]!.segment)) {
         score += SCORE_WORD_START;
       }
 
       // Separator match bonus
-      if (WORD_SEPARATORS.has(text[i])) {
+      if (WORD_SEPARATORS.has(textGrapheme.segment)) {
         score += SCORE_SEPARATOR;
       }
 
       // Case match bonus
-      if (pattern[patternIdx] === text[i]) {
+      if (
+        patternOriginalGraphemes[patternIdx]?.segment ===
+        textGrapheme.segment
+      ) {
         score += SCORE_CASE_MATCH;
       }
 
@@ -183,7 +204,7 @@ export function fuzzyMatch(pattern: string, text: string): FuzzyMatch | null {
   }
 
   // Bonus for shorter strings (more focused match)
-  score += Math.max(0, 50 - text.length);
+  score += Math.max(0, 50 - textGraphemes.length);
 
   return { command: null as any, score, matches };
 }
@@ -222,6 +243,7 @@ export function searchCommands(
       match = fuzzyMatch(query, `${command.category}: ${command.label}`);
       if (match) {
         match.command = command;
+        match.matches = [];
         // Lower score for category match
         match.score *= 0.8;
         results.push(match);
@@ -235,6 +257,7 @@ export function searchCommands(
         match = fuzzyMatch(query, tag);
         if (match) {
           match.command = command;
+          match.matches = [];
           // Lower score for tag match
           match.score *= 0.6;
           results.push(match);
@@ -248,6 +271,7 @@ export function searchCommands(
       match = fuzzyMatch(query, command.description);
       if (match) {
         match.command = command;
+        match.matches = [];
         // Lower score for description match
         match.score *= 0.5;
         results.push(match);
@@ -721,20 +745,21 @@ export function highlightMatches(
 
   const result: Array<{ text: string; highlight: boolean }> = [];
   const matchSet = new Set(matches);
+  const graphemes = segmentGraphemes(text);
   let currentSegment = '';
-  let currentHighlight = matchSet.has(0);
+  let currentHighlight = matchSet.has(graphemes[0]?.index ?? 0);
 
-  for (let i = 0; i < text.length; i++) {
-    const isMatch = matchSet.has(i);
+  for (const grapheme of graphemes) {
+    const isMatch = matchSet.has(grapheme.index);
 
     if (isMatch !== currentHighlight) {
       if (currentSegment) {
         result.push({ text: currentSegment, highlight: currentHighlight });
       }
-      currentSegment = text[i];
+      currentSegment = grapheme.segment;
       currentHighlight = isMatch;
     } else {
-      currentSegment += text[i];
+      currentSegment += grapheme.segment;
     }
   }
 

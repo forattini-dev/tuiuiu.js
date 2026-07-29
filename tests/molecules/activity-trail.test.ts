@@ -120,6 +120,21 @@ describe('ActivityTrail', () => {
     expect(output).not.toContain('hidden');
   });
 
+  it('truncates output on grapheme and terminal-column boundaries', () => {
+    const node = ActivityTrail({
+      maxOutputLineLength: 5,
+      items: [{
+        id: 'unicode',
+        label: 'Unicode output',
+        output: '👩‍💻abcdef',
+      }],
+    });
+    const output = stripAnsi(renderToString(node, 80));
+
+    expect(output).toContain('👩‍💻...');
+    expect(output).not.toContain('\uFFFD');
+  });
+
   it('renders a compact empty state', () => {
     const node = ActivityTrail({ items: [], emptyText: 'No tool calls' });
     const output = stripAnsi(renderToString(node, 80));

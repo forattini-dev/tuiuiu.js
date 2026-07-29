@@ -26,6 +26,8 @@ import {
   createFocusedHandler,
   typeString,
 } from '../../helpers/keyboard.js';
+import { renderToString } from '../../../src/core/renderer.js';
+import { stripAnsi } from '../../../src/utils/text-utils.js';
 
 // =============================================================================
 // Test Data
@@ -108,6 +110,24 @@ describe('CommandPalette component', () => {
       });
 
       expect(result).toBeDefined();
+    });
+
+    it('highlights and truncates emoji without splitting grapheme clusters', () => {
+      const item = {
+        id: 'unicode',
+        label: 'Deploy 👩‍💻 application',
+        description: '配置 production environment',
+      };
+      const output = stripAnsi(renderToString(CommandPalette({
+        ...defaultProps,
+        width: 24,
+        query: '👩‍💻',
+        items: [item],
+        filteredItems: [item],
+      }), 30));
+
+      expect(output).toContain('👩‍💻');
+      expect(output).not.toContain('\uFFFD');
     });
   });
 

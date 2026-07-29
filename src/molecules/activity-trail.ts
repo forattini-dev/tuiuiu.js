@@ -7,6 +7,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { ColorValue, VNode } from '../utils/types.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
 
 export type ActivityStatus =
   | 'pending'
@@ -109,9 +110,10 @@ function normalizeOutput(output: ActivityTrailItem['output']): string[] {
 }
 
 function truncateLine(line: string, maxLength?: number): string {
-  if (!maxLength || maxLength <= 0 || line.length <= maxLength) return line;
-  if (maxLength <= 3) return line.slice(0, maxLength);
-  return `${line.slice(0, maxLength - 3)}...`;
+  if (!maxLength || maxLength <= 0 || stringWidth(line) <= maxLength) return line;
+  return truncateText(line, maxLength, {
+    truncationCharacter: maxLength <= 3 ? '' : '...',
+  });
 }
 
 function formatProgress(progress: number): string {

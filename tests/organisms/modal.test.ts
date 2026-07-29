@@ -15,6 +15,7 @@ import {
 } from '../../src/organisms/modal.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 
 describe('Modal', () => {
   // ==========================================================================
@@ -141,6 +142,28 @@ describe('Modal', () => {
         content: Text({}, 'Content'),
       });
       expect(node).toBeDefined();
+    });
+
+    it('fits wide Unicode titles and hints to the requested columns', () => {
+      const output = stripAnsi(renderOnce(Modal({
+        title: '设置👩‍💻设置👩‍💻',
+        closeHint: '按下 ESC 关闭界面',
+        showCloseButton: true,
+        onClose: vi.fn(),
+        size: { width: 20, height: 6 },
+        content: Text({}, 'Content'),
+      }), 40));
+
+      expect(output.split('\n').every((line) => stringWidth(line) <= 20)).toBe(true);
+      expect(output).not.toContain('\uFFFD');
+    });
+
+    it('normalizes invalid custom dimensions and padding', () => {
+      expect(() => renderOnce(Modal({
+        size: { width: Number.NaN, height: -5 },
+        padding: Number.POSITIVE_INFINITY,
+        content: Text({}, 'Content'),
+      }), 20)).not.toThrow();
     });
 
     it('should handle closeOnBackdrop', () => {

@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 import {
   Menu,
   createMenu,
@@ -412,6 +413,29 @@ describe('Menu Component', () => {
     expect(output).toContain('New File');
     expect(output).toContain('x');
     expect(output).toContain('Delete');
+  });
+
+  it('keeps wide labels, separators, and shortcuts within the menu width', () => {
+    const output = stripAnsi(renderToString(Menu({
+      items: [
+        { type: 'separator', label: '最近使用' },
+        { id: 'save', label: '保存界面', icon: '🧭', shortcut: 'ctrl+s' },
+      ],
+      width: 20,
+      isActive: false,
+    }), 40));
+    const lines = output.split('\n').filter(Boolean);
+
+    expect(output).toContain('Ctrl+S');
+    expect(lines.every((line) => stringWidth(line) <= 20)).toBe(true);
+  });
+
+  it('normalizes invalidly small widths without throwing', () => {
+    expect(() => renderToString(Menu({
+      items: [{ type: 'separator', label: 'Wide separator' }],
+      width: -10,
+      isActive: false,
+    }), 20)).not.toThrow();
   });
 
   it('renders with custom width', () => {

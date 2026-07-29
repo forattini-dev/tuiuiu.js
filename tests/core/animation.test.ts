@@ -31,6 +31,7 @@ import {
 } from '../../src/core/animation.js';
 import { reportMotionFrameCost, resetMotionRuntime } from '../../src/core/motion-runtime.js';
 import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/terminal-focus.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
 
 // =============================================================================
 // Easing Functions
@@ -859,6 +860,23 @@ describe('createSwipeTransition', () => {
 
     const output = swipe.render();
     expect(output.includes('\n')).toBe(true);
+  });
+
+  it('composites ANSI-styled wide glyphs by terminal columns', () => {
+    const swipe = createSwipeTransition({
+      width: 8,
+      height: 1,
+      gap: 1,
+      animation: { useSpring: false, duration: 100 },
+    });
+
+    swipe.swipeLeft('\x1b[31m界界界界\x1b[0m', '🧭🧭🧭');
+    vi.advanceTimersByTime(50);
+    const output = swipe.render();
+
+    expect(stringWidth(output)).toBe(8);
+    expect(output).not.toContain('\uFFFD');
+    expect(output).toContain('\x1b[31m');
   });
 });
 

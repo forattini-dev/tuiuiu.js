@@ -36,6 +36,16 @@ describe('ShimmerText', () => {
     expect(chars).toBe('Loading...');
   });
 
+  it('renders one node per Unicode grapheme without replacement characters', () => {
+    const node = ShimmerText({ text: 'A👩‍💻界' });
+    expect(node.type).toBe('box');
+    expect(node.children).toHaveLength(3);
+
+    const output = renderToString(node, 20);
+    expect(output).toContain('A👩‍💻界');
+    expect(output).not.toContain('\uFFFD');
+  });
+
   it('returns a Box with individual character Text nodes when active', () => {
     const node = ShimmerText({ text: 'ABC' });
     expect(node).not.toBeNull();
