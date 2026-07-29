@@ -23,6 +23,8 @@ import { useConst, useInput, type Key } from '../hooks/index.js';
 import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 export interface SelectItem<T = any> {
   /** Unique value */
@@ -283,11 +285,15 @@ export function createSelect<T = any>(options: CreateSelectOptions<T>) {
     // Search mode handling
     if (isSearching()) {
       if (key.backspace) {
-        updateSearch(searchQuery().slice(0, -1));
+        const query = searchQuery();
+        updateSearch(query.slice(0, previousGraphemeBoundary(query, query.length)));
         return true;
       }
-      if (input && input.length === 1 && !key.ctrl && !key.meta) {
-        updateSearch(searchQuery() + input);
+      if (input && !key.ctrl && !key.meta) {
+        const searchInput = sanitizeInlineInput(input);
+        if (searchInput) {
+          updateSearch(searchQuery() + searchInput);
+        }
         return true;
       }
     }
@@ -370,9 +376,11 @@ export function createSelect<T = any>(options: CreateSelectOptions<T>) {
     }
 
     // Type-ahead search (when searchable and not in search mode)
-    if (runtimeOptions.searchable && input && input.length === 1 && !key.ctrl && !key.meta && !isSearching()) {
+    if (runtimeOptions.searchable && input && !key.ctrl && !key.meta && !isSearching()) {
+      const searchInput = sanitizeInlineInput(input);
+      if (!searchInput) return true;
       setIsSearching(true);
-      updateSearch(input);
+      updateSearch(searchInput);
       return true;
     }
 

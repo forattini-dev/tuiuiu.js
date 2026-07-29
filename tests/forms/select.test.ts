@@ -614,6 +614,21 @@ describe('Select Keyboard Interactions', () => {
       expect(sel.searchQuery()).toBe('');
     });
 
+    it('should delete a whole Unicode grapheme and sanitize pasted controls', () => {
+      const sel = createTestSelect({ items: basicItems, searchable: true });
+      const family = '👨‍👩‍👧‍👦';
+
+      simulateInput('/', charKey('/').key);
+      simulateInput(`a${family}`, charKey(family).key);
+      expect(sel.searchQuery()).toBe(`a${family}`);
+
+      simulateInput('', keys.backspace().key);
+      expect(sel.searchQuery()).toBe('a');
+
+      simulateInput('\x1b[2J\nb', charKey('b').key);
+      expect(sel.searchQuery()).toBe('ab');
+    });
+
     it('should update filtered items when backspacing', () => {
       const sel = createTestSelect({ items: basicItems, searchable: true });
       simulateInput('/', charKey('/').key);

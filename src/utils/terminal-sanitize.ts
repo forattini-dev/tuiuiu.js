@@ -143,6 +143,16 @@ export function stripTerminalControls(text: string): string {
 }
 
 /**
+ * Sanitize user-entered text that will be rendered on a single terminal line.
+ *
+ * Unlike stripTerminalControls(), this also removes newlines, tabs, and every
+ * remaining C0/C1 control after consuming complete terminal protocols.
+ */
+export function sanitizeInlineInput(text: string): string {
+  return stripTerminalControls(text).replace(/[\u0000-\u001f\u007f-\u009f]/g, '');
+}
+
+/**
  * Sanitize a field interpolated into an OSC protocol.
  */
 export function sanitizeOscField(value: string): string {

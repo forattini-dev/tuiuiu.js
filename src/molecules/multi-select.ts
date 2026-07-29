@@ -20,6 +20,8 @@ import { useInput } from '../hooks/index.js';
 import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars } from '../core/capabilities.js';
+import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -86,6 +88,8 @@ export interface MultiSelectState<T = string> {
   selectAll: () => void;
   deselectAll: () => void;
   setSearch: (query: string) => void;
+  startSearch: () => void;
+  stopSearch: (clear?: boolean) => void;
   submit: () => void;
   cancel: () => void;
   isSelected: (value: T) => boolean;
@@ -280,6 +284,19 @@ export function createMultiSelect<T = string>(
     setScrollOffset(0);
   };
 
+  const startSearch = () => {
+    if (isSearchable()) {
+      setIsSearching(true);
+    }
+  };
+
+  const stopSearch = (clear = false) => {
+    setIsSearching(false);
+    if (clear) {
+      setSearch('');
+    }
+  };
+
   const submit = () => {
     runtimeOptions.onSubmit?.(selected());
   };
@@ -303,6 +320,8 @@ export function createMultiSelect<T = string>(
     selectAll,
     deselectAll,
     setSearch,
+    startSearch,
+    stopSearch,
     submit,
     cancel,
     isSelected,
@@ -369,18 +388,49 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
   // Setup keyboard handling with stopPropagation to prevent input leakage
   useInput(
     (input, key) => {
+      if (key.escape) {
+        if (state.isSearching()) {
+          state.stopSearch(true);
+        } else {
+          state.cancel();
+        }
+        return true;
+      }
+
+      if (key.return) {
+        if (state.isSearching()) {
+          state.stopSearch();
+        } else {
+          state.submit();
+        }
+        return true;
+      }
+
+      if (state.isSearching()) {
+        if (key.backspace) {
+          const query = state.searchQuery();
+          state.setSearch(
+            query.slice(0, previousGraphemeBoundary(query, query.length))
+          );
+          return true;
+        }
+        if (input && !key.ctrl && !key.meta) {
+          const searchInput = sanitizeInlineInput(input);
+          if (searchInput) {
+            state.setSearch(state.searchQuery() + searchInput);
+          }
+          return true;
+        }
+      }
+
       if (key.upArrow || input === 'k') {
         state.moveUp();
         return true;
       } else if (key.downArrow || input === 'j') {
         state.moveDown();
         return true;
-      } else if (input === ' ' || key.return) {
-        if (key.return && !state.isSearching()) {
-          state.submit();
-        } else {
-          state.toggleCurrent();
-        }
+      } else if (input === ' ') {
+        state.toggleCurrent();
         return true;
       } else if (input === 'a' && key.ctrl) {
         state.selectAll();
@@ -388,14 +438,14 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
       } else if (input === 'd' && key.ctrl) {
         state.deselectAll();
         return true;
-      } else if (key.escape) {
-        state.cancel();
+      } else if (input === '/' && searchable) {
+        state.startSearch();
         return true;
-      } else if (searchable && input && input.length === 1) {
-        state.setSearch(state.searchQuery() + input);
-        return true;
-      } else if (key.backspace && searchable) {
-        state.setSearch(state.searchQuery().slice(0, -1));
+      } else if (searchable && input && !key.ctrl && !key.meta) {
+        const searchInput = sanitizeInlineInput(input);
+        if (!searchInput) return true;
+        state.startSearch();
+        state.setSearch(searchInput);
         return true;
       }
       return false;

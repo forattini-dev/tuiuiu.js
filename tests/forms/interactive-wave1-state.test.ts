@@ -12,6 +12,9 @@ import {
 } from '../../src/hooks/context.js';
 import {
   Autocomplete,
+  createAutocomplete,
+  createMultiSelect,
+  createTagInput,
   MultiSelect,
   RadioGroup,
   Tabs,
@@ -227,6 +230,28 @@ describe('Wave 1 interactive component state', () => {
     expect(second.selected()).toEqual(['a']);
   });
 
+  it('gives MultiSelect an explicit grapheme-safe search mode', () => {
+    const state = createMultiSelect({ items: selectionItems, searchable: true });
+    const family = '👨‍👩‍👧‍👦';
+
+    renderWithHooks(() =>
+      MultiSelect({ items: selectionItems, searchable: true, state })
+    );
+    emitInput('/', charKey('/').key);
+    emitInput(`j${family}`, charKey(family).key);
+
+    expect(state.isSearching()).toBe(true);
+    expect(state.searchQuery()).toBe(`j${family}`);
+    expect(state.cursorIndex()).toBe(0);
+
+    emitInput('', keys.backspace().key);
+    expect(state.searchQuery()).toBe('j');
+
+    emitInput('', keys.enter().key);
+    expect(state.isSearching()).toBe(false);
+    expect(state.searchQuery()).toBe('j');
+  });
+
   it('keeps Autocomplete input across parent re-renders', () => {
     const renderApp = () =>
       renderWithHooks(() =>
@@ -257,6 +282,37 @@ describe('Wave 1 interactive component state', () => {
 
     expect(second).toBe(first);
     expect(second.inputValue()).toBe('be');
+  });
+
+  it('accepts multi-code-point input in Autocomplete and TagInput', () => {
+    const family = '👨‍👩‍👧‍👦';
+    const autocompleteState = createAutocomplete({ items: autocompleteItems });
+
+    renderWithHooks(() =>
+      Autocomplete({
+        items: autocompleteItems,
+        state: autocompleteState,
+        isActive: true,
+      })
+    );
+    emitInput(family, charKey(family).key);
+    expect(autocompleteState.inputValue()).toBe(family);
+
+    resetHookState();
+    clearInputHandlers();
+
+    const tagState = createTagInput({ items: autocompleteItems });
+    renderWithHooks(() =>
+      TagInput({
+        items: autocompleteItems,
+        state: tagState,
+        isActive: true,
+      })
+    );
+    emitInput(family, charKey(family).key);
+    expect(tagState.inputValue()).toBe(family);
+    emitInput('', keys.backspace().key);
+    expect(tagState.inputValue()).toBe('');
   });
 
   it('keeps TagInput selections across parent re-renders', () => {

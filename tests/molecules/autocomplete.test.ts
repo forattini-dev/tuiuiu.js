@@ -114,6 +114,29 @@ describe('createAutocomplete', () => {
       state.deleteForward();
       expect(state.inputValue()).toBe('test');
     });
+
+    it('should edit extended Unicode graphemes atomically', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const state = createAutocomplete({
+        items: sampleItems,
+        initialValue: `A${family}B`,
+      });
+
+      state.moveCursorLeft();
+      expect(state.cursorPos()).toBe(1 + family.length);
+
+      state.deleteBack();
+      expect(state.inputValue()).toBe('AB');
+      expect(state.cursorPos()).toBe(1);
+
+      state.insertChar(family);
+      state.moveCursorLeft();
+      expect(state.cursorPos()).toBe(1);
+
+      state.deleteForward();
+      expect(state.inputValue()).toBe('AB');
+      expect(state.cursorPos()).toBe(1);
+    });
   });
 
   describe('Cursor Movement', () => {
@@ -157,6 +180,21 @@ describe('createAutocomplete', () => {
 
       state.moveCursorRight();
       expect(state.cursorPos()).toBe(4);
+    });
+
+    it('should move left and right by grapheme boundaries', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const state = createAutocomplete({
+        items: sampleItems,
+        initialValue: `A${family}B`,
+      });
+
+      state.moveCursorLeft();
+      state.moveCursorLeft();
+      expect(state.cursorPos()).toBe(1);
+
+      state.moveCursorRight();
+      expect(state.cursorPos()).toBe(1 + family.length);
     });
 
     it('should move cursor to home', () => {

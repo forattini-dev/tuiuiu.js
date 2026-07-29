@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   readTerminalSequence,
+  sanitizeInlineInput,
   sanitizeOsc777Field,
   sanitizeOscField,
   sanitizeTerminalText,
@@ -18,6 +19,12 @@ describe('terminal sanitization', () => {
     const input = `a\x1b]2;owned\x07b\x1bPpayload\x1b\\c\x00\x9fd`;
     expect(sanitizeTerminalText(input)).toBe('abcd');
     expect(stripTerminalControls('\x1b[31mred\x1b[0m')).toBe('red');
+  });
+
+  it('reduces pasted input to safe single-line text', () => {
+    expect(sanitizeInlineInput('a\n\t\x1b[31mred\x1b[0m\x1b[2Jb')).toBe(
+      'aredb',
+    );
   });
 
   it('fails closed for unterminated string protocols', () => {

@@ -20,7 +20,11 @@ import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { getContrastColor } from '../core/theme.js';
-import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import {
+  nextGraphemeBoundary,
+  previousGraphemeBoundary,
+} from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -204,9 +208,10 @@ export function createAutocomplete<T = string>(
     const pos = cursorPos();
     if (pos === 0) return;
 
-    const newValue = value.slice(0, pos - 1) + value.slice(pos);
+    const previous = previousGraphemeBoundary(value, pos);
+    const newValue = value.slice(0, previous) + value.slice(pos);
     setInputValue(newValue);
-    setCursorPos(pos - 1);
+    setCursorPos(previous);
     setSelectedIndex(0);
     runtimeOptions.onChange?.(newValue);
   };
@@ -216,17 +221,18 @@ export function createAutocomplete<T = string>(
     const pos = cursorPos();
     if (pos >= value.length) return;
 
-    const newValue = value.slice(0, pos) + value.slice(pos + 1);
+    const next = nextGraphemeBoundary(value, pos);
+    const newValue = value.slice(0, pos) + value.slice(next);
     setInputValue(newValue);
     runtimeOptions.onChange?.(newValue);
   };
 
   const moveCursorLeft = () => {
-    setCursorPos((p) => Math.max(0, p - 1));
+    setCursorPos((p) => previousGraphemeBoundary(inputValue(), p));
   };
 
   const moveCursorRight = () => {
-    setCursorPos((p) => Math.min(inputValue().length, p + 1));
+    setCursorPos((p) => nextGraphemeBoundary(inputValue(), p));
   };
 
   const moveCursorHome = () => {
@@ -407,8 +413,11 @@ export function AutocompleteInput<T = string>(props: AutocompleteInputProps<T>):
         state.moveCursorHome();
       } else if (input === 'e' && key.ctrl) {
         state.moveCursorEnd();
-      } else if (input && input.length === 1 && !key.ctrl && !key.meta) {
-        state.insertChar(input);
+      } else if (input && !key.ctrl && !key.meta) {
+        const inlineInput = sanitizeInlineInput(input);
+        if (inlineInput) {
+          state.insertChar(inlineInput);
+        }
       }
     },
     { isActive }
@@ -419,8 +428,9 @@ export function AutocompleteInput<T = string>(props: AutocompleteInputProps<T>):
   const isPlaceholder = !value;
 
   const beforeCursor = value.slice(0, cursor);
-  const cursorChar = value[cursor] || ' ';
-  const afterCursor = value.slice(cursor + 1);
+  const cursorEnd = nextGraphemeBoundary(value, cursor);
+  const cursorChar = value.slice(cursor, cursorEnd) || ' ';
+  const afterCursor = value.slice(cursorEnd);
 
   const inputBorder = isAscii ? 'single' : 'round';
 
@@ -886,8 +896,11 @@ export function TagInput<T = string>(props: TagInputProps<T>): VNode {
         if (item) {
           state.addTag(item.value);
         }
-      } else if (input && input.length === 1 && !key.ctrl && !key.meta) {
-        state.setInput(state.inputValue() + input);
+      } else if (input && !key.ctrl && !key.meta) {
+        const inlineInput = sanitizeInlineInput(input);
+        if (inlineInput) {
+          state.setInput(state.inputValue() + inlineInput);
+        }
       }
     },
     { isActive }

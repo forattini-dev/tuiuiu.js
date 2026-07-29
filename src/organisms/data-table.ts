@@ -21,6 +21,7 @@ import {
   nextGraphemeBoundary,
   previousGraphemeBoundary,
 } from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 import { stringWidth, truncateText } from '../utils/text-utils.js';
 import { type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
@@ -527,7 +528,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
         } else if (key.backspace) {
           state.setFilter(deleteLastGrapheme(state.filterText()));
         } else if (input && !key.ctrl && !key.meta) {
-          const searchInput = stripInlineControls(input);
+          const searchInput = sanitizeInlineInput(input);
           if (searchInput) {
             state.setFilter(state.filterText() + searchInput);
           }
@@ -1166,10 +1167,6 @@ interface EditableRowContext<T> {
   rowKey: string;
 }
 
-function stripInlineControls(value: string): string {
-  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '');
-}
-
 /**
  * Create an imperative controller for inline table editing.
  *
@@ -1247,7 +1244,7 @@ export function createEditableDataTable<T = Record<string, any>>(
   };
 
   const setDraftValue = (value: string) => {
-    const cleanValue = stripInlineControls(value);
+    const cleanValue = sanitizeInlineInput(value);
     setDraft(cleanValue);
     setCursorPosition(cleanValue.length);
     setValidationError(null);
@@ -1381,7 +1378,7 @@ export function createEditableDataTable<T = Record<string, any>>(
       (candidate) => candidate.key === cell.column,
     );
     if (column?.inputType === 'select') return;
-    const cleanValue = stripInlineControls(value);
+    const cleanValue = sanitizeInlineInput(value);
     if (!cleanValue) return;
     const draft = draftValue();
     const cursor = clampToGraphemeBoundary(draft, cursorPosition());
@@ -1553,7 +1550,7 @@ export function EditableDataTable<T = Record<string, any>>(
             deleteLastGrapheme(state.tableState.filterText()),
           );
         } else if (input && !key.ctrl && !key.meta) {
-          const searchInput = stripInlineControls(input);
+          const searchInput = sanitizeInlineInput(input);
           if (searchInput) {
             state.tableState.setFilter(
               state.tableState.filterText() + searchInput,

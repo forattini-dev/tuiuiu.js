@@ -309,6 +309,18 @@ describe('createCommandPalette', () => {
       expect(palette.query()).toBe('sa');
     });
 
+    it('should delete a whole Unicode grapheme and reject inline controls', () => {
+      const palette = createCommandPalette({ items: testItems });
+      const family = '👨‍👩‍👧‍👦';
+
+      palette.type(`go${family}`);
+      palette.backspace();
+      expect(palette.query()).toBe('go');
+
+      palette.type('\x1b[2J\nsafe');
+      expect(palette.query()).toBe('gosafe');
+    });
+
     it('should handle clear', () => {
       const palette = createCommandPalette({ items: testItems });
 

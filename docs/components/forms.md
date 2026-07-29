@@ -379,6 +379,13 @@ MultiSelect({ state: skills, items: skillOptions, showTags: true })
 Autocomplete({ state: framework, items: frameworkOptions, placeholder: 'Search...' })
 ```
 
+`MultiSelect` uses `j`/`k` for navigation outside search. Press `/` (or start
+typing another printable character) to enter search mode; while searching,
+all printable input, including `j`, `k`, spaces, emoji, and pasted text, is
+part of the query. `Enter` keeps the current filter and returns to navigation,
+while `Escape` clears the filter and returns to navigation. Backspace removes
+one complete Unicode grapheme.
+
 `TagInput` also accepts `state` and keeps internal selections stable across parent rerenders.
 
 ## FormField

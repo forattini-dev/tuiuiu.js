@@ -51,6 +51,8 @@ import { getTheme, getContrastColor } from '../core/theme.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
 import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 import { createSignal } from '../primitives/signal.js';
+import { previousGraphemeBoundary } from '../utils/grapheme.js';
+import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -639,12 +641,14 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     },
 
     type: (char: string) => {
-      setQuery(q => q + char);
+      const inlineInput = sanitizeInlineInput(char);
+      if (!inlineInput) return;
+      setQuery(q => q + inlineInput);
       updateFiltered();
     },
 
     backspace: () => {
-      setQuery(q => q.slice(0, -1));
+      setQuery(q => q.slice(0, previousGraphemeBoundary(q, q.length)));
       updateFiltered();
     },
 
