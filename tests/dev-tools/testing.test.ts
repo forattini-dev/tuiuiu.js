@@ -547,6 +547,35 @@ describe('Accessibility Checker', () => {
     expect(report.valid).toBe(true);
   });
 
+  it('should validate labelled grid structure and dimensions', () => {
+    const node = createNode(
+      'box',
+      {
+        role: 'grid',
+        'aria-label': 'Users',
+        'aria-rowcount': 1,
+        'aria-colcount': 1,
+      },
+      [
+        createNode('box', { role: 'row' }, [
+          createNode('text', { role: 'columnheader' }),
+        ]),
+      ],
+    );
+
+    expect(checkAccessibility(node).valid).toBe(true);
+  });
+
+  it('should reject an unlabelled grid without column headers', () => {
+    const node = createNode('box', { role: 'grid' });
+    const report = checkAccessibility(node);
+
+    expect(report.valid).toBe(false);
+    expect(report.issues.some(issue => issue.code === 'missing-label')).toBe(true);
+    expect(report.issues.some(issue => issue.code === 'grid-missing-header')).toBe(true);
+    expect(report.issues.some(issue => issue.code === 'grid-missing-dimensions')).toBe(true);
+  });
+
   it('should warn about missing tabIndex on focusable', () => {
     const node = createNode('box', { focusable: true });
 

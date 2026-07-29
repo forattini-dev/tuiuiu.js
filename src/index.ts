@@ -352,8 +352,9 @@ export type {
 export type {
   VNode,
   TuiNode,
-  BoxStyle as BoxProps,
-  TextStyle as TextProps,
+  AccessibilityProps,
+  BoxProps,
+  TextProps,
   LayoutRect,
   LayoutRef,
 } from './utils/types.js';

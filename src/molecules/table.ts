@@ -20,6 +20,11 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
+import {
+  fitTextToWidth,
+  stringWidth,
+  truncateText as truncateTextToWidth,
+} from '../utils/text-utils.js';
 
 export type TableBorderStyle = 'single' | 'double' | 'round' | 'bold' | 'ascii' | 'none';
 export type TextAlign = 'left' | 'center' | 'right';
@@ -187,6 +192,14 @@ export interface TableOptions {
   availableWidth?: number;
   /** Compact mode (minimal padding) */
   compact?: boolean;
+  /** Semantic label exposed to accessibility tooling and alternative renderers. */
+  accessibilityLabel?: string;
+}
+
+function finiteNonNegativeInteger(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value!))
+    : fallback;
 }
 
 /**
@@ -194,7 +207,13 @@ export interface TableOptions {
  */
 export function getFlexValue(col: TableColumn): number {
   if (col.flex === true) return 1;
-  if (typeof col.flex === 'number' && col.flex > 0) return col.flex;
+  if (
+    typeof col.flex === 'number' &&
+    Number.isFinite(col.flex) &&
+    col.flex > 0
+  ) {
+    return col.flex;
+  }
   return 0;
 }
 
@@ -209,11 +228,15 @@ export function calculateColumnWidths(
   availableWidth?: number
 ): number[] {
   const widths: number[] = [];
+  const normalizedPadding = finiteNonNegativeInteger(padding, 1);
+  const normalizedAvailableWidth = availableWidth === undefined
+    ? undefined
+    : finiteNonNegativeInteger(availableWidth, 0);
 
   // Step 1: Calculate base widths for all columns
   for (const col of columns) {
     // Start with header width
-    let width = col.header.length;
+    let width = stringWidth(col.header);
 
     // Check all data values
     for (const row of data) {
@@ -222,19 +245,25 @@ export function calculateColumnWidths(
         value = col.format(value, row);
       }
       const strValue = String(value ?? '');
-      width = Math.max(width, strValue.length);
+      width = Math.max(width, stringWidth(strValue));
     }
 
     // Apply constraints (flex columns get minWidth as base)
     const flexValue = getFlexValue(col);
-    if (col.width) {
-      width = col.width;
+    if (col.width !== undefined) {
+      width = finiteNonNegativeInteger(col.width, width);
     } else if (flexValue > 0) {
       // Flex columns start with minWidth as their base
-      width = col.minWidth ?? Math.max(width, 3);
+      width = col.minWidth === undefined
+        ? Math.max(width, 3)
+        : finiteNonNegativeInteger(col.minWidth, Math.max(width, 3));
     } else {
-      if (col.minWidth) width = Math.max(width, col.minWidth);
-      if (col.maxWidth) width = Math.min(width, col.maxWidth);
+      if (col.minWidth !== undefined) {
+        width = Math.max(width, finiteNonNegativeInteger(col.minWidth, 0));
+      }
+      if (col.maxWidth !== undefined) {
+        width = Math.min(width, finiteNonNegativeInteger(col.maxWidth, width));
+      }
     }
 
     widths.push(width);
@@ -244,8 +273,8 @@ export function calculateColumnWidths(
   const flexColumns = columns.map((col, i) => ({ index: i, flex: getFlexValue(col), col }))
     .filter(item => item.flex > 0);
 
-  if (flexColumns.length > 0 && availableWidth) {
-    const totalPadding = columns.length * padding * 2;
+  if (flexColumns.length > 0 && normalizedAvailableWidth !== undefined) {
+    const totalPadding = columns.length * normalizedPadding * 2;
     const borders = columns.length + 1;
     const fixedWidth = widths.reduce((sum, w, i) => {
       // Only count non-flex columns
@@ -256,7 +285,7 @@ export function calculateColumnWidths(
     const flexBaseWidth = flexColumns.reduce((sum, item) => sum + widths[item.index]!, 0);
 
     const usedWidth = fixedWidth + flexBaseWidth + totalPadding + borders;
-    const remainingSpace = Math.max(0, availableWidth - usedWidth);
+    const remainingSpace = Math.max(0, normalizedAvailableWidth - usedWidth);
 
     if (remainingSpace > 0) {
       const totalFlex = flexColumns.reduce((sum, item) => sum + item.flex, 0);
@@ -266,23 +295,27 @@ export function calculateColumnWidths(
         widths[item.index] = widths[item.index]! + extraSpace;
 
         // Respect maxWidth if set
-        if (item.col.maxWidth) {
-          widths[item.index] = Math.min(widths[item.index]!, item.col.maxWidth);
+        if (item.col.maxWidth !== undefined) {
+          widths[item.index] = Math.min(
+            widths[item.index]!,
+            finiteNonNegativeInteger(item.col.maxWidth, widths[item.index]!),
+          );
         }
       }
     }
   }
 
   // Step 3: Shrink if exceeds maxWidth (same as before)
-  if (maxWidth) {
-    const totalPadding = columns.length * padding * 2;
+  if (maxWidth !== undefined) {
+    const normalizedMaxWidth = finiteNonNegativeInteger(maxWidth, 0);
+    const totalPadding = columns.length * normalizedPadding * 2;
     const borders = columns.length + 1;
     const totalWidth = widths.reduce((a, b) => a + b, 0) + totalPadding + borders;
 
-    if (totalWidth > maxWidth) {
-      const overflow = totalWidth - maxWidth;
+    if (totalWidth > normalizedMaxWidth) {
+      const overflow = totalWidth - normalizedMaxWidth;
       const shrinkable = widths.map((w, i) => {
-        const min = columns[i]!.minWidth ?? 3;
+        const min = finiteNonNegativeInteger(columns[i]!.minWidth, 3);
         return Math.max(0, w - min);
       });
       const totalShrinkable = shrinkable.reduce((a, b) => a + b, 0);
@@ -290,7 +323,10 @@ export function calculateColumnWidths(
       if (totalShrinkable > 0) {
         for (let i = 0; i < widths.length; i++) {
           const shrinkAmount = Math.floor((shrinkable[i]! / totalShrinkable) * overflow);
-          widths[i] = Math.max(columns[i]!.minWidth ?? 3, widths[i]! - shrinkAmount);
+          widths[i] = Math.max(
+            finiteNonNegativeInteger(columns[i]!.minWidth, 3),
+            widths[i]! - shrinkAmount,
+          );
         }
       }
     }
@@ -303,19 +339,22 @@ export function calculateColumnWidths(
  * Align text within a fixed width
  */
 function alignText(text: string, width: number, align: TextAlign): string {
-  const len = text.length;
-  if (len >= width) return text.slice(0, width);
+  const fitted = truncateTextToWidth(text.replace(/\r?\n/g, ' '), width, {
+    truncationCharacter: '',
+  });
+  const len = stringWidth(fitted);
+  if (len >= width) return fitted;
 
   const space = width - len;
   switch (align) {
     case 'right':
-      return ' '.repeat(space) + text;
+      return ' '.repeat(space) + fitted;
     case 'center':
       const left = Math.floor(space / 2);
       const right = space - left;
-      return ' '.repeat(left) + text + ' '.repeat(right);
+      return ' '.repeat(left) + fitted + ' '.repeat(right);
     default:
-      return text + ' '.repeat(space);
+      return fitted + ' '.repeat(space);
   }
 }
 
@@ -323,9 +362,9 @@ function alignText(text: string, width: number, align: TextAlign): string {
  * Truncate text with ellipsis
  */
 function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  if (maxLength <= 3) return text.slice(0, maxLength);
-  return text.slice(0, maxLength - 1) + '…';
+  return truncateTextToWidth(text, maxLength, {
+    truncationCharacter: '…',
+  });
 }
 
 /**
@@ -357,9 +396,12 @@ export function Table(options: TableOptions): VNode {
     maxWidth,
     availableWidth,
     compact = false,
+    accessibilityLabel = 'Data table',
   } = options;
 
-  const actualPadding = compact ? 0 : padding;
+  const actualPadding = compact
+    ? 0
+    : finiteNonNegativeInteger(padding, 1);
   const borders = TABLE_BORDERS[borderStyle];
   const hasBorders = borderStyle !== 'none';
 
@@ -422,6 +464,8 @@ export function Table(options: TableOptions): VNode {
           color: headerStyle.color ?? col.headerColor ?? 'foreground',
           bold: headerStyle.bold,
           backgroundColor: headerStyle.backgroundColor,
+          role: 'columnheader',
+          'aria-colindex': i + 1,
         }, cellContent),
         Text({ color: borderColor }, padStr)
       );
@@ -431,7 +475,10 @@ export function Table(options: TableOptions): VNode {
       }
     }
 
-    rows.push(Box({ flexDirection: 'row' }, ...headerCells));
+    rows.push(Box(
+      { flexDirection: 'row', role: 'row', 'aria-rowindex': 1 },
+      ...headerCells,
+    ));
 
     // Header separator
     if (hasBorders) {
@@ -448,46 +495,70 @@ export function Table(options: TableOptions): VNode {
   for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
     const row = data[rowIndex];
     const isStriped = striped && rowIndex % 2 === 1;
-    const dataCells: VNode[] = [];
-
-    if (hasBorders) {
-      dataCells.push(Text({ color: borderColor }, borders.vertical));
-    }
-
-    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
-      const col = columns[colIndex];
-      const padStr = ' '.repeat(actualPadding);
-      const align = col.align ?? 'left';
-
+    const cellLines = columns.map((col, colIndex) => {
       let value = row[col.key];
       if (col.format) {
         value = col.format(value, row);
       }
-      let cellText = String(value ?? '');
-
-      // Truncate if needed
-      if (col.truncate !== false) {
-        cellText = truncateText(cellText, widths[colIndex]);
+      const text = String(value ?? '');
+      if (col.wrap) {
+        return fitTextToWidth(text, widths[colIndex], 'wrap');
       }
+      const singleLine = text.replace(/\r?\n/g, ' ');
+      return [
+        col.truncate === false
+          ? truncateTextToWidth(singleLine, widths[colIndex], {
+              truncationCharacter: '',
+            })
+          : truncateText(singleLine, widths[colIndex]),
+      ];
+    });
+    const visualHeight = Math.max(1, ...cellLines.map(lines => lines.length));
+    const visualLines: VNode[] = [];
 
-      const cellContent = alignText(cellText, widths[colIndex], align);
-      const cellColor = col.color ?? (isStriped ? stripeColor : undefined);
-
-      dataCells.push(
-        Text({ color: borderColor }, padStr),
-        Text({
-          color: cellColor,
-          dim: isStriped,
-        }, cellContent),
-        Text({ color: borderColor }, padStr)
-      );
-
+    for (let lineIndex = 0; lineIndex < visualHeight; lineIndex++) {
+      const dataCells: VNode[] = [];
       if (hasBorders) {
         dataCells.push(Text({ color: borderColor }, borders.vertical));
       }
+
+      for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+        const col = columns[colIndex];
+        const padStr = ' '.repeat(actualPadding);
+        const cellContent = alignText(
+          cellLines[colIndex]?.[lineIndex] ?? '',
+          widths[colIndex],
+          col.align ?? 'left',
+        );
+        const cellColor = col.color ?? (isStriped ? stripeColor : undefined);
+
+        dataCells.push(
+          Text({ color: borderColor }, padStr),
+          Text({
+            color: cellColor,
+            dim: isStriped,
+            role: lineIndex === 0 ? 'cell' : undefined,
+            'aria-colindex': lineIndex === 0 ? colIndex + 1 : undefined,
+          }, cellContent),
+          Text({ color: borderColor }, padStr),
+        );
+
+        if (hasBorders) {
+          dataCells.push(Text({ color: borderColor }, borders.vertical));
+        }
+      }
+
+      visualLines.push(Box({ flexDirection: 'row' }, ...dataCells));
     }
 
-    rows.push(Box({ flexDirection: 'row' }, ...dataCells));
+    rows.push(Box(
+      {
+        flexDirection: 'column',
+        role: 'row',
+        'aria-rowindex': rowIndex + (showHeader ? 2 : 1),
+      },
+      ...visualLines,
+    ));
 
     // Row separator
     if (rowSeparator && rowIndex < data.length - 1 && hasBorders) {
@@ -510,7 +581,16 @@ export function Table(options: TableOptions): VNode {
     ));
   }
 
-  return Box({ flexDirection: 'column' }, ...rows);
+  return Box(
+    {
+      flexDirection: 'column',
+      role: 'table',
+      'aria-label': accessibilityLabel,
+      'aria-rowcount': data.length + (showHeader ? 1 : 0),
+      'aria-colcount': columns.length,
+    },
+    ...rows,
+  );
 }
 
 /**

@@ -843,18 +843,55 @@ export function createEventSimulator(terminal: TerminalSimulator): EventSimulato
 export function checkAccessibility(node: VNode): AccessibilityReport {
   const issues: AccessibilityIssue[] = [];
 
+  function hasDescendantRole(node: VNode, role: string): boolean {
+    if (node.props?.role === role) return true;
+    return (node.children ?? []).some(
+      child =>
+        child !== null &&
+        typeof child === 'object' &&
+        'type' in child &&
+        hasDescendantRole(child as VNode, role),
+    );
+  }
+
   function check(n: VNode, path: string): void {
     const props = n.props || {};
     const type = typeof n.type === 'string' ? n.type : (n.type as { name?: string } | undefined)?.name || 'Component';
+    const role = typeof props.role === 'string' ? props.role.toLowerCase() : '';
 
     // Check for missing labels on interactive elements
     const interactiveTypes = ['button', 'input', 'select', 'textinput', 'checkbox'];
-    if (interactiveTypes.includes(type.toLowerCase())) {
+    const labelledRoles = ['button', 'checkbox', 'grid', 'searchbox', 'textbox'];
+    if (
+      interactiveTypes.includes(type.toLowerCase()) ||
+      labelledRoles.includes(role)
+    ) {
       if (!props.label && !props['aria-label'] && !props['aria-labelledby']) {
         issues.push({
           type: 'error',
           code: 'missing-label',
-          message: `Interactive element "${type}" is missing a label`,
+          message: `Interactive element "${role || type}" is missing a label`,
+          node: n,
+          path,
+        });
+      }
+    }
+
+    if (role === 'grid') {
+      if (!hasDescendantRole(n, 'columnheader')) {
+        issues.push({
+          type: 'error',
+          code: 'grid-missing-header',
+          message: 'Grid should expose at least one column header',
+          node: n,
+          path,
+        });
+      }
+      if (props['aria-rowcount'] === undefined || props['aria-colcount'] === undefined) {
+        issues.push({
+          type: 'warning',
+          code: 'grid-missing-dimensions',
+          message: 'Grid should expose aria-rowcount and aria-colcount',
           node: n,
           path,
         });

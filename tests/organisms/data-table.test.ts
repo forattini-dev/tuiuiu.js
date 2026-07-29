@@ -12,7 +12,7 @@
  * - Edge cases
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createDataTable,
   createVirtualDataTable,
@@ -24,6 +24,17 @@ import {
   type DataTableState,
 } from '../../src/organisms/data-table.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { checkAccessibility } from '../../src/dev-tools/testing.js';
+import {
+  beginRender,
+  clearInputHandlers,
+  emitInput,
+  endRender,
+  resetHookState,
+} from '../../src/hooks/context.js';
+import type { VNode } from '../../src/utils/types.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
+import { charKey, keys } from '../helpers/keyboard.js';
 
 // =============================================================================
 // Test Data
@@ -61,6 +72,21 @@ function createTestState(options: Partial<DataTableOptions<User>> = {}): DataTab
   });
 }
 
+function renderWithHooks<T>(factory: () => T): T {
+  beginRender();
+  const result = factory();
+  endRender();
+  return result;
+}
+
+function findByRole(node: VNode, role: string): VNode[] {
+  const matches = node.props.role === role ? [node] : [];
+  for (const child of node.children) {
+    matches.push(...findByRole(child, role));
+  }
+  return matches;
+}
+
 // =============================================================================
 // Initialization Tests
 // =============================================================================
@@ -84,6 +110,7 @@ describe('createDataTable() initialization', () => {
     expect(typeof state.sortColumn).toBe('function');
     expect(typeof state.sortDirection).toBe('function');
     expect(typeof state.filterText).toBe('function');
+    expect(typeof state.searchActive).toBe('function');
     expect(typeof state.currentPage).toBe('function');
     expect(typeof state.totalPages).toBe('function');
     expect(typeof state.filteredData).toBe('function');
@@ -95,6 +122,8 @@ describe('createDataTable() initialization', () => {
     // Actions
     expect(typeof state.sort).toBe('function');
     expect(typeof state.setFilter).toBe('function');
+    expect(typeof state.startSearch).toBe('function');
+    expect(typeof state.stopSearch).toBe('function');
     expect(typeof state.nextPage).toBe('function');
     expect(typeof state.prevPage).toBe('function');
     expect(typeof state.goToPage).toBe('function');
@@ -654,6 +683,38 @@ describe('Row Selection', () => {
 
       expect(onSelect).toHaveBeenCalledWith([]);
     });
+
+    it('should emit the remaining selection when deselecting one row', () => {
+      const onSelect = vi.fn();
+      const state = createTestState({ selectionMode: 'multiple', onSelect });
+      state.selectRow('1');
+      state.selectRow('2');
+      onSelect.mockClear();
+
+      state.deselectRow('1');
+
+      expect(onSelect).toHaveBeenCalledWith([testUsers[1]]);
+    });
+
+    it('should preserve selections from other pages when selecting a page', () => {
+      const onSelect = vi.fn();
+      const state = createTestState({
+        selectionMode: 'multiple',
+        pageSize: 2,
+        onSelect,
+      });
+      state.selectRow('1');
+      state.nextPage();
+
+      state.selectAll();
+
+      expect(state.selectedKeys()).toEqual(new Set(['1', '3', '4']));
+      expect(onSelect).toHaveBeenLastCalledWith([
+        testUsers[0],
+        testUsers[2],
+        testUsers[3],
+      ]);
+    });
   });
 });
 
@@ -726,6 +787,16 @@ describe('Cursor Navigation', () => {
 // =============================================================================
 
 describe('DataTable component', () => {
+  beforeEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
+  afterEach(() => {
+    resetHookState();
+    clearInputHandlers();
+  });
+
   it('should render without errors', () => {
     const result = DataTable({
       columns: testColumns,
@@ -781,6 +852,72 @@ describe('DataTable component', () => {
 
     // Pagination should be null when pageSize is 0
     expect(result).toBeDefined();
+  });
+
+  it('uses an explicit Unicode-safe search mode', () => {
+    const state = createTestState({ showSearch: true });
+    renderWithHooks(() => DataTable({
+      columns: testColumns,
+      data: testUsers,
+      showSearch: true,
+      state,
+    }));
+
+    emitInput('/', keys.slash().key);
+    expect(state.searchActive()).toBe(true);
+    emitInput('j', charKey('j').key);
+    emitInput('👩‍💻', charKey('x').key);
+    expect(state.filterText()).toBe('j👩‍💻');
+
+    emitInput('', keys.backspace().key);
+    expect(state.filterText()).toBe('j');
+    emitInput('', keys.escape().key);
+    expect(state.searchActive()).toBe(false);
+
+    state.setFilter('');
+    emitInput('j', charKey('j').key);
+    expect(state.cursorIndex()).toBe(1);
+  });
+
+  it('fits headers and cells by terminal columns without splitting graphemes', () => {
+    const result = renderWithHooks(() => DataTable({
+      columns: [{ key: 'name', header: '👩‍💻Name', width: 4 }],
+      data: [{ name: '界👩‍💻X' }],
+      showSearch: false,
+      showPagination: false,
+      selectionMode: 'none',
+      availableWidth: 20,
+    }));
+
+    for (const cell of [
+      ...findByRole(result, 'columnheader'),
+      ...findByRole(result, 'gridcell'),
+    ]) {
+      const text = cell.children[0]?.props.children;
+      expect(typeof text).toBe('string');
+      expect(stringWidth(String(text))).toBeLessThanOrEqual(cell.props.width);
+      expect(String(text)).not.toContain('\ufffd');
+    }
+  });
+
+  it('exposes labelled grid semantics and a non-color cursor marker', () => {
+    const result = renderWithHooks(() => DataTable({
+      columns: testColumns,
+      data: testUsers,
+      showSearch: true,
+      accessibilityLabel: 'Users',
+    }));
+    const report = checkAccessibility(result);
+    const grid = findByRole(result, 'grid')[0]!;
+    const currentRow = findByRole(result, 'row').find(
+      row => row.props['aria-current'] === true,
+    );
+
+    expect(report.valid).toBe(true);
+    expect(grid.props['aria-label']).toBe('Users');
+    expect(grid.props['aria-rowcount']).toBe(testUsers.length + 1);
+    expect(findByRole(result, 'columnheader').length).toBeGreaterThan(0);
+    expect(renderToString(currentRow!, 100)).toMatch(/[>›]/);
   });
 });
 

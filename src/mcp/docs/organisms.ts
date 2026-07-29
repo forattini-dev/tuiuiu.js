@@ -344,19 +344,22 @@ GoToDialog({
   {
     name: 'DataTable',
     category: 'organisms',
-    description: 'Advanced data table with sorting, filtering, pagination, keyboard navigation, and flex columns that expand to fill available width.',
+    description: 'Interactive table with sorting, explicit search mode, pagination, selection, Unicode-safe keyboard navigation, and flex columns.',
     props: [
-      { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions { key, header, width?, flex?, minWidth?, maxWidth?, sortable?, filterable?, align?, render? }' },
+      { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions { key, header, width?, flex?, minWidth?, maxWidth?, sortable?, filterable?, align?, format? }' },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Row data' },
+      { name: 'getRowKey', type: '(row, index) => string', required: false, description: 'Stable row identity; recommended for sorting and filtering' },
+      { name: 'selectionMode', type: "'none' | 'single' | 'multiple'", required: false, default: "'single'", description: 'Row selection behavior' },
       { name: 'pageSize', type: 'number', required: false, default: '10', description: 'Rows per page' },
-      { name: 'sortable', type: 'boolean', required: false, default: 'true', description: 'Enable column sorting' },
-      { name: 'filterable', type: 'boolean', required: false, default: 'false', description: 'Enable column filtering' },
-      { name: 'showRowNumbers', type: 'boolean', required: false, default: 'false', description: 'Show row numbers' },
-      { name: 'highlightSelected', type: 'boolean', required: false, default: 'true', description: 'Highlight selected row' },
+      { name: 'showPagination', type: 'boolean', required: false, default: 'true', description: 'Show pagination status' },
+      { name: 'showSearch', type: 'boolean', required: false, default: 'true', description: 'Enable the / search mode' },
       { name: 'striped', type: 'boolean', required: false, default: 'false', description: 'Alternating row colors' },
-      { name: 'bordered', type: 'boolean', required: false, default: 'true', description: 'Show borders' },
+      { name: 'borderStyle', type: 'TableBorderStyle', required: false, default: "'single'", description: 'Table border style' },
       { name: 'availableWidth', type: 'number', required: false, default: 'terminal width', description: 'Available width for flex column calculation' },
-      { name: 'onRowSelect', type: '(row: Record<string, unknown>, index: number) => void', required: false, description: 'Row selection callback' },
+      { name: 'onSelect', type: '(rows: Record<string, unknown>[]) => void', required: false, description: 'Complete current selection callback' },
+      { name: 'onSort', type: '(column: string, direction: SortDirection) => void', required: false, description: 'Sort callback' },
+      { name: 'onPageChange', type: '(page: number) => void', required: false, description: 'Zero-based page callback' },
+      { name: 'accessibilityLabel', type: 'string', required: false, default: "'Data table'", description: 'Semantic grid label' },
       { name: 'state', type: 'DataTableState', required: false, description: 'External state from createDataTable()' },
     ],
     examples: [
@@ -365,15 +368,16 @@ const table = createDataTable({
   columns: [
     { key: 'name', header: 'Name', sortable: true },
     { key: 'email', header: 'Email', width: 30 },
-    { key: 'status', header: 'Status', render: (val) => Badge({ label: val }) },
+    { key: 'status', header: 'Status', format: (value) => String(value) },
   ],
   data: users,
   pageSize: 20,
 })
 
 DataTable({
-  ...table.props,
-  onRowSelect: (row) => openUser(row.id),
+  columns,
+  data: users,
+  state: table,
 })`,
       `// With flex columns - fills terminal width
 DataTable({

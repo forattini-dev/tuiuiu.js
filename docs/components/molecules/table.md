@@ -45,8 +45,11 @@ Output:
 | `maxWidth` | `number` | Maximum width |
 | `flex` | `number \| boolean` | Flex grow factor (fills remaining space) |
 | `align` | `'left' \| 'center' \| 'right'` | Text alignment |
+| `headerAlign` | `'left' \| 'center' \| 'right'` | Header alignment |
 | `color` | `ColorValue` | Column color |
 | `format` | `(value) => string` | Value formatter |
+| `truncate` | `boolean` | Use an ellipsis when a non-wrapped cell exceeds its width |
+| `wrap` | `boolean` | Wrap a cell across bordered visual lines |
 
 ## Props
 
@@ -56,13 +59,21 @@ Output:
 | `data` | `Record<string, any>[]` | required | Row data |
 | `borderStyle` | `TableBorderStyle` | `'single'` | Border style |
 | `borderColor` | `ColorValue` | - | Border color |
-| `headerColor` | `ColorValue` | - | Header text color |
-| `headerBg` | `ColorValue` | - | Header background |
-| `stripedRows` | `boolean` | `false` | Alternate row colors |
-| `stripedColor` | `ColorValue` | - | Striped row color |
+| `showHeader` | `boolean` | `true` | Render the header row |
+| `headerStyle` | `{ color?, bold?, backgroundColor? }` | - | Header styling |
+| `striped` | `boolean` | `false` | Alternate row styling |
+| `stripeColor` | `ColorValue` | - | Alternate-row color |
+| `padding` | `number` | `1` | Horizontal cell padding |
+| `rowSeparator` | `boolean` | `false` | Draw separators between rows |
 | `compact` | `boolean` | `false` | Reduce padding |
 | `maxWidth` | `number` | - | Max table width |
 | `availableWidth` | `number` | terminal width | Available width for flex columns |
+| `accessibilityLabel` | `string` | `'Data table'` | Semantic label for accessibility tooling |
+
+Column widths, alignment, and truncation use terminal display columns rather
+than UTF-16 length. Wide CJK characters, combining marks, flags, and ZWJ emoji
+therefore remain intact. The VNode tree exposes table, row, column-header, and
+cell semantics in addition to the visible text layout.
 
 ## Flex Columns
 

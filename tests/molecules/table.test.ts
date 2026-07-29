@@ -18,6 +18,16 @@ import {
   getTerminalWidth,
   type TableColumn,
 } from '../../src/molecules/table.js';
+import { renderToString } from '../../src/core/renderer.js';
+import { stringWidth } from '../../src/utils/text-utils.js';
+import type { VNode } from '../../src/utils/types.js';
+
+function findByRole(node: VNode, role: string): VNode[] {
+  return [
+    ...(node.props.role === role ? [node] : []),
+    ...node.children.flatMap(child => findByRole(child, role)),
+  ];
+}
 
 // =============================================================================
 // Test Data
@@ -53,6 +63,8 @@ describe('getFlexValue()', () => {
   it('should return 0 for flex: 0 or negative', () => {
     expect(getFlexValue({ key: 'a', header: 'A', flex: 0 })).toBe(0);
     expect(getFlexValue({ key: 'a', header: 'A', flex: -1 })).toBe(0);
+    expect(getFlexValue({ key: 'a', header: 'A', flex: Number.POSITIVE_INFINITY })).toBe(0);
+    expect(getFlexValue({ key: 'a', header: 'A', flex: Number.NaN })).toBe(0);
   });
 
   it('should return 0 for flex: false', () => {
@@ -99,6 +111,29 @@ describe('calculateColumnWidths() - fixed width', () => {
     ];
     const widths = calculateColumnWidths(columns, testData, undefined, 1, 80);
     expect(widths[0]).toBe(15);  // capped at maxWidth
+  });
+
+  it('should measure Unicode graphemes in terminal columns', () => {
+    expect(calculateColumnWidths(
+      [{ key: 'value', header: '界' }],
+      [{ value: '👩‍💻' }],
+    )).toEqual([2]);
+  });
+
+  it('should normalize invalid dimensions before rendering', () => {
+    const widths = calculateColumnWidths(
+      [{ key: 'value', header: 'Value', width: -10 }],
+      [{ value: 'x' }],
+      Number.NaN,
+      -2,
+    );
+
+    expect(widths).toEqual([0]);
+    expect(() => Table({
+      columns: [{ key: 'value', header: 'Value', width: -10 }],
+      data: [{ value: 'x' }],
+      padding: -5,
+    })).not.toThrow();
   });
 });
 
@@ -274,6 +309,47 @@ describe('Table()', () => {
       });
       expect(node).toBeDefined();
     }
+  });
+
+  it('should truncate and align cells by display width', () => {
+    const node = Table({
+      columns: [{ key: 'value', header: 'Value', width: 2 }],
+      data: [{ value: '👩‍💻X' }],
+    });
+    const cell = findByRole(node, 'cell')[0]!;
+
+    expect(stringWidth(cell.props.children)).toBe(2);
+    expect(cell.props.children).toBe('… ');
+  });
+
+  it('should expose table, row, header, and cell semantics', () => {
+    const node = Table({
+      columns: [{ key: 'name', header: 'Name' }],
+      data: [{ name: 'Alice' }],
+      accessibilityLabel: 'Users',
+    });
+    expect(node.props).toMatchObject({
+      role: 'table',
+      'aria-label': 'Users',
+      'aria-rowcount': 2,
+      'aria-colcount': 1,
+    });
+    expect(node.children.some(row => row.props.role === 'row')).toBe(true);
+    expect(findByRole(node, 'columnheader')).toHaveLength(1);
+    expect(findByRole(node, 'cell')).toHaveLength(1);
+  });
+
+  it('should wrap cells into bordered visual lines when requested', () => {
+    const node = Table({
+      columns: [{ key: 'value', header: 'Value', width: 5, wrap: true }],
+      data: [{ value: 'alpha beta' }],
+    });
+    const output = renderToString(node, 40);
+
+    expect(output).toContain('alpha');
+    expect(output).toContain('beta');
+    expect(findByRole(node, 'row')).toHaveLength(2);
+    expect(findByRole(node, 'cell')).toHaveLength(1);
   });
 });
 

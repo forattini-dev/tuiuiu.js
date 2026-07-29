@@ -231,6 +231,21 @@ describe('Text Utilities', () => {
       const result = sliceAnsi('hello', 2);
       expect(result).toBe('llo');
     });
+
+    it('should never split a grapheme or wide terminal cell', () => {
+      expect(sliceAnsi('👩‍💻X', 0, 1)).toBe('');
+      expect(sliceAnsi('👩‍💻X', 0, 2)).toBe('👩‍💻');
+      expect(sliceAnsi('👩‍💻X', 1)).toBe('X');
+      expect(sliceAnsi('A🇧🇷B', 1, 3)).toBe('🇧🇷');
+    });
+
+    it('should preserve safe SGR around graphemes and drop other controls', () => {
+      const styled = sliceAnsi('\x1b[31mA👩‍💻B\x1b[0m', 1, 3);
+      expect(stripAnsi(styled)).toBe('👩‍💻');
+      expect(styled).toContain('\x1b[31m');
+      expect(styled).toContain('\x1b[0m');
+      expect(sliceAnsi('\x1b[2Jabc', 0, 3)).toBe('abc');
+    });
   });
 
   describe('skipAnsi', () => {

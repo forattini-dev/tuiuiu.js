@@ -719,66 +719,73 @@ function truncateMiddle(
 }
 
 /**
- * Slice ANSI string by visible character positions
- * Preserves ANSI escape codes
+ * Slice an ANSI string by terminal-column positions.
+ * Preserves safe SGR styling and never returns a partial grapheme or wide cell.
  */
 export function sliceAnsi(text: string, start: number, end?: number): string {
-  const chars: string[] = [];
-  for (const char of text) {
-    chars.push(char);
-  }
-
+  const normalizedStart = Number.isFinite(start)
+    ? Math.max(0, Math.trunc(start))
+    : 0;
+  const normalizedEnd = end === undefined
+    ? undefined
+    : Number.isFinite(end)
+      ? Math.max(normalizedStart, Math.trunc(end))
+      : normalizedStart;
   let result = '';
   let visible = 0;
   let currentStyle = '';
-  let i = 0;
+  let index = 0;
+  let emittedContent = false;
 
-  while (i < chars.length && (end === undefined || visible < end)) {
-    const char = chars[i];
-
-    // Handle ANSI escape sequences
-    if (char === ESC && i + 1 < chars.length && chars[i + 1] === '[') {
-      let escapeSequence = char;
-      i++;
-      while (i < chars.length) {
-        escapeSequence += chars[i];
-        if (chars[i].match(/[a-zA-Z]/)) {
-          i++;
-          break;
+  while (
+    index < text.length &&
+    (normalizedEnd === undefined || visible < normalizedEnd)
+  ) {
+    if (text[index] === ESC) {
+      const sequence = readTerminalSequence(text, index);
+      if (sequence) {
+        index = sequence.end;
+        if (sequence.kind !== 'sgr') {
+          continue;
         }
-        i++;
-      }
 
-      // Track style for preservation
-      if (escapeSequence === '\u001B[0m') {
-        currentStyle = '';
-      } else if (escapeSequence.match(/\u001B\[\d+m/)) {
-        currentStyle = escapeSequence;
+        currentStyle = sequence.value === '\u001B[0m'
+          ? ''
+          : currentStyle + sequence.value;
+        if (
+          visible >= normalizedStart &&
+          (normalizedEnd === undefined || visible < normalizedEnd)
+        ) {
+          result += sequence.value;
+        }
+        continue;
       }
+    }
 
-      // Include escape if we're in the visible range
-      if (visible >= start) {
-        result += escapeSequence;
-      }
+    const grapheme = readGrapheme(text, index);
+    if (!grapheme) {
+      index++;
       continue;
     }
 
-    const charWidth = stringWidth(char);
-
-    if (visible >= start && (end === undefined || visible < end)) {
-      // Add style if starting fresh
+    const width = stringWidth(grapheme.segment);
+    const fitsStart = visible >= normalizedStart;
+    const fitsEnd =
+      normalizedEnd === undefined || visible + width <= normalizedEnd;
+    if (fitsStart && fitsEnd) {
       if (result === '' && currentStyle) {
         result += currentStyle;
       }
-      result += char;
+      result += grapheme.segment;
+      emittedContent = true;
     }
 
-    visible += charWidth;
-    i++;
+    visible += width;
+    index = grapheme.end;
   }
 
   // Reset style at end if we have active styling
-  if (currentStyle && result) {
+  if (currentStyle && emittedContent) {
     result += '\u001B[0m';
   }
 
@@ -786,7 +793,7 @@ export function sliceAnsi(text: string, start: number, end?: number): string {
 }
 
 /**
- * Skip (remove) N visible characters from the start of ANSI string
+ * Skip (remove) N terminal columns from the start of an ANSI string
  * Preserves ANSI escape codes and reapplies active styles
  *
  *
@@ -803,7 +810,7 @@ export function skipAnsi(text: string, count: number): string {
 }
 
 /**
- * Take only N visible characters from the start of ANSI string
+ * Take only N terminal columns from the start of an ANSI string
  * Alias for sliceAnsi(text, 0, count) - useful for transition APIs
  *
  * @example

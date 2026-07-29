@@ -208,8 +208,33 @@ export interface MouseEventProps {
 // Component Props
 // =============================================================================
 
+/**
+ * Semantic metadata for test tooling and renderers that expose an
+ * accessibility tree. Terminal renderers still need visible, text-based
+ * equivalents because terminal screen readers consume the rendered stream.
+ */
+export interface AccessibilityProps {
+  role?: string;
+  focusable?: boolean;
+  tabIndex?: number;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-live'?: 'off' | 'polite' | 'assertive';
+  'aria-current'?: boolean | 'page' | 'step' | 'location' | 'date' | 'time';
+  'aria-selected'?: boolean;
+  'aria-readonly'?: boolean;
+  'aria-invalid'?: boolean;
+  'aria-rowcount'?: number;
+  'aria-colcount'?: number;
+  'aria-rowindex'?: number;
+  'aria-colindex'?: number;
+  'aria-sort'?: 'none' | 'ascending' | 'descending' | 'other';
+  'aria-valuetext'?: string;
+  'aria-activedescendant'?: string;
+}
+
 /** Box component props */
-export interface BoxProps extends BoxStyle, MouseEventProps {
+export interface BoxProps extends BoxStyle, MouseEventProps, AccessibilityProps {
   /** Explicit runtime query ID */
   id?: string;
   /** Internal runtime metadata for scroll-container queries */
@@ -221,7 +246,7 @@ export interface BoxProps extends BoxStyle, MouseEventProps {
 }
 
 /** Text component props */
-export interface TextProps extends TextStyle, MouseEventProps {
+export interface TextProps extends TextStyle, MouseEventProps, AccessibilityProps {
   /** Explicit runtime query ID */
   id?: string;
   /** Unique key for reconciliation */

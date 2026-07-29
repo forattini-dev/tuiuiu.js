@@ -83,6 +83,7 @@ Extends `TableColumn` with interactive features:
 | `onSelect` | `(rows: T[]) => void` | - | Selection callback |
 | `onSort` | `(column, direction) => void` | - | Sort callback |
 | `onPageChange` | `(page: number) => void` | - | Page change callback |
+| `accessibilityLabel` | `string` | `'Data table'` | Semantic label for accessibility tooling and alternative renderers |
 | `isActive` | `boolean` | `true` | Handle keyboard |
 | `state` | `DataTableState` | - | External state |
 
@@ -98,9 +99,10 @@ Extends `TableColumn` with interactive features:
 | `s` | Cycle sort columns |
 | `Ctrl+A` | Select all |
 | `Ctrl+D` | Deselect all |
-| `/` | Focus search |
-| Type | Filter text |
-| `Backspace` | Delete filter char |
+| `/` | Enter search mode |
+| Type | Filter text while search mode is active |
+| `Backspace` | Delete one Unicode grapheme while searching |
+| `Enter` / `Escape` | Leave search mode without clearing the filter |
 
 ## Programmatic Control
 
@@ -116,6 +118,9 @@ state.sort('name')           // Sort by column
 
 // Filtering
 state.setFilter('john')      // Set filter text
+state.startSearch()          // Route text input to the filter
+state.stopSearch()           // Return to navigation shortcuts
+state.searchActive()         // Whether search owns text input
 
 // Pagination
 state.nextPage()             // Go to next page
@@ -153,6 +158,25 @@ DataTable({ state, columns: [...], data: [...] })
 
 Use `useDataTableState()` inside components when you need a stable controller across parent rerenders.
 Keep `createDataTable()` for advanced factories or controllers created outside the render path.
+
+`selectAll()` adds the active page to an existing multi-page selection.
+`onSelect` is emitted for selection and deselection operations with every
+currently selected row that is present in the filtered/sorted dataset. Supply a
+stable `getRowKey` whenever rows can be sorted, filtered, reordered, or replaced;
+the index fallback is intended only for static data.
+
+## Accessibility
+
+The rendered table never relies on color alone: a leading marker identifies the
+keyboard cursor, and the status line includes the current row, selection count,
+sort, filter, and visible range. Grid, row, column-header, and cell metadata is
+also attached to the VNode tree for accessibility tests and alternative
+renderers. Terminal screen readers consume the visible terminal stream, so the
+text marker and status line remain the authoritative fallback.
+
+Headers and cells are measured, aligned, and truncated in terminal columns,
+preserving ANSI styles and Unicode grapheme clusters such as CJK text, flags,
+combining marks, and ZWJ emoji.
 
 ## Sort Direction
 

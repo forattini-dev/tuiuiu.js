@@ -15,14 +15,14 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
-import { getChars, getRenderMode } from '../core/capabilities.js';
+import { getRenderMode } from '../core/capabilities.js';
 import {
   clampToGraphemeBoundary,
   nextGraphemeBoundary,
   previousGraphemeBoundary,
 } from '../utils/grapheme.js';
-import { stringWidth } from '../utils/text-utils.js';
-import { Table, type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
+import { type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
 
 // =============================================================================
 // Types
@@ -87,6 +87,8 @@ export interface DataTableOptions<T = Record<string, any>> {
   onPageChange?: (page: number) => void;
   /** Called when the keyboard cursor changes (index within the active page). */
   onCursorChange?: (index: number) => void;
+  /** Semantic label exposed to accessibility tooling and alternative renderers. */
+  accessibilityLabel?: string;
   /** Is active */
   isActive?: boolean;
 }
@@ -96,6 +98,7 @@ export interface DataTableState<T = Record<string, any>> {
   sortColumn: () => string | null;
   sortDirection: () => SortDirection;
   filterText: () => string;
+  searchActive: () => boolean;
   currentPage: () => number;
   totalPages: () => number;
   // Derived data
@@ -108,6 +111,8 @@ export interface DataTableState<T = Record<string, any>> {
   // Actions
   sort: (column: string) => void;
   setFilter: (text: string) => void;
+  startSearch: () => void;
+  stopSearch: () => void;
   nextPage: () => void;
   prevPage: () => void;
   goToPage: (page: number) => void;
@@ -142,6 +147,7 @@ export function createDataTable<T = Record<string, any>>(
     options.initialSort?.direction ?? null
   );
   const [filterText, setFilterText] = createSignal('');
+  const [searchActive, setSearchActive] = createSignal(false);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [selectedKeys, setSelectedKeys] = createSignal(new Set(options.initialSelected ?? []));
   const [cursorIndex, setCursorIndex] = createSignal(0);
@@ -285,6 +291,9 @@ export function createDataTable<T = Record<string, any>>(
     return pageSize > 0 ? currentPage() * pageSize : 0;
   };
 
+  const getSelectedRows = (keys: Set<string>): T[] =>
+    sortedData().filter((row, index) => keys.has(getRowKey(row, index)));
+
   const selectRow = (key: string) => {
     const selectionMode = runtimeOptions.selectionMode ?? 'single';
     if (selectionMode === 'none') return;
@@ -297,19 +306,14 @@ export function createDataTable<T = Record<string, any>>(
     setSelectedKeys(newKeys);
 
     // Use the known new keys for onSelect (not the signal which may be stale)
-    const pageStart = getPageStartIndex();
-    const selected = pageData().filter((row, i) =>
-      newKeys.has(getRowKey(row, pageStart + i))
-    );
-    runtimeOptions.onSelect?.(selected);
+    runtimeOptions.onSelect?.(getSelectedRows(newKeys));
   };
 
   const deselectRow = (key: string) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
+    const next = new Set(selectedKeys());
+    if (!next.delete(key)) return;
+    setSelectedKeys(next);
+    runtimeOptions.onSelect?.(getSelectedRows(next));
   };
 
   const toggleRow = (key: string) => {
@@ -325,8 +329,9 @@ export function createDataTable<T = Record<string, any>>(
     if (selectionMode !== 'multiple') return;
     const pageStart = getPageStartIndex();
     const keys = pageData().map((row, i) => getRowKey(row, pageStart + i));
-    setSelectedKeys(new Set(keys));
-    runtimeOptions.onSelect?.(pageData());
+    const next = new Set([...selectedKeys(), ...keys]);
+    setSelectedKeys(next);
+    runtimeOptions.onSelect?.(getSelectedRows(next));
   };
 
   const deselectAll = () => {
@@ -360,6 +365,7 @@ export function createDataTable<T = Record<string, any>>(
     sortColumn,
     sortDirection,
     filterText,
+    searchActive,
     currentPage,
     totalPages,
     filteredData,
@@ -369,6 +375,8 @@ export function createDataTable<T = Record<string, any>>(
     cursorIndex,
     sort,
     setFilter,
+    startSearch: () => setSearchActive(true),
+    stopSearch: () => setSearchActive(false),
     nextPage,
     prevPage,
     goToPage,
@@ -398,6 +406,29 @@ export function createDataTable<T = Record<string, any>>(
 
 export function useDataTableState<T = Record<string, any>>(options: DataTableOptions<T>) {
   return useFactoryState<DataTableOptions<T>, DataTableState<T>>(undefined, options, createDataTable);
+}
+
+function deleteLastGrapheme(value: string): string {
+  return value.slice(0, previousGraphemeBoundary(value, value.length));
+}
+
+function fitTableCell(
+  value: string,
+  width: number,
+  align: TextAlign = 'left',
+): string {
+  const fitted = truncateText(value.replace(/\r?\n/g, ' '), width, {
+    truncationCharacter: '',
+  });
+  const padding = Math.max(0, width - stringWidth(fitted));
+  if (align === 'right') {
+    return ' '.repeat(padding) + fitted;
+  }
+  if (align === 'center') {
+    const left = Math.floor(padding / 2);
+    return ' '.repeat(left) + fitted + ' '.repeat(padding - left);
+  }
+  return fitted + ' '.repeat(padding);
 }
 
 // =============================================================================
@@ -474,6 +505,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     striped = false,
     colorStripe = 'mutedForeground',
     isActive = true,
+    accessibilityLabel = 'Data table',
     availableWidth,
     state: externalState,
     viewport,
@@ -485,17 +517,27 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     ? externalState
     : useFactoryState(externalState, props, createDataTable);
   const isAscii = getRenderMode() === 'ascii';
-  const chars = getChars();
 
-  // Setup keyboard handling
-  // When search has text, single-char input goes to search (not vim nav).
-  // Arrow keys always work for navigation regardless of search state.
+  // Search is an explicit mode so navigation keys can also be searched for.
   useInput(
     (input, key) => {
-      const isSearching = showSearch && state.filterText().length > 0;
+      if (showSearch && state.searchActive()) {
+        if (key.escape || key.return) {
+          state.stopSearch();
+        } else if (key.backspace) {
+          state.setFilter(deleteLastGrapheme(state.filterText()));
+        } else if (input && !key.ctrl && !key.meta) {
+          const searchInput = stripInlineControls(input);
+          if (searchInput) {
+            state.setFilter(state.filterText() + searchInput);
+          }
+        }
+        return true;
+      }
 
-      // Arrow keys: always navigate (regardless of search)
-      if (key.upArrow) {
+      if (showSearch && input === '/' && !key.ctrl && !key.meta) {
+        state.startSearch();
+      } else if (key.upArrow) {
         state.moveCursor(-1);
       } else if (key.downArrow) {
         state.moveCursor(1);
@@ -509,20 +551,15 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
         state.selectAll();
       } else if (input === 'd' && key.ctrl) {
         state.deselectAll();
-      } else if (key.backspace && showSearch) {
-        state.setFilter(state.filterText().slice(0, -1));
-      } else if (isSearching && input && input.length === 1 && !key.ctrl && !key.meta) {
-        // When actively searching: all chars go to search filter
-        state.setFilter(state.filterText() + input);
-      } else if (!isSearching && (input === 'k')) {
+      } else if (input === 'k') {
         state.moveCursor(-1);
-      } else if (!isSearching && (input === 'j')) {
+      } else if (input === 'j') {
         state.moveCursor(1);
-      } else if (!isSearching && (input === 'h')) {
+      } else if (input === 'h') {
         state.prevPage();
-      } else if (!isSearching && (input === 'l')) {
+      } else if (input === 'l') {
         state.nextPage();
-      } else if (!isSearching && input === 's') {
+      } else if (input === 's') {
         const sortable = columns.filter((c) => c.sortable);
         if (sortable.length > 0) {
           const current = state.sortColumn();
@@ -530,10 +567,10 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
           const nextIdx = (currentIdx + 1) % sortable.length;
           state.sort(sortable[nextIdx]!.key);
         }
-      } else if (input && input.length === 1 && showSearch && !key.ctrl && !key.meta) {
-        // Start searching with first char
-        state.setFilter(state.filterText() + input);
+      } else {
+        return false;
       }
+      return true;
     },
     { isActive }
   );
@@ -565,11 +602,26 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   if (showSearch) {
     const searchIcon = isAscii ? '[?]' : '🔍';
     searchNode = Box(
-      { marginBottom: 1, flexDirection: 'row', gap: 1 },
+      {
+        marginBottom: 1,
+        flexDirection: 'row',
+        gap: 1,
+        role: 'searchbox',
+        'aria-label': `${accessibilityLabel} search`,
+        'aria-valuetext': filter,
+      },
       Text({ color: 'mutedForeground' }, searchIcon),
       Box(
-        { borderStyle: 'single', borderColor: 'border', paddingX: 1, minWidth: 20 },
-        Text({ color: filter ? 'foreground' : 'mutedForeground', dim: !filter }, filter || searchPlaceholder)
+        {
+          borderStyle: state.searchActive() ? 'double' : 'single',
+          borderColor: state.searchActive() ? 'primary' : 'border',
+          paddingX: 1,
+          minWidth: 20,
+        },
+        Text(
+          { color: filter ? 'foreground' : 'mutedForeground', dim: !filter },
+          filter || searchPlaceholder,
+        ),
       )
     );
   }
@@ -591,7 +643,14 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
   });
 
   // Build selection column if needed
-  const displayColumns: TableColumn[] = [];
+  const displayColumns: TableColumn[] = [
+    {
+      key: '_cursor',
+      header: '',
+      width: 2,
+      align: 'center',
+    },
+  ];
   if (selectionMode !== 'none') {
     displayColumns.push({
       key: '_selection',
@@ -620,6 +679,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     const isCursor = pageIndex === cursor;
 
     const rowData = { ...(row as Record<string, any>) };
+    rowData._cursor = isCursor ? (isAscii ? '>' : '›') : '';
 
     // Selection indicator
     if (selectionMode !== 'none') {
@@ -632,38 +692,85 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 
     return {
       row: rowData,
+      sourceRow: row,
       rowKey,
+      pageIndex,
       isCursor,
       isSelected,
     };
   });
 
-  // Build table rows manually for custom styling
-  const tableRows: VNode[] = [];
-
-  // We'll render a custom table with cursor highlighting
-  // For simplicity, we use the existing Table but modify the data presentation
+  // Render custom rows so cursor, selection, and editable-cell state can share
+  // the same terminal-column sizing contract as the static Table component.
 
   const tableNode = Box(
-    { flexDirection: 'column' },
+    {
+      flexDirection: 'column',
+      borderStyle,
+      borderColor,
+      maxHeight: props.maxHeight,
+      overflowY: props.maxHeight === undefined ? undefined : 'hidden',
+      role: 'grid',
+      focusable: true,
+      tabIndex: 0,
+      'aria-label': accessibilityLabel,
+      'aria-rowcount': state.sortedData().length + 1,
+      'aria-colcount': displayColumns.length,
+    },
     // Header
     Box(
-      { flexDirection: 'row', marginBottom: 1 },
+      { flexDirection: 'row', marginBottom: 1, role: 'row', 'aria-rowindex': 1 },
       ...displayColumns.map((col, i) => {
         const width = columnWidths[i] ?? 15;
+        const sourceColumn = columns.find(candidate => candidate.key === col.key);
+        const ariaSort = sourceColumn?.sortable
+          ? sortCol === sourceColumn.key
+            ? sortDir === 'asc'
+              ? 'ascending'
+              : sortDir === 'desc'
+                ? 'descending'
+                : 'none'
+            : 'none'
+          : undefined;
         return Box(
-          { width, marginRight: 1 },
-          Text({ color: colorHeader, bold: headerBold }, col.header.slice(0, width))
+          {
+            width,
+            marginRight: 1,
+            role: 'columnheader',
+            'aria-colindex': i + 1,
+            'aria-sort': ariaSort,
+          },
+          Text(
+            { color: colorHeader, bold: headerBold },
+            fitTableCell(col.header, width, col.align),
+          ),
         );
       })
     ),
     // Rows
-    ...displayData.map(({ row, rowKey, isCursor, isSelected: isSelectedRow }) => {
+    ...displayData.map(({
+      row,
+      sourceRow,
+      rowKey,
+      pageIndex,
+      isCursor,
+      isSelected: isSelectedRow,
+    }) => {
       return Box(
         {
           flexDirection: 'row',
           height: viewport?.rowHeight,
-          backgroundColor: isCursor ? colorCursor : isSelectedRow ? colorSelected : undefined,
+          backgroundColor: isCursor
+            ? colorCursor
+            : isSelectedRow
+              ? colorSelected
+              : striped && pageIndex % 2 === 1
+                ? colorStripe
+                : undefined,
+          role: 'row',
+          'aria-rowindex': pageStartIndex + pageIndex + 2,
+          'aria-selected': isSelectedRow,
+          'aria-current': isCursor,
         },
         ...displayColumns.map((col, colIdx) => {
           const width = columnWidths[colIdx] ?? 15;
@@ -683,20 +790,27 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
               cursorGlyph +
               draft.slice(cursorPosition);
           } else if (col.format) {
-            value = col.format(value, row);
+            value = col.format(value, sourceRow as Record<string, any>);
           }
-          const strValue = String(value ?? '').slice(0, width);
+          const strValue = fitTableCell(String(value ?? ''), width, col.align);
           const color = isCursor ? 'background' : isSelectedRow ? 'background' : col.color ?? 'foreground';
 
           return Box(
-            { width, marginRight: 1 },
+            {
+              width,
+              marginRight: 1,
+              role: 'gridcell',
+              'aria-colindex': colIdx + 1,
+              'aria-current': isFocusedCell,
+              'aria-readonly': !isFocusedCell || !cellFocus?.editing,
+            },
             Text(
               {
                 color,
                 inverse: isFocusedCell,
                 underline: isFocusedCell && !cellFocus?.editing,
               },
-              strValue.padEnd(width),
+              strValue,
             )
           );
         })
@@ -719,24 +833,43 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
     );
   }
 
-  // Footer with hints
+  const interactionHints = [
+    viewport
+      ? isAscii ? 'jk: nav' : '↓↑: nav'
+      : isAscii ? 'jk: nav  hl: page' : '↓↑: nav  ←→: page',
+    selectionMode === 'none'
+      ? null
+      : isAscii ? 'Enter/Space: select' : '↵/␣: select',
+    columns.some(column => column.sortable) ? 's: sort' : null,
+    showSearch ? '/: search' : null,
+    selectionMode === 'multiple'
+      ? isAscii ? 'Ctrl+A: all' : '^A: all'
+      : null,
+  ].filter((hint): hint is string => hint !== null).join('  ');
+
+  // Footer with a visible state summary and keyboard hints.
   const hintsNode = Box(
-    { marginTop: 1 },
+    { marginTop: 1, role: 'status', 'aria-live': 'polite' },
     Text(
       { color: 'mutedForeground', dim: true },
-      viewport
-        ? `${fullPage.length === 0 ? 0 : viewportStart + 1}-${viewportEnd} / ${fullPage.length} rows  ` +
-          (isAscii
-            ? 'jk: nav  Enter/Space: select  s: sort  Ctrl+A: all'
-            : '↓↑: nav  ↵/␣: select  s: sort  ^A: all')
-        : isAscii
-        ? 'jk: nav  hl: page  Enter/Space: select  s: sort  Ctrl+A: all'
-        : '↓↑: nav  ←→: page  ↵/␣: select  s: sort  ^A: all'
+      `Row ${fullPage.length === 0 ? 0 : cursor + 1} of ${fullPage.length}` +
+        (selectionMode === 'none' ? '' : `  Selected ${selected.size}`) +
+        (sortCol && sortDir ? `  Sorted ${sortCol} ${sortDir}` : '') +
+        (filter ? `  Filter "${filter}"` : '') +
+        '  ' +
+        (viewport
+          ? `${fullPage.length === 0 ? 0 : viewportStart + 1}-${viewportEnd} / ${fullPage.length} rows  `
+          : '') +
+        interactionHints
     )
   );
 
   return Box(
-    { flexDirection: 'column' },
+    {
+      flexDirection: 'column',
+      role: 'region',
+      'aria-label': accessibilityLabel,
+    },
     searchNode,
     tableNode,
     paginationNode,
@@ -1371,6 +1504,7 @@ export function EditableDataTable<T = Record<string, any>>(
     columns,
     showSearch = true,
     isActive = true,
+    accessibilityLabel = 'Editable data table',
     ...dataTableProps
   } = props;
   const state = useFactoryState(externalState, props, createEditableDataTable);
@@ -1411,8 +1545,27 @@ export function EditableDataTable<T = Record<string, any>>(
         return true;
       }
 
-      const isSearching = showSearch && state.tableState.filterText().length > 0;
-      if (key.upArrow) {
+      if (showSearch && state.tableState.searchActive()) {
+        if (key.escape || key.return) {
+          state.tableState.stopSearch();
+        } else if (key.backspace) {
+          state.tableState.setFilter(
+            deleteLastGrapheme(state.tableState.filterText()),
+          );
+        } else if (input && !key.ctrl && !key.meta) {
+          const searchInput = stripInlineControls(input);
+          if (searchInput) {
+            state.tableState.setFilter(
+              state.tableState.filterText() + searchInput,
+            );
+          }
+        }
+        return true;
+      }
+
+      if (showSearch && input === '/' && !key.ctrl && !key.meta) {
+        state.tableState.startSearch();
+      } else if (key.upArrow) {
         state.moveRow(-1);
       } else if (key.downArrow) {
         state.moveRow(1);
@@ -1432,11 +1585,7 @@ export function EditableDataTable<T = Record<string, any>>(
         state.tableState.selectAll();
       } else if (input === 'd' && key.ctrl) {
         state.tableState.deselectAll();
-      } else if (key.backspace && showSearch) {
-        state.tableState.setFilter(
-          state.tableState.filterText().slice(0, -1),
-        );
-      } else if (!isSearching && input === 's') {
+      } else if (input === 's') {
         const sortable = columns.filter((column) => column.sortable);
         if (sortable.length > 0) {
           const current = state.tableState.sortColumn();
@@ -1447,15 +1596,6 @@ export function EditableDataTable<T = Record<string, any>>(
             sortable[(currentIndex + 1) % sortable.length]!.key,
           );
         }
-      } else if (
-        input &&
-        showSearch &&
-        !key.ctrl &&
-        !key.meta
-      ) {
-        state.tableState.setFilter(
-          state.tableState.filterText() + stripInlineControls(input),
-        );
       } else {
         return false;
       }
@@ -1472,6 +1612,11 @@ export function EditableDataTable<T = Record<string, any>>(
   const activeColumn = state.activeColumn();
   const editingCell = state.editingCell();
   const validationError = state.validationError();
+  const activeColumnLabel =
+    columns[state.activeColumnIndex()]?.header ?? 'none';
+  const activeRowPosition = state.tableState.pageData().length === 0
+    ? 0
+    : state.tableState.cursorIndex() + 1;
   const displayColumns = columns.map((column) =>
     state.isEditing() && column.key === editingCell?.column
       ? {
@@ -1485,12 +1630,17 @@ export function EditableDataTable<T = Record<string, any>>(
   );
 
   return Box(
-    { flexDirection: 'column' },
+    {
+      flexDirection: 'column',
+      role: 'region',
+      'aria-label': accessibilityLabel,
+    },
     DataTable({
       ...dataTableProps,
       columns: displayColumns,
       showSearch,
       isActive: false,
+      accessibilityLabel,
       state: state.tableState,
       stateOptionsManaged: true,
       cellFocus:
@@ -1505,12 +1655,27 @@ export function EditableDataTable<T = Record<string, any>>(
           : null,
     }),
     validationError
-      ? Text({ color: 'danger', bold: true }, `Error: ${validationError}`)
+      ? Text(
+          {
+            color: 'danger',
+            bold: true,
+            role: 'alert',
+            'aria-live': 'assertive',
+            'aria-invalid': true,
+          },
+          `Error: ${validationError}`,
+        )
       : Text(
-          { color: 'mutedForeground', dim: true },
-          state.isEditing()
-            ? 'Enter: commit  Esc: cancel  Tab: commit and move'
-            : 'Arrows: move cell  Enter: edit  Space: select  PgUp/PgDn: page',
+          {
+            color: 'mutedForeground',
+            dim: true,
+            role: 'status',
+            'aria-live': 'polite',
+          },
+          `Cell row ${activeRowPosition}, column ${activeColumnLabel}  ` +
+            (state.isEditing()
+              ? 'Enter: commit  Esc: cancel  Tab: commit and move'
+              : 'Arrows: move cell  Enter: edit  Space: select  PgUp/PgDn: page'),
         ),
   );
 }
