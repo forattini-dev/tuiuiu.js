@@ -72,13 +72,20 @@ type ShellSubmitAction =
   | { kind: 'interrupt' }
   | { kind: 'close-stdin' };
 
-function SessionEntryCard(entry: ShellSessionEntry): VNode {
+function SessionEntryCard(entry: ShellSessionEntry, compact = false): VNode {
   const color =
     entry.stream === 'stdout'
       ? 'green'
       : entry.stream === 'stderr'
         ? 'red'
         : 'cyan';
+
+  if (compact) {
+    return Text(
+      { color },
+      `${entry.stream.toUpperCase()}> ${entry.text}`,
+    );
+  }
 
   return Box(
     {
@@ -93,23 +100,29 @@ function SessionEntryCard(entry: ShellSessionEntry): VNode {
   );
 }
 
-function PromptModePanel(props: { mode: PromptModeResolved }): VNode {
+function PromptModePanel(props: {
+  mode: PromptModeResolved;
+  compact?: boolean;
+}): VNode {
   const mode = props.mode;
   const color = mode.mode.id === 'shell' ? 'magenta' : 'green';
 
   return Box(
     { flexDirection: 'column' },
     Text({ color, bold: true }, `MODE  ${mode.mode.label ?? mode.mode.id}`),
-    mode.mode.description
+    !props.compact && mode.mode.description
       ? Text({ color: 'gray', dim: true }, mode.mode.description)
       : null,
-    Text({}, `explicit: ${mode.isExplicit ? 'yes' : 'no'}`),
-    Text({}, `prefix: ${mode.prefix ?? '(none)'}`),
+    props.compact ? null : Text({}, `explicit: ${mode.isExplicit ? 'yes' : 'no'}`),
+    props.compact ? null : Text({}, `prefix: ${mode.prefix ?? '(none)'}`),
     Text({ color: 'gray', dim: true }, `payload: ${mode.payload || '(empty)'}`),
   );
 }
 
-function LiveStatusPanel(props: { status: ShellSessionLiveStatus }): VNode {
+function LiveStatusPanel(props: {
+  status: ShellSessionLiveStatus;
+  compact?: boolean;
+}): VNode {
   const status = props.status;
   const color =
     status.phase === 'interrupt-requested'
@@ -124,9 +137,11 @@ function LiveStatusPanel(props: { status: ShellSessionLiveStatus }): VNode {
     { flexDirection: 'column' },
     Text({ color, bold: true }, `STATUS  ${status.phase}`),
     Text({}, `summary: ${status.summary}`),
-    Text({}, `command: ${status.command ?? '(none)'}`),
-    Text({}, `last output: ${status.lastOutputStream ?? '(none)'}`),
-    Text({ color: 'gray', dim: true }, `last line: ${status.lastOutputText ?? '(none)'}`),
+    props.compact ? null : Text({}, `command: ${status.command ?? '(none)'}`),
+    props.compact ? null : Text({}, `last output: ${status.lastOutputStream ?? '(none)'}`),
+    props.compact
+      ? null
+      : Text({ color: 'gray', dim: true }, `last line: ${status.lastOutputText ?? '(none)'}`),
   );
 }
 
@@ -219,7 +234,7 @@ function getPromptVisualLineIndex(value: string, cursorPosition: number, width: 
 
 export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): VNode {
   const controller = props.controller ?? getDefaultController();
-  const { columns } = useTerminalSize();
+  const { columns, rows } = useTerminalSize();
   const [snapshot, setSnapshot] = useState<ShellSessionSnapshot>(controller.getSnapshot());
   const historyCursor = useConst(() => ({ index: -1 }));
   const prompt = useTextInputState({
@@ -329,6 +344,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
   const previewAction = resolveShellSubmitAction(prompt.value(), mode, snapshot());
   const sidebarWidth = Math.max(36, Math.min(44, Math.floor(columns * 0.34)));
   const transcriptWidth = Math.max(40, columns - sidebarWidth - 7);
+  const compactSidebar = columns < 110 || rows < 36;
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -349,7 +365,9 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
         Text({ color: 'cyan', bold: true }, 'Session Transcript'),
         ...(snapshot().entries.length === 0
           ? [Text({ color: 'gray', dim: true }, 'No shell output yet. Submit !demo-stream to watch incremental output.')]
-          : snapshot().entries.slice(-8).map((entry) => SessionEntryCard(entry)))
+          : snapshot().entries
+            .slice(-8)
+            .map((entry) => SessionEntryCard(entry, compactSidebar)))
       ),
       Box(
         {
@@ -359,21 +377,27 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
           borderColor: 'gray',
           paddingX: 1,
         },
-        Text({ color: 'yellow', bold: true }, 'Prompt Mode'),
-        PromptModePanel({ mode }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
-        InputRoutePanel({ action: previewAction, stdin: snapshot().stdin }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
         Text({ color: 'yellow', bold: true }, 'Live Status'),
-        LiveStatusPanel({ status: snapshot().liveStatus }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
+        LiveStatusPanel({
+          status: snapshot().liveStatus,
+          compact: compactSidebar,
+        }),
+        Divider(),
+        Text({ color: 'yellow', bold: true }, 'Prompt Mode'),
+        PromptModePanel({ mode, compact: compactSidebar }),
+        Divider(),
         Text({ color: 'yellow', bold: true }, 'Session State'),
         Text({}, `running: ${snapshot().running ? 'yes' : 'no'}`),
         Text({}, `current command: ${snapshot().currentCommand ?? '(none)'}`),
-        Text({}, `replay entries: ${snapshot().entries.length}`),
-        Text({}, `history entries: ${snapshot().commandHistory.length}`),
+        compactSidebar ? null : Text({}, `replay entries: ${snapshot().entries.length}`),
+        compactSidebar ? null : Text({}, `history entries: ${snapshot().commandHistory.length}`),
         Text({}, `stdin writable: ${snapshot().stdin.writable ? 'yes' : 'no'}`),
-        Text({}, `persistence: ${props.controller ? 'external controller' : DEFAULT_SESSION_STORAGE_KEY}`),
+        compactSidebar
+          ? null
+          : Text({}, `persistence: ${props.controller ? 'external controller' : DEFAULT_SESSION_STORAGE_KEY}`),
+        Divider(),
+        InputRoutePanel({ action: previewAction, stdin: snapshot().stdin }),
+        Divider(),
         Text({ color: 'gray', dim: true }, '!demo-stream for deterministic test output'),
         Text({ color: 'gray', dim: true }, '!demo-stdin for line-based stdin bridging'),
         Text({ color: 'gray', dim: true }, '!demo-status for long-running status feedback'),

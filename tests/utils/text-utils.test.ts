@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   stripAnsi,
   stringWidth,
+  fitTextToWidth,
   wrapText,
   truncateText,
   sliceAnsi,
@@ -135,6 +136,27 @@ describe('Text Utilities', () => {
     it('should preserve ANSI codes across lines', () => {
       const result = wrapText('\x1b[31mred text here\x1b[0m', 5, { hard: true });
       expect(result).toContain('\x1b[31m');
+    });
+  });
+
+  describe('fitTextToWidth', () => {
+    it('hard-wraps a word that is wider than the available columns', () => {
+      expect(fitTextToWidth('abcdefgh', 3)).toEqual(['abc', 'def', 'gh']);
+    });
+
+    it('uses terminal cell widths without splitting grapheme clusters', () => {
+      const lines = fitTextToWidth('👩‍💻👩‍💻', 2);
+
+      expect(lines).toHaveLength(2);
+      expect(lines.map(stringWidth)).toEqual([2, 2]);
+    });
+
+    it('preserves ANSI styling while returning the renderer line breaks', () => {
+      const lines = fitTextToWidth('\x1b[31malpha beta\x1b[0m', 5);
+
+      expect(lines.map(stringWidth)).toEqual([5, 4]);
+      expect(lines.join('\n')).toContain('\x1b[31m');
+      expect(lines.join('\n')).toContain('\x1b[0m');
     });
   });
 

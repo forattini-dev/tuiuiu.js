@@ -130,12 +130,26 @@ describe('initializeApp', () => {
     expect(getAppContext()).not.toBeNull();
   });
 
-  it('rejects a second active app instead of corrupting global runtime state', () => {
-    initializeApp(stdin, stdout);
+  it('allows simultaneous apps on distinct terminal streams', () => {
+    const first = initializeApp(stdin, stdout);
+    const second = initializeApp(createMockStdin(), createMockStdout());
 
-    expect(() => initializeApp(createMockStdin(), createMockStdout())).toThrow(
-      /Only one active app/u,
+    expect(first).not.toBe(second);
+    first.dispose();
+    second.dispose();
+  });
+
+  it('rejects simultaneous apps that share either terminal stream', () => {
+    const first = initializeApp(stdin, stdout);
+
+    expect(() => initializeApp(stdin, createMockStdout())).toThrow(
+      /cannot be shared/u,
     );
+    expect(() => initializeApp(createMockStdin(), stdout)).toThrow(
+      /cannot be shared/u,
+    );
+
+    first.dispose();
   });
 
   it('allows a new app after direct disposal', () => {

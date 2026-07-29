@@ -90,15 +90,32 @@ export function createTerminalSession(
     isDisposed = true;
     if (!started) return;
 
+    let firstError: unknown;
+    const attempt = (operation: () => void): void => {
+      try {
+        operation();
+      } catch (error) {
+        firstError ??= error;
+      }
+    };
+
     rawModeEnabledCount = 0;
-    if (stdin.isTTY && stdin.setRawMode) {
-      stdin.setRawMode(initialRawMode);
+    attempt(() => {
+      if (stdin.isTTY && stdin.setRawMode) {
+        stdin.setRawMode(initialRawMode);
+      }
+    });
+    attempt(() => {
+      if (inputWasPaused && typeof stdin.pause === 'function') {
+        stdin.pause();
+      }
+    });
+    if (focusEvents) attempt(() => write(disableFocusEvents()));
+    if (bracketedPaste) attempt(() => write(disableBracketedPaste()));
+
+    if (firstError) {
+      throw firstError;
     }
-    if (inputWasPaused && typeof stdin.pause === 'function') {
-      stdin.pause();
-    }
-    if (focusEvents) write(disableFocusEvents());
-    if (bracketedPaste) write(disableBracketedPaste());
   };
 
   return {

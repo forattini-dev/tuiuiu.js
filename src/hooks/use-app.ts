@@ -3,7 +3,10 @@
  */
 
 import { batch } from '../primitives/signal.js';
-import { getCapabilities } from '../core/capabilities.js';
+import {
+  configureTerminalCapabilitySource,
+  getCapabilities,
+} from '../core/capabilities.js';
 import { parseFocusEvent } from '../core/input.js';
 import {
   createTerminalInputStream,
@@ -21,6 +24,7 @@ import {
   clearMouseHandlers,
   setFocusManager,
   getRuntimeScopeForApp,
+  resetHookState,
 } from './context.js';
 import { parseKeypress } from './use-input.js';
 import {
@@ -36,7 +40,9 @@ import type { AppContext } from './types.js';
 import {
   bindRuntimeScope,
   createRuntimeScope,
-  unregisterRuntimeScope,
+  destroyRuntimeScope,
+  getActiveRuntimeScope,
+  runInRuntimeScope,
 } from '../core/runtime-scope.js';
 
 export type { AppContext };
@@ -80,6 +86,9 @@ export interface ExternalUpdateIngress {
   isPending: () => boolean;
 }
 
+const activeInputStreams = new WeakSet<object>();
+const activeOutputStreams = new WeakSet<object>();
+
 /**
  * Initialize app context and input handling
  */
@@ -88,10 +97,10 @@ export function initializeApp(
   stdout: NodeJS.WriteStream,
   options: InitAppOptions = {}
 ): AppContext {
-  if (getAppContext()) {
+  const activeScope = getActiveRuntimeScope();
+  if (activeScope && getAppContext(activeScope)) {
     throw new Error(
-      '[tuiuiu] Only one active app is supported per process. ' +
-      'Unmount or dispose the current app before rendering another.',
+      '[tuiuiu] Cannot initialize a nested app inside an active render runtime.',
     );
   }
   const {
@@ -115,7 +124,15 @@ export function initializeApp(
   if (!Number.isFinite(pasteTimeoutMs) || pasteTimeoutMs < 0) {
     throw new Error('[tuiuiu] pasteTimeoutMs must be a non-negative number');
   }
+  if (activeInputStreams.has(stdin) || activeOutputStreams.has(stdout)) {
+    throw new Error(
+      '[tuiuiu] A terminal stream cannot be shared by simultaneous apps. ' +
+      'Use distinct stdin/stdout pairs or dispose the current owner first.',
+    );
+  }
   const runtimeScope = createRuntimeScope();
+  activeInputStreams.add(stdin);
+  activeOutputStreams.add(stdout);
   const outputIsTTY = 'isTTY' in stdout ? !!(stdout as NodeJS.WriteStream & { isTTY?: boolean }).isTTY : true;
 
   const exitCallbacks = new Set<(error?: Error) => void>();
@@ -123,7 +140,10 @@ export function initializeApp(
   let disposed = false;
   let autoTabNavigation = initialAutoTab;
   let appContext: AppContext;
-  const focusTrackingEnabled = Boolean(stdin.isTTY && outputIsTTY && getCapabilities().focusEvents);
+  const focusTrackingEnabled = runInRuntimeScope(runtimeScope, () => {
+    configureTerminalCapabilitySource({ stdout });
+    return Boolean(stdin.isTTY && outputIsTTY && getCapabilities().focusEvents);
+  });
   const terminalSession = createTerminalSession({
     stdin,
     stdout,
@@ -133,7 +153,18 @@ export function initializeApp(
   const setRawMode = terminalSession.setRawMode;
   const isRawModeEnabled = terminalSession.isRawModeEnabled;
 
-  terminalSession.start();
+  try {
+    terminalSession.start();
+  } catch (error) {
+    activeInputStreams.delete(stdin);
+    activeOutputStreams.delete(stdout);
+    try {
+      terminalSession.dispose();
+    } finally {
+      destroyRuntimeScope(runtimeScope);
+    }
+    throw error;
+  }
   resetTerminalFocusState(runtimeScope);
 
   // Initialize focus manager (using modern FocusZoneManagerAdapter)
@@ -297,38 +328,56 @@ export function initializeApp(
     if (disposed) return;
     disposed = true;
 
-    stdin.off('data', handleData);
-    if (pendingInputTimer) {
-      clearTimeout(pendingInputTimer);
-      pendingInputTimer = null;
-    }
-    clearPasteTimer();
-    inputStream.dispose();
+    const attempt = (operation: () => void): void => {
+      try {
+        operation();
+      } catch (error) {
+        console.error('[tuiuiu] Error while disposing app state:', error);
+      }
+    };
 
-    terminalSession.dispose();
-    resetTerminalFocusState(runtimeScope);
-    clearInputHandlers(runtimeScope);
-    clearPasteHandlers(runtimeScope);
-    clearMouseHandlers(runtimeScope);
-    forceDisableMouseTracking(runtimeScope);
-    removeMouseExitHandlers(runtimeScope);
-    setFocusManager(null, runtimeScope);
-    if (getAppContext(runtimeScope) === appContext) {
-      setAppContext(null, runtimeScope);
+    try {
+      attempt(() => stdin.off('data', handleData));
+      if (pendingInputTimer) {
+        clearTimeout(pendingInputTimer);
+        pendingInputTimer = null;
+      }
+      clearPasteTimer();
+      attempt(() => inputStream.dispose());
+
+      attempt(() => terminalSession.dispose());
+      attempt(() => resetHookState(runtimeScope));
+      attempt(() => resetTerminalFocusState(runtimeScope));
+      attempt(() => clearInputHandlers(runtimeScope));
+      attempt(() => clearPasteHandlers(runtimeScope));
+      attempt(() => clearMouseHandlers(runtimeScope));
+      attempt(() => forceDisableMouseTracking(runtimeScope));
+      attempt(() => removeMouseExitHandlers(runtimeScope));
+      attempt(() => setFocusManager(null, runtimeScope));
+      attempt(() => {
+        if (getAppContext(runtimeScope) === appContext) {
+          setAppContext(null, runtimeScope);
+        }
+      });
+    } finally {
+      activeInputStreams.delete(stdin);
+      activeOutputStreams.delete(stdout);
+      exitCallbacks.clear();
+      destroyRuntimeScope(runtimeScope);
     }
-    unregisterRuntimeScope(runtimeScope);
   };
 
   const exit = (error?: Error) => {
     if (isExiting) return;
     isExiting = true;
 
+    const callbacks = [...exitCallbacks];
+    exitCallbacks.clear();
     dispose();
 
-    for (const callback of [...exitCallbacks]) {
+    for (const callback of callbacks) {
       callback(error);
     }
-    exitCallbacks.clear();
 
     if (error) {
       console.error(error);
@@ -384,6 +433,8 @@ export function cleanupApp(targetAppContext?: AppContext): void {
   const appContext = targetAppContext ?? getAppContext(scope);
   if (typeof appContext?.dispose === 'function') {
     appContext.dispose();
+    setAppContext(null, scope);
+    return;
   }
   clearInputHandlers(scope);
   clearPasteHandlers(scope);

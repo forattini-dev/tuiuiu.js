@@ -117,6 +117,40 @@ describe('TerminalSession', () => {
     expect(streams.resume).not.toHaveBeenCalled();
   });
 
+  it('attempts every terminal restoration step when one of them throws', () => {
+    const streams = createStreams({ paused: true });
+    const stdin = streams.stdin as NodeJS.ReadStream & {
+      setRawMode(value: boolean): void;
+    };
+    const stdout = streams.stdout as NodeJS.WriteStream & {
+      write(value: string): boolean;
+    };
+    const originalSetRawMode = stdin.setRawMode.bind(stdin);
+
+    stdin.setRawMode = (value: boolean) => {
+      originalSetRawMode(value);
+      if (!value) {
+        throw new Error('raw restore failed');
+      }
+    };
+    stdout.write = (value: string) => {
+      streams.writes.push(value);
+      if (value === '\x1b[?1004l') {
+        throw new Error('focus restore failed');
+      }
+      return true;
+    };
+
+    const session = createTerminalSession(streams);
+    session.start();
+
+    expect(() => session.dispose()).toThrow('raw restore failed');
+    expect(streams.pause).toHaveBeenCalledTimes(1);
+    expect(streams.writes).toContain('\x1b[?1004l');
+    expect(streams.writes).toContain('\x1b[?2004l');
+    expect(session.rawModeEnabledCount).toBe(0);
+  });
+
   it('keeps the raw lease count valid under generated action sequences', () => {
     let seed = 0x73657373;
     const random = () => {

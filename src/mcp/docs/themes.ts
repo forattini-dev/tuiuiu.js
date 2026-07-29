@@ -105,7 +105,7 @@ setTheme(customTheme);
 
 | Function | Description |
 |----------|-------------|
-| \`setTheme(theme)\` | Set the global theme |
+| \`setTheme(theme)\` | Set the current runtime theme |
 | \`useTheme()\` | Get current theme (reactive) |
 | \`getTheme()\` | Get current theme (non-reactive) |
 | \`pushTheme(theme)\` | Push theme onto stack (temporary) |

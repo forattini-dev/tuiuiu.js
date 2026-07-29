@@ -1,6 +1,6 @@
 # Image Animation
 
-Frame-based animation system for terminal images. Drives frame changes through the global tick system and exposes reactive signals for integration with the rendering pipeline.
+Frame-based animation system for terminal images. Drives frame changes through the current app runtime tick and exposes reactive signals for integration with the rendering pipeline.
 
 ## Types
 
@@ -78,7 +78,7 @@ Throws if `frames` is empty.
 
 Creates a reactive animation controller from a source. The animation starts paused at frame 0.
 
-Uses the global tick system for timing. Each tick, elapsed time accumulates. When it exceeds the current frame's duration, the animation advances.
+Uses the current app runtime tick for timing. Each tick, elapsed time accumulates. When it exceeds the current frame's duration, the animation advances.
 
 ```typescript
 import { createAnimatedImageSource, createAnimatedImage } from 'tuiuiu.js';

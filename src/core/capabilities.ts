@@ -9,6 +9,15 @@ import { createSignal, untrack } from '../primitives/signal.js';
 import type { TerminalProfile, MultiplexerInfo, NotificationProtocol } from './terminal-profile.js';
 import { detectTerminalProfile, detectMultiplexer } from './terminal-profile.js';
 import { getProgressiveOverrides, getProgressiveVersion, hasNerdFonts } from './progressive.js';
+import {
+  getRuntimeResource,
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+  runInRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -16,6 +25,13 @@ import { getProgressiveOverrides, getProgressiveVersion, hasNerdFonts } from './
 
 export type RenderMode = 'unicode' | 'ascii' | 'auto';
 export type ColorSupport = 16 | 256 | 'truecolor';
+
+export interface TerminalCapabilitySource {
+  /** Environment used for profile detection (default: process.env). */
+  env?: NodeJS.ProcessEnv;
+  /** Output stream that owns terminal dimensions and resize events. */
+  stdout?: NodeJS.WriteStream;
+}
 
 export interface TerminalCapabilities {
   /** Terminal supports Unicode characters */
@@ -397,8 +413,10 @@ export const asciiChars: CharacterSet = {
 /**
  * Detect terminal capabilities
  */
-export function detectTerminalCapabilities(): TerminalCapabilities {
-  const env = process.env;
+export function detectTerminalCapabilities(
+  source: TerminalCapabilitySource = {},
+): TerminalCapabilities {
+  const env = source.env ?? process.env;
   const term = env.TERM || '';
   const colorTerm = env.COLORTERM || '';
   const termProgram = env.TERM_PROGRAM || '';
@@ -495,8 +513,9 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
     (termProgram === 'vscode' && parseInt(termProgramVersion, 10) >= 1);
 
   // Get terminal size
-  const columns = process.stdout.columns || 80;
-  const rows = process.stdout.rows || 24;
+  const stdout = source.stdout ?? process.stdout;
+  const columns = stdout.columns || 80;
+  const rows = stdout.rows || 24;
 
   // Nerd Fonts detection
   const nerdFonts = hasNerdFonts();
@@ -543,29 +562,142 @@ export function detectTerminalCapabilities(): TerminalCapabilities {
 // Render Mode State
 // =============================================================================
 
-const [renderModeSignal, setRenderModeSignal] = createSignal<RenderMode>('auto');
-let cachedCapabilities: TerminalCapabilities | null = null;
-let cachedProgressiveVersion = -1;
+type ResizeHandler = (size: { columns: number; rows: number }) => void;
+
+interface CapabilityRuntimeState {
+  renderModeSignal: () => RenderMode;
+  setRenderModeSignal: (
+    value: RenderMode | ((previous: RenderMode) => RenderMode)
+  ) => void;
+  cachedCapabilities: TerminalCapabilities | null;
+  cachedProgressiveVersion: number;
+  source: TerminalCapabilitySource;
+  resizeHandlers: Set<ResizeHandler>;
+  resizeListener: (() => void) | null;
+  scope: RuntimeScope;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
+
+const CAPABILITY_RUNTIME_STATE = Symbol('tuiuiu.capability-runtime-state');
+
+function createCapabilityRuntimeState(scope: RuntimeScope): CapabilityRuntimeState {
+  const inheritedMode = scope.id === 0
+    ? 'auto'
+    : untrack(
+        getDefaultRuntimeResource(
+          CAPABILITY_RUNTIME_STATE,
+          () => createCapabilityRuntimeState(getDefaultRuntimeScope()),
+        ).renderModeSignal,
+      );
+  const [renderModeSignal, setRenderModeSignal] =
+    createSignal<RenderMode>(inheritedMode);
+  const state: CapabilityRuntimeState = {
+    renderModeSignal,
+    setRenderModeSignal,
+    cachedCapabilities: null,
+    cachedProgressiveVersion: -1,
+    source: {},
+    resizeHandlers: new Set(),
+    resizeListener: null,
+    scope,
+    [RUNTIME_RESOURCE_DISPOSE]() {
+      const stdout = state.source.stdout ?? process.stdout;
+      if (state.resizeListener) stdout.off('resize', state.resizeListener);
+      state.resizeListener = null;
+      state.resizeHandlers.clear();
+    },
+  };
+  return state;
+}
+
+function getCapabilityRuntimeState(
+  explicitScope?: RuntimeScope,
+): CapabilityRuntimeState {
+  const scope = getRuntimeScope(explicitScope);
+  return getRuntimeResource(
+    CAPABILITY_RUNTIME_STATE,
+    () => createCapabilityRuntimeState(scope),
+    scope,
+  );
+}
+
+function readTerminalSize(
+  state: CapabilityRuntimeState,
+): { columns: number; rows: number } {
+  const stdout = state.source.stdout ?? process.stdout;
+  return {
+    columns: stdout.columns || 80,
+    rows: stdout.rows || 24,
+  };
+}
+
+function detectForState(state: CapabilityRuntimeState): TerminalCapabilities {
+  return detectTerminalCapabilities({
+    env: state.source.env,
+    stdout: state.source.stdout ?? process.stdout,
+  });
+}
+
+function refreshCapabilityState(
+  state: CapabilityRuntimeState,
+): TerminalCapabilities {
+  state.cachedCapabilities = detectForState(state);
+  state.cachedProgressiveVersion = getProgressiveVersion();
+  return state.cachedCapabilities;
+}
+
+function attachResizeListener(state: CapabilityRuntimeState): void {
+  if (state.resizeListener || state.resizeHandlers.size === 0) return;
+  const stdout = state.source.stdout ?? process.stdout;
+  state.resizeListener = () => runInRuntimeScope(state.scope, () => {
+    refreshCapabilityState(state);
+    const size = readTerminalSize(state);
+    for (const handler of [...state.resizeHandlers]) {
+      handler(size);
+    }
+  });
+  stdout.on('resize', state.resizeListener);
+}
+
+/**
+ * Bind capability detection and resize subscriptions to the app's output
+ * stream. Calling this again moves existing resize ownership to the new
+ * stream and invalidates the per-runtime cache.
+ */
+export function configureTerminalCapabilitySource(
+  source: TerminalCapabilitySource,
+): void {
+  const state = getCapabilityRuntimeState();
+  const previousStdout = state.source.stdout ?? process.stdout;
+  if (state.resizeListener) {
+    previousStdout.off('resize', state.resizeListener);
+    state.resizeListener = null;
+  }
+  state.source = { ...source };
+  state.cachedCapabilities = null;
+  state.cachedProgressiveVersion = -1;
+  attachResizeListener(state);
+}
 
 /**
  * Set the render mode
  */
 export function setRenderMode(mode: RenderMode): void {
-  setRenderModeSignal(mode);
+  getCapabilityRuntimeState().setRenderModeSignal(mode);
 }
 
 /**
  * Get the current render mode setting
  */
 export function getRenderModeSetting(): RenderMode {
-  return renderModeSignal();
+  return getCapabilityRuntimeState().renderModeSignal();
 }
 
 /**
  * Get the effective render mode (resolves 'auto')
  */
 export function getRenderMode(): 'unicode' | 'ascii' {
-  const mode = untrack(renderModeSignal);
+  const mode = untrack(getCapabilityRuntimeState().renderModeSignal);
   if (mode !== 'auto') return mode;
 
   const caps = getCapabilities();
@@ -576,21 +708,22 @@ export function getRenderMode(): 'unicode' | 'ascii' {
  * Get cached terminal capabilities
  */
 export function getCapabilities(): TerminalCapabilities {
+  const state = getCapabilityRuntimeState();
   const currentProgressiveVersion = getProgressiveVersion();
-  if (!cachedCapabilities || cachedProgressiveVersion !== currentProgressiveVersion) {
-    cachedCapabilities = detectTerminalCapabilities();
-    cachedProgressiveVersion = currentProgressiveVersion;
+  if (
+    !state.cachedCapabilities ||
+    state.cachedProgressiveVersion !== currentProgressiveVersion
+  ) {
+    refreshCapabilityState(state);
   }
-  return cachedCapabilities;
+  return state.cachedCapabilities ?? refreshCapabilityState(state);
 }
 
 /**
  * Refresh cached capabilities (e.g., after terminal resize)
  */
 export function refreshCapabilities(): TerminalCapabilities {
-  cachedCapabilities = detectTerminalCapabilities();
-  cachedProgressiveVersion = getProgressiveVersion();
-  return cachedCapabilities;
+  return refreshCapabilityState(getCapabilityRuntimeState());
 }
 
 /**
@@ -639,43 +772,27 @@ export function supports256Colors(): boolean {
  * Get terminal dimensions
  */
 export function getTerminalSize(): { columns: number; rows: number } {
-  // Always get fresh size
-  return {
-    columns: process.stdout.columns || 80,
-    rows: process.stdout.rows || 24,
-  };
+  return readTerminalSize(getCapabilityRuntimeState());
 }
 
 // =============================================================================
 // Process Resize Handler
 // =============================================================================
 
-type ResizeHandler = (size: { columns: number; rows: number }) => void;
-const resizeHandlers: Set<ResizeHandler> = new Set();
-
 /**
  * Subscribe to terminal resize events
  */
 export function onResize(handler: ResizeHandler): () => void {
-  resizeHandlers.add(handler);
-
-  // Set up listener if this is the first handler
-  if (resizeHandlers.size === 1) {
-    process.stdout.on('resize', handleResize);
-  }
+  const state = getCapabilityRuntimeState();
+  state.resizeHandlers.add(handler);
+  attachResizeListener(state);
 
   return () => {
-    resizeHandlers.delete(handler);
-    if (resizeHandlers.size === 0) {
-      process.stdout.off('resize', handleResize);
+    state.resizeHandlers.delete(handler);
+    if (state.resizeHandlers.size === 0 && state.resizeListener) {
+      const stdout = state.source.stdout ?? process.stdout;
+      stdout.off('resize', state.resizeListener);
+      state.resizeListener = null;
     }
   };
-}
-
-function handleResize() {
-  refreshCapabilities();
-  const size = getTerminalSize();
-  for (const handler of resizeHandlers) {
-    handler(size);
-  }
 }

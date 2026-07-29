@@ -40,7 +40,7 @@ interface TerminalFocusState {
 The runtime already uses terminal focus for:
 
 - pausing `useAnimation()` by default
-- pausing the global tick
+- pausing the current app runtime tick
 - pausing `fixedStep` loops unless opted out
 
 This hook is for app-level behavior such as:

@@ -13,8 +13,11 @@
 
 import type { VNode, TextStyle } from '../utils/types.js';
 import { BORDER_STYLES } from '../utils/types.js';
-import { getVisibleWidth } from './layout.js';
-import { readRenderableSymbol, stringWidth } from '../utils/text-utils.js';
+import {
+  fitTextToWidth,
+  readRenderableSymbol,
+  stringWidth,
+} from '../utils/text-utils.js';
 import { readTerminalSequence } from '../utils/terminal-sanitize.js';
 import {
   CellBuffer,
@@ -620,49 +623,12 @@ function getTextCommandBounds(command: DrawTextCommand): DamageRect {
   let maxLineWidth = 0;
   let lastInkRow = -1;
 
-  if (command.text.includes('\x1b')) {
-    const segments = parseAnsiText(command.text);
-    let row = 0;
-    let col = 0;
-
-    for (const segment of segments) {
-      let index = 0;
-      while (index < segment.text.length) {
-        const symbol = readRenderableSymbol(segment.text, index);
-        if (!symbol) {
-          break;
-        }
-
-        const char = symbol.symbol;
-        if (char === '\n') {
-          maxLineWidth = Math.max(maxLineWidth, col);
-          row++;
-          col = 0;
-          index = symbol.nextIndex;
-          continue;
-        }
-
-        if (col >= command.maxWidth) {
-          maxLineWidth = Math.max(maxLineWidth, col);
-          row++;
-          col = 0;
-        }
-
-        col += stringWidth(char);
-        maxLineWidth = Math.max(maxLineWidth, Math.min(command.maxWidth, col));
-        lastInkRow = row;
-        index = symbol.nextIndex;
-      }
-    }
-  } else {
-    const lines = wrapTextForBuffer(command.text, command.maxWidth, command.style.wrap);
-
-    for (let index = 0; index < lines.length; index++) {
-      const lineWidth = Math.min(command.maxWidth, getVisibleWidth(lines[index]!));
-      if (lineWidth > 0) {
-        maxLineWidth = Math.max(maxLineWidth, lineWidth);
-        lastInkRow = index;
-      }
+  const lines = fitTextToWidth(command.text, command.maxWidth, command.style.wrap);
+  for (let index = 0; index < lines.length; index++) {
+    const lineWidth = Math.min(command.maxWidth, stringWidth(lines[index]!));
+    if (lineWidth > 0) {
+      maxLineWidth = Math.max(maxLineWidth, lineWidth);
+      lastInkRow = index;
     }
   }
 
@@ -1331,6 +1297,9 @@ function renderTextToBuffer(
   reservedRegions: readonly ReservedRegion[],
 ): void {
   const { x, y, maxWidth, text, style, inheritedBackgroundColor } = command;
+  if (maxWidth <= 0) {
+    return;
+  }
 
   // PreText: parse validated ANSI SGR into structured cell attributes
   // so the embedded ANSI codes take full effect without style overlay
@@ -1355,10 +1324,11 @@ function renderTextToBuffer(
 
   // Check if text contains ANSI sequences
   const hasAnsi = isPrebuilt || text.includes('\x1b');
+  const lines = fitTextToWidth(text, maxWidth, style.wrap);
 
   if (hasAnsi) {
     // Parse ANSI and render segments
-    const segments = parseAnsiText(text, baseFg, baseBg, baseAttrs);
+    const segments = parseAnsiText(lines.join('\n'), baseFg, baseBg, baseAttrs);
     let col = 0;
     let row = 0;
 
@@ -1377,10 +1347,6 @@ function renderTextToBuffer(
           index = symbol.nextIndex;
           continue;
         }
-        if (col >= maxWidth) {
-          row++;
-          col = 0;
-        }
         const charWidth = stringWidth(char);
         if (charWidth > 0) {
           writeCharReservedAware(buffer, reservedRegions, x + col, y + row, char, segment.fg, segment.bg, segment.attrs);
@@ -1391,8 +1357,6 @@ function renderTextToBuffer(
     }
   } else {
     // Handle wrapping for non-ANSI text
-    const lines = wrapTextForBuffer(text, maxWidth, style.wrap);
-
     for (let i = 0; i < lines.length; i++) {
       let col = 0;
       let index = 0;
@@ -1430,93 +1394,6 @@ function parseColor(color: string): Color {
   const resolved = resolveThemeColor(color);
   cache.set(color, resolved);
   return resolved;
-}
-
-/**
- * Wrap text to fit width (simplified version for buffer rendering)
- */
-function wrapTextForBuffer(text: string, maxWidth: number, mode?: TextStyle['wrap']): string[] {
-  if (maxWidth <= 0) return [text];
-
-  const lines = text.split('\n');
-  const result: string[] = [];
-
-  for (const line of lines) {
-    const lineWidth = getVisibleWidth(line);
-
-    if (mode === 'truncate' || mode === 'truncate-end') {
-      result.push(truncate(line, maxWidth));
-    } else if (mode === 'truncate-start') {
-      result.push(truncateStart(line, maxWidth));
-    } else if (mode === 'truncate-middle') {
-      result.push(truncateMiddle(line, maxWidth));
-    } else if (lineWidth <= maxWidth) {
-      result.push(line);
-    } else {
-      // Word wrap
-      result.push(...wrapLine(line, maxWidth));
-    }
-  }
-
-  return result;
-}
-
-function truncate(text: string, maxWidth: number): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  let result = '';
-  let width = 0;
-  for (const char of text) {
-    const charWidth = stringWidth(char);
-    if (width + charWidth + 1 > maxWidth) break;
-    result += char;
-    width += charWidth;
-  }
-  return result + '…';
-}
-
-function truncateStart(text: string, maxWidth: number): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  const chars = [...text];
-  let result = '';
-  let width = 0;
-  for (let i = chars.length - 1; i >= 0; i--) {
-    const charWidth = stringWidth(chars[i]);
-    if (width + charWidth + 1 > maxWidth) break;
-    result = chars[i] + result;
-    width += charWidth;
-  }
-  return '…' + result;
-}
-
-function truncateMiddle(text: string, maxWidth: number): string {
-  if (getVisibleWidth(text) <= maxWidth) return text;
-  const available = maxWidth - 1;
-  const startLen = Math.ceil(available / 2);
-  const endLen = Math.floor(available / 2);
-  return text.slice(0, startLen) + '…' + text.slice(-endLen);
-}
-
-function wrapLine(line: string, maxWidth: number): string[] {
-  if (getVisibleWidth(line) <= maxWidth) {
-    return [line];
-  }
-
-  const words = line.split(' ');
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (getVisibleWidth(test) <= maxWidth) {
-      current = test;
-    } else {
-      if (current) lines.push(current);
-      current = word;
-    }
-  }
-
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [''];
 }
 
 // =============================================================================

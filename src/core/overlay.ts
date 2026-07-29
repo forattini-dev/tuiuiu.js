@@ -12,6 +12,15 @@
  * 
  */
 
+import {
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+  type RuntimeScope,
+} from './runtime-scope.js';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -198,46 +207,87 @@ interface OverlayManagerState {
   layers: Map<string, OverlayLayer>;
   nextZIndex: number;
   terminalSize: { width: number; height: number };
+  idCounter: number;
+  toastQueue: string[];
+  activeTooltip: string | null;
+  tooltipTimer: ReturnType<typeof setTimeout> | null;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
 }
 
-let state: OverlayManagerState = {
-  layers: new Map(),
-  nextZIndex: 100,
-  terminalSize: { width: 80, height: 24 },
-};
+const OVERLAY_RUNTIME_STATE = Symbol('tuiuiu.overlay-runtime-state');
 
-let idCounter = 0;
+function clearOverlayTimers(state: OverlayManagerState): void {
+  for (const layer of state.layers.values()) {
+    if (layer.dismissTimer) clearTimeout(layer.dismissTimer);
+  }
+  if (state.tooltipTimer) clearTimeout(state.tooltipTimer);
+  state.tooltipTimer = null;
+}
+
+function createOverlayRuntimeState(scope: RuntimeScope): OverlayManagerState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        OVERLAY_RUNTIME_STATE,
+        () => createOverlayRuntimeState(getDefaultRuntimeScope()),
+      );
+  const state: OverlayManagerState = {
+    layers: new Map(),
+    nextZIndex: 100,
+    terminalSize: {
+      width: defaults?.terminalSize.width ?? 80,
+      height: defaults?.terminalSize.height ?? 24,
+    },
+    idCounter: 0,
+    toastQueue: [],
+    activeTooltip: null,
+    tooltipTimer: null,
+    [RUNTIME_RESOURCE_DISPOSE]() {
+      clearOverlayTimers(state);
+      state.layers.clear();
+      state.toastQueue = [];
+      state.activeTooltip = null;
+    },
+  };
+  return state;
+}
+
+function getOverlayRuntimeState(): OverlayManagerState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    OVERLAY_RUNTIME_STATE,
+    () => createOverlayRuntimeState(scope),
+    scope,
+  );
+}
 
 /**
  * Generate unique overlay ID
  */
 function generateId(prefix = 'overlay'): string {
-  return `${prefix}-${++idCounter}`;
+  const state = getOverlayRuntimeState();
+  return `${prefix}-${++state.idCounter}`;
 }
 
 /**
  * Reset overlay manager state (for testing)
  */
 export function resetOverlayManager(): void {
-  // Clear all timers
-  for (const layer of state.layers.values()) {
-    if (layer.dismissTimer) {
-      clearTimeout(layer.dismissTimer);
-    }
-  }
-
-  state = {
-    layers: new Map(),
-    nextZIndex: 100,
-    terminalSize: { width: 80, height: 24 },
-  };
-  idCounter = 0;
+  const state = getOverlayRuntimeState();
+  clearOverlayTimers(state);
+  state.layers.clear();
+  state.nextZIndex = 100;
+  state.terminalSize = { width: 80, height: 24 };
+  state.idCounter = 0;
+  state.toastQueue = [];
+  state.activeTooltip = null;
 }
 
 /**
  * Set terminal size for overlay calculations
  */
 export function setOverlayTerminalSize(width: number, height: number): void {
+  const state = getOverlayRuntimeState();
   state.terminalSize = { width, height };
 }
 
@@ -245,6 +295,7 @@ export function setOverlayTerminalSize(width: number, height: number): void {
  * Get terminal size
  */
 export function getOverlayTerminalSize(): { width: number; height: number } {
+  const state = getOverlayRuntimeState();
   return { ...state.terminalSize };
 }
 
@@ -256,6 +307,7 @@ export function getOverlayTerminalSize(): { width: number; height: number } {
  * Add overlay layer
  */
 export function addLayer(layer: Omit<OverlayLayer, 'zIndex'> & { zIndex?: number }): OverlayLayer {
+  const state = getOverlayRuntimeState();
   const zIndex = layer.zIndex ?? state.nextZIndex++;
 
   const newLayer: OverlayLayer = {
@@ -280,6 +332,7 @@ export function addLayer(layer: Omit<OverlayLayer, 'zIndex'> & { zIndex?: number
  * Remove overlay layer
  */
 export function removeLayer(id: string): boolean {
+  const state = getOverlayRuntimeState();
   const layer = state.layers.get(id);
 
   if (!layer) {
@@ -304,14 +357,15 @@ export function removeLayer(id: string): boolean {
  * Get layer by ID
  */
 export function getLayer(id: string): OverlayLayer | undefined {
-  return state.layers.get(id);
+  return getOverlayRuntimeState().layers.get(id);
 }
 
 /**
  * Get all layers sorted by z-index (ascending)
  */
 export function getLayers(): OverlayLayer[] {
-  return Array.from(state.layers.values()).sort((a, b) => a.zIndex - b.zIndex);
+  return Array.from(getOverlayRuntimeState().layers.values())
+    .sort((a, b) => a.zIndex - b.zIndex);
 }
 
 /**
@@ -340,6 +394,7 @@ export function hasBackdrop(): boolean {
  * Update layer properties
  */
 export function updateLayer(id: string, updates: Partial<OverlayLayer>): boolean {
+  const state = getOverlayRuntimeState();
   const layer = state.layers.get(id);
 
   if (!layer) {
@@ -368,6 +423,7 @@ export function hideLayer(id: string): boolean {
  * Bring layer to front
  */
 export function bringToFront(id: string): boolean {
+  const state = getOverlayRuntimeState();
   const layer = state.layers.get(id);
 
   if (!layer) {
@@ -382,14 +438,14 @@ export function bringToFront(id: string): boolean {
  * Get layer count
  */
 export function getLayerCount(): number {
-  return state.layers.size;
+  return getOverlayRuntimeState().layers.size;
 }
 
 /**
  * Check if layer exists
  */
 export function hasLayer(id: string): boolean {
-  return state.layers.has(id);
+  return getOverlayRuntimeState().layers.has(id);
 }
 
 // =============================================================================
@@ -400,6 +456,7 @@ export function hasLayer(id: string): boolean {
  * Show modal dialog
  */
 export function showModal(options: ModalOptions): string {
+  const state = getOverlayRuntimeState();
   const id = options.id ?? generateId('modal');
 
   // Calculate position
@@ -503,19 +560,17 @@ function buildModalContent(
 // Toast
 // =============================================================================
 
-/** Toast queue for stacking */
-let toastQueue: string[] = [];
-
 /**
  * Show toast notification
  */
 export function showToast(options: ToastOptions): string {
+  const state = getOverlayRuntimeState();
   const id = options.id ?? generateId('toast');
   const duration = options.duration ?? 3000;
   const position = options.position ?? 'bottom-right';
 
   // Calculate position based on anchor and existing toasts
-  const toastIndex = toastQueue.length;
+  const toastIndex = state.toastQueue.length;
   const { x, y } = calculateToastPosition(position, toastIndex, options.message.length + 4);
 
   // Build toast content
@@ -532,12 +587,12 @@ export function showToast(options: ToastOptions): string {
     autoDismiss: duration,
     onDismiss: () => {
       // Remove from queue
-      toastQueue = toastQueue.filter((tid) => tid !== id);
+      state.toastQueue = state.toastQueue.filter((tid) => tid !== id);
       options.onDismiss?.();
     },
   });
 
-  toastQueue.push(id);
+  state.toastQueue.push(id);
   return id;
 }
 
@@ -552,11 +607,12 @@ export function dismissToast(id: string): boolean {
  * Dismiss all toasts
  */
 export function dismissAllToasts(): void {
+  const state = getOverlayRuntimeState();
   const toasts = getLayers().filter((l) => l.type === 'toast');
   for (const toast of toasts) {
     removeLayer(toast.id);
   }
-  toastQueue = [];
+  state.toastQueue = [];
 }
 
 /**
@@ -567,6 +623,7 @@ function calculateToastPosition(
   index: number,
   width: number
 ): OverlayPosition {
+  const state = getOverlayRuntimeState();
   const { width: termWidth, height: termHeight } = state.terminalSize;
   const offset = index * 3; // Stack toasts vertically
 
@@ -689,6 +746,7 @@ function calculateAnchoredPosition(
   offsetX: number,
   offsetY: number
 ): OverlayPosition {
+  const state = getOverlayRuntimeState();
   let x = target.x + offsetX;
   let y = target.y + offsetY;
 
@@ -742,14 +800,11 @@ function calculateAnchoredPosition(
 // Tooltip
 // =============================================================================
 
-/** Active tooltip ID */
-let activeTooltip: string | null = null;
-let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
  * Show tooltip
  */
 export function showTooltip(options: TooltipOptions): string {
+  const state = getOverlayRuntimeState();
   // Clear any pending tooltip
   hideTooltip();
 
@@ -778,11 +833,11 @@ export function showTooltip(options: TooltipOptions): string {
       backdrop: false,
     });
 
-    activeTooltip = id;
+    state.activeTooltip = id;
   };
 
   if (delay > 0) {
-    tooltipTimer = setTimeout(show, delay);
+    state.tooltipTimer = setTimeout(show, delay);
   } else {
     show();
   }
@@ -794,14 +849,15 @@ export function showTooltip(options: TooltipOptions): string {
  * Hide tooltip
  */
 export function hideTooltip(): void {
-  if (tooltipTimer) {
-    clearTimeout(tooltipTimer);
-    tooltipTimer = null;
+  const state = getOverlayRuntimeState();
+  if (state.tooltipTimer) {
+    clearTimeout(state.tooltipTimer);
+    state.tooltipTimer = null;
   }
 
-  if (activeTooltip) {
-    removeLayer(activeTooltip);
-    activeTooltip = null;
+  if (state.activeTooltip) {
+    removeLayer(state.activeTooltip);
+    state.activeTooltip = null;
   }
 }
 
@@ -814,6 +870,7 @@ function calculateTooltipPosition(
   width: number,
   height: number
 ): OverlayPosition {
+  const state = getOverlayRuntimeState();
   const { width: termWidth, height: termHeight } = state.terminalSize;
   let x: number;
   let y: number;
@@ -1139,8 +1196,9 @@ export function handleOverlayClick(x: number, y: number): boolean {
  * Returns true if escape was handled
  */
 export function handleOverlayEscape(): boolean {
+  const state = getOverlayRuntimeState();
   // First try to close tooltip
-  if (activeTooltip) {
+  if (state.activeTooltip) {
     hideTooltip();
     return true;
   }

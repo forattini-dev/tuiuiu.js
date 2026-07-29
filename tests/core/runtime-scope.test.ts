@@ -4,6 +4,7 @@ import {
   createRuntimeScope,
   destroyRuntimeScope,
   getRuntimeResource,
+  RUNTIME_RESOURCE_DISPOSE,
   runInRuntimeScope,
   type RuntimeScope,
 } from '../../src/core/runtime-scope.js';
@@ -53,6 +54,23 @@ describe('RuntimeScope', () => {
     runInRuntimeScope(first, () => {
       expect(getRuntimeResource<string[]>(resource, () => [])).toEqual(['first']);
     });
+  });
+
+  it('disposes owned resources exactly once when the scope is destroyed', () => {
+    const scope = createScope();
+    const dispose = vi.fn();
+    const resource = Symbol('disposable-resource');
+
+    runInRuntimeScope(scope, () => {
+      getRuntimeResource(resource, () => ({
+        [RUNTIME_RESOURCE_DISPOSE]: dispose,
+      }));
+    });
+
+    destroyRuntimeScope(scope);
+    destroyRuntimeScope(scope);
+
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 
   it('binds callbacks to the owning runtime', () => {

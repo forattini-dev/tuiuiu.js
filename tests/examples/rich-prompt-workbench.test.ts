@@ -206,7 +206,8 @@ describe('rich-prompt-workbench example', () => {
     stdin.emit('data', Buffer.from('\r'));
 
     await waitForOutput(stdout, 'Inserted @reviewer and');
-    await waitForOutput(stdout, '#src/atoms/text-input.ts into');
+    await waitForOutput(stdout, '#src/atoms/text-input.ts');
+    await waitForOutput(stdout, 'into the prompt buffer.');
 
     instance.unmount();
   });

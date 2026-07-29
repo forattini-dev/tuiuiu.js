@@ -5,7 +5,7 @@ Tuiuiu includes a runtime animation system for transitions, spring motion, and t
 The current runtime is also **terminal-focus aware**:
 
 - `useAnimation()` pauses by default when the terminal loses focus
-- the global tick pauses while unfocused
+- each app runtime tick pauses while its terminal is unfocused
 - `requestAnimationFrame()` backs off when the terminal is blurred
 - spring animations stop burning CPU in background terminals
 

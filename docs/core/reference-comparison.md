@@ -47,11 +47,14 @@ without changing component APIs.
 
 Implemented: raw mode, paused-input restoration, focus reporting and bracketed
 paste now have one idempotent, reference-counted owner. `RuntimeScope` also
-isolates hook, input, focus, mouse, hit-test, dirty and committed-frame state.
+isolates hook, input, focus, mouse, hit-test, dirty, committed-frame,
+capability, theme, motion, tick, overlay, graphics and performance state.
+Capability caches and resize listeners follow the output stream that owns the
+session.
 
-Remaining: move capability negotiation and resize under the session boundary.
-A second root remains explicitly rejected until every process singleton is
-either scoped or intentionally shared.
+Multiple roots are supported when each owns a distinct stdin/stdout pair.
+Sharing either terminal stream concurrently is rejected because raw mode,
+input consumption and cursor placement cannot have two independent owners.
 
 ### 2. Byte-oriented input parser
 
@@ -88,9 +91,15 @@ Hyperlink identity and alternate diff strategies remain useful extensions.
 
 ### 5. Capability negotiation
 
-Centralize terminal capability probes and cache them per session. Unsupported
-protocols should degrade predictably to ANSI/Unicode or ASCII without each
-component making its own environment guesses.
+Implemented: capability detection, progressive overrides, render mode,
+graphics negotiation and resize invalidation are cached per runtime.
+Pre-render configuration becomes an inherited default, while later mutations
+stay local to the owning app. Unsupported protocols degrade predictably to
+ANSI/Unicode or ASCII without each component keeping its own mutable cache.
+
+Remaining validation belongs to the real-PTY matrix: ConPTY, iTerm2, xterm,
+tmux and screen can disagree with environment hints and cannot be represented
+faithfully by a deterministic unit-test stream.
 
 ### 6. Contract and fuzz testing
 

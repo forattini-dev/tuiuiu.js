@@ -41,7 +41,10 @@ import { beginAppRenderSession, endAppRenderSession } from '../core/dev-warnings
 import { recordCommittedFrame } from '../core/perf-inspector.js';
 import { configureMotionRuntime } from '../core/motion-runtime.js';
 import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
+import { refreshCapabilities } from '../core/capabilities.js';
+import { setOverlayTerminalSize } from '../core/overlay.js';
 import {
+  bindRuntimeScope,
   destroyRuntimeScope,
   runInRuntimeScope,
 } from '../core/runtime-scope.js';
@@ -233,24 +236,44 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   beginAppRenderSession();
 
   // Install centralized panic hooks to restore terminal on crash
-  const releasePanicHooks = installPanicHooks();
+  let releasePanicHooks: () => void = () => {};
   const unregisterPanicCleanups: Array<() => void> = [];
-  unregisterPanicCleanups.push(onTerminalPanic(() => {
-    if (stdin.isTTY && (stdin as any).setRawMode) {
-      (stdin as any).setRawMode(false);
-    }
-  }));
-  unregisterPanicCleanups.push(onTerminalPanic(() => {
-    stdout.write('\x1b[?1004l'); // disable focus events
-  }));
-  unregisterPanicCleanups.push(onTerminalPanic(() => {
-    stdout.write('\x1b[?2004l'); // disable bracketed paste
-  }));
-  if (alternateScreen) {
-    stdout.write(enableAlternateScreen());
+  try {
+    releasePanicHooks = installPanicHooks();
     unregisterPanicCleanups.push(onTerminalPanic(() => {
-      stdout.write(disableAlternateScreen());
+      if (stdin.isTTY && (stdin as any).setRawMode) {
+        (stdin as any).setRawMode(false);
+      }
     }));
+    unregisterPanicCleanups.push(onTerminalPanic(() => {
+      stdout.write('\x1b[?1004l'); // disable focus events
+    }));
+    unregisterPanicCleanups.push(onTerminalPanic(() => {
+      stdout.write('\x1b[?2004l'); // disable bracketed paste
+    }));
+    if (alternateScreen) {
+      stdout.write(enableAlternateScreen());
+      unregisterPanicCleanups.push(onTerminalPanic(() => {
+        stdout.write(disableAlternateScreen());
+      }));
+    }
+  } catch (error) {
+    for (const unregister of unregisterPanicCleanups.splice(0)) {
+      try {
+        unregister();
+      } catch {
+        // Preserve the original startup error.
+      }
+    }
+    try {
+      releasePanicHooks();
+    } catch {
+      // Preserve the original startup error.
+    }
+    endAppRenderSession();
+    appContext.dispose();
+    destroyRuntimeScope(runtimeScope);
+    throw error;
   }
 
   // Store the component function for re-evaluation
@@ -351,7 +374,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Expose clearScreen to app context for splash->main transitions
   // This properly resets logUpdate state to avoid incremental render corruption
-  setClearScreen(() => {
+  runInRuntimeScope(runtimeScope, () => setClearScreen(() => {
     // 1. Clear logUpdate state first (sets previousOutput='' and previousLines=[])
     //    This ensures next render will be a full redraw since previousOutput.length === 0
     logUpdate.clear();
@@ -368,7 +391,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       fullScreen: fullHeight,
       topOffset: 0,
     });
-  });
+  }));
   let exitPromise: Promise<void>;
   let resolveExit: () => void;
   let rejectExit: (error: Error) => void;
@@ -385,10 +408,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Throttle rendering
   const minRenderInterval = maxFps > 0 ? Math.ceil(1000 / maxFps) : 0;
-  configureMotionRuntime({
-    targetFps: maxFps > 0 ? maxFps : 60,
-    reducedFps: maxFps > 0 ? Math.max(1, Math.floor(maxFps / 2)) : 30,
-    frameBudgetMs: minRenderInterval > 0 ? minRenderInterval : 16.67,
+  runInRuntimeScope(runtimeScope, () => {
+    configureMotionRuntime({
+      targetFps: maxFps > 0 ? maxFps : 60,
+      reducedFps: maxFps > 0 ? Math.max(1, Math.floor(maxFps / 2)) : 30,
+      frameBudgetMs: minRenderInterval > 0 ? minRenderInterval : 16.67,
+    });
+    setOverlayTerminalSize(stdout.columns || 80, stdout.rows || 24);
   });
   let lastRenderTime = 0;
   let pendingRender = false;
@@ -439,7 +465,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     });
   };
   const externalUpdateBatcher = createUpdateBatcher(flushExternalUpdates, externalUpdateWindowMs);
-  setExternalUpdateIngress({
+  runInRuntimeScope(runtimeScope, () => setExternalUpdateIngress({
     enqueue(update) {
       if (isUnmounted) {
         return;
@@ -456,7 +482,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     isPending() {
       return externalUpdateQueue.length > 0 || externalUpdateBatcher.isPending();
     },
-  });
+  }));
 
   const evaluateTree = () => {
     const evalStart = performance.now();
@@ -587,14 +613,20 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
   // Handle resize - need to re-evaluate component for new dimensions
   // Also invalidate cached cell size so image render planning uses fresh dimensions
-  const handleResize = () => {
+  const handleResize = bindRuntimeScope(runtimeScope, () => {
     if (!isUnmounted) {
+      refreshCapabilities();
+      setOverlayTerminalSize(stdout.columns || 80, stdout.rows || 24);
       invalidateCellSize();
       scheduleRenderCallback(evaluateAndRender);
     }
-  };
+  });
 
   stdout.on('resize', handleResize);
+
+  // Defined before the exit callback because a component may call app.exit()
+  // during its first synchronous evaluation.
+  let disposeRender: () => void = () => {};
 
   // Cleanup on exit
   appContext.onExit((error) => runInRuntimeScope(runtimeScope, () => {
@@ -764,6 +796,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   function cleanupRuntime(): void {
     if (isUnmounted) return;
     isUnmounted = true;
+    const attempt = (operation: () => void): void => {
+      try {
+        operation();
+      } catch (error) {
+        console.error('[tuiuiu] Error while cleaning up the render loop:', error);
+      }
+    };
 
     if (renderTimer) {
       clearTimeout(renderTimer);
@@ -786,74 +825,91 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     // Disable mouse tracking if enabled
     if (mouseTrackingEnabled) {
-      disableMouseTracking();
+      attempt(() => disableMouseTracking());
       mouseTrackingEnabled = false;
     }
 
-    stdout.off('resize', handleResize);
+    attempt(() => stdout.off('resize', handleResize));
 
     // Cleanup renderer
     if (deltaRenderer) {
-      deltaRenderer.cleanup();
+      attempt(() => deltaRenderer?.cleanup());
     } else {
-      logUpdate.done(); // Restore cursor and cleanup
+      attempt(() => logUpdate.done()); // Restore cursor and cleanup
     }
 
     // Restore original screen buffer
     if (alternateScreen) {
-      stdout.write(disableAlternateScreen());
+      attempt(() => {
+        stdout.write(disableAlternateScreen());
+      });
     }
 
-    resetHookState(runtimeScope); // Clear all hook state and owned resources
-    appContext.dispose();
+    attempt(() => resetHookState(runtimeScope)); // Clear all hook state and owned resources
+    attempt(() => appContext.dispose());
     for (const unregister of unregisterPanicCleanups.splice(0)) {
-      unregister();
+      attempt(unregister);
     }
-    releasePanicHooks();
-    clearCommittedFrameSnapshot();
-    endAppRenderSession();
-    destroyRuntimeScope(runtimeScope);
+    attempt(releasePanicHooks);
+    attempt(() => clearCommittedFrameSnapshot());
+    attempt(() => endAppRenderSession());
+    attempt(() => destroyRuntimeScope(runtimeScope));
   }
 
   // Create reactive render effect
   // This will re-run whenever any signal used in the component changes
-  const disposeRender = createEffect(
-    () => {
-      // Call componentFn inside the effect to track signal dependencies.
-      // Re-runs are scheduler-driven so bursty invalidations can collapse to one frame.
-      evaluateAndRender();
-    },
-    {
-      scheduler: scheduleRenderCallback,
-    }
-  );
+  try {
+    disposeRender = runInRuntimeScope(
+      runtimeScope,
+      () => createEffect(
+        () => {
+          // Call componentFn inside the effect to track signal dependencies.
+          // Re-runs are scheduler-driven so bursty invalidations can collapse to one frame.
+          evaluateAndRender();
+        },
+        {
+          scheduler: scheduleRenderCallback,
+        },
+      ),
+    );
 
-  if (fixedStep) {
-    fixedStepLastAt = Date.now();
-    if ((fixedStep.pauseWhenUnfocused ?? true)) {
-      cleanupFixedStepFocus = onTerminalFocusChange((focused) => {
-        if (isUnmounted || !fixedStep) {
-          return;
-        }
-
-        if (!focused) {
-          if (fixedStepTimer) {
-            clearTimeout(fixedStepTimer);
-            fixedStepTimer = null;
-          }
-          fixedStepAccumulatorMs = 0;
-          fixedStepLastAt = Date.now();
-          return;
-        }
-
-        fixedStepAccumulatorMs = 0;
+    runInRuntimeScope(runtimeScope, () => {
+      if (fixedStep) {
         fixedStepLastAt = Date.now();
-        if (!fixedStepTimer) {
-          scheduleFixedStepLoop();
+        if ((fixedStep.pauseWhenUnfocused ?? true)) {
+          cleanupFixedStepFocus = onTerminalFocusChange((focused) => {
+            if (isUnmounted || !fixedStep) {
+              return;
+            }
+
+            if (!focused) {
+              if (fixedStepTimer) {
+                clearTimeout(fixedStepTimer);
+                fixedStepTimer = null;
+              }
+              fixedStepAccumulatorMs = 0;
+              fixedStepLastAt = Date.now();
+              return;
+            }
+
+            fixedStepAccumulatorMs = 0;
+            fixedStepLastAt = Date.now();
+            if (!fixedStepTimer) {
+              scheduleFixedStepLoop();
+            }
+          });
         }
-      });
+        scheduleFixedStepLoop();
+      }
+    });
+  } catch (error) {
+    try {
+      disposeRender();
+    } catch (disposeError) {
+      console.error('[tuiuiu] Error while rolling back the render effect:', disposeError);
     }
-    scheduleFixedStepLoop();
+    cleanup();
+    throw error;
   }
 
   return {

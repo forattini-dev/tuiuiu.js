@@ -19,6 +19,13 @@ import {
   previousGraphemeBoundary,
   previousWordBoundary,
 } from '../utils/grapheme.js';
+import {
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -107,22 +114,52 @@ export interface ParsedInput {
 // Protocol Detection
 // =============================================================================
 
-let detectedProtocol: KeyboardProtocol | null = null;
-let manualProtocol: KeyboardProtocol | null = null;
+interface KeyboardProtocolRuntimeState {
+  detectedProtocol: KeyboardProtocol | null;
+  manualProtocol: KeyboardProtocol | null;
+}
+
+const KEYBOARD_PROTOCOL_RUNTIME_STATE =
+  Symbol('tuiuiu.keyboard-protocol-runtime-state');
+
+function createKeyboardProtocolRuntimeState(
+  scope: RuntimeScope,
+): KeyboardProtocolRuntimeState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        KEYBOARD_PROTOCOL_RUNTIME_STATE,
+        () => createKeyboardProtocolRuntimeState(getDefaultRuntimeScope()),
+      );
+  return {
+    detectedProtocol: null,
+    manualProtocol: defaults?.manualProtocol ?? null,
+  };
+}
+
+function getKeyboardProtocolRuntimeState(): KeyboardProtocolRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    KEYBOARD_PROTOCOL_RUNTIME_STATE,
+    () => createKeyboardProtocolRuntimeState(scope),
+    scope,
+  );
+}
 
 /**
  * Detect keyboard protocol support.
  * Uses terminal profile database first, then falls back to env var heuristics.
  */
 export function detectKeyboardProtocol(): KeyboardProtocol {
-  if (manualProtocol) return manualProtocol;
-  if (detectedProtocol) return detectedProtocol;
+  const state = getKeyboardProtocolRuntimeState();
+  if (state.manualProtocol) return state.manualProtocol;
+  if (state.detectedProtocol) return state.detectedProtocol;
 
   // Try terminal profile first (most reliable)
   const profile = detectTerminalProfile(process.env);
   if (profile.knownCaps.kittyKeyboard) {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
+    state.detectedProtocol = 'kitty';
+    return state.detectedProtocol;
   }
 
   // Legacy env var detection
@@ -131,44 +168,50 @@ export function detectKeyboardProtocol(): KeyboardProtocol {
   const term = process.env.TERM?.toLowerCase() || '';
 
   if (kittyWindow || termProgram === 'kitty') {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
+    state.detectedProtocol = 'kitty';
+    return state.detectedProtocol;
   }
 
   if (termProgram === 'wezterm') {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
+    state.detectedProtocol = 'kitty';
+    return state.detectedProtocol;
   }
 
   if (term.includes('foot')) {
-    detectedProtocol = 'kitty';
-    return detectedProtocol;
+    state.detectedProtocol = 'kitty';
+    return state.detectedProtocol;
   }
 
-  detectedProtocol = 'legacy';
-  return detectedProtocol;
+  state.detectedProtocol = 'legacy';
+  return state.detectedProtocol;
 }
 
 /**
  * Set keyboard protocol manually
  */
 export function setKeyboardProtocol(protocol: KeyboardProtocol | null): void {
-  manualProtocol = protocol;
+  getKeyboardProtocolRuntimeState().manualProtocol = protocol;
 }
 
 /**
  * Get current keyboard protocol
  */
 export function getKeyboardProtocol(): KeyboardProtocol {
-  return manualProtocol || detectedProtocol || detectKeyboardProtocol();
+  const state = getKeyboardProtocolRuntimeState();
+  return (
+    state.manualProtocol ||
+    state.detectedProtocol ||
+    detectKeyboardProtocol()
+  );
 }
 
 /**
  * Reset protocol detection (for testing)
  */
 export function resetKeyboardProtocol(): void {
-  detectedProtocol = null;
-  manualProtocol = null;
+  const state = getKeyboardProtocolRuntimeState();
+  state.detectedProtocol = null;
+  state.manualProtocol = null;
 }
 
 // =============================================================================

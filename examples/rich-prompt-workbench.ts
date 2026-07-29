@@ -872,7 +872,11 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
     Text({ color: 'gray', dim: true }, 'Core owns structured input, completion anchors, and worker contracts. App code still owns prompt semantics, task orchestration, and PTY decisions.'),
     Divider({ marginTop: 1, marginBottom: 1 }),
     Box(
-      { flexDirection: 'row', gap: 1 as any, alignItems: 'flex-start' as any },
+      {
+        flexDirection: 'row',
+        gap: 1 as any,
+        alignItems: 'flex-start' as any,
+      },
       Box(
         {
           flexDirection: 'column',
@@ -892,14 +896,14 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
           borderColor: 'gray',
           paddingX: 1,
         },
+        Text({ color: 'yellow', bold: true }, 'Slash Context'),
+        SlashContextPanel({ context: slashContext }),
+        Divider({ marginTop: 1, marginBottom: 1 }),
         Text({ color: 'yellow', bold: true }, 'Semantic Tokens'),
         TokenList({ segments: prompt.segments() }),
         Divider({ marginTop: 1, marginBottom: 1 }),
         Text({ color: 'yellow', bold: true }, 'Prompt Mode'),
         PromptModePanel({ mode: promptMode }),
-        Divider({ marginTop: 1, marginBottom: 1 }),
-        Text({ color: 'yellow', bold: true }, 'Slash Context'),
-        SlashContextPanel({ context: slashContext }),
         Divider({ marginTop: 1, marginBottom: 1 }),
         Text({ color: 'yellow', bold: true }, 'Async Completions'),
         CompletionPanel({ completion }),

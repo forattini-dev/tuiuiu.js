@@ -13,6 +13,13 @@
 
 import { deflateSync } from 'node:zlib';
 import { detectTerminalProfile } from './terminal-profile.js';
+import {
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Types
@@ -161,13 +168,44 @@ export interface TerminalImageProtocolState {
 // Protocol Detection
 // =============================================================================
 
-let detectedProtocol: GraphicsProtocol | null = null;
-let manualOverride: GraphicsProtocol | null = null;
-let negotiatedCapabilities: TerminalImageCapabilities | null = null;
-let activeDetectionPromise: Promise<TerminalImageCapabilities> | null = null;
-let nextTerminalImageProtocolStateId = 1;
-let nextKittyImageId = 1;
-const cellSizeChangeListeners = new Set<(cellSize: CellSize) => void>();
+interface GraphicsRuntimeState {
+  detectedProtocol: GraphicsProtocol | null;
+  manualOverride: GraphicsProtocol | null;
+  negotiatedCapabilities: TerminalImageCapabilities | null;
+  activeDetectionPromise: Promise<TerminalImageCapabilities> | null;
+  nextTerminalImageProtocolStateId: number;
+  nextKittyImageId: number;
+  cellSizeChangeListeners: Set<(cellSize: CellSize) => void>;
+}
+
+const GRAPHICS_RUNTIME_STATE = Symbol('tuiuiu.graphics-runtime-state');
+
+function createGraphicsRuntimeState(scope: RuntimeScope): GraphicsRuntimeState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        GRAPHICS_RUNTIME_STATE,
+        () => createGraphicsRuntimeState(getDefaultRuntimeScope()),
+      );
+  return {
+    detectedProtocol: null,
+    manualOverride: defaults?.manualOverride ?? null,
+    negotiatedCapabilities: null,
+    activeDetectionPromise: null,
+    nextTerminalImageProtocolStateId: 1,
+    nextKittyImageId: 1,
+    cellSizeChangeListeners: new Set(),
+  };
+}
+
+function getGraphicsRuntimeState(): GraphicsRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    GRAPHICS_RUNTIME_STATE,
+    () => createGraphicsRuntimeState(scope),
+    scope,
+  );
+}
 
 const DEFAULT_CELL_SIZE: CellSize = {
   width: 10,
@@ -541,20 +579,21 @@ export function parseGraphicsCapabilityResponse(
 export async function queryGraphicsCapabilities(
   options: QueryGraphicsOptions = {},
 ): Promise<TerminalImageCapabilities> {
-  if (manualOverride) {
+  const state = getGraphicsRuntimeState();
+  if (state.manualOverride) {
     return buildProtocolCapabilities(
-      manualOverride,
+      state.manualOverride,
       'manual',
-      normalizeCellSize(negotiatedCapabilities?.cellSize),
+      normalizeCellSize(state.negotiatedCapabilities?.cellSize),
     );
   }
 
-  if (!options.force && negotiatedCapabilities) {
-    return negotiatedCapabilities;
+  if (!options.force && state.negotiatedCapabilities) {
+    return state.negotiatedCapabilities;
   }
 
-  if (!options.force && activeDetectionPromise) {
-    return activeDetectionPromise;
+  if (!options.force && state.activeDetectionPromise) {
+    return state.activeDetectionPromise;
   }
 
   const runDetection = async (): Promise<TerminalImageCapabilities> => {
@@ -587,28 +626,29 @@ export async function queryGraphicsCapabilities(
     );
   };
 
-  activeDetectionPromise = runDetection();
+  state.activeDetectionPromise = runDetection();
 
   try {
-    negotiatedCapabilities = await activeDetectionPromise;
-    detectedProtocol = negotiatedCapabilities.protocol;
-    return negotiatedCapabilities;
+    state.negotiatedCapabilities = await state.activeDetectionPromise;
+    state.detectedProtocol = state.negotiatedCapabilities.protocol;
+    return state.negotiatedCapabilities;
   } finally {
-    activeDetectionPromise = null;
+    state.activeDetectionPromise = null;
   }
 }
 
 export function getGraphicsCapabilities(): TerminalImageCapabilities {
-  if (manualOverride) {
+  const state = getGraphicsRuntimeState();
+  if (state.manualOverride) {
     return buildProtocolCapabilities(
-      manualOverride,
+      state.manualOverride,
       'manual',
-      normalizeCellSize(negotiatedCapabilities?.cellSize),
+      normalizeCellSize(state.negotiatedCapabilities?.cellSize),
     );
   }
 
-  if (negotiatedCapabilities) {
-    return negotiatedCapabilities;
+  if (state.negotiatedCapabilities) {
+    return state.negotiatedCapabilities;
   }
 
   const protocol = detectGraphicsProtocol();
@@ -619,36 +659,43 @@ export function getGraphicsCapabilities(): TerminalImageCapabilities {
  * Detect the best available graphics protocol
  */
 export function detectGraphicsProtocol(): GraphicsProtocol {
+  const state = getGraphicsRuntimeState();
   // Manual override takes precedence
-  if (manualOverride) {
-    return manualOverride;
+  if (state.manualOverride) {
+    return state.manualOverride;
   }
 
-  if (negotiatedCapabilities) {
-    return negotiatedCapabilities.protocol;
+  if (state.negotiatedCapabilities) {
+    return state.negotiatedCapabilities.protocol;
   }
 
   // Use cached detection
-  if (detectedProtocol) {
-    return detectedProtocol;
+  if (state.detectedProtocol) {
+    return state.detectedProtocol;
   }
 
-  detectedProtocol = detectProtocolFromEnvironment() ?? getFallbackProtocol();
-  return detectedProtocol;
+  state.detectedProtocol =
+    detectProtocolFromEnvironment() ?? getFallbackProtocol();
+  return state.detectedProtocol;
 }
 
 /**
  * Set graphics protocol manually (overrides auto-detection)
  */
 export function setGraphicsProtocol(protocol: GraphicsProtocol | null): void {
-  manualOverride = protocol;
+  getGraphicsRuntimeState().manualOverride = protocol;
 }
 
 /**
  * Get current graphics protocol
  */
 export function getGraphicsProtocol(): GraphicsProtocol {
-  return manualOverride || detectedProtocol || detectGraphicsProtocol();
+  const state = getGraphicsRuntimeState();
+  return (
+    state.manualOverride ||
+    state.detectedProtocol ||
+    detectGraphicsProtocol()
+  );
 }
 
 /**
@@ -675,26 +722,21 @@ function isValidProtocol(protocol: string): protocol is GraphicsProtocol {
  * dimensions change when the window geometry changes.
  */
 export function invalidateCellSize(): void {
-  if (negotiatedCapabilities) {
-    const termSize = getTerminalSize();
-    const newCellSize = normalizeCellSize({
-      width: Math.round((negotiatedCapabilities.cellSize.width * (process.stdout.columns || 80)) / termSize.columns),
-      height: Math.round((negotiatedCapabilities.cellSize.height * (process.stdout.rows || 24)) / termSize.rows),
-    });
-
+  const state = getGraphicsRuntimeState();
+  if (state.negotiatedCapabilities) {
     // If we had queried cell size, null out the cached capabilities so
     // getGraphicsCapabilities() falls back to env/profile detection with
     // fresh terminal dimensions.  Keep the protocol detection intact.
-    const oldCellSize = negotiatedCapabilities.cellSize;
-    negotiatedCapabilities = {
-      ...negotiatedCapabilities,
+    const oldCellSize = state.negotiatedCapabilities.cellSize;
+    state.negotiatedCapabilities = {
+      ...state.negotiatedCapabilities,
       cellSize: normalizeCellSize(undefined),
     };
 
     // Notify listeners
-    const freshCellSize = negotiatedCapabilities.cellSize;
+    const freshCellSize = state.negotiatedCapabilities.cellSize;
     if (oldCellSize.width !== freshCellSize.width || oldCellSize.height !== freshCellSize.height) {
-      for (const listener of cellSizeChangeListeners) {
+      for (const listener of [...state.cellSizeChangeListeners]) {
         listener(freshCellSize);
       }
     }
@@ -706,9 +748,10 @@ export function invalidateCellSize(): void {
  * Returns a cleanup function to unsubscribe.
  */
 export function onCellSizeChange(callback: (cellSize: CellSize) => void): () => void {
-  cellSizeChangeListeners.add(callback);
+  const state = getGraphicsRuntimeState();
+  state.cellSizeChangeListeners.add(callback);
   return () => {
-    cellSizeChangeListeners.delete(callback);
+    state.cellSizeChangeListeners.delete(callback);
   };
 }
 
@@ -716,11 +759,14 @@ export function onCellSizeChange(callback: (cellSize: CellSize) => void): () => 
  * Reset cached detection (for testing)
  */
 export function resetGraphicsDetection(): void {
-  detectedProtocol = null;
-  manualOverride = null;
-  negotiatedCapabilities = null;
-  activeDetectionPromise = null;
-  cellSizeChangeListeners.clear();
+  const state = getGraphicsRuntimeState();
+  state.detectedProtocol = null;
+  state.manualOverride = null;
+  state.negotiatedCapabilities = null;
+  state.activeDetectionPromise = null;
+  state.nextTerminalImageProtocolStateId = 1;
+  state.nextKittyImageId = 1;
+  state.cellSizeChangeListeners.clear();
 }
 
 // =============================================================================
@@ -929,11 +975,13 @@ function buildTerminalImageProtocolCacheKey(
 }
 
 export function createTerminalImageProtocolState(): TerminalImageProtocolState {
+  const runtime = getGraphicsRuntimeState();
   const cache = new Map<string, Omit<TerminalImageProtocolRenderResult, 'reused'>>();
   let hits = 0;
   let misses = 0;
-  const instanceKey = `terminal-image:${nextTerminalImageProtocolStateId++}`;
-  const kittyImageId = nextKittyImageId++;
+  const instanceKey =
+    `terminal-image:${runtime.nextTerminalImageProtocolStateId++}`;
+  const kittyImageId = runtime.nextKittyImageId++;
 
   const withProtocolImageOptions = (
     protocol: GraphicsProtocol,

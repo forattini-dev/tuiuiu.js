@@ -20,6 +20,7 @@ import { resetTerminalFocusState, setTerminalFocusState } from '../../src/core/t
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { useApp } from '../../src/hooks/use-app.js';
 import { useEffect } from '../../src/hooks/use-effect.js';
+import { useInput } from '../../src/hooks/use-input.js';
 
 // Create mock stdin
 function createMockStdin(): NodeJS.ReadStream {
@@ -93,6 +94,69 @@ describe('render-loop', () => {
   });
 
   describe('render', () => {
+    it('keeps simultaneous roots isolated on distinct terminal streams', () => {
+      const secondStdin = createMockStdin();
+      const secondStdout = createMockStdout();
+      const firstInput = vi.fn();
+      const secondInput = vi.fn();
+
+      const first = render(() => {
+        useInput(firstInput);
+        return Text({}, 'first root');
+      }, {
+        stdin,
+        stdout,
+        alternateScreen: false,
+        clearOnStart: false,
+      });
+      const second = render(() => {
+        useInput(secondInput);
+        return Text({}, 'second root');
+      }, {
+        stdin: secondStdin,
+        stdout: secondStdout,
+        alternateScreen: false,
+        clearOnStart: false,
+      });
+
+      stdin.emit('data', Buffer.from('a'));
+      expect(firstInput).toHaveBeenCalledTimes(1);
+      expect(secondInput).not.toHaveBeenCalled();
+
+      secondStdin.emit('data', Buffer.from('b'));
+      expect(firstInput).toHaveBeenCalledTimes(1);
+      expect(secondInput).toHaveBeenCalledTimes(1);
+
+      first.unmount();
+      secondStdin.emit('data', Buffer.from('c'));
+      expect(secondInput).toHaveBeenCalledTimes(2);
+      second.unmount();
+    });
+
+    it('rolls back terminal ownership when the first component render throws', () => {
+      expect(() => render(
+        () => {
+          throw new Error('initial render failed');
+        },
+        {
+          stdin,
+          stdout,
+          alternateScreen: false,
+          clearOnStart: false,
+        },
+      )).toThrow('initial render failed');
+
+      expect(stdin.setRawMode).toHaveBeenLastCalledWith(false);
+
+      const replacement = render(Text({}, 'replacement'), {
+        stdin,
+        stdout,
+        alternateScreen: false,
+        clearOnStart: false,
+      });
+      replacement.unmount();
+    });
+
     it('forwards bounded input options to app initialization', () => {
       expect(() =>
         render(Text({}, 'Invalid input bounds'), {

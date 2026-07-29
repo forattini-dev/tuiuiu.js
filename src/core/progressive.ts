@@ -18,6 +18,12 @@ import {
   sanitizeOscField,
   sanitizeTerminalLabel,
 } from '../utils/terminal-sanitize.js';
+import {
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 // =============================================================================
 // Passthrough / Multiplexer Wrapping
@@ -167,7 +173,7 @@ export function getClipboardQuerySequence(caps?: TerminalCapabilities): string |
 export function formatHyperlink(text: string, url: string, caps?: TerminalCapabilities): string {
   const c = caps ?? getCapabilities();
   const safeText = sanitizeTerminalLabel(text);
-  if (!hyperlinksEnabled || !c.hyperlinks) {
+  if (!areHyperlinksEnabled() || !c.hyperlinks) {
     return safeText;
   }
 
@@ -307,17 +313,57 @@ export function getUnderlineColorResetCode(): string {
 // Nerd Fonts
 // =============================================================================
 
-let nerdFontsEnabled = false;
-let hyperlinksEnabled = true;
-let progressiveVersion = 0;
+interface ProgressiveRuntimeState {
+  nerdFontsEnabled: boolean;
+  hyperlinksEnabled: boolean;
+  progressiveVersion: number;
+  capabilityOverrides: Partial<TerminalCapabilities> | null;
+}
+
+const PROGRESSIVE_RUNTIME_STATE = Symbol('tuiuiu.progressive-runtime-state');
+
+function createDefaultProgressiveRuntimeState(): ProgressiveRuntimeState {
+  return {
+    nerdFontsEnabled: false,
+    hyperlinksEnabled: true,
+    progressiveVersion: 0,
+    capabilityOverrides: null,
+  };
+}
+
+function createProgressiveRuntimeState(scope: RuntimeScope): ProgressiveRuntimeState {
+  if (scope.id === 0) return createDefaultProgressiveRuntimeState();
+  const defaults = getDefaultRuntimeResource(
+    PROGRESSIVE_RUNTIME_STATE,
+    createDefaultProgressiveRuntimeState,
+  );
+  return {
+    nerdFontsEnabled: defaults.nerdFontsEnabled,
+    hyperlinksEnabled: defaults.hyperlinksEnabled,
+    progressiveVersion: defaults.progressiveVersion,
+    capabilityOverrides: defaults.capabilityOverrides
+      ? { ...defaults.capabilityOverrides }
+      : null,
+  };
+}
+
+function getProgressiveRuntimeState(): ProgressiveRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    PROGRESSIVE_RUNTIME_STATE,
+    () => createProgressiveRuntimeState(scope),
+    scope,
+  );
+}
 
 /**
  * Enable or disable Nerd Fonts support.
  * When enabled, components may use Nerd Font icons.
  */
 export function setNerdFonts(enabled: boolean): void {
-  nerdFontsEnabled = enabled;
-  progressiveVersion++;
+  const state = getProgressiveRuntimeState();
+  state.nerdFontsEnabled = enabled;
+  state.progressiveVersion++;
 }
 
 /**
@@ -325,7 +371,11 @@ export function setNerdFonts(enabled: boolean): void {
  * Checks both explicit opt-in and NERD_FONT env var.
  */
 export function hasNerdFonts(): boolean {
-  return nerdFontsEnabled || process.env.NERD_FONT === '1' || process.env.NERD_FONTS === '1';
+  return (
+    getProgressiveRuntimeState().nerdFontsEnabled ||
+    process.env.NERD_FONT === '1' ||
+    process.env.NERD_FONTS === '1'
+  );
 }
 
 /**
@@ -333,22 +383,21 @@ export function hasNerdFonts(): boolean {
  * Defaults to enabled.
  */
 export function setHyperlinksEnabled(enabled: boolean): void {
-  hyperlinksEnabled = enabled;
-  progressiveVersion++;
+  const state = getProgressiveRuntimeState();
+  state.hyperlinksEnabled = enabled;
+  state.progressiveVersion++;
 }
 
 /**
  * Check whether hyperlink emission is enabled.
  */
 export function areHyperlinksEnabled(): boolean {
-  return hyperlinksEnabled;
+  return getProgressiveRuntimeState().hyperlinksEnabled;
 }
 
 // =============================================================================
 // Configuration
 // =============================================================================
-
-let capabilityOverrides: Partial<TerminalCapabilities> | null = null;
 
 /**
  * Override detected capabilities for progressive enhancement.
@@ -358,18 +407,19 @@ export function configureProgressive(options: {
   overrides?: Partial<TerminalCapabilities>;
   hyperlinks?: boolean;
 }): void {
-  capabilityOverrides = options.overrides ?? null;
+  const state = getProgressiveRuntimeState();
+  state.capabilityOverrides = options.overrides ?? null;
   if (options.hyperlinks !== undefined) {
-    hyperlinksEnabled = options.hyperlinks;
+    state.hyperlinksEnabled = options.hyperlinks;
   }
-  progressiveVersion++;
+  state.progressiveVersion++;
 }
 
 /**
  * Get any configured overrides.
  */
 export function getProgressiveOverrides(): Partial<TerminalCapabilities> | null {
-  return capabilityOverrides;
+  return getProgressiveRuntimeState().capabilityOverrides;
 }
 
 /**
@@ -377,15 +427,16 @@ export function getProgressiveOverrides(): Partial<TerminalCapabilities> | null 
  * Used by capability caching to invalidate stale snapshots.
  */
 export function getProgressiveVersion(): number {
-  return progressiveVersion;
+  return getProgressiveRuntimeState().progressiveVersion;
 }
 
 /**
  * Reset progressive configuration.
  */
 export function resetProgressive(): void {
-  capabilityOverrides = null;
-  nerdFontsEnabled = false;
-  hyperlinksEnabled = true;
-  progressiveVersion++;
+  const state = getProgressiveRuntimeState();
+  state.capabilityOverrides = null;
+  state.nerdFontsEnabled = false;
+  state.hyperlinksEnabled = true;
+  state.progressiveVersion++;
 }

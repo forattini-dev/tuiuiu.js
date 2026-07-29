@@ -110,6 +110,33 @@ describe('Core Layout Engine', () => {
         expect(layout.y).toBe(0);
       });
 
+      it('should reserve every row used by wrapped text', () => {
+        const node = Box(
+          { width: 12, borderStyle: 'single' },
+          Text({}, 'alpha beta gamma'),
+        );
+        const layout = calculateLayout(node, 12, 24);
+
+        expect(layout.children[0]).toMatchObject({
+          width: 10,
+          height: 2,
+        });
+        expect(layout.height).toBe(4);
+      });
+
+      it('should keep truncated text on one row', () => {
+        const node = Text(
+          { wrap: 'truncate-middle' },
+          'alpha beta gamma',
+        );
+        const layout = calculateLayout(node, 8, 24);
+
+        expect(layout).toMatchObject({
+          width: 8,
+          height: 1,
+        });
+      });
+
       it('should layout box with text', () => {
         const node = Box({}, Text({}, 'Content'));
         const layout = calculateLayout(node, 80, 24);

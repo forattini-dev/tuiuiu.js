@@ -1,5 +1,12 @@
 import type { FramePhaseMetrics, FrameSnapshot, FrameStructuralMetrics } from './frame.js';
 import { reportMotionBudgetResult } from './motion-runtime.js';
+import {
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 export type PerfRendererKind = 'ansi' | 'delta';
 export type PerfPhaseBudgetKey = keyof FramePhaseMetrics;
@@ -59,17 +66,56 @@ const DEFAULT_PERF_CONFIG: PerfInspectorConfig = {
   },
 };
 
-let config: PerfInspectorConfig = {
-  enabled: DEFAULT_PERF_CONFIG.enabled,
-  maxFrames: DEFAULT_PERF_CONFIG.maxFrames,
-  budget: { ...DEFAULT_PERF_CONFIG.budget },
-};
+interface PerfInspectorRuntimeState {
+  config: PerfInspectorConfig;
+  ring: Array<PerfFrameRecord | undefined>;
+  start: number;
+  count: number;
+  slowFrameListeners: Set<(frame: PerfFrameRecord) => void>;
+}
 
-let ring: Array<PerfFrameRecord | undefined> = new Array(DEFAULT_PERF_CONFIG.maxFrames);
-let start = 0;
-let count = 0;
+const PERF_INSPECTOR_RUNTIME_STATE =
+  Symbol('tuiuiu.perf-inspector-runtime-state');
 
-const slowFrameListeners = new Set<(frame: PerfFrameRecord) => void>();
+function clonePerfConfig(config: PerfInspectorConfig): PerfInspectorConfig {
+  return {
+    enabled: config.enabled,
+    maxFrames: config.maxFrames,
+    budget: {
+      frameMs: config.budget.frameMs,
+      slowFrameMs: config.budget.slowFrameMs,
+      phases: { ...config.budget.phases },
+    },
+  };
+}
+
+function createPerfInspectorRuntimeState(
+  scope: RuntimeScope,
+): PerfInspectorRuntimeState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        PERF_INSPECTOR_RUNTIME_STATE,
+        () => createPerfInspectorRuntimeState(getDefaultRuntimeScope()),
+      );
+  const config = clonePerfConfig(defaults?.config ?? DEFAULT_PERF_CONFIG);
+  return {
+    config,
+    ring: new Array(config.maxFrames),
+    start: 0,
+    count: 0,
+    slowFrameListeners: new Set(),
+  };
+}
+
+function getPerfInspectorRuntimeState(): PerfInspectorRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    PERF_INSPECTOR_RUNTIME_STATE,
+    () => createPerfInspectorRuntimeState(scope),
+    scope,
+  );
+}
 
 function clampMaxFrames(value: number): number {
   if (!Number.isFinite(value)) {
@@ -82,31 +128,34 @@ function getFrameTotalMs(frame: FrameSnapshot): number {
   return frame.metrics.runtimeTotalMs ?? frame.metrics.totalFrameMs;
 }
 
-function resizeRing(nextSize: number): void {
+function resizeRing(state: PerfInspectorRuntimeState, nextSize: number): void {
   const frames = getPerfFrames().slice(-nextSize);
-  ring = new Array(nextSize);
-  start = 0;
-  count = frames.length;
+  state.ring = new Array(nextSize);
+  state.start = 0;
+  state.count = frames.length;
 
   for (let index = 0; index < frames.length; index++) {
-    ring[index] = frames[index];
+    state.ring[index] = frames[index];
   }
 }
 
-function pushFrame(record: PerfFrameRecord): void {
-  if (ring.length !== config.maxFrames) {
-    resizeRing(config.maxFrames);
+function pushFrame(
+  state: PerfInspectorRuntimeState,
+  record: PerfFrameRecord,
+): void {
+  if (state.ring.length !== state.config.maxFrames) {
+    resizeRing(state, state.config.maxFrames);
   }
 
-  const index = (start + count) % ring.length;
-  ring[index] = record;
+  const index = (state.start + state.count) % state.ring.length;
+  state.ring[index] = record;
 
-  if (count < ring.length) {
-    count++;
+  if (state.count < state.ring.length) {
+    state.count++;
     return;
   }
 
-  start = (start + 1) % ring.length;
+  state.start = (state.start + 1) % state.ring.length;
 }
 
 function getAverage(values: number[]): number {
@@ -128,58 +177,48 @@ function getP95(values: number[]): number {
 }
 
 export function configurePerfInspector(options: Partial<PerfInspectorConfig>): void {
-  const nextMaxFrames = options.maxFrames === undefined ? config.maxFrames : clampMaxFrames(options.maxFrames);
+  const state = getPerfInspectorRuntimeState();
+  const nextMaxFrames = options.maxFrames === undefined
+    ? state.config.maxFrames
+    : clampMaxFrames(options.maxFrames);
 
-  config = {
-    enabled: options.enabled ?? config.enabled,
+  state.config = {
+    enabled: options.enabled ?? state.config.enabled,
     maxFrames: nextMaxFrames,
     budget: {
-      frameMs: options.budget?.frameMs ?? config.budget.frameMs,
-      slowFrameMs: options.budget?.slowFrameMs ?? config.budget.slowFrameMs,
+      frameMs: options.budget?.frameMs ?? state.config.budget.frameMs,
+      slowFrameMs:
+        options.budget?.slowFrameMs ?? state.config.budget.slowFrameMs,
       phases: options.budget?.phases
         ? { ...options.budget.phases }
-        : { ...config.budget.phases },
+        : { ...state.config.budget.phases },
     },
   };
 
-  if (ring.length !== nextMaxFrames) {
-    resizeRing(nextMaxFrames);
+  if (state.ring.length !== nextMaxFrames) {
+    resizeRing(state, nextMaxFrames);
   }
 }
 
 export function getPerfInspectorConfig(): Readonly<PerfInspectorConfig> {
-  return {
-    enabled: config.enabled,
-    maxFrames: config.maxFrames,
-    budget: {
-      frameMs: config.budget.frameMs,
-      slowFrameMs: config.budget.slowFrameMs,
-      phases: { ...config.budget.phases },
-    },
-  };
+  return clonePerfConfig(getPerfInspectorRuntimeState().config);
 }
 
 export function onSlowFrame(listener: (frame: PerfFrameRecord) => void): () => void {
-  slowFrameListeners.add(listener);
+  const state = getPerfInspectorRuntimeState();
+  state.slowFrameListeners.add(listener);
   return () => {
-    slowFrameListeners.delete(listener);
+    state.slowFrameListeners.delete(listener);
   };
 }
 
 export function resetPerfInspector(): void {
-  config = {
-    enabled: DEFAULT_PERF_CONFIG.enabled,
-    maxFrames: DEFAULT_PERF_CONFIG.maxFrames,
-    budget: {
-      frameMs: DEFAULT_PERF_CONFIG.budget.frameMs,
-      slowFrameMs: DEFAULT_PERF_CONFIG.budget.slowFrameMs,
-      phases: {},
-    },
-  };
-  ring = new Array(config.maxFrames);
-  start = 0;
-  count = 0;
-  slowFrameListeners.clear();
+  const state = getPerfInspectorRuntimeState();
+  state.config = clonePerfConfig(DEFAULT_PERF_CONFIG);
+  state.ring = new Array(state.config.maxFrames);
+  state.start = 0;
+  state.count = 0;
+  state.slowFrameListeners.clear();
 }
 
 function getPhaseBudgetOverruns(
@@ -214,11 +253,15 @@ export function recordCommittedFrame(
   frame: FrameSnapshot,
   options: RecordPerfFrameOptions = {},
 ): PerfFrameRecord | null {
+  const state = getPerfInspectorRuntimeState();
   const totalMs = getFrameTotalMs(frame);
-  const budgetOverrunMs = Math.max(0, totalMs - config.budget.frameMs);
-  const phaseBudgetOverruns = getPhaseBudgetOverruns(frame.metrics.phases, config.budget.phases);
+  const budgetOverrunMs = Math.max(0, totalMs - state.config.budget.frameMs);
+  const phaseBudgetOverruns = getPhaseBudgetOverruns(
+    frame.metrics.phases,
+    state.config.budget.phases,
+  );
   const overBudgetPhaseCount = Object.keys(phaseBudgetOverruns).length;
-  const slow = totalMs >= config.budget.slowFrameMs;
+  const slow = totalMs >= state.config.budget.slowFrameMs;
   reportMotionBudgetResult({
     totalMs,
     overBudget: budgetOverrunMs > 0,
@@ -240,14 +283,14 @@ export function recordCommittedFrame(
     structural: { ...frame.metrics.structural },
   };
 
-  if (!config.enabled) {
+  if (!state.config.enabled) {
     return null;
   }
 
-  pushFrame(record);
+  pushFrame(state, record);
 
   if (slow) {
-    for (const listener of slowFrameListeners) {
+    for (const listener of [...state.slowFrameListeners]) {
       listener(record);
     }
   }
@@ -256,10 +299,12 @@ export function recordCommittedFrame(
 }
 
 export function getPerfFrames(): PerfFrameRecord[] {
+  const state = getPerfInspectorRuntimeState();
   const frames: PerfFrameRecord[] = [];
 
-  for (let index = 0; index < count; index++) {
-    const entry = ring[(start + index) % ring.length];
+  for (let index = 0; index < state.count; index++) {
+    const entry =
+      state.ring[(state.start + index) % state.ring.length];
     if (entry) {
       frames.push(entry);
     }

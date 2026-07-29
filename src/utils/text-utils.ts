@@ -9,6 +9,7 @@
 
 import { readGrapheme, segmentGraphemes } from './grapheme.js';
 import {
+  readTerminalSequence,
   sanitizeOscField,
   sanitizeTerminalText,
   stripTerminalControls,
@@ -330,6 +331,139 @@ export interface WrapOptions {
   wordWrap?: boolean;
 }
 
+export type TextWrapMode =
+  | 'wrap'
+  | 'truncate'
+  | 'truncate-start'
+  | 'truncate-middle'
+  | 'truncate-end';
+
+/**
+ * Resolve the exact visual lines used by the terminal renderer.
+ *
+ * Layout and painting must call this same function. Otherwise a text node can
+ * be measured as one row while the renderer wraps it across several rows,
+ * allowing following content or a parent border to overwrite the wrapped text.
+ */
+export function fitTextToWidth(
+  text: string,
+  columns: number,
+  mode?: TextWrapMode,
+): string[] {
+  if (columns <= 0) {
+    return text.split('\n');
+  }
+
+  const result: string[] = [];
+
+  for (const line of text.split('\n')) {
+    if (mode === 'truncate' || mode === 'truncate-end') {
+      result.push(truncateText(line, columns, {
+        position: 'end',
+        truncationCharacter: '…',
+      }));
+      continue;
+    }
+
+    if (mode === 'truncate-start') {
+      result.push(truncateText(line, columns, {
+        position: 'start',
+        truncationCharacter: '…',
+      }));
+      continue;
+    }
+
+    if (mode === 'truncate-middle') {
+      result.push(truncateText(line, columns, {
+        position: 'middle',
+        truncationCharacter: '…',
+      }));
+      continue;
+    }
+
+    result.push(...wrapRenderableLine(line, columns));
+  }
+
+  return result;
+}
+
+function wrapRenderableLine(line: string, columns: number): string[] {
+  if (stringWidth(line) <= columns) {
+    return [line];
+  }
+
+  const rows: string[] = [];
+  let current = '';
+
+  for (const word of line.split(' ')) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (stringWidth(candidate) <= columns) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      rows.push(current);
+      current = '';
+    }
+
+    if (stringWidth(word) <= columns) {
+      current = word;
+      continue;
+    }
+
+    const chunks = splitRenderableWord(word, columns);
+    rows.push(...chunks.slice(0, -1));
+    current = chunks.at(-1) ?? '';
+  }
+
+  if (current || rows.length === 0) {
+    rows.push(current);
+  }
+
+  return rows;
+}
+
+function splitRenderableWord(word: string, columns: number): string[] {
+  const chunks: string[] = [];
+  let current = '';
+  let currentWidth = 0;
+  let index = 0;
+
+  while (index < word.length) {
+    if (word[index] === ESC) {
+      const sequence = readTerminalSequence(word, index);
+      if (sequence) {
+        current += sequence.value;
+        index = sequence.end;
+        continue;
+      }
+    }
+
+    const symbol = readRenderableSymbol(word, index);
+    if (!symbol) {
+      break;
+    }
+
+    const symbolWidth = stringWidth(symbol.symbol);
+    if (currentWidth > 0 && currentWidth + symbolWidth > columns) {
+      chunks.push(current);
+      current = '';
+      currentWidth = 0;
+    }
+
+    current += symbol.symbol;
+    currentWidth += symbolWidth;
+    index = symbol.nextIndex;
+  }
+
+  if (current || chunks.length === 0) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
 /**
  * Wrap text to fit within a given width
  * Preserves ANSI escape codes across line breaks
@@ -575,9 +709,11 @@ function truncateMiddle(
   ellipsisWidth: number,
   preferSpace: boolean
 ): string {
-  const half = Math.floor((columns - ellipsisWidth) / 2);
-  const start = sliceAnsi(text, 0, half);
-  const end = sliceAnsi(text, stringWidth(text) - half);
+  const available = columns - ellipsisWidth;
+  const startWidth = Math.ceil(available / 2);
+  const endWidth = Math.floor(available / 2);
+  const start = sliceAnsi(text, 0, startWidth);
+  const end = sliceAnsi(text, stringWidth(text) - endWidth);
 
   return start + ellipsis + end;
 }

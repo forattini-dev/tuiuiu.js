@@ -1,4 +1,13 @@
 import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
+import {
+  bindRuntimeScope,
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
 export type MotionQualityTier = 'full' | 'reduced' | 'skip';
 export type MotionPresentationPressure = 'normal' | 'elevated' | 'critical';
@@ -63,19 +72,67 @@ const DEFAULT_CONFIG: MotionRuntimeConfig = {
   criticalFrameBudgetFactor: 2,
 };
 
-let config: MotionRuntimeConfig = { ...DEFAULT_CONFIG };
-let qualityTier: MotionQualityTier = 'full';
-let presentationPressure: MotionPresentationPressure = 'normal';
-let onBudgetStreak = 0;
-let pressureOnBudgetStreak = 0;
-let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
-let cleanupFocusSubscription: (() => void) | null = null;
-let nextFrameRequestId = 1;
-let nextIntervalId = 1;
-let lastPresentationAt = 0;
+interface InternalMotionRuntimeState {
+  config: MotionRuntimeConfig;
+  qualityTier: MotionQualityTier;
+  presentationPressure: MotionPresentationPressure;
+  onBudgetStreak: number;
+  pressureOnBudgetStreak: number;
+  schedulerTimer: ReturnType<typeof setTimeout> | null;
+  cleanupFocusSubscription: (() => void) | null;
+  nextFrameRequestId: number;
+  nextIntervalId: number;
+  lastPresentationAt: number;
+  frameCallbacks: Map<number, MotionFrameCallback>;
+  intervalSubscriptions: Map<number, MotionIntervalSubscription>;
+  prefersReducedMotion: boolean;
+  scope: RuntimeScope;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
 
-const frameCallbacks = new Map<number, MotionFrameCallback>();
-const intervalSubscriptions = new Map<number, MotionIntervalSubscription>();
+const MOTION_RUNTIME_STATE = Symbol('tuiuiu.motion-runtime-state');
+
+function createMotionRuntimeState(scope: RuntimeScope): InternalMotionRuntimeState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        MOTION_RUNTIME_STATE,
+        () => createMotionRuntimeState(getDefaultRuntimeScope()),
+      );
+  const state: InternalMotionRuntimeState = {
+    config: { ...(defaults?.config ?? DEFAULT_CONFIG) },
+    qualityTier: 'full',
+    presentationPressure: 'normal',
+    onBudgetStreak: 0,
+    pressureOnBudgetStreak: 0,
+    schedulerTimer: null,
+    cleanupFocusSubscription: null,
+    nextFrameRequestId: 1,
+    nextIntervalId: 1,
+    lastPresentationAt: 0,
+    frameCallbacks: new Map(),
+    intervalSubscriptions: new Map(),
+    prefersReducedMotion: defaults?.prefersReducedMotion ?? false,
+    scope,
+    [RUNTIME_RESOURCE_DISPOSE]() {
+      clearSchedulerTimer(state);
+      state.cleanupFocusSubscription?.();
+      state.cleanupFocusSubscription = null;
+      state.frameCallbacks.clear();
+      state.intervalSubscriptions.clear();
+    },
+  };
+  return state;
+}
+
+function getInternalMotionRuntimeState(): InternalMotionRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    MOTION_RUNTIME_STATE,
+    () => createMotionRuntimeState(scope),
+    scope,
+  );
+}
 
 function clampPositiveInteger(value: number, fallback: number): number {
   if (!Number.isFinite(value)) {
@@ -93,78 +150,93 @@ function clampPositiveNumber(value: number, fallback: number): number {
   return Math.max(0.1, value);
 }
 
-function getRecommendedPresentationIntervalMs(): number {
-  switch (presentationPressure) {
+function getRecommendedPresentationIntervalMs(
+  state: InternalMotionRuntimeState,
+): number {
+  switch (state.presentationPressure) {
     case 'elevated':
-      return config.frameBudgetMs * config.elevatedFrameBudgetFactor;
+      return state.config.frameBudgetMs * state.config.elevatedFrameBudgetFactor;
     case 'critical':
-      return config.frameBudgetMs * config.criticalFrameBudgetFactor;
+      return state.config.frameBudgetMs * state.config.criticalFrameBudgetFactor;
     case 'normal':
     default:
       return 0;
   }
 }
 
-function hasPendingWork(): boolean {
-  return frameCallbacks.size > 0 || intervalSubscriptions.size > 0;
+function hasPendingWork(state: InternalMotionRuntimeState): boolean {
+  return state.frameCallbacks.size > 0 || state.intervalSubscriptions.size > 0;
 }
 
-function ensureFocusSubscription(): void {
-  if (cleanupFocusSubscription) {
+function ensureFocusSubscription(state: InternalMotionRuntimeState): void {
+  if (state.cleanupFocusSubscription) {
     return;
   }
 
-  cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+  state.cleanupFocusSubscription = onTerminalFocusChange(bindRuntimeScope(state.scope, (focused) => {
     if (focused) {
       const resumedAt = Date.now();
-      for (const subscription of intervalSubscriptions.values()) {
+      for (const subscription of state.intervalSubscriptions.values()) {
         if (subscription.pauseWhenUnfocused) {
           subscription.lastRunAt = resumedAt;
         }
       }
     }
-    rescheduleMotionRuntime();
-  });
+    rescheduleMotionRuntime(state);
+  }));
 }
 
-function getTargetFrameMs(focused = readTerminalFocus()): number {
+function getTargetFrameMs(
+  state: InternalMotionRuntimeState,
+  focused = readTerminalFocus(state.scope),
+): number {
   if (!focused) {
-    return 1000 / config.unfocusedFps;
+    return 1000 / state.config.unfocusedFps;
   }
 
-  switch (qualityTier) {
+  switch (state.qualityTier) {
     case 'reduced':
-      return 1000 / config.reducedFps;
+      return 1000 / state.config.reducedFps;
     case 'skip':
       return 0;
     case 'full':
     default:
-      return 1000 / config.targetFps;
+      return 1000 / state.config.targetFps;
   }
 }
 
-function createMotionFrame(now: number, targetFrameMs: number, deltaMs: number): MotionFrame {
+function createMotionFrame(
+  state: InternalMotionRuntimeState,
+  now: number,
+  targetFrameMs: number,
+  deltaMs: number,
+): MotionFrame {
   return {
     now,
     deltaMs,
-    tier: qualityTier,
-    focused: readTerminalFocus(),
-    budgetMs: config.frameBudgetMs,
+    tier: state.qualityTier,
+    focused: readTerminalFocus(state.scope),
+    budgetMs: state.config.frameBudgetMs,
     targetFrameMs,
   };
 }
 
-function computeNextDelay(now: number): number | null {
-  const focused = readTerminalFocus();
+function computeNextDelay(
+  state: InternalMotionRuntimeState,
+  now: number,
+): number | null {
+  const focused = readTerminalFocus(state.scope);
   let nextDelay = Number.POSITIVE_INFINITY;
 
-  if (frameCallbacks.size > 0) {
-    const targetFrameMs = getTargetFrameMs(focused);
-    const elapsed = lastPresentationAt === 0 ? 0 : now - lastPresentationAt;
+  if (state.frameCallbacks.size > 0) {
+    const targetFrameMs = getTargetFrameMs(state, focused);
+    const elapsed = state.lastPresentationAt === 0
+      ? 0
+      : now - state.lastPresentationAt;
     nextDelay = Math.min(nextDelay, Math.max(0, targetFrameMs - elapsed));
   }
 
-  for (const subscription of intervalSubscriptions.values()) {
+  for (const subscription of state.intervalSubscriptions.values()) {
     if (!focused && subscription.pauseWhenUnfocused) {
       continue;
     }
@@ -180,45 +252,54 @@ function computeNextDelay(now: number): number | null {
   return Math.ceil(nextDelay);
 }
 
-function clearSchedulerTimer(): void {
-  if (!schedulerTimer) {
+function clearSchedulerTimer(state: InternalMotionRuntimeState): void {
+  if (!state.schedulerTimer) {
     return;
   }
 
-  clearTimeout(schedulerTimer);
-  schedulerTimer = null;
+  clearTimeout(state.schedulerTimer);
+  state.schedulerTimer = null;
 }
 
-function scheduleMotionRuntime(): void {
-  if (schedulerTimer || !hasPendingWork()) {
+function scheduleMotionRuntime(state: InternalMotionRuntimeState): void {
+  if (state.schedulerTimer || !hasPendingWork(state)) {
     return;
   }
 
-  ensureFocusSubscription();
-  const delay = computeNextDelay(Date.now());
+  ensureFocusSubscription(state);
+  const delay = computeNextDelay(state, Date.now());
   if (delay === null) {
     return;
   }
 
-  schedulerTimer = setTimeout(flushMotionRuntime, delay);
+  state.schedulerTimer = setTimeout(
+    bindRuntimeScope(state.scope, () => flushMotionRuntime(state)),
+    delay,
+  );
 }
 
-function flushMotionRuntime(): void {
-  schedulerTimer = null;
-  if (!hasPendingWork()) {
+function flushMotionRuntime(state: InternalMotionRuntimeState): void {
+  state.schedulerTimer = null;
+  if (!hasPendingWork(state)) {
     return;
   }
 
   const now = Date.now();
-  const focused = readTerminalFocus();
-  const targetFrameMs = getTargetFrameMs(focused);
-  const elapsedSincePresentation = lastPresentationAt === 0 ? targetFrameMs : now - lastPresentationAt;
+  const focused = readTerminalFocus(state.scope);
+  const targetFrameMs = getTargetFrameMs(state, focused);
+  const elapsedSincePresentation = state.lastPresentationAt === 0
+    ? targetFrameMs
+    : now - state.lastPresentationAt;
 
-  if (frameCallbacks.size > 0 && elapsedSincePresentation >= targetFrameMs) {
-    lastPresentationAt = now;
-    const callbacks = [...frameCallbacks.values()];
-    frameCallbacks.clear();
+  if (
+    state.frameCallbacks.size > 0 &&
+    elapsedSincePresentation >= targetFrameMs
+  ) {
+    state.lastPresentationAt = now;
+    const callbacks = [...state.frameCallbacks.values()];
+    state.frameCallbacks.clear();
     const frame = createMotionFrame(
+      state,
       now,
       targetFrameMs,
       targetFrameMs === 0 ? 0 : Math.max(targetFrameMs, elapsedSincePresentation),
@@ -229,7 +310,7 @@ function flushMotionRuntime(): void {
     }
   }
 
-  for (const subscription of intervalSubscriptions.values()) {
+  for (const subscription of state.intervalSubscriptions.values()) {
     if (!focused && subscription.pauseWhenUnfocused) {
       continue;
     }
@@ -241,136 +322,146 @@ function flushMotionRuntime(): void {
 
     subscription.lastRunAt = now;
     subscription.callback(
-      createMotionFrame(now, targetFrameMs, Math.max(subscription.intervalMs, elapsed)),
+      createMotionFrame(
+        state,
+        now,
+        targetFrameMs,
+        Math.max(subscription.intervalMs, elapsed),
+      ),
     );
   }
 
-  scheduleMotionRuntime();
+  scheduleMotionRuntime(state);
 }
 
-function rescheduleMotionRuntime(): void {
-  clearSchedulerTimer();
-  scheduleMotionRuntime();
+function rescheduleMotionRuntime(state: InternalMotionRuntimeState): void {
+  clearSchedulerTimer(state);
+  scheduleMotionRuntime(state);
 }
 
 export function configureMotionRuntime(options: Partial<MotionRuntimeConfig>): void {
+  const state = getInternalMotionRuntimeState();
   const nextTargetFps = clampPositiveInteger(
-    options.targetFps ?? config.targetFps,
+    options.targetFps ?? state.config.targetFps,
     DEFAULT_CONFIG.targetFps,
   );
   const nextReducedFps = clampPositiveInteger(
-    options.reducedFps ?? config.reducedFps,
+    options.reducedFps ?? state.config.reducedFps,
     Math.max(1, Math.floor(nextTargetFps / 2)),
   );
 
-  config = {
+  state.config = {
     targetFps: nextTargetFps,
     reducedFps: Math.min(nextTargetFps, nextReducedFps),
     unfocusedFps: clampPositiveInteger(
-      options.unfocusedFps ?? config.unfocusedFps,
+      options.unfocusedFps ?? state.config.unfocusedFps,
       DEFAULT_CONFIG.unfocusedFps,
     ),
     frameBudgetMs: clampPositiveNumber(
-      options.frameBudgetMs ?? config.frameBudgetMs,
+      options.frameBudgetMs ?? state.config.frameBudgetMs,
       DEFAULT_CONFIG.frameBudgetMs,
     ),
     recoveryFrames: clampPositiveInteger(
-      options.recoveryFrames ?? config.recoveryFrames,
+      options.recoveryFrames ?? state.config.recoveryFrames,
       DEFAULT_CONFIG.recoveryFrames,
     ),
     elevatedFrameBudgetFactor: clampPositiveNumber(
-      options.elevatedFrameBudgetFactor ?? config.elevatedFrameBudgetFactor,
+      options.elevatedFrameBudgetFactor ?? state.config.elevatedFrameBudgetFactor,
       DEFAULT_CONFIG.elevatedFrameBudgetFactor,
     ),
     criticalFrameBudgetFactor: clampPositiveNumber(
-      options.criticalFrameBudgetFactor ?? config.criticalFrameBudgetFactor,
+      options.criticalFrameBudgetFactor ?? state.config.criticalFrameBudgetFactor,
       DEFAULT_CONFIG.criticalFrameBudgetFactor,
     ),
   };
 
-  rescheduleMotionRuntime();
+  rescheduleMotionRuntime(state);
 }
 
 export function getMotionRuntimeState(): MotionRuntimeState {
+  const state = getInternalMotionRuntimeState();
   return {
-    config: { ...config },
-    qualityTier,
-    presentationPressure,
-    focused: readTerminalFocus(),
-    targetFrameMs: getTargetFrameMs(),
-    recommendedPresentationIntervalMs: getRecommendedPresentationIntervalMs(),
-    onBudgetStreak,
-    pressureOnBudgetStreak,
+    config: { ...state.config },
+    qualityTier: state.qualityTier,
+    presentationPressure: state.presentationPressure,
+    focused: readTerminalFocus(state.scope),
+    targetFrameMs: getTargetFrameMs(state),
+    recommendedPresentationIntervalMs:
+      getRecommendedPresentationIntervalMs(state),
+    onBudgetStreak: state.onBudgetStreak,
+    pressureOnBudgetStreak: state.pressureOnBudgetStreak,
   };
 }
 
-function escalatePresentationPressure(): void {
-  pressureOnBudgetStreak = 0;
-  if (presentationPressure === 'normal') {
-    presentationPressure = 'elevated';
+function escalatePresentationPressure(state: InternalMotionRuntimeState): void {
+  state.pressureOnBudgetStreak = 0;
+  if (state.presentationPressure === 'normal') {
+    state.presentationPressure = 'elevated';
     return;
   }
-  if (presentationPressure === 'elevated') {
-    presentationPressure = 'critical';
+  if (state.presentationPressure === 'elevated') {
+    state.presentationPressure = 'critical';
   }
 }
 
-function recoverPresentationPressure(): void {
-  if (presentationPressure === 'normal') {
-    pressureOnBudgetStreak = 0;
+function recoverPresentationPressure(state: InternalMotionRuntimeState): void {
+  if (state.presentationPressure === 'normal') {
+    state.pressureOnBudgetStreak = 0;
     return;
   }
 
-  pressureOnBudgetStreak++;
-  if (pressureOnBudgetStreak < config.recoveryFrames) {
+  state.pressureOnBudgetStreak++;
+  if (state.pressureOnBudgetStreak < state.config.recoveryFrames) {
     return;
   }
 
-  if (presentationPressure === 'critical') {
-    presentationPressure = 'elevated';
+  if (state.presentationPressure === 'critical') {
+    state.presentationPressure = 'elevated';
   } else {
-    presentationPressure = 'normal';
+    state.presentationPressure = 'normal';
   }
-  pressureOnBudgetStreak = 0;
+  state.pressureOnBudgetStreak = 0;
 }
 
 export function reportMotionBudgetResult(result: MotionBudgetResult): MotionQualityTier {
+  const state = getInternalMotionRuntimeState();
   if (!Number.isFinite(result.totalMs) || result.totalMs < 0) {
-    return qualityTier;
+    return state.qualityTier;
   }
 
-  const totalOverBudget = result.overBudget ?? result.totalMs > config.frameBudgetMs;
+  const totalOverBudget =
+    result.overBudget ?? result.totalMs > state.config.frameBudgetMs;
   const hasPhaseOverrun = (result.phaseOverrunCount ?? 0) > 0;
 
   if (totalOverBudget) {
-    onBudgetStreak = 0;
-    if (qualityTier === 'full') {
-      qualityTier = 'reduced';
-    } else if (qualityTier === 'reduced') {
-      qualityTier = 'skip';
+    state.onBudgetStreak = 0;
+    if (state.qualityTier === 'full') {
+      state.qualityTier = 'reduced';
+    } else if (state.qualityTier === 'reduced') {
+      state.qualityTier = 'skip';
     }
-    rescheduleMotionRuntime();
+    rescheduleMotionRuntime(state);
   } else {
-    onBudgetStreak++;
-    if (onBudgetStreak >= config.recoveryFrames) {
-      if (qualityTier === 'skip') {
-        qualityTier = 'reduced';
-        onBudgetStreak = 0;
-      } else if (qualityTier === 'reduced') {
-        qualityTier = 'full';
-        onBudgetStreak = 0;
+    state.onBudgetStreak++;
+    if (state.onBudgetStreak >= state.config.recoveryFrames) {
+      if (state.qualityTier === 'skip') {
+        state.qualityTier = 'reduced';
+        state.onBudgetStreak = 0;
+      } else if (state.qualityTier === 'reduced') {
+        state.qualityTier = 'full';
+        state.onBudgetStreak = 0;
       }
     }
   }
 
   if (totalOverBudget || hasPhaseOverrun) {
-    escalatePresentationPressure();
+    escalatePresentationPressure(state);
   } else {
-    recoverPresentationPressure();
+    recoverPresentationPressure(state);
   }
 
-  rescheduleMotionRuntime();
-  return qualityTier;
+  rescheduleMotionRuntime(state);
+  return state.qualityTier;
 }
 
 export function reportMotionFrameCost(frameMs: number): MotionQualityTier {
@@ -378,24 +469,26 @@ export function reportMotionFrameCost(frameMs: number): MotionQualityTier {
 }
 
 export function requestMotionFrame(callback: MotionFrameCallback): () => void {
-  const requestId = nextFrameRequestId++;
-  frameCallbacks.set(requestId, callback);
-  scheduleMotionRuntime();
+  const state = getInternalMotionRuntimeState();
+  const requestId = state.nextFrameRequestId++;
+  state.frameCallbacks.set(requestId, callback);
+  scheduleMotionRuntime(state);
 
   return () => {
-    frameCallbacks.delete(requestId);
-    if (!hasPendingWork()) {
-      clearSchedulerTimer();
+    state.frameCallbacks.delete(requestId);
+    if (!hasPendingWork(state)) {
+      clearSchedulerTimer(state);
     }
   };
 }
 
 export function cancelAllMotionFrames(): void {
-  frameCallbacks.clear();
-  if (!hasPendingWork()) {
-    clearSchedulerTimer();
+  const state = getInternalMotionRuntimeState();
+  state.frameCallbacks.clear();
+  if (!hasPendingWork(state)) {
+    clearSchedulerTimer(state);
   } else {
-    rescheduleMotionRuntime();
+    rescheduleMotionRuntime(state);
   }
 }
 
@@ -404,47 +497,47 @@ export function subscribeMotionInterval(
   callback: MotionIntervalCallback,
   options: MotionIntervalOptions = {},
 ): () => void {
-  const subscriptionId = nextIntervalId++;
-  intervalSubscriptions.set(subscriptionId, {
+  const state = getInternalMotionRuntimeState();
+  const subscriptionId = state.nextIntervalId++;
+  state.intervalSubscriptions.set(subscriptionId, {
     intervalMs: clampPositiveNumber(intervalMs, 16),
     callback,
     pauseWhenUnfocused: options.pauseWhenUnfocused ?? false,
     lastRunAt: Date.now(),
   });
-  scheduleMotionRuntime();
+  scheduleMotionRuntime(state);
 
   return () => {
-    intervalSubscriptions.delete(subscriptionId);
-    if (!hasPendingWork()) {
-      clearSchedulerTimer();
+    state.intervalSubscriptions.delete(subscriptionId);
+    if (!hasPendingWork(state)) {
+      clearSchedulerTimer(state);
     } else {
-      rescheduleMotionRuntime();
+      rescheduleMotionRuntime(state);
     }
   };
 }
 
 export function resetMotionRuntime(): void {
-  clearSchedulerTimer();
-  cleanupFocusSubscription?.();
-  cleanupFocusSubscription = null;
-  frameCallbacks.clear();
-  intervalSubscriptions.clear();
-  config = { ...DEFAULT_CONFIG };
-  qualityTier = 'full';
-  presentationPressure = 'normal';
-  onBudgetStreak = 0;
-  pressureOnBudgetStreak = 0;
-  lastPresentationAt = 0;
-  nextFrameRequestId = 1;
-  nextIntervalId = 1;
-  _prefersReducedMotion = false;
+  const state = getInternalMotionRuntimeState();
+  clearSchedulerTimer(state);
+  state.cleanupFocusSubscription?.();
+  state.cleanupFocusSubscription = null;
+  state.frameCallbacks.clear();
+  state.intervalSubscriptions.clear();
+  state.config = { ...DEFAULT_CONFIG };
+  state.qualityTier = 'full';
+  state.presentationPressure = 'normal';
+  state.onBudgetStreak = 0;
+  state.pressureOnBudgetStreak = 0;
+  state.lastPresentationAt = 0;
+  state.nextFrameRequestId = 1;
+  state.nextIntervalId = 1;
+  state.prefersReducedMotion = false;
 }
 
 // =============================================================================
 // Reduced Motion Preference
 // =============================================================================
-
-let _prefersReducedMotion = false;
 
 /**
  * Set the reduced motion preference.
@@ -454,12 +547,12 @@ let _prefersReducedMotion = false;
  * setPrefersReducedMotion(true); // Disable animations globally
  */
 export function setPrefersReducedMotion(value: boolean): void {
-  _prefersReducedMotion = value;
+  getInternalMotionRuntimeState().prefersReducedMotion = value;
 }
 
 /**
  * Get the current reduced motion preference.
  */
 export function getPrefersReducedMotion(): boolean {
-  return _prefersReducedMotion;
+  return getInternalMotionRuntimeState().prefersReducedMotion;
 }

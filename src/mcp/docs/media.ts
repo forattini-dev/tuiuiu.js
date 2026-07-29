@@ -391,7 +391,7 @@ export const media: ComponentDoc[] = [
   {
     name: 'createAnimatedImage',
     category: 'media',
-    description: 'Create an AnimatedImageState controller from an AnimatedImageSource. Uses the global tick system for timing and pauses automatically when the terminal loses focus. Provides reactive signals for the current frame and image data.',
+    description: 'Create an AnimatedImageState controller from an AnimatedImageSource. Uses the current runtime tick for timing and pauses automatically when the terminal loses focus. Provides reactive signals for the current frame and image data.',
     props: [
       { name: 'source', type: 'AnimatedImageSource', required: true, description: 'Animated image source created by createAnimatedImageSource' },
     ],

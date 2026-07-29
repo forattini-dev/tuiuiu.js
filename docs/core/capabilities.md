@@ -293,7 +293,7 @@ const { focused } = useTerminalFocus();
 The runtime uses focus information for:
 
 - pausing animations by default
-- pausing the global tick
+- pausing the current app runtime tick
 - pausing `fixedStep` loops unless opted out
 
 ## Multiplexers

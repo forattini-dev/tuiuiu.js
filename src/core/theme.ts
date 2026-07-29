@@ -11,6 +11,12 @@
 import { createSignal, untrack } from '../primitives/signal.js';
 import { colors, type ColorPalette, type ColorShade } from './colors.js';
 import { warnIfThemeSetAfterRenderStarted } from './dev-warnings.js';
+import {
+  getDefaultRuntimeResource,
+  getRuntimeResource,
+  getRuntimeScope,
+  type RuntimeScope,
+} from './runtime-scope.js';
 import type {
   Theme,
   ThemeMode,
@@ -106,11 +112,47 @@ export {
 // Theme Context (Signal-based)
 // =============================================================================
 
-// Global theme signal
-const [currentTheme, setCurrentTheme] = createSignal<Theme>(darkTheme);
+interface ThemeRuntimeState {
+  currentTheme: () => Theme;
+  setCurrentTheme: (value: Theme | ((previous: Theme) => Theme)) => void;
+  themeStack: Theme[];
+}
 
-// Theme stack for nested themes
-const themeStack: Theme[] = [];
+const THEME_RUNTIME_STATE = Symbol('tuiuiu.theme-runtime-state');
+
+function createDefaultThemeRuntimeState(): ThemeRuntimeState {
+  const [currentTheme, setCurrentTheme] = createSignal<Theme>(darkTheme);
+  return {
+    currentTheme,
+    setCurrentTheme,
+    themeStack: [],
+  };
+}
+
+function createThemeRuntimeState(scope: RuntimeScope): ThemeRuntimeState {
+  if (scope.id === 0) return createDefaultThemeRuntimeState();
+  const defaults = getDefaultRuntimeResource(
+    THEME_RUNTIME_STATE,
+    createDefaultThemeRuntimeState,
+  );
+  const [currentTheme, setCurrentTheme] = createSignal<Theme>(
+    untrack(defaults.currentTheme),
+  );
+  return {
+    currentTheme,
+    setCurrentTheme,
+    themeStack: [],
+  };
+}
+
+function getThemeRuntimeState(): ThemeRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    THEME_RUNTIME_STATE,
+    () => createThemeRuntimeState(scope),
+    scope,
+  );
+}
 
 /**
  * Get the current theme (reactive).
@@ -122,28 +164,28 @@ const themeStack: Theme[] = [];
  * ```
  */
 export function useTheme(): Theme {
-  return currentTheme();
+  return getThemeRuntimeState().currentTheme();
 }
 
 /**
  * Get the current theme without tracking (for use outside effects).
  */
 export function getTheme(): Theme {
-  return untrack(currentTheme);
+  return untrack(getThemeRuntimeState().currentTheme);
 }
 
 /**
  * Get the current theme mode ('dark' or 'light').
  */
 export function useThemeMode(): ThemeMode {
-  return currentTheme().mode;
+  return getThemeRuntimeState().currentTheme().mode;
 }
 
 /**
  * Check if current theme is dark mode.
  */
 export function useIsDark(): boolean {
-  return currentTheme().mode === 'dark';
+  return getThemeRuntimeState().currentTheme().mode === 'dark';
 }
 
 /**
@@ -158,32 +200,34 @@ export function useIsDark(): boolean {
 export function useComponentTokens<K extends ComponentName>(
   component: K
 ): ComponentTokens[K] {
-  return currentTheme().components[component];
+  return getThemeRuntimeState().currentTheme().components[component];
 }
 
 /**
- * Set the global theme.
+ * Set the current runtime theme.
  */
 export function setTheme(theme: Theme): void {
   warnIfThemeSetAfterRenderStarted();
-  setCurrentTheme(theme);
+  getThemeRuntimeState().setCurrentTheme(theme);
 }
 
 /**
  * Push a theme onto the stack (for nested themes).
  */
 export function pushTheme(theme: Theme): void {
-  themeStack.push(untrack(currentTheme));
-  setCurrentTheme(theme);
+  const runtime = getThemeRuntimeState();
+  runtime.themeStack.push(untrack(runtime.currentTheme));
+  runtime.setCurrentTheme(theme);
 }
 
 /**
  * Pop a theme from the stack.
  */
 export function popTheme(): void {
-  const previous = themeStack.pop();
+  const runtime = getThemeRuntimeState();
+  const previous = runtime.themeStack.pop();
   if (previous) {
-    setCurrentTheme(previous);
+    runtime.setCurrentTheme(previous);
   }
 }
 
@@ -454,56 +498,56 @@ export function useSystemTheme(): void {
  * ```
  */
 export function th(): Theme {
-  return currentTheme();
+  return getThemeRuntimeState().currentTheme();
 }
 
 /**
  * Get background colors from current theme.
  */
 export function useBg(): ThemeBackground {
-  return currentTheme().background;
+  return getThemeRuntimeState().currentTheme().background;
 }
 
 /**
  * Get foreground colors from current theme.
  */
 export function useFg(): ThemeForeground {
-  return currentTheme().foreground;
+  return getThemeRuntimeState().currentTheme().foreground;
 }
 
 /**
  * Get palette from current theme.
  */
 export function usePalette(): ThemePalette {
-  return currentTheme().palette;
+  return getThemeRuntimeState().currentTheme().palette;
 }
 
 /**
  * Get accent colors from current theme.
  */
 export function useAccents(): ThemeAccent {
-  return currentTheme().accents;
+  return getThemeRuntimeState().currentTheme().accents;
 }
 
 /**
  * Get state colors from current theme.
  */
 export function useStates(): ThemeStates {
-  return currentTheme().states;
+  return getThemeRuntimeState().currentTheme().states;
 }
 
 /**
  * Get border colors from current theme.
  */
 export function useBorders(): ThemeBorders {
-  return currentTheme().borders;
+  return getThemeRuntimeState().currentTheme().borders;
 }
 
 /**
  * Get opacity values from current theme.
  */
 export function useOpacity(): ThemeOpacity {
-  return currentTheme().opacity;
+  return getThemeRuntimeState().currentTheme().opacity;
 }
 
 // =============================================================================
@@ -694,7 +738,7 @@ export function resolveColor(color: string): string {
   }
 
   // Check for semantic theme color
-  const theme = untrack(currentTheme);
+  const theme = untrack(getThemeRuntimeState().currentTheme);
   const resolver = SEMANTIC_COLORS[color];
   if (resolver) {
     return resolver(theme);

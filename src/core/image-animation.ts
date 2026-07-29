@@ -2,7 +2,7 @@
  * Image Animation API
  *
  * Provides frame-based animation for terminal images.
- * Uses the global tick system for timing and signals for reactivity.
+ * Uses the current runtime tick system for timing and signals for reactivity.
  *
  * @example
  * const frames = [redImage, greenImage, blueImage];
@@ -102,7 +102,7 @@ export function createAnimatedImageSource(
 /**
  * Create animated image state that drives frame changes.
  *
- * Uses the global tick system for timing. Each tick, elapsed time is
+ * Uses the current runtime tick system for timing. Each tick, elapsed time is
  * accumulated and when it exceeds the current frame's duration the
  * animation advances to the next frame.
  *

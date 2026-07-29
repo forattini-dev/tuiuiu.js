@@ -18,6 +18,13 @@ export interface RuntimeScope {
   readonly resources: Map<symbol, unknown>;
 }
 
+/** Optional cleanup contract for stateful resources owned by a runtime. */
+export const RUNTIME_RESOURCE_DISPOSE = Symbol('tuiuiu.runtime-resource-dispose');
+
+export interface RuntimeDisposable {
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
+
 const runtimeStorage = new AsyncLocalStorage<RuntimeScope>();
 const registeredScopes = new Set<RuntimeScope>();
 let nextRuntimeScopeId = 1;
@@ -40,9 +47,32 @@ export function unregisterRuntimeScope(scope: RuntimeScope): void {
   registeredScopes.delete(scope);
 }
 
+function disposeRuntimeResource(resource: unknown): void {
+  if (
+    resource !== null &&
+    typeof resource === 'object' &&
+    RUNTIME_RESOURCE_DISPOSE in resource
+  ) {
+    try {
+      (resource as RuntimeDisposable)[RUNTIME_RESOURCE_DISPOSE]();
+    } catch (error) {
+      console.error('[tuiuiu] Error while disposing a runtime resource:', error);
+    }
+  }
+}
+
+function disposeRuntimeResources(scope: RuntimeScope): void {
+  const resources = [...scope.resources.values()].reverse();
+  scope.resources.clear();
+
+  for (const resource of resources) {
+    disposeRuntimeResource(resource);
+  }
+}
+
 export function destroyRuntimeScope(scope: RuntimeScope): void {
   unregisterRuntimeScope(scope);
-  scope.resources.clear();
+  disposeRuntimeResources(scope);
 }
 
 export function runInRuntimeScope<T>(scope: RuntimeScope, callback: () => T): T {
@@ -80,6 +110,10 @@ export function getRegisteredRuntimeScopes(): readonly RuntimeScope[] {
   return [...registeredScopes];
 }
 
+export function getDefaultRuntimeScope(): RuntimeScope {
+  return defaultRuntimeScope;
+}
+
 export function getRuntimeResource<T>(
   key: symbol,
   create: () => T,
@@ -90,6 +124,22 @@ export function getRuntimeResource<T>(
     scope.resources.set(key, create());
   }
   return scope.resources.get(key) as T;
+}
+
+/**
+ * Access a compatibility default inherited by newly-created app resources.
+ *
+ * Stateful modules should copy values from this resource when an app scope is
+ * initialized, then mutate only their own copy.
+ */
+export function getDefaultRuntimeResource<T>(
+  key: symbol,
+  create: () => T,
+): T {
+  if (!defaultRuntimeScope.resources.has(key)) {
+    defaultRuntimeScope.resources.set(key, create());
+  }
+  return defaultRuntimeScope.resources.get(key) as T;
 }
 
 export function peekRuntimeResource<T>(
@@ -103,10 +153,13 @@ export function deleteRuntimeResource(
   key: symbol,
   explicitScope?: RuntimeScope,
 ): void {
-  getRuntimeScope(explicitScope).resources.delete(key);
+  const scope = getRuntimeScope(explicitScope);
+  const resource = scope.resources.get(key);
+  scope.resources.delete(key);
+  disposeRuntimeResource(resource);
 }
 
 /** Reset the compatibility scope used by standalone tests and utilities. */
 export function resetDefaultRuntimeScope(): void {
-  defaultRuntimeScope.resources.clear();
+  disposeRuntimeResources(defaultRuntimeScope);
 }

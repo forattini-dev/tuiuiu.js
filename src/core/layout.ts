@@ -5,7 +5,7 @@
  */
 
 import type { VNode, BoxStyle, LayoutNode, RenderContext } from '../utils/types.js';
-import { stringWidth } from '../utils/text-utils.js';
+import { fitTextToWidth, stringWidth } from '../utils/text-utils.js';
 import { fingerprintValue } from './structural-fingerprint.js';
 import {
   DirtyFlags,
@@ -267,13 +267,18 @@ export function calculateLayout(
 }
 
 function layoutTextNode(node: VNode, ctx: RenderContext): LayoutNode {
-  const measurement = measureText(String(node.props.children ?? ''));
+  const lines = fitTextToWidth(
+    String(node.props.children ?? ''),
+    ctx.width,
+    node.props.wrap,
+  );
+  const width = Math.max(0, ...lines.map(line => stringWidth(line)));
 
   return {
     x: ctx.x,
     y: ctx.y,
-    width: Math.min(measurement.width, ctx.width),
-    height: Math.min(measurement.height, ctx.height),
+    width: Math.min(width, ctx.width),
+    height: Math.min(lines.length, ctx.height),
     node,
     children: [],
   };

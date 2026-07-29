@@ -1,5 +1,5 @@
 /**
- * Global Tick System
+ * Runtime-scoped Tick System
  *
  * A single timer that drives all animations in the application.
  * Components subscribe to this tick instead of creating their own timers.
@@ -7,11 +7,11 @@
  * Benefits:
  * - Single setInterval for all animations (efficient)
  * - Synchronized animations across components
- * - Easy to pause/resume globally
+ * - Easy to pause/resume per app runtime
  * - Storybook can control the tick externally
  *
  * @example
- * // Start the global tick (usually done once at app level)
+ * // Start the runtime tick (usually done once at app level)
  * startTick();
  *
  * // In a component, use the tick value
@@ -29,106 +29,171 @@
 import { createSignal } from '../primitives/signal.js';
 import { onTerminalFocusChange, readTerminalFocus } from './terminal-focus.js';
 import { subscribeMotionInterval } from './motion-runtime.js';
+import {
+  bindRuntimeScope,
+  getDefaultRuntimeResource,
+  getDefaultRuntimeScope,
+  getRuntimeResource,
+  getRuntimeScope,
+  RUNTIME_RESOURCE_DISPOSE,
+  type RuntimeScope,
+} from './runtime-scope.js';
 
-// Global tick state
-const [tick, setTick] = createSignal(0);
-const [isRunning, setIsRunning] = createSignal(false);
+interface TickRuntimeState {
+  tick: () => number;
+  setTick: (value: number | ((previous: number) => number)) => void;
+  isRunning: () => boolean;
+  setIsRunning: (value: boolean | ((previous: boolean) => boolean)) => void;
+  tickRate: number;
+  tickListeners: Set<(tick: number) => void>;
+  tickRequested: boolean;
+  tickPausedByFocus: boolean;
+  cleanupFocusSubscription: (() => void) | null;
+  unsubscribeTickInterval: (() => void) | null;
+  scope: RuntimeScope;
+  [RUNTIME_RESOURCE_DISPOSE](): void;
+}
 
-let tickRate = 100; // ms between ticks
-const tickListeners: Set<(tick: number) => void> = new Set();
-let tickRequested = false;
-let tickPausedByFocus = false;
-let cleanupFocusSubscription: (() => void) | null = null;
-let unsubscribeTickInterval: (() => void) | null = null;
+const TICK_RUNTIME_STATE = Symbol('tuiuiu.tick-runtime-state');
 
-function createTickInterval(): void {
-  if (unsubscribeTickInterval) {
+function createTickRuntimeState(scope: RuntimeScope): TickRuntimeState {
+  const defaults = scope.id === 0
+    ? null
+    : getDefaultRuntimeResource(
+        TICK_RUNTIME_STATE,
+        () => createTickRuntimeState(getDefaultRuntimeScope()),
+      );
+  const [tick, setTick] = createSignal(defaults?.tick() ?? 0);
+  const [isRunning, setIsRunning] = createSignal(false);
+  const state: TickRuntimeState = {
+    tick,
+    setTick,
+    isRunning,
+    setIsRunning,
+    tickRate: defaults?.tickRate ?? 100,
+    tickListeners: new Set(),
+    tickRequested: false,
+    tickPausedByFocus: false,
+    cleanupFocusSubscription: null,
+    unsubscribeTickInterval: null,
+    scope,
+    [RUNTIME_RESOURCE_DISPOSE]() {
+      state.unsubscribeTickInterval?.();
+      state.unsubscribeTickInterval = null;
+      state.cleanupFocusSubscription?.();
+      state.cleanupFocusSubscription = null;
+      state.tickListeners.clear();
+      state.tickRequested = false;
+      state.tickPausedByFocus = false;
+      state.setIsRunning(false);
+    },
+  };
+  return state;
+}
+
+function getTickRuntimeState(): TickRuntimeState {
+  const scope = getRuntimeScope();
+  return getRuntimeResource(
+    TICK_RUNTIME_STATE,
+    () => createTickRuntimeState(scope),
+    scope,
+  );
+}
+
+function createTickInterval(state: TickRuntimeState): void {
+  if (state.unsubscribeTickInterval) {
     return;
   }
 
-  setIsRunning(true);
-  tickPausedByFocus = false;
-  unsubscribeTickInterval = subscribeMotionInterval(tickRate, () => {
-    const newTick = tick() + 1;
-    setTick(newTick);
+  state.setIsRunning(true);
+  state.tickPausedByFocus = false;
+  state.unsubscribeTickInterval = subscribeMotionInterval(state.tickRate, () => {
+    const newTick = state.tick() + 1;
+    state.setTick(newTick);
 
     // Notify listeners
-    tickListeners.forEach(fn => fn(newTick));
+    for (const listener of [...state.tickListeners]) listener(newTick);
   }, {
     pauseWhenUnfocused: true,
   });
 }
 
-function ensureFocusSubscription(): void {
-  if (cleanupFocusSubscription) {
+function ensureFocusSubscription(state: TickRuntimeState): void {
+  if (state.cleanupFocusSubscription) {
     return;
   }
 
-  cleanupFocusSubscription = onTerminalFocusChange((focused) => {
+  state.cleanupFocusSubscription = onTerminalFocusChange(bindRuntimeScope(state.scope, (focused) => {
     if (!focused) {
-      if (unsubscribeTickInterval) {
-        tickPausedByFocus = tickRequested;
-        setIsRunning(false);
+      if (state.unsubscribeTickInterval) {
+        state.tickPausedByFocus = state.tickRequested;
+        state.setIsRunning(false);
       }
       return;
     }
 
-    if (tickRequested && tickPausedByFocus) {
-      createTickInterval();
-      tickPausedByFocus = false;
-      setIsRunning(true);
+    if (state.tickRequested && state.tickPausedByFocus) {
+      createTickInterval(state);
+      state.tickPausedByFocus = false;
+      state.setIsRunning(true);
     }
-  });
+  }));
 }
 
 /**
  * Get current tick value (reactive)
  */
 export function getTick(): number {
-  return tick();
+  return getTickRuntimeState().tick();
 }
 
 /**
  * Get tick as a signal getter (for direct use in reactive contexts)
  */
-export { tick };
+export function tick(): number {
+  return getTickRuntimeState().tick();
+}
 
 /**
  * Check if tick is running
  */
 export function isTickRunning(): boolean {
-  return isRunning();
+  return getTickRuntimeState().isRunning();
 }
 
 /**
- * Start the global tick
+ * Start the current runtime tick
  * @param rate - Tick interval in ms (default: 100)
  */
 export function startTick(rate: number = 100): void {
-  tickRate = rate;
-  tickRequested = true;
-  ensureFocusSubscription();
+  const state = getTickRuntimeState();
+  state.tickRate = Number.isFinite(rate) && rate > 0 ? rate : 100;
+  state.tickRequested = true;
+  ensureFocusSubscription(state);
 
-  if (unsubscribeTickInterval) return; // Already running
-  if (!readTerminalFocus()) {
-    createTickInterval();
-    tickPausedByFocus = true;
-    setIsRunning(false);
+  if (state.unsubscribeTickInterval) return; // Already running
+  if (!readTerminalFocus(state.scope)) {
+    createTickInterval(state);
+    state.tickPausedByFocus = true;
+    state.setIsRunning(false);
     return;
   }
 
-  createTickInterval();
+  createTickInterval(state);
 }
 
 /**
- * Stop the global tick
+ * Stop the current runtime tick
  */
 export function stopTick(): void {
-  tickRequested = false;
-  tickPausedByFocus = false;
-  unsubscribeTickInterval?.();
-  unsubscribeTickInterval = null;
-  setIsRunning(false);
+  const state = getTickRuntimeState();
+  state.tickRequested = false;
+  state.tickPausedByFocus = false;
+  state.unsubscribeTickInterval?.();
+  state.unsubscribeTickInterval = null;
+  state.cleanupFocusSubscription?.();
+  state.cleanupFocusSubscription = null;
+  state.setIsRunning(false);
 }
 
 /**
@@ -142,15 +207,16 @@ export function pauseTick(): void {
  * Resume the tick from current value
  */
 export function resumeTick(): void {
-  tickRequested = true;
-  ensureFocusSubscription();
+  const state = getTickRuntimeState();
+  state.tickRequested = true;
+  ensureFocusSubscription(state);
 
-  if (!isRunning()) {
-    if (!readTerminalFocus()) {
-      tickPausedByFocus = true;
+  if (!state.isRunning()) {
+    if (!readTerminalFocus(state.scope)) {
+      state.tickPausedByFocus = true;
       return;
     }
-    createTickInterval();
+    createTickInterval(state);
   }
 }
 
@@ -158,17 +224,18 @@ export function resumeTick(): void {
  * Reset tick to 0
  */
 export function resetTick(): void {
-  setTick(0);
+  getTickRuntimeState().setTick(0);
 }
 
 /**
  * Set tick rate (restarts if running)
  */
 export function setTickRate(rate: number): void {
-  const wasRunning = isRunning();
+  const state = getTickRuntimeState();
+  const wasRequested = state.tickRequested;
   stopTick();
-  tickRate = rate;
-  if (wasRunning || tickRequested) {
+  state.tickRate = Number.isFinite(rate) && rate > 0 ? rate : 100;
+  if (wasRequested) {
     startTick(rate);
   }
 }
@@ -177,7 +244,7 @@ export function setTickRate(rate: number): void {
  * Get current tick rate
  */
 export function getTickRate(): number {
-  return tickRate;
+  return getTickRuntimeState().tickRate;
 }
 
 /**
@@ -185,22 +252,24 @@ export function getTickRate(): number {
  * @returns Unsubscribe function
  */
 export function onTick(callback: (tick: number) => void): () => void {
-  tickListeners.add(callback);
-  return () => tickListeners.delete(callback);
+  const state = getTickRuntimeState();
+  state.tickListeners.add(callback);
+  return () => state.tickListeners.delete(callback);
 }
 
 /**
  * Manually advance tick by N steps (useful for testing/storybook)
  */
 export function advanceTick(steps: number = 1): void {
-  setTick(tick() + steps);
+  const state = getTickRuntimeState();
+  state.setTick(state.tick() + steps);
 }
 
 /**
  * Set tick to specific value (useful for testing/storybook)
  */
 export function setTickValue(value: number): void {
-  setTick(value);
+  getTickRuntimeState().setTick(value);
 }
 
 // ============================================================================
@@ -214,7 +283,7 @@ export function setTickValue(value: number): void {
  */
 export function getFrame<T>(frames: T[] | number, speed: number = 1): number {
   const length = typeof frames === 'number' ? frames : frames.length;
-  return Math.floor(tick() / speed) % length;
+  return Math.floor(getTickRuntimeState().tick() / speed) % length;
 }
 
 /**
@@ -230,7 +299,7 @@ export function getFrameItem<T>(frames: T[], speed: number = 1): T {
  */
 export function oscillate(max: number, speed: number = 1): number {
   const period = max * 2;
-  const pos = Math.floor(tick() / speed) % period;
+  const pos = Math.floor(getTickRuntimeState().tick() / speed) % period;
   return pos < max ? pos : period - pos;
 }
 
@@ -238,7 +307,8 @@ export function oscillate(max: number, speed: number = 1): number {
  * Get elapsed time in seconds since tick started
  */
 export function getElapsedSeconds(): number {
-  return (tick() * tickRate) / 1000;
+  const state = getTickRuntimeState();
+  return (state.tick() * state.tickRate) / 1000;
 }
 
 /**
@@ -246,5 +316,5 @@ export function getElapsedSeconds(): number {
  * Useful for: "do something every 10 ticks"
  */
 export function everyNTicks(n: number): boolean {
-  return tick() % n === 0;
+  return getTickRuntimeState().tick() % n === 0;
 }

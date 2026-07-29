@@ -8,7 +8,7 @@
  * - Bidirectional sweep (left→right→left)
  * - Configurable wave width and speed
  * - Stall detection with color shift
- * - Uses global tick system (synchronized, focus-aware)
+ * - Uses the runtime tick system (synchronized, focus-aware)
  */
 
 import { Box, Text } from '../primitives/nodes.js';
