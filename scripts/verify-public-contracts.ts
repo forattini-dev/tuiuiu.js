@@ -129,6 +129,10 @@ function assertDocsDoNotReferenceKnownBadPatterns(): void {
       pattern: 'store.getState().items',
       message: 'Found non-reactive store example presented as reactive.',
     },
+    {
+      pattern: 'via.placeholder.com',
+      message: 'Found a documentation color sample that depends on the retired placeholder service.',
+    },
   ];
 
   for (const target of targets) {

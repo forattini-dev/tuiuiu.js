@@ -144,3 +144,15 @@ body.dark .markdown-section table td {
 .markdown-section td code {
   white-space: nowrap;
 }
+
+/* Inline palette samples do not depend on an external image service. */
+.markdown-section .color-swatch {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.25em;
+  vertical-align: -0.08em;
+  background-color: var(--swatch);
+  border: 1px solid rgba(127, 127, 127, 0.55);
+  border-radius: 2px;
+}
