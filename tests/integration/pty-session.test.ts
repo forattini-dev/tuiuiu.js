@@ -25,7 +25,10 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
       output += chunk;
       if (!sentExitKey && output.includes('PTY_READY')) {
         sentExitKey = true;
-        child.stdin.write('q');
+        // `script(1)` keeps its input copier alive until stdin reaches EOF.
+        // End the stream with the exit key so both the TUI child and the PTY
+        // wrapper can terminate deterministically.
+        child.stdin.end('q');
       }
     });
     child.stderr.on('data', (chunk: string) => {
