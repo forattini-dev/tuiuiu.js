@@ -1,6 +1,6 @@
 {
   "name": "tuiuiu.js",
-  "version": "1.0.72",
+  "version": "1.0.73",
   "description": "Zero-dependency Terminal UI library with Component-based experience for Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -135,8 +135,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "pnpm run clean && tsc",
-    "test": "vitest --exclude tests/benchmarks/**",
-    "test:run": "vitest run --exclude tests/benchmarks/**",
+    "test": "vitest --exclude \"tests/benchmarks/**\"",
+    "test:run": "vitest run --exclude \"tests/benchmarks/**\"",
     "test:coverage": "vitest run --coverage --exclude \"tests/benchmarks/**\"",
     "test:watch": "vitest watch",
     "test:performance": "vitest run tests/core/frame-performance.test.ts tests/core/buffer-perf.test.ts tests/benchmarks/runtime-performance.test.ts tests/benchmarks/runtime-stress.test.ts",
