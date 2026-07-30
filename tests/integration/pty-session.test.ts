@@ -30,10 +30,15 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
       output += chunk;
       if (!sentExitKey && output.includes('PTY_READY')) {
         sentExitKey = true;
-        // `script(1)` keeps its input copier alive until stdin reaches EOF.
-        // End the stream with the exit key so both the TUI child and the PTY
-        // wrapper can terminate deterministically.
-        child.stdin.end('q');
+        // Keep stdin open until the TUI has completed its cleanup. BSD
+        // `script(1)` may tear down the child session when its own input reaches
+        // EOF, racing the application's alternate-screen restoration.
+        child.stdin.write('q');
+      }
+      if (output.includes('PTY_CLEAN_EXIT') && !child.stdin.destroyed) {
+        // util-linux `script(1)` keeps its input copier alive until stdin
+        // reaches EOF, so close it only after the child has exited cleanly.
+        child.stdin.end();
       }
     });
     child.stderr.on('data', (chunk: string) => {
@@ -45,7 +50,7 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
       child.once('exit', resolveExit);
     });
 
-    expect(exitCode).toBe(0);
+    expect(exitCode, output).toBe(0);
     expect(sentExitKey).toBe(true);
     expect(output).toContain('\x1b[?1049h');
     expect(output).toContain('\x1b[?2004h');

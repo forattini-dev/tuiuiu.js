@@ -137,7 +137,7 @@
     "build": "pnpm run clean && tsc",
     "test": "vitest --exclude tests/benchmarks/**",
     "test:run": "vitest run --exclude tests/benchmarks/**",
-    "test:coverage": "vitest run --coverage --exclude tests/benchmarks/**",
+    "test:coverage": "vitest run --coverage --exclude \"tests/benchmarks/**\"",
     "test:watch": "vitest watch",
     "test:performance": "vitest run tests/core/frame-performance.test.ts tests/core/buffer-perf.test.ts tests/benchmarks/runtime-performance.test.ts tests/benchmarks/runtime-stress.test.ts",
     "test:performance:stress": "vitest run tests/benchmarks/runtime-stress.test.ts",
