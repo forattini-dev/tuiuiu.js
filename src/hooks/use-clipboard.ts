@@ -9,6 +9,7 @@
 
 import { getCapabilities } from '../core/capabilities.js';
 import { getClipboardWriteSequence } from '../core/progressive.js';
+import { getAppContext } from './context.js';
 
 export interface UseClipboardResult {
   /** Copy text to system clipboard via OSC 52 */
@@ -36,7 +37,7 @@ export function useClipboard(): UseClipboardResult {
   function copy(text: string): void {
     const seq = getClipboardWriteSequence(text, caps);
     if (seq) {
-      process.stdout.write(seq);
+      (getAppContext()?.stdout ?? process.stdout).write(seq);
     }
   }
 

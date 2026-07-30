@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const RUN_REAL_PTY = process.platform === 'linux' && process.env.TUIUIU_RUN_PTY === 'true';
+const RUN_REAL_PTY =
+  process.platform === 'linux' && process.env.TUIUIU_RUN_PTY === 'true';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;

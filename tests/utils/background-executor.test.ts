@@ -491,6 +491,111 @@ describe('background executor', () => {
     await executor.destroy();
   });
 
+  it('supports external abort signals and task timeouts', async () => {
+    const inline = createInlineBackgroundExecutor({
+      waitForAbort: async (_payload, signal) => new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve('late'), { once: true });
+      }),
+    });
+    const controller = new AbortController();
+    const externallyCancelled = inline.submit({
+      type: 'waitForAbort',
+      payload: undefined,
+    }, { signal: controller.signal });
+    controller.abort('Caller stopped');
+
+    await expect(externallyCancelled.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'Caller stopped',
+    });
+
+    const timedOut = inline.submit({
+      type: 'waitForAbort',
+      payload: undefined,
+    }, { timeoutMs: 5 });
+    await expect(timedOut.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'Timed out after 5ms',
+    });
+    expect(inline.pendingCount).toBe(0);
+    await inline.destroy();
+  });
+
+  it('applies default worker timeouts and rejects pre-aborted work', async () => {
+    const worker = createWorkerExecutor(workerModulePath, {
+      defaultTimeoutMs: 5,
+    });
+    const timedOut = worker.submit({
+      type: 'ignoreAbort',
+      payload: { text: 'late', delayMs: 100 },
+    });
+    await expect(timedOut.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'Timed out after 5ms',
+    });
+
+    const controller = new AbortController();
+    controller.abort(new Error('Already cancelled'));
+    const preAborted = worker.submit({
+      type: 'uppercase',
+      payload: { text: 'ignored' },
+    }, { signal: controller.signal });
+    await expect(preAborted.result).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'Already cancelled',
+    });
+    expect(worker.pendingCount).toBe(0);
+    await worker.destroy();
+  });
+
+  it('enforces executor backpressure without dispatching excess work', async () => {
+    let releaseFirst = () => {};
+    const executor = createInlineBackgroundExecutor({
+      blocked: async () => new Promise<string>((resolve) => {
+        releaseFirst = () => resolve('done');
+      }),
+    }, { maxPending: 1 });
+
+    const first = executor.submit({ type: 'blocked', payload: undefined });
+    const rejected = executor.submit({ type: 'blocked', payload: undefined });
+
+    await expect(rejected.result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'QueueSaturatedError' },
+    });
+    expect(executor.pendingCount).toBe(1);
+
+    await Promise.resolve();
+    releaseFirst();
+    await expect(first.result).resolves.toMatchObject({
+      status: 'resolved',
+      value: 'done',
+    });
+    await executor.destroy();
+  });
+
+  it.each([
+    [{ maxPending: 0 }, /maxPending/u],
+    [{ maxPending: Number.POSITIVE_INFINITY }, /maxPending/u],
+    [{ defaultTimeoutMs: -1 }, /defaultTimeoutMs/u],
+  ])('rejects invalid executor limits %#', (options, message) => {
+    expect(() => createInlineBackgroundExecutor({}, options)).toThrow(message);
+  });
+
+  it('returns a rejected envelope for invalid per-task timeout', async () => {
+    const executor = createInlineBackgroundExecutor({});
+    const task = executor.submit({
+      type: 'unused',
+      payload: undefined,
+    }, { timeoutMs: -1 });
+
+    await expect(task.result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'InvalidTaskOptionsError' },
+    });
+    await executor.destroy();
+  });
+
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 129])(
     'rejects invalid task pool size %s',
     (poolSize) => {
@@ -512,6 +617,64 @@ describe('background executor', () => {
 
     expect(first.id).not.toBe(second.id);
     await Promise.all([first.result, second.result]);
+    await pool.destroy();
+  });
+
+  it('applies backpressure across a saturated task pool', async () => {
+    const pool = createTaskBridgePool({
+      modulePath: workerModulePath,
+      poolSize: 1,
+      maxPending: 1,
+    });
+
+    const first = pool.execute('delayedEcho', { text: 'first', delayMs: 30 });
+    const rejected = pool.execute('delayedEcho', { text: 'second', delayMs: 1 });
+
+    await expect(rejected.result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'QueueSaturatedError' },
+    });
+    expect(pool.pendingCount).toBe(1);
+    await expect(first.result).resolves.toMatchObject({
+      status: 'resolved',
+      value: 'first',
+    });
+    await pool.destroy();
+  });
+
+  it('restarts failed pool workers before accepting new work', async () => {
+    const pool = createTaskBridgePool({
+      modulePath: workerModulePath,
+      poolSize: 1,
+    });
+
+    await expect(pool.execute('exitCleanly', undefined).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'WorkerExitError' },
+    });
+    await expect(pool.execute('uppercase', { text: 'recovered' }).result).resolves.toMatchObject({
+      status: 'resolved',
+      value: 'RECOVERED',
+    });
+    expect(pool.state).toBe('active');
+    await pool.destroy();
+    expect(pool.state).toBe('destroyed');
+  });
+
+  it('can keep failed pool workers retired when restart is disabled', async () => {
+    const pool = createTaskBridgePool({
+      modulePath: workerModulePath,
+      poolSize: 1,
+      restartFailedWorkers: false,
+    });
+
+    await expect(pool.execute('exitCleanly', undefined).result).resolves.toMatchObject({
+      status: 'rejected',
+    });
+    await expect(pool.execute('uppercase', { text: 'unavailable' }).result).resolves.toMatchObject({
+      status: 'rejected',
+      error: { name: 'QueueSaturatedError' },
+    });
     await pool.destroy();
   });
 

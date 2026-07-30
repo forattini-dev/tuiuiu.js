@@ -9,6 +9,7 @@
 
 import { getCapabilities } from '../core/capabilities.js';
 import { getNotificationSequence } from '../core/progressive.js';
+import { getAppContext } from './context.js';
 
 export interface UseNotificationResult {
   /** Send a terminal notification */
@@ -36,7 +37,7 @@ export function useNotification(): UseNotificationResult {
   function notify(title: string, body?: string): void {
     const seq = getNotificationSequence(title, body, caps);
     if (seq) {
-      process.stdout.write(seq);
+      (getAppContext()?.stdout ?? process.stdout).write(seq);
     }
   }
 
