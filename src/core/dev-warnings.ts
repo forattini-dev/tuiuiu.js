@@ -62,7 +62,11 @@ function extractStackSites(stack: string | undefined, excludedModuleUrls: readon
 
   for (const line of lines) {
     const trimmed = line.trim();
-    const match = trimmed.match(/\(?((?:file:\/\/)?[^():]+):(\d+):(\d+)\)?$/);
+    // Parse from the trailing :line:column pair so Windows drive letters,
+    // file URLs, spaces, and parentheses in paths remain intact.
+    const match =
+      trimmed.match(/\((.+):(\d+):(\d+)\)$/)
+      ?? trimmed.match(/(?:^|\s)at (.+):(\d+):(\d+)$/);
     if (!match) {
       continue;
     }

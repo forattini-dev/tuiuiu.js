@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { render } from '../../src/app/render-loop.js';
-import { __resetDevWarningsForTesting } from '../../src/core/dev-warnings.js';
+import {
+  __resetDevWarningsForTesting,
+  warnIfCreateSignalDuringComponentRender,
+} from '../../src/core/dev-warnings.js';
 import { clearCommittedFrameSnapshot } from '../../src/core/frame.js';
 import { resetTerminalFocusState } from '../../src/core/terminal-focus.js';
 import { darkTheme, lightTheme, setTheme } from '../../src/core/theme.js';
@@ -138,6 +141,23 @@ describe('developer warnings', () => {
       }
 
       expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('preserves Windows drive letters when parsing callsites', () => {
+      beginRender('component');
+      try {
+        warnIfCreateSignalDuringComponentRender(
+          'Error\n    at App (C:\\consumer\\src\\app.ts:17:9)',
+          import.meta.url,
+        );
+      } finally {
+        endRender();
+      }
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain(
+        'C:\\consumer\\src\\app.ts:17',
+      );
     });
   });
 
