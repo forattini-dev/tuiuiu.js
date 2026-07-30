@@ -8,6 +8,9 @@
  * Run with: pnpm example opencode-lab
  */
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   BigText,
   Box,
@@ -27,7 +30,7 @@ import {
   type VNode,
 } from '../src/index.js';
 
-const colors = {
+export const colors = {
   background: '#050505',
   surface: '#191919',
   surfaceRaised: '#202020',
@@ -45,13 +48,13 @@ const MODELS = ['Big Pickle', 'GPT-5.6', 'Claude Sonnet'] as const;
 const AGENTS = ['Build', 'Plan'] as const;
 const version = await getVersion();
 
-interface ConversationMessage {
+export interface ConversationMessage {
   id: number;
   role: 'user' | 'assistant';
   content: string;
 }
 
-interface ScreenFrameProps {
+export interface ScreenFrameProps {
   width: number;
   height: number;
   composer: VNode;
@@ -141,7 +144,7 @@ function Footer(props: { width: number; showVersion?: boolean }): VNode {
   );
 }
 
-function HomeScreen(props: ScreenFrameProps): VNode {
+export function HomeScreen(props: ScreenFrameProps): VNode {
   const cardWidth = Math.max(20, Math.min(68, props.width - 6));
 
   return Box(
@@ -428,7 +431,7 @@ function CommandOverlay(props: { width: number; height: number }): VNode {
   );
 }
 
-function SessionScreen(props: ScreenFrameProps): VNode {
+export function SessionScreen(props: ScreenFrameProps): VNode {
   if (props.commandOpen) {
     return CommandOverlay({ width: props.width, height: props.height });
   }
@@ -512,7 +515,7 @@ function SessionScreen(props: ScreenFrameProps): VNode {
   );
 }
 
-function OpenCodeLab(): VNode {
+export function OpenCodeLab(): VNode {
   const { exit } = useApp();
   const { columns, rows } = useTerminalSize();
   const [screen, setScreen] = useState<'home' | 'session'>('home');
@@ -703,11 +706,28 @@ function OpenCodeLab(): VNode {
       });
 }
 
-const app = render(() => OpenCodeLab(), {
-  screenMode: 'alternate',
-  autoTabNavigation: false,
-  exitOnCtrlC: false,
-  maxFps: 30,
-});
+export async function runOpenCodeLab(): Promise<void> {
+  const app = render(() => OpenCodeLab(), {
+    screenMode: 'alternate',
+    autoTabNavigation: false,
+    exitOnCtrlC: false,
+    maxFps: 30,
+  });
 
-await app.waitUntilExit();
+  await app.waitUntilExit();
+}
+
+function isDirectExecution(): boolean {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+
+  const resolvedEntry = path.resolve(entryPath);
+  const modulePath = fileURLToPath(import.meta.url);
+  return process.platform === 'win32'
+    ? resolvedEntry.toLowerCase() === modulePath.toLowerCase()
+    : resolvedEntry === modulePath;
+}
+
+if (isDirectExecution()) {
+  await runOpenCodeLab();
+}
