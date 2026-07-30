@@ -20,7 +20,7 @@ type PackageExports = Record<string, string | { types?: string; import?: string;
  * documented.
  */
 const PUBLIC_RUNTIME_EXPORT_BASELINE = {
-  '.': { count: 1020, sha256: '9118edb5c7730329a6b5b0be111524e29e2414917baa2e0b71ab74b4067e722d' },
+  '.': { count: 1024, sha256: '0b1a9a9227c3eee376cd4c2ca973d248cef720db7833c97f68991c04258a732a' },
   './minimal': { count: 36, sha256: '9c653257273b130f722cf994390fc692802c13837006b47a4239efdecb7b3573' },
   './core': { count: 561, sha256: 'e787e78d442e287ac884f28ee8f164735a1f855b12f50dc28f06de237306b601' },
   './hooks': { count: 110, sha256: '2dbc170cc93a2694cc5c013dc25ab15ae003cb42864a9792ca2c30eb5d9af801' },
@@ -43,7 +43,7 @@ const PUBLIC_RUNTIME_EXPORT_BASELINE = {
 } as const;
 
 const PUBLIC_TYPE_EXPORT_BASELINE = {
-  '.': { count: 1752, sha256: '93e884a8f67e37a8db3a3045473d50d6281bccc44dc82951983abd9733730499' },
+  '.': { count: 1765, sha256: 'dd560e22a9b1ab5336b71ea3d946acbfb549212e09e4226e6aa95d65559ca959' },
   './minimal': { count: 73, sha256: '666fbb8e8100812e8417df6fa09688545a743fd80b03fe1c262c97aa9aef8486' },
   './core': { count: 811, sha256: 'daab951ea348ef231789af1fa68603d78244337dbaa0efa2206eb3c3dd5b11b9' },
   './hooks': { count: 178, sha256: 'b1a43689061b568fb0da078cc3f4b40086300b4e9031dcc038e6ef4d03d68243' },
@@ -55,12 +55,12 @@ const PUBLIC_TYPE_EXPORT_BASELINE = {
   './dev-tools': { count: 77, sha256: '7e1ca88fb61615aa946095e57c7890c7fef45e70ce8f57b5b21991703fc6af3e' },
   './app': { count: 17, sha256: '62574094a90a3d11b81a427f33b4ac3396084af0d863a3c8162a89c1acca1c4d' },
   './primitives': { count: 125, sha256: 'b71780640655ff61320a4f15673e1da74daa8a6af0c56383ae623109a8a862c1' },
-  './atoms': { count: 248, sha256: '3f7e964fa63f1184aac896222896efb29c3c4f03c3e7cadd6dd309d8a74716c8' },
+  './atoms': { count: 250, sha256: '29cc9f60f2cfae63ab761d1f77e8692f7f792a53abd26126d8259e6c3a36b51d' },
   './molecules': { count: 304, sha256: '96a6da5e3acf842a596688174d78b5b2b642602275b0bafe7b06f5b02834ceba' },
   './organisms': { count: 146, sha256: '520706fe89f8ba0d326c505de358bb758ae9eb90d4fcb9c5bf734748aed08b06' },
   './experimental': { count: 11, sha256: 'a38a43a1429be4150d0319a97769d3a216e688c51fcef32e461c015b65ce43d8' },
   './templates': { count: 38, sha256: '8bb1962666074165c53b3e0c50b29bea80d6e1db0dd828bf5090bf69fb8307ed' },
-  './design-system': { count: 762, sha256: 'c8612d2a359de385ebd620a2ed4e61f95734dafac564c18d7c170a644bc7ab6f' },
+  './design-system': { count: 764, sha256: '860fea7966500866a346f770a94b2f100d4d3c27a4c407deba811ef857c29f4d' },
   './colors': { count: 74, sha256: '37e4e8b8998c7086a67d16e4295315093a8b3708392cb9b5e9f987ed37d3159a' },
   './styling': { count: 54, sha256: 'b665ba3ae64883b220eb1ddf7fe63b6cbb7709ea4de615a3b91f1ea31de3ce3c' },
 } as const;
