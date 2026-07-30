@@ -44,6 +44,14 @@ describe('createNodeFsStorage', () => {
       expect(fs.existsSync(TEST_DIR)).toBe(true);
     });
 
+    it('should reject a regular file as the storage root', () => {
+      fs.writeFileSync(TEST_DIR, 'not a directory');
+
+      expect(() => createNodeFsStorage({ dir: TEST_DIR })).toThrow(
+        'Storage root must be a real directory',
+      );
+    });
+
     it('should reject an extension that can escape the storage directory', () => {
       expect(() => createNodeFsStorage({
         dir: TEST_DIR,
@@ -100,6 +108,35 @@ describe('createNodeFsStorage', () => {
       const value = await storage.getItem('non-existent');
 
       expect(value).toBeNull();
+    });
+
+    it('should propagate read errors other than a missing file', async () => {
+      const storage = createNodeFsStorage({ dir: TEST_DIR });
+      fs.mkdirSync(path.join(TEST_DIR, 'directory.json'));
+
+      await expect(storage.getItem('directory')).rejects.toBeDefined();
+    });
+
+    it('should reject a storage-file symlink when symlinks are available', async () => {
+      const storage = createNodeFsStorage({ dir: TEST_DIR });
+      const outsideFile = `${TEST_DIR}-outside.json`;
+      const linkFile = path.join(TEST_DIR, 'linked.json');
+      fs.writeFileSync(outsideFile, 'outside');
+      try {
+        fs.symlinkSync(path.resolve(outsideFile), linkFile, 'file');
+      } catch (error) {
+        fs.rmSync(outsideFile, { force: true });
+        if ((error as NodeJS.ErrnoException).code === 'EPERM') return;
+        throw error;
+      }
+
+      try {
+        await expect(storage.getItem('linked')).rejects.toThrow(
+          'Refusing to access storage symlink',
+        );
+      } finally {
+        fs.rmSync(outsideFile, { force: true });
+      }
     });
 
     it('should reject unsafe keys', async () => {
@@ -171,6 +208,13 @@ describe('createNodeFsSyncStorage', () => {
     const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
 
     expect(storage.getItem('missing')).toBeNull();
+  });
+
+  it('should propagate synchronous read errors other than a missing file', () => {
+    const storage = createNodeFsSyncStorage({ dir: TEST_DIR });
+    fs.mkdirSync(path.join(TEST_DIR, 'directory.json'));
+
+    expect(() => storage.getItem('directory')).toThrow();
   });
 
   it('should reject unsafe keys', () => {
