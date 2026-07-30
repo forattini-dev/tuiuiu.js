@@ -14,6 +14,8 @@ import {
 } from '../../src/atoms/keyboard-shortcut-hint.js';
 import type { VNode } from '../../src/utils/types.js';
 
+const platformCtrl = process.platform === 'darwin' ? '⌘' : 'Ctrl';
+
 describe('KeyboardShortcutHint', () => {
   beforeEach(() => {
     setRenderMode('unicode');
@@ -23,16 +25,15 @@ describe('KeyboardShortcutHint', () => {
     const node = KeyboardShortcutHint({ shortcut: 'ctrl+s' });
     expect(node).not.toBeNull();
     expect(node.type).toBe('text');
-    // On Linux the formatted hotkey is "Ctrl+S"
     const output = renderToString(node, 40);
-    expect(output).toContain('Ctrl+S');
+    expect(output).toContain(`${platformCtrl}+S`);
   });
 
   it('renders shortcut with action using default separator', () => {
     const node = KeyboardShortcutHint({ shortcut: 'ctrl+s', action: 'save' });
     expect(node).not.toBeNull();
     const output = renderToString(node, 40);
-    expect(output).toContain('Ctrl+S');
+    expect(output).toContain(`${platformCtrl}+S`);
     expect(output).toContain('save');
   });
 
@@ -109,8 +110,7 @@ describe('KeyboardShortcutHint', () => {
     });
     expect(node).not.toBeNull();
     const output = renderToString(node, 40);
-    // The text should contain "Ctrl+Z: undo" (not "Ctrl+Z to undo")
-    expect(output).toContain('Ctrl+Z');
+    expect(output).toContain(`${platformCtrl}+Z`);
     expect(output).toContain('undo');
     // Should NOT contain the default separator
     expect(output).not.toContain(' to ');

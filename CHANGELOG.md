@@ -43,6 +43,7 @@ Notable changes to Tuiuiu are documented here.
 - Require Node.js 22.12 or newer.
 - Separate functional tests from performance benchmarks.
 - Make prerelease publication an explicit manual action.
-- Keep benchmark exclusions portable across PowerShell, Bash, and POSIX shells.
+- Keep test commands and platform-aware shortcut assertions portable across
+  PowerShell, Bash, POSIX shells, Linux, Windows, and macOS.
 - Enforce coverage, runtime reachability, package-size, public-contract, and
   real Linux PTY checks in CI.
