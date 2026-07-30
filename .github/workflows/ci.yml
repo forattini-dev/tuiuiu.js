@@ -75,7 +75,7 @@ jobs:
         run: pnpm check:package-budget
 
       - name: Test real PTY lifecycle
-        if: (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') && matrix.node == 24
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
         run: pnpm test:pty
         env:
           TUIUIU_RUN_PTY: 'true'

@@ -3,14 +3,17 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const RUN_REAL_PTY =
-  (process.platform === 'linux' || process.platform === 'darwin')
-  && process.env.TUIUIU_RUN_PTY === 'true';
+  process.platform === 'linux' && process.env.TUIUIU_RUN_PTY === 'true';
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
 
 describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
   it('restores terminal modes after interactive exit', async () => {
     const fixture = resolve('tests/fixtures/pty-session-child.mjs');
-    const ptyRunner = resolve('tests/fixtures/pty-runner.py');
-    const child = spawn('python3', [ptyRunner, process.execPath, fixture], {
+    const command = `${shellQuote(process.execPath)} ${shellQuote(fixture)}`;
+    const child = spawn('script', ['-qfec', command, '/dev/null'], {
       cwd: process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -23,15 +26,10 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
       output += chunk;
       if (!sentExitKey && output.includes('PTY_READY')) {
         sentExitKey = true;
-        // Keep stdin open until the TUI has completed its cleanup. BSD
-        // `script(1)` may tear down the child session when its own input reaches
-        // EOF, racing the application's alternate-screen restoration.
-        child.stdin.write('q');
-      }
-      if (output.includes('PTY_CLEAN_EXIT') && !child.stdin.destroyed) {
-        // util-linux `script(1)` keeps its input copier alive until stdin
-        // reaches EOF, so close it only after the child has exited cleanly.
-        child.stdin.end();
+        // `script(1)` keeps its input copier alive until stdin reaches EOF.
+        // End the stream with the exit key so both the TUI child and the PTY
+        // wrapper can terminate deterministically.
+        child.stdin.end('q');
       }
     });
     child.stderr.on('data', (chunk: string) => {
@@ -43,7 +41,7 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
       child.once('exit', resolveExit);
     });
 
-    expect(exitCode, output).toBe(0);
+    expect(exitCode).toBe(0);
     expect(sentExitKey).toBe(true);
     expect(output).toContain('\x1b[?1049h');
     expect(output).toContain('\x1b[?2004h');

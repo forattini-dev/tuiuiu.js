@@ -44,4 +44,4 @@ Notable changes to Tuiuiu are documented here.
 - Separate functional tests from performance benchmarks.
 - Make prerelease publication an explicit manual action.
 - Enforce coverage, runtime reachability, package-size, public-contract, and
-  Linux/macOS PTY checks in CI.
+  real Linux PTY checks in CI.
