@@ -36,6 +36,15 @@ Notable changes to Tuiuiu are documented here.
   temporary image directories during cleanup.
 - Add cancellation, timeouts, bounded queues, health-aware scheduling, and
   automatic worker recovery to background executors and task pools.
+- Keep `StatusIndicator` pulse state and `LogViewer` scroll state stable across
+  component rerenders without creating raw signals during render.
+- Honor `showValue`, `showEta`, `showSpeed`, `eta`, `speed`, `description`,
+  gradients, and fill-step options in the standalone `ProgressBar`.
+- Bound `MultiProgressBar` bars and legends to the configured width and truncate
+  long legends with an ellipsis.
+- Preserve narrow siblings when integer `flexShrink` rounding can assign a
+  one-column overflow to a wider child.
+- Export `createWizard` and the navigation factory family from the package root.
 
 ### Changed
 

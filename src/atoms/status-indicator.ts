@@ -17,7 +17,8 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { resolveColor } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
-import { createSignal } from '../primitives/signal.js';
+import { isRenderingHooks } from '../hooks/context.js';
+import { useState } from '../hooks/use-state.js';
 import { useInterval } from '../hooks/use-interval.js';
 
 // =============================================================================
@@ -62,6 +63,28 @@ export interface StatusIndicatorProps {
   pulse?: boolean;
   /** Gap between icon and label (default: 1) */
   gap?: number;
+}
+
+/**
+ * Keep pulse state stable when StatusIndicator is rendered from a component.
+ *
+ * Components can also be constructed outside the render cycle for snapshots and
+ * one-off rendering. In that case there is no animation lifecycle to attach to,
+ * so the indicator simply renders its visible frame.
+ */
+function usePulseVisibility(enabled: boolean): boolean {
+  if (!isRenderingHooks()) {
+    return true;
+  }
+
+  const [visible, setVisible] = useState(true);
+  useInterval(
+    () => setVisible((current) => !current),
+    500,
+    { enabled }
+  );
+
+  return visible();
 }
 
 // =============================================================================
@@ -152,14 +175,7 @@ export function StatusIndicator(props: StatusIndicatorProps): VNode {
     ? props.pulse
     : config?.pulse ?? false;
 
-  // Pulse animation state
-  const [pulseVisible, setPulseVisible] = createSignal(true);
-
-  if (shouldPulse) {
-    useInterval(() => {
-      setPulseVisible((v) => !v);
-    }, 500);
-  }
+  const pulseVisible = usePulseVisibility(shouldPulse);
 
   // Size-based styling
   const iconStyle = size === 'lg' ? { bold: true } : {};
@@ -173,7 +189,7 @@ export function StatusIndicator(props: StatusIndicatorProps): VNode {
     // Icon or dot
     (showIcon || showDot) && Text(
       {
-        color: shouldPulse && !pulseVisible() ? 'transparent' : color,
+        color: shouldPulse && !pulseVisible ? 'transparent' : color,
         ...iconStyle,
       },
       icon

@@ -20,6 +20,7 @@ import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { stringWidth, truncateText } from '../utils/text-utils.js';
 
 export type ProgressBarStyle = 'block' | 'smooth' | 'line' | 'dots' | 'braille' | 'ascii';
 
@@ -133,6 +134,12 @@ export interface ProgressBarOptions {
   borderStyle?: 'none' | 'brackets' | 'pipes' | 'arrows';
 }
 
+interface ProgressRenderState {
+  progress: () => number;
+  getEta: () => number;
+  getSpeed: () => number;
+}
+
 /**
  * Create a progress bar state manager
  */
@@ -179,7 +186,7 @@ export function createProgressBar(options: ProgressBarOptions = {}) {
  * Render a progress bar
  */
 export function renderProgressBar(
-  state: ReturnType<typeof createProgressBar>,
+  state: ProgressRenderState,
   options: ProgressBarOptions = {}
 ): VNode {
   const theme = getTheme();
@@ -368,7 +375,7 @@ export function renderProgressBar(
   }
 
   if (showEta && !indeterminate) {
-    const eta = state.getEta();
+    const eta = options.eta ?? state.getEta();
     if (isFinite(eta) && eta > 0) {
       infoParts.push(Text({ color: theme.foreground.muted, dim: true }, ` ETA: ${formatTime(eta)}`));
     }
@@ -396,155 +403,59 @@ export function renderProgressBar(
  * Simple standalone progress bar component
  */
 export function ProgressBar(options: ProgressBarOptions): VNode {
-  const theme = getTheme();
-  const {
-    value = 0,
-    max = value > 1 ? 100 : 1,
-    width = 40,
-    style = 'block',
-    showPercentage = true,
-    color = theme.accents.info,
-    background = theme.foreground.muted,
-    label,
-    indeterminate = false,
-    indeterminateStyle = 'classic',
-    borderStyle = 'brackets',
-  } = options;
-
+  const value = options.value ?? 0;
+  const max = options.max ?? (value > 1 ? 100 : 1);
   const progress = Math.min(1, Math.max(0, value / max));
-  const effectiveStyle = getEffectiveBarStyle(style);
-  const barStyle = BAR_STYLES[effectiveStyle];
 
-  let barContent: string;
-
-  if (indeterminate) {
-    if (indeterminateStyle === 'marquee') {
-       const blockWidth = Math.max(3, Math.floor(width * 0.25));
-       const totalWidth = width + blockWidth;
-       const pos = Math.floor(Date.now() / 80) % totalWidth;
-
-       const start = Math.max(0, pos - blockWidth);
-       const end = Math.min(width, pos);
-       const length = Math.max(0, end - start);
-
-       const emptyLeft = Math.max(0, start);
-       const emptyRight = Math.max(0, width - end);
-
-       barContent = barStyle.empty.repeat(emptyLeft) +
-                    barStyle.filled.repeat(length) +
-                    barStyle.empty.repeat(emptyRight);
-    } else if (indeterminateStyle === 'fill-and-clear') {
-       const t = Math.floor(Date.now() / 50);
-       const cycle = t % (width * 2);
-       if (cycle < width) {
-         const filledLen = cycle;
-         barContent = barStyle.filled.repeat(filledLen) + barStyle.empty.repeat(width - filledLen);
-       } else {
-         const emptyLeftLen = cycle - width;
-         const filledLen = Math.max(0, width - emptyLeftLen);
-         barContent = barStyle.empty.repeat(emptyLeftLen) + barStyle.filled.repeat(filledLen);
-       }
-    } else {
-        const frames = getIndeterminateFrames();
-        const frame = Math.floor(Date.now() / 100) % frames.length;
-        barContent = frames[frame];
+  return renderProgressBar(
+    {
+      progress: () => progress,
+      getEta: () => options.eta ?? Infinity,
+      getSpeed: () => options.speed ?? 0,
+    },
+    {
+      ...options,
+      value,
+      max,
+      borderStyle: options.borderStyle ?? 'brackets',
     }
-  } else {
-    const filledWidth = Math.floor(progress * width);
-
-    let filled = barStyle.filled.repeat(filledWidth);
-    if (barStyle.partial) {
-      const partialWidth = (progress * width) - filledWidth;
-      if (partialWidth > 0 && filledWidth < width) {
-        const partialIndex = Math.floor(partialWidth * barStyle.partial.length);
-        filled += barStyle.partial[Math.min(partialIndex, barStyle.partial.length - 1)];
-      }
-    }
-
-    const emptyWidth = Math.max(0, width - filled.length);
-    barContent = filled + barStyle.empty.repeat(emptyWidth);
-  }
-
-  const chars = getChars();
-  let leftBorder = '';
-  let rightBorder = '';
-  switch (borderStyle) {
-    case 'brackets':
-      leftBorder = '[';
-      rightBorder = ']';
-      break;
-    case 'pipes':
-      leftBorder = '|';
-      rightBorder = '|';
-      break;
-    case 'arrows':
-      leftBorder = chars.gauge.start;
-      rightBorder = chars.gauge.end;
-      break;
-  }
-
-  // Handle coloring logic reuse
-  let coloredBar: VNode;
-
-  if (indeterminate && (indeterminateStyle === 'marquee' || indeterminateStyle === 'fill-and-clear')) {
-    const segments: VNode[] = [];
-    for (const char of barContent) {
-        const isFilled = char !== barStyle.empty;
-        segments.push(Text({ color: isFilled ? color : background, dim: !isFilled }, char));
-    }
-    coloredBar = Box({ flexDirection: 'row' }, ...segments);
-  } else {
-    // Standard left-to-right fill (works for classic indeterminate too as it's just frames)
-    // Note: Classic indeterminate frames don't use empty char usually, they are pre-composed strings
-    // But for renderProgressBar it does.
-    // Here in simple ProgressBar, classic indeterminate frames are strings like "[=   ]"
-    // The coloring logic below might be too simple for classic frames if they don't use barStyle.empty
-    // But let's keep it close to original for non-new styles.
-
-    if (indeterminate && indeterminateStyle === 'classic') {
-         coloredBar = Text({ color }, barContent);
-    } else {
-         const filledLen = barContent.replace(new RegExp(`[${barStyle.empty}]`, 'g'), '').length;
-         const filledPart = barContent.slice(0, filledLen);
-         const emptyPart = barContent.slice(filledLen);
-         coloredBar = Box(
-            { flexDirection: 'row' },
-            Text({ color }, filledPart),
-            Text({ color: background, dim: true }, emptyPart)
-         );
-    }
-  }
-
-  return Box(
-    { flexDirection: 'row', gap: 1 },
-    label ? Text({ color: theme.foreground.primary }, `${label} `) : Text({}, ''),
-    Text({}, leftBorder),
-    coloredBar,
-    Text({}, rightBorder),
-    showPercentage && !indeterminate
-      ? Text({ color: theme.foreground.primary }, ` ${(progress * 100).toFixed(0)}%`)
-      : Text({}, '')
   );
 }
 
 /**
  * Multi-segment progress bar (for showing multiple parts)
  */
-export function MultiProgressBar(options: {
-  segments: Array<{ value: number; color: string; label?: string }>;
+export interface MultiProgressBarSegment {
+  value: number;
+  color: string;
+  label?: string;
+}
+
+export interface MultiProgressBarOptions {
+  segments: MultiProgressBarSegment[];
   total: number;
+  /** Maximum rendered width, including borders and legend */
   width?: number;
   showLegend?: boolean;
-}): VNode {
+}
+
+export function MultiProgressBar(options: MultiProgressBarOptions): VNode {
   const { segments, total, width = 40, showLegend = true } = options;
   const chars = getChars();
+  const componentWidth = Math.max(2, Math.floor(width));
+  const barWidth = componentWidth - 2;
+  const safeTotal = Number.isFinite(total) && total > 0 ? total : 0;
 
   // Calculate segment widths
   const barParts: VNode[] = [];
   let usedWidth = 0;
 
   for (const segment of segments) {
-    const segmentWidth = Math.floor((segment.value / total) * width);
+    const value = Number.isFinite(segment.value) ? Math.max(0, segment.value) : 0;
+    const proportionalWidth = safeTotal > 0
+      ? Math.floor((value / safeTotal) * barWidth)
+      : 0;
+    const segmentWidth = Math.min(barWidth - usedWidth, proportionalWidth);
     if (segmentWidth > 0) {
       barParts.push(Text({ color: segment.color }, chars.gauge.filled.repeat(segmentWidth)));
       usedWidth += segmentWidth;
@@ -552,32 +463,70 @@ export function MultiProgressBar(options: {
   }
 
   // Fill remaining with empty
-  const emptyWidth = width - usedWidth;
+  const emptyWidth = barWidth - usedWidth;
   const theme = getTheme();
   if (emptyWidth > 0) {
     barParts.push(Text({ color: theme.foreground.muted, dim: true }, chars.gauge.empty.repeat(emptyWidth)));
   }
 
-  // Build legend
-  const legendParts: VNode[] = [];
+  const legendChunks: Array<{ text: string; color: string }> = [];
   if (showLegend) {
     for (const segment of segments) {
-      if (segment.label) {
-        legendParts.push(
-          Box(
-            { flexDirection: 'row', marginRight: 2 },
-            Text({ color: segment.color }, `${chars.bullet} `),
-            Text({ color: theme.foreground.muted }, `${segment.label}: ${segment.value}`)
-          )
-        );
+      if (!segment.label) {
+        continue;
       }
+      if (legendChunks.length > 0) {
+        legendChunks.push({ text: '  ', color: theme.foreground.muted });
+      }
+      legendChunks.push(
+        { text: `${chars.bullet} `, color: segment.color },
+        { text: `${segment.label}: ${segment.value}`, color: theme.foreground.muted }
+      );
     }
   }
 
+  const legendWidth = legendChunks.reduce(
+    (total, chunk) => total + stringWidth(chunk.text),
+    0
+  );
+  const renderedLegendChunks = legendWidth <= componentWidth
+    ? legendChunks
+    : (() => {
+      const ellipsis = '…';
+      let remaining = Math.max(0, componentWidth - stringWidth(ellipsis));
+      const truncated: Array<{ text: string; color: string }> = [];
+
+      for (const chunk of legendChunks) {
+        if (remaining <= 0) {
+          break;
+        }
+        const visible = truncateText(chunk.text, remaining, {
+          truncationCharacter: '',
+        });
+        if (visible) {
+          truncated.push({ ...chunk, text: visible });
+          remaining -= stringWidth(visible);
+        }
+        if (visible !== chunk.text) {
+          break;
+        }
+      }
+
+      truncated.push({ text: ellipsis, color: theme.foreground.muted });
+      return truncated;
+    })();
+
   return Box(
-    { flexDirection: 'column' },
+    { flexDirection: 'column', width: componentWidth },
     Box({ flexDirection: 'row' }, Text({}, '['), ...barParts, Text({}, ']')),
-    legendParts.length > 0 ? Box({ flexDirection: 'row', marginTop: 1 }, ...legendParts) : Box({})
+    renderedLegendChunks.length > 0
+      ? Box(
+        { flexDirection: 'row', marginTop: 1 },
+        ...renderedLegendChunks.map((chunk) =>
+          Text({ color: chunk.color }, chunk.text)
+        )
+      )
+      : null
   );
 }
 

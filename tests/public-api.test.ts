@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as experimental from '../src/experimental/index.js';
 import * as organisms from '../src/organisms/index.js';
+import * as tuiuiu from '../src/index.js';
 
 describe('public package boundaries', () => {
   it('keeps evolving data-table variants out of the stable organism barrel', () => {
@@ -29,5 +30,12 @@ describe('public package boundaries', () => {
     ]));
     expect(packageJson.exports).not.toHaveProperty('./jsx-runtime');
     expect(packageJson.exports).not.toHaveProperty('./jsx-dev-runtime');
+  });
+
+  it('exports navigation factories from the package root', () => {
+    expect(tuiuiu).toHaveProperty('createLinkedNavigation');
+    expect(tuiuiu).toHaveProperty('useNavigation');
+    expect(tuiuiu).toHaveProperty('createWizard');
+    expect(tuiuiu).toHaveProperty('createPagination');
   });
 });

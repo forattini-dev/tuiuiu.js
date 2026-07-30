@@ -54,14 +54,48 @@ describe('StatusIndicator', () => {
     expect(children[0]?.props.color).toBe(resolveColor('success'));
   });
 
+  it('does not create a render-time signal or timer when pulse is disabled', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    beginRender('component');
+    StatusIndicator({ status: 'running', pulse: false });
+    endRender();
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(
+      warn.mock.calls.some(([message]) => String(message).includes('createSignal'))
+    ).toBe(false);
+  });
+
+  it('keeps a stable hook order when pulse is toggled', () => {
+    vi.useFakeTimers();
+
+    beginRender('component');
+    StatusIndicator({ status: 'running', pulse: false });
+    endRender();
+    expect(vi.getTimerCount()).toBe(0);
+
+    beginRender('component');
+    StatusIndicator({ status: 'running', pulse: true });
+    endRender();
+    expect(vi.getTimerCount()).toBe(1);
+
+    beginRender('component');
+    StatusIndicator({ status: 'running', pulse: false });
+    endRender();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('starts pulse animation for running status by default', () => {
     vi.useFakeTimers();
 
-    beginRender();
+    beginRender('component');
     const node = StatusIndicator({ status: 'running' });
     endRender();
 
     const children = node.children as VNode[];
     expect(children[0]?.props.children).toBe('[*]');
+    expect(vi.getTimerCount()).toBe(1);
   });
 });

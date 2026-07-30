@@ -14,6 +14,7 @@ import {
 } from '../../src/organisms/scroll-area.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
+import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
 
 describe('ScrollArea', () => {
   // ==========================================================================
@@ -590,6 +591,47 @@ describe('ScrollArea', () => {
     it('should disable auto-scroll when specified', () => {
       const node = LogViewer({ lines: logLines, height: 10, autoScroll: false });
       expect(node).toBeDefined();
+    });
+
+    it('should preserve its internal scroll state across renders', () => {
+      const initialLines = Array.from({ length: 30 }, (_, index) =>
+        `entry-${String(index).padStart(2, '0')}`
+      );
+      const updatedLines = [...initialLines, 'entry-30'];
+
+      resetHookState();
+      beginRender('component');
+      LogViewer({ lines: initialLines, height: 10, autoScroll: true });
+      endRender();
+
+      beginRender('component');
+      const updated = LogViewer({
+        lines: updatedLines,
+        height: 10,
+        autoScroll: false,
+      });
+      endRender();
+
+      const output = renderOnce(updated);
+      expect(output).toContain('entry-20');
+      expect(output).not.toContain('entry-00');
+      resetHookState();
+    });
+
+    it('should accept external state', () => {
+      const state = createScrollArea({
+        height: 10,
+        content: logLines,
+        initialScrollTop: 5,
+      });
+      const output = renderOnce(LogViewer({
+        lines: logLines,
+        height: 10,
+        autoScroll: false,
+        state,
+      }));
+
+      expect(output).toContain('Log message 6');
     });
 
     it('should show line numbers when enabled', () => {

@@ -658,6 +658,8 @@ export interface LogViewerOptions {
   highlightColor?: ColorValue;
   /** Is active */
   isActive?: boolean;
+  /** Pre-created state */
+  state?: ScrollAreaState;
 }
 
 /**
@@ -681,14 +683,15 @@ export function LogViewer(props: LogViewerOptions): VNode {
     highlightPattern,
     highlightColor = 'warning',
     isActive = true,
+    state: externalState,
   } = props;
 
-  const state = createScrollArea({
+  const state = useFactoryState(externalState, {
     height,
     content: lines,
     autoScroll,
     isActive,
-  });
+  }, createScrollArea);
 
   // Auto-scroll to bottom when content changes
   if (autoScroll) {

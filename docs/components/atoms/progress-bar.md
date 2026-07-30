@@ -33,19 +33,23 @@ ProgressBar({ value: 50, max: 100, label: 'Download:' })
 |------|------|---------|-------------|
 | `value` | `number` | `0` | Current progress (0-1 or 0-100) |
 | `max` | `number` | auto | Maximum value |
-| `width` | `number` | `20` | Width in characters |
+| `width` | `number` | `40` | Bar width in characters |
 | `style` | `ProgressBarStyle` | `'block'` | Visual style |
-| `color` | `string` | `'cyan'` | Bar color |
-| `background` | `string` | - | Empty bar color |
+| `color` | `string` | theme info | Bar color |
+| `background` | `string` | theme muted | Empty bar color |
 | `gradient` | `string[]` | - | Gradient colors |
 | `label` | `string` | - | Label (left side) |
-| `showPercentage` | `boolean` | `false` | Show percentage |
+| `description` | `string` | - | Description (right side) |
+| `showPercentage` | `boolean` | `true` | Show percentage |
 | `showValue` | `boolean` | `false` | Show "50/100" |
 | `showEta` | `boolean` | `false` | Show ETA |
 | `showSpeed` | `boolean` | `false` | Show speed |
 | `eta` | `number` | - | ETA in seconds |
 | `speed` | `number` | - | Speed value |
-| `speedUnit` | `string` | - | Speed unit (e.g., "MB/s") |
+| `speedUnit` | `string` | `'/s'` | Speed unit (e.g., "MB/s") |
+| `indeterminate` | `boolean` | `false` | Render an unknown-duration animation |
+| `indeterminateStyle` | `'classic' \| 'marquee' \| 'fill-and-clear'` | `'classic'` | Unknown-duration animation style |
+| `borderStyle` | `'none' \| 'brackets' \| 'pipes' \| 'arrows'` | `'brackets'` | Standalone component border |
 
 ## Styles
 
@@ -100,7 +104,7 @@ ProgressBar({
   speed: 2.5,
   speedUnit: 'MB/s',
 })
-// ████████████░░░░░░░░ 45% | 2.5 MB/s | ETA: 2:00
+// [██████████████████░░░░░░░░░░░░░░░░░░░░░░] 45% ETA: 2m 0s 2.5MB/s
 ```
 
 ### With Gradient
@@ -128,46 +132,53 @@ ProgressBar({
 
 ```typescript
 const bar = createProgressBar({
+  value: 0,
   max: 100,
-  width: 30,
-  showPercentage: true,
 })
 
 // Update progress
-bar.setValue(25)
+bar.setProgress(25, 100)
 bar.increment(5)  // Add 5
 bar.increment()   // Add 1
 
 // Get state
-bar.value()       // Current value
-bar.percentage()  // As percentage
-bar.isComplete()  // true if value >= max
+bar.progress()    // Normalized value from 0 to 1
+bar.getElapsed()  // Elapsed seconds
+bar.getEta()      // Estimated remaining seconds
+bar.getSpeed()    // Processed items per second
 
 // Render
-renderProgressBar(bar)
+renderProgressBar(bar, {
+  width: 30,
+  showPercentage: true,
+  showValue: true,
+  value: Math.round(bar.progress() * 100),
+  max: 100,
+})
 ```
 
 ## MultiProgressBar
 
-Display multiple progress bars together:
+Display multiple values as segments of one bar. `width` is the maximum width of
+both the bordered bar and its legend; long legends are truncated with `…`.
 
 ```typescript
 MultiProgressBar({
-  bars: [
-    { label: 'File 1', value: 80, max: 100, color: 'cyan' },
-    { label: 'File 2', value: 45, max: 100, color: 'green' },
-    { label: 'File 3', value: 20, max: 100, color: 'yellow' },
+  segments: [
+    { label: 'complete', value: 80, color: 'green' },
+    { label: 'running', value: 15, color: 'cyan' },
+    { label: 'failed', value: 5, color: 'red' },
   ],
+  total: 100,
   width: 25,
-  showPercentage: true,
+  showLegend: true,
 })
 ```
 
 Output:
 ```
-File 1 ████████████████████░░░░░ 80%
-File 2 ███████████░░░░░░░░░░░░░░ 45%
-File 3 █████░░░░░░░░░░░░░░░░░░░░ 20%
+[███████████████████████]
+• complete: 80  • runni…
 ```
 
 ## Examples

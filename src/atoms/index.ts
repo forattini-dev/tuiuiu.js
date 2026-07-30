@@ -168,6 +168,8 @@ export {
   MultiProgressBar,
   type ProgressBarOptions,
   type ProgressBarStyle,
+  type MultiProgressBarOptions,
+  type MultiProgressBarSegment,
 } from './progress-bar.js';
 
 // =============================================================================

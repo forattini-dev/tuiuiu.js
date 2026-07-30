@@ -52,25 +52,28 @@ ProgressBar({
 
 ## MultiProgressBar
 
-Display multiple progress bars for parallel tasks.
+Display multiple values as colored segments of one bounded-width bar.
 
 ### Props
 
 | Prop | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `bars` | `ProgressBarOptions[]` | - | Array of progress bar configs |
-| `direction` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout direction |
-| `gap` | `number` | `0` | Gap between bars |
+| `segments` | `MultiProgressBarSegment[]` | - | Segment values, colors, and optional labels |
+| `total` | `number` | - | Total represented by all segments |
+| `width` | `number` | `40` | Maximum width including borders and legend |
+| `showLegend` | `boolean` | `true` | Show the bounded, truncating legend |
 
 ### Example
 
 ```typescript
 MultiProgressBar({
-  bars: [
-    { label: 'File 1', value: 100, color: 'green' },
-    { label: 'File 2', value: 65, color: 'cyan' },
-    { label: 'File 3', value: 30, color: 'yellow' },
+  segments: [
+    { label: 'complete', value: 100, color: 'green' },
+    { label: 'running', value: 65, color: 'cyan' },
+    { label: 'queued', value: 30, color: 'yellow' },
   ],
+  total: 195,
+  width: 32,
 })
 ```
 
@@ -314,11 +317,13 @@ function StatusDashboard() {
     // Progress section
     Text({ bold: true, marginTop: 1 }, 'Downloads'),
     MultiProgressBar({
-      bars: [
-        { label: 'package.tar.gz', value: 100, color: 'green' },
-        { label: 'assets.zip', value: 67, color: 'cyan' },
-        { label: 'docs.pdf', value: 23, color: 'yellow' },
+      segments: [
+        { label: 'complete', value: 1, color: 'green' },
+        { label: 'running', value: 1, color: 'cyan' },
+        { label: 'queued', value: 1, color: 'yellow' },
       ],
+      total: 3,
+      width: 40,
     }),
 
     // Current operation

@@ -825,18 +825,94 @@ function layoutRow(
 
   const overflow = Math.max(0, fixedWidth - width);
   if (overflow > 0) {
-    const shrinkWeight = childInfos.reduce(
-      (total, info) => total + info.shrink * info.basis,
-      0
-    );
-    if (shrinkWeight > 0) {
-      for (const info of childInfos) {
-        const reduction = overflow * (
-          (info.shrink * info.basis) / shrinkWeight
-        );
+    // Terminal widths are integer columns. Rounding each proportional target
+    // independently effectively rounds every non-zero reduction up, which can
+    // collapse a one-column sibling even when a wider sibling can absorb the
+    // complete overflow. Allocate an exact integer reduction instead.
+    const reductions = childInfos.map(() => 0);
+    let remainingOverflow = Math.ceil(overflow);
+
+    while (remainingOverflow > 0) {
+      const candidates = childInfos
+        .map((info, index) => {
+          const maxReduction = Math.max(
+            0,
+            Math.floor(info.basis - info.minWidth)
+          );
+          const capacity = Math.max(0, maxReduction - reductions[index]);
+          return {
+            index,
+            capacity,
+            maxReduction,
+            weight: info.shrink * info.basis,
+          };
+        })
+        .filter((candidate) => candidate.capacity > 0 && candidate.weight > 0);
+
+      const totalWeight = candidates.reduce(
+        (total, candidate) => total + candidate.weight,
+        0
+      );
+      if (totalWeight <= 0) {
+        break;
+      }
+
+      const shares = candidates.map((candidate) => {
+        const exact = (remainingOverflow * candidate.weight) / totalWeight;
+        const whole = Math.min(candidate.capacity, Math.floor(exact));
+        return {
+          ...candidate,
+          exact,
+          whole,
+          fraction: exact - Math.floor(exact),
+        };
+      });
+
+      let allocated = 0;
+      for (const share of shares) {
+        if (share.whole > 0) {
+          reductions[share.index] += share.whole;
+          allocated += share.whole;
+        }
+      }
+      remainingOverflow -= allocated;
+
+      if (remainingOverflow <= 0) {
+        break;
+      }
+
+      // Largest-remainder allocation makes the integer result match the
+      // proportional distribution without shrinking multiple children for a
+      // single column of overflow.
+      shares.sort((left, right) => (
+        right.fraction - left.fraction
+        || right.weight - left.weight
+        || right.capacity - left.capacity
+      ));
+
+      let allocatedRemainder = false;
+      for (const share of shares) {
+        if (remainingOverflow <= 0) {
+          break;
+        }
+        if (reductions[share.index] < share.maxReduction) {
+          reductions[share.index] += 1;
+          remainingOverflow -= 1;
+          allocatedRemainder = true;
+        }
+      }
+
+      if (!allocatedRemainder) {
+        break;
+      }
+    }
+
+    if (reductions.some((reduction) => reduction > 0)) {
+      for (let index = 0; index < childInfos.length; index++) {
+        const info = childInfos[index];
         info.targetWidth = Math.max(
           info.minWidth,
-          Math.floor(info.basis - reduction)
+          info.basis - reductions[index]
         );
       }
       fixedWidth = childInfos.reduce(

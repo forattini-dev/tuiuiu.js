@@ -197,6 +197,11 @@ export {
   max,
   matchField,
   custom,
+  // Navigation
+  createLinkedNavigation,
+  useNavigation,
+  createWizard,
+  createPagination,
 } from './hooks/index.js';
 
 export type {
@@ -228,6 +233,14 @@ export type {
   UseIntervalReturn,
   UseTimeoutOptions,
   UseTimeoutReturn,
+  // Navigation types
+  LinkedNode,
+  NavigationState,
+  NavigationOptions,
+  WizardStep,
+  WizardState,
+  PageInfo,
+  PaginationState,
   // Subscription & async data types
   UseSubscriptionOptions,
   UseAsyncDataOptions,

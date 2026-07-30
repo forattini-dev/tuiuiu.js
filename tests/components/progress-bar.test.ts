@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { ProgressBar, createProgressBar, renderProgressBar, MultiProgressBar } from '../../src/atoms/index.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 
 describe('ProgressBar', () => {
   describe('ProgressBar component', () => {
@@ -92,6 +93,46 @@ describe('ProgressBar', () => {
       const node = ProgressBar({ value: 50, max: 100, showPercentage: false });
       const output = renderToString(node, 80);
       expect(output).not.toContain('%');
+    });
+
+    it('should render the configured value', () => {
+      const node = ProgressBar({
+        value: 14,
+        max: 33,
+        showPercentage: false,
+        showValue: true,
+      });
+      const output = renderToString(node, 80);
+
+      expect(output).toContain('14/33');
+      expect(output).not.toContain('%');
+    });
+
+    it('should render explicit ETA and speed values', () => {
+      const node = ProgressBar({
+        value: 14,
+        max: 33,
+        showEta: true,
+        eta: 90,
+        showSpeed: true,
+        speed: 5,
+        speedUnit: 'items/s',
+      });
+      const output = renderToString(node, 100);
+
+      expect(output).toContain('ETA: 1m 30s');
+      expect(output).toContain('5.0items/s');
+    });
+
+    it('should render its description', () => {
+      const node = ProgressBar({
+        value: 42,
+        max: 100,
+        description: '14 of 33 tasks',
+      });
+      const output = renderToString(node, 100);
+
+      expect(output).toContain('14 of 33 tasks');
     });
 
     it('should render with label', () => {
@@ -488,6 +529,23 @@ describe('ProgressBar', () => {
       });
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
+    });
+
+    it('should truncate its legend to the configured component width', () => {
+      const node = MultiProgressBar({
+        segments: [
+          { value: 6, color: 'green', label: 'new' },
+          { value: 24, color: 'blue', label: 'present' },
+          { value: 3, color: 'red', label: 'failed' },
+        ],
+        total: 33,
+        width: 24,
+      });
+      const output = stripAnsi(renderToString(node, 24));
+      const visibleLines = output.split('\n').filter((line) => line.length > 0);
+
+      expect(visibleLines.every((line) => stringWidth(line) <= 24)).toBe(true);
+      expect(output).toContain('…');
     });
 
     it('should handle segments that fill entire bar', () => {
