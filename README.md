@@ -133,6 +133,7 @@ Build terminal apps that feel native. These examples recreate familiar CLI tools
 pnpm tsx examples/app-htop.ts   # Process monitor with live updates
 pnpm tsx examples/app-mtr.ts    # Network route tracer
 pnpm tsx examples/app-ping.ts   # Network latency monitor
+pnpm example opencode-lab       # OpenCode-inspired responsive agent shell
 pnpm example tuiuiu-invaders    # Literal ASCII Space Invaders
 pnpm example tuiuiu-meteor      # Asteroids-style meteor splitter
 pnpm example tuiuiu-sideblaster # Horizontal shoot'em up

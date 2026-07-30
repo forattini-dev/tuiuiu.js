@@ -5,7 +5,20 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { useTerminalSize } from '../../src/hooks/use-terminal-size.js';
 import * as capabilities from '../../src/core/capabilities.js';
-import { resetHookState } from '../../src/hooks/context.js';
+import {
+  beginRender,
+  endRender,
+  resetHookState,
+} from '../../src/hooks/context.js';
+
+function renderTerminalSize() {
+  beginRender('component');
+  try {
+    return useTerminalSize();
+  } finally {
+    endRender();
+  }
+}
 
 describe('useTerminalSize hook', () => {
   let mockSize = { columns: 120, rows: 40 };
@@ -32,44 +45,56 @@ describe('useTerminalSize hook', () => {
 
   describe('useTerminalSize', () => {
     it('should return current terminal size', () => {
-      const size = useTerminalSize();
+      const size = renderTerminalSize();
 
       expect(size.columns).toBe(120);
       expect(size.rows).toBe(40);
     });
 
     it('should call getTerminalSize on initialization', () => {
-      useTerminalSize();
+      renderTerminalSize();
 
       expect(capabilities.getTerminalSize).toHaveBeenCalled();
     });
 
     it('should subscribe to resize events', () => {
-      useTerminalSize();
+      renderTerminalSize();
 
       expect(capabilities.onResize).toHaveBeenCalled();
     });
 
     it('should register a resize handler', () => {
-      useTerminalSize();
+      renderTerminalSize();
 
       expect(registeredHandler).not.toBeNull();
     });
 
     it('should handle different terminal sizes', () => {
       mockSize = { columns: 80, rows: 24 };
-      const size = useTerminalSize();
+      const size = renderTerminalSize();
 
       expect(size.columns).toBe(80);
       expect(size.rows).toBe(24);
     });
 
     it('should return cleanup function from onResize', () => {
-      useTerminalSize();
+      renderTerminalSize();
 
       expect(capabilities.onResize).toHaveBeenCalled();
       const onResizeCall = vi.mocked(capabilities.onResize).mock.results[0];
       expect(onResizeCall?.value).toBeInstanceOf(Function);
+    });
+
+    it('keeps resize updates across component re-renders', () => {
+      const first = renderTerminalSize();
+      expect(first).toEqual({ columns: 120, rows: 40 });
+
+      registeredHandler?.({ columns: 92, rows: 31 });
+      const resized = renderTerminalSize();
+
+      expect(resized).toEqual({ columns: 92, rows: 31 });
+      expect(capabilities.getTerminalSize).toHaveBeenCalledTimes(1);
+      expect(capabilities.onResize).toHaveBeenCalledTimes(1);
     });
   });
 });

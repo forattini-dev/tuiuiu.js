@@ -265,6 +265,14 @@ export const examplesManifest: ExampleManifestEntry[] = [
     difficulty: 'advanced',
   },
   {
+    name: 'opencode-lab',
+    file: 'opencode-lab.ts',
+    description: 'OpenCode-inspired responsive agent shell with a centered composer, session timeline, command overlay, and sidebar.',
+    category: 'showcase',
+    difficulty: 'advanced',
+    validate: true,
+  },
+  {
     name: 'performance-demo',
     file: 'performance-demo.ts',
     description: 'Rendering and state-update performance instrumentation.',

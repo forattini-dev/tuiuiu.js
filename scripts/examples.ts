@@ -7,6 +7,7 @@ import { examplesManifest } from '../examples/manifest.ts';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const examplesDir = path.join(rootDir, 'examples');
+const tsxCli = fileURLToPath(import.meta.resolve('tsx/cli'));
 
 function usage(): never {
   console.error('Usage: pnpm example <name> [args...]');
@@ -51,10 +52,9 @@ function runExample(target: string, args: string[]): void {
     usage();
   }
 
-  const child = spawn('tsx', [resolved, ...args], {
+  const child = spawn(process.execPath, [tsxCli, resolved, ...args], {
     cwd: rootDir,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
 
   child.on('exit', (code, signal) => {

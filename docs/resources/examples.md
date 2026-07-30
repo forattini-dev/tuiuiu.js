@@ -49,6 +49,7 @@ These are good for inspiration, not as a first implementation reference.
 | `advanced-charts` | Advanced | Advanced data visualization composition |
 | `interactive-charts` | Advanced | Keyboard navigation and chart selection |
 | `terminal-image-pipeline` | Medium | Protocol selection, fallback, and terminal-image resize |
+| `opencode-lab` | Advanced | OpenCode-inspired agent shell with responsive home, session, command overlay, and sidebar |
 | `tuiuiu-invaders` | Advanced | Literal Space Invaders clone |
 | [`tuiuiu-meteor`](/resources/examples/tuiuiu-meteor.md) | Advanced | Asteroids-style meteor splitter |
 | [`tuiuiu-sideblaster`](/resources/examples/tuiuiu-sideblaster.md) | Advanced | Horizontal shoot'em up showcase |

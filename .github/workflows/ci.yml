@@ -64,6 +64,9 @@ jobs:
       - name: Type-check tests
         run: pnpm typecheck:tests
 
+      - name: Type-check examples
+        run: pnpm typecheck:examples
+
       - name: Check runtime import cycles
         run: pnpm check:cycles
 

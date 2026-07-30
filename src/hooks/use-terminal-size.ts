@@ -4,6 +4,7 @@
 
 import { createSignal } from '../primitives/signal.js';
 import { getTerminalSize, onResize } from '../core/capabilities.js';
+import { useConst } from './use-const.js';
 import { useEffect } from './use-effect.js';
 
 export interface TerminalSize {
@@ -15,7 +16,7 @@ export interface TerminalSize {
  * Get reactive terminal size
  */
 export function useTerminalSize(): TerminalSize {
-  const [size, setSize] = createSignal(getTerminalSize());
+  const [size, setSize] = useConst(() => createSignal(getTerminalSize()));
 
   useEffect(() => {
     const cleanup = onResize((newSize) => {
