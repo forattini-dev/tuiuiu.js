@@ -205,6 +205,18 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Retire stale prerelease tag
+        if: steps.release.outputs.channel == 'latest'
+        shell: bash
+        run: |
+          if npm dist-tag ls tuiuiu.js | grep -q '^next:'; then
+            npm dist-tag rm tuiuiu.js next || {
+              echo "::warning::Stable release succeeded, but the stale npm next tag could not be removed."
+            }
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-github:
     name: Publish GitHub package
     needs: [quality, audit]
