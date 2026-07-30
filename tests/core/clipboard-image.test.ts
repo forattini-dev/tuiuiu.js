@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
@@ -61,7 +62,7 @@ describe('clipboard image commands', () => {
     const [command, args] = mocks.execFile.mock.calls[0] as [string, string[]];
     expect(command).toBe('powershell');
     expect(args[2]).not.toContain(tempDir);
-    expect(args.at(-1)).toBe(String.raw`C:\Temp\tuiuiu-clip-path with ' quote\clipboard.png`);
+    expect(args.at(-1)).toBe(join(tempDir, 'clipboard.png'));
     expect(args).not.toContain('/bin/sh');
     expect(mocks.rmSync).toHaveBeenCalledWith(tempDir, {
       recursive: true,
