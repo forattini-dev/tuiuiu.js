@@ -29,6 +29,33 @@ import type { TextInputCompletionOptions } from '../atoms/text-input.js';
 
 export type { TriggerConfig, TriggerItem } from '../atoms/trigger-completion.js';
 
+function sameTriggerConfig<T>(
+  previous: TriggerConfig<T>,
+  next: TriggerConfig<T>,
+): boolean {
+  const previousPattern = previous.queryPattern;
+  const nextPattern = next.queryPattern;
+  const samePattern = previousPattern === nextPattern
+    || (
+      previousPattern !== undefined
+      && nextPattern !== undefined
+      && previousPattern.source === nextPattern.source
+      && previousPattern.flags === nextPattern.flags
+    );
+
+  return previous.trigger === next.trigger
+    && previous.getItems === next.getItems
+    && previous.minChars === next.minChars
+    && previous.insertAsSegment === next.insertAsSegment
+    && previous.segmentKind === next.segmentKind
+    && previous.ranking === next.ranking
+    && samePattern;
+}
+
+function snapshotTriggerConfig<T>(config: TriggerConfig<T>): TriggerConfig<T> {
+  return { ...config };
+}
+
 /**
  * Create a stable TextInputCompletionOptions from a trigger config.
  *
@@ -55,15 +82,14 @@ export function useInlineTrigger<T = unknown>(
 
   if (isNew || hookData === null) {
     const completion = createTriggerCompletion(config);
-    const data = { completion, config };
+    const data = { completion, config: snapshotTriggerConfig(config) };
     const hookIndex = getCurrentHookIndex();
     setHookState(hookIndex, data);
     return completion;
   }
 
-  // Update getItems if config reference changed (allows dynamic item sources)
-  if (hookData.config.getItems !== config.getItems) {
-    hookData.config = config;
+  if (!sameTriggerConfig(hookData.config, config)) {
+    hookData.config = snapshotTriggerConfig(config);
     hookData.completion = createTriggerCompletion(config);
   }
 
@@ -86,21 +112,29 @@ export function useMultiInlineTrigger<T = unknown>(
 ): TextInputCompletionOptions<T> {
   const { value: hookData, isNew } = getHookState<{
     completion: TextInputCompletionOptions<T>;
-    configCount: number;
+    configs: TriggerConfig<T>[];
   } | null>(null);
 
   if (isNew || hookData === null) {
     const completion = createMultiTriggerCompletion(configs);
-    const data = { completion, configCount: configs.length };
+    const data = {
+      completion,
+      configs: configs.map(snapshotTriggerConfig),
+    };
     const hookIndex = getCurrentHookIndex();
     setHookState(hookIndex, data);
     return completion;
   }
 
-  // Recreate if number of triggers changed
-  if (hookData.configCount !== configs.length) {
+  const configsChanged = hookData.configs.length !== configs.length
+    || configs.some((config, index) => {
+      const previous = hookData.configs[index];
+      return previous === undefined || !sameTriggerConfig(previous, config);
+    });
+
+  if (configsChanged) {
     hookData.completion = createMultiTriggerCompletion(configs);
-    hookData.configCount = configs.length;
+    hookData.configs = configs.map(snapshotTriggerConfig);
   }
 
   return hookData.completion;

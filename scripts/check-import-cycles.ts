@@ -73,6 +73,35 @@ function getRuntimeSpecifiers(file: string): string[] {
   return specifiers;
 }
 
+function hasRuntimeSurface(file: string): boolean {
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  return source.statements.some((statement) => {
+    if (ts.isImportDeclaration(statement)) {
+      return false;
+    }
+    if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) {
+      return false;
+    }
+    if (ts.isExportDeclaration(statement)) {
+      return hasRuntimeExport(statement);
+    }
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement))
+      && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword)
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function resolveRelativeImport(importer: string, specifier: string): string | null {
   if (!specifier.startsWith('.')) return null;
 
@@ -164,4 +193,73 @@ if (cycles.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(`[check:cycles] No runtime import cycles across ${files.length} source files.`);
+}
+
+type PackageExportTarget =
+  | string
+  | { import?: string; default?: string; types?: string };
+
+const packageJson = JSON.parse(
+  readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
+) as {
+  exports?: Record<string, PackageExportTarget>;
+  bin?: Record<string, string>;
+};
+
+function sourceFileForBuildTarget(target: string | undefined): string | null {
+  if (!target?.startsWith('./dist/') || !target.endsWith('.js')) {
+    return null;
+  }
+  const relative = target
+    .slice('./dist/'.length)
+    .replace(/\.js$/u, '.ts');
+  const sourceFile = path.normalize(path.join(sourceDir, relative));
+  return fileSet.has(sourceFile) ? sourceFile : null;
+}
+
+const entryFiles = new Set<string>();
+for (const target of Object.values(packageJson.exports ?? {})) {
+  const runtimeTarget = typeof target === 'string'
+    ? target
+    : target.import ?? target.default;
+  const sourceFile = sourceFileForBuildTarget(runtimeTarget);
+  if (sourceFile) entryFiles.add(sourceFile);
+}
+for (const target of Object.values(packageJson.bin ?? {})) {
+  const sourceFile = sourceFileForBuildTarget(
+    target.startsWith('./') ? target : `./${target}`,
+  );
+  if (sourceFile) entryFiles.add(sourceFile);
+}
+
+const reachable = new Set<string>();
+function visitReachable(file: string): void {
+  if (reachable.has(file)) return;
+  reachable.add(file);
+  for (const dependency of graph.get(file) ?? []) {
+    visitReachable(dependency);
+  }
+}
+for (const entryFile of entryFiles) {
+  visitReachable(entryFile);
+}
+
+const unreachableRuntimeFiles = files
+  .filter((file) => !reachable.has(file) && hasRuntimeSurface(file))
+  .map((file) => path.relative(rootDir, file).replaceAll(path.sep, '/'))
+  .sort();
+
+if (unreachableRuntimeFiles.length > 0) {
+  console.error(
+    `[check:cycles] Found ${unreachableRuntimeFiles.length} runtime source file(s) ` +
+    'that are unreachable from package entry points:',
+  );
+  for (const file of unreachableRuntimeFiles) {
+    console.error(`- ${file}`);
+  }
+  process.exitCode = 1;
+} else {
+  console.log(
+    `[check:cycles] All runtime source files are reachable from ${entryFiles.size} package entry points.`,
+  );
 }

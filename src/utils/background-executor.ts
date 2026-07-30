@@ -39,6 +39,13 @@ export interface BackgroundTaskHandle<T = unknown> {
   subscribe: (listener: BackgroundTaskEventListener) => () => void;
 }
 
+export interface BackgroundTaskOptions {
+  /** Abort this submission when the external signal is aborted. */
+  signal?: AbortSignal;
+  /** Cancel this submission after the given number of milliseconds. */
+  timeoutMs?: number;
+}
+
 export type BackgroundTaskHandler<TPayload = unknown, TResult = unknown> = (
   payload: TPayload,
   signal: AbortSignal,
@@ -54,7 +61,8 @@ export type BackgroundTaskHandlers = Record<string, BackgroundTaskHandler<any, a
 
 export interface BackgroundExecutor {
   submit<TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>
+    request: BackgroundTaskRequest<TPayload>,
+    options?: BackgroundTaskOptions,
   ): BackgroundTaskHandle<TResult>;
   destroy: () => Promise<void>;
   /** Current lifecycle state. */
@@ -112,17 +120,27 @@ export interface ThreadBusOptions {
 export interface TaskBridge {
   execute<TPayload = unknown, TResult = unknown>(
     type: string,
-    payload: TPayload
+    payload: TPayload,
+    options?: BackgroundTaskOptions,
   ): BackgroundTaskHandle<TResult>;
   submit<TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>
+    request: BackgroundTaskRequest<TPayload>,
+    options?: BackgroundTaskOptions,
   ): BackgroundTaskHandle<TResult>;
   destroy: () => Promise<void>;
+  /** Current lifecycle state for health-aware scheduling. */
+  readonly state?: BackgroundExecutorState;
+  /** Number of tasks waiting for a terminal result. */
+  readonly pendingCount?: number;
 }
 
 export interface WorkerExecutorOptions {
   modulePath: string;
   workerName?: string;
+  /** Maximum unsettled tasks accepted by this worker (default: 1024). */
+  maxPending?: number;
+  /** Default timeout applied when a submission does not provide one. */
+  defaultTimeoutMs?: number;
 }
 
 export type TaskBridgePoolScheduler = 'round-robin' | 'least-pending';
@@ -130,10 +148,13 @@ export type TaskBridgePoolScheduler = 'round-robin' | 'least-pending';
 export interface TaskBridgePoolOptions extends WorkerExecutorOptions {
   poolSize?: number;
   scheduler?: TaskBridgePoolScheduler;
+  /** Replace failed workers before accepting new work (default: true). */
+  restartFailedWorkers?: boolean;
 }
 
 interface PendingTask {
   controller: AbortController;
+  cleanup: () => void;
   resolve: (result: BackgroundTaskResult<any>) => void;
   listeners: Set<BackgroundTaskEventListener>;
   cancelled: boolean;
@@ -173,6 +194,90 @@ function createTaskIdFactory() {
 }
 
 let globalTaskId = 0;
+
+const DEFAULT_MAX_PENDING_TASKS = 1024;
+const MAX_PENDING_TASKS = 1_000_000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+interface ExecutorLimits {
+  maxPending?: number;
+  defaultTimeoutMs?: number;
+}
+
+function validateTimeoutMs(
+  timeoutMs: number | undefined,
+  optionName: string,
+): void {
+  if (
+    timeoutMs !== undefined
+    && (
+      !Number.isSafeInteger(timeoutMs)
+      || timeoutMs < 0
+      || timeoutMs > MAX_TIMEOUT_MS
+    )
+  ) {
+    throw new RangeError(
+      `${optionName} must be a safe integer between 0 and ${MAX_TIMEOUT_MS}`,
+    );
+  }
+}
+
+function normalizeExecutorLimits(options: ExecutorLimits): {
+  maxPending: number;
+  defaultTimeoutMs?: number;
+} {
+  const maxPending = options.maxPending ?? DEFAULT_MAX_PENDING_TASKS;
+  if (
+    !Number.isSafeInteger(maxPending)
+    || maxPending < 1
+    || maxPending > MAX_PENDING_TASKS
+  ) {
+    throw new RangeError(
+      `maxPending must be a safe integer between 1 and ${MAX_PENDING_TASKS}`,
+    );
+  }
+  validateTimeoutMs(options.defaultTimeoutMs, 'defaultTimeoutMs');
+  return {
+    maxPending,
+    defaultTimeoutMs: options.defaultTimeoutMs,
+  };
+}
+
+function taskCancellationReason(reason: unknown, fallback: string): string {
+  if (reason instanceof Error) return reason.message;
+  if (reason === undefined || reason === null || reason === '') return fallback;
+  return String(reason);
+}
+
+function configurePendingTaskControls(
+  pendingTask: PendingTask,
+  options: BackgroundTaskOptions,
+  defaultTimeoutMs: number | undefined,
+  cancel: (reason: string) => void,
+): void {
+  const timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+  validateTimeoutMs(timeoutMs, 'timeoutMs');
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const externalSignal = options.signal;
+  const onAbort = () => {
+    cancel(taskCancellationReason(externalSignal?.reason, 'Aborted'));
+  };
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', onAbort, { once: true });
+  }
+  if (timeoutMs !== undefined) {
+    timeoutId = setTimeout(() => {
+      cancel(`Timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+  }
+
+  pendingTask.cleanup = () => {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', onAbort);
+  };
+}
 
 function createTaskEvent<T = unknown>(
   taskId: string,
@@ -216,6 +321,7 @@ function settlePendingTask(
 
   pending.delete(taskId);
   pendingTask.settled = true;
+  pendingTask.cleanup();
   pendingTask.listeners.clear();
   return pendingTask;
 }
@@ -239,16 +345,37 @@ function createRejectedTaskHandle<TResult = unknown>(
   };
 }
 
+function createCancelledTaskHandle<TResult = unknown>(
+  taskId: string,
+  reason: string,
+): BackgroundTaskHandle<TResult> {
+  return {
+    id: taskId,
+    result: Promise.resolve({
+      status: 'cancelled',
+      taskId,
+      reason,
+    }),
+    cancel() {},
+    subscribe() {
+      return () => {};
+    },
+  };
+}
+
 export function createInlineBackgroundExecutor(
-  handlers: BackgroundTaskHandlers
+  handlers: BackgroundTaskHandlers,
+  options: ExecutorLimits = {},
 ): BackgroundExecutor {
+  const limits = normalizeExecutorLimits(options);
   const nextTaskId = createTaskIdFactory();
   const pending = new Map<string, PendingTask>();
   let state: BackgroundExecutorState = 'active';
 
   return {
     submit<TPayload = unknown, TResult = unknown>(
-      request: BackgroundTaskRequest<TPayload>
+      request: BackgroundTaskRequest<TPayload>,
+      taskOptions: BackgroundTaskOptions = {},
     ): BackgroundTaskHandle<TResult> {
       const taskId = nextTaskId();
       if (state !== 'active') {
@@ -258,15 +385,53 @@ export function createInlineBackgroundExecutor(
           `Background executor is ${state}`
         );
       }
+      if (taskOptions.signal?.aborted) {
+        return createCancelledTaskHandle<TResult>(
+          taskId,
+          taskCancellationReason(taskOptions.signal.reason, 'Aborted'),
+        );
+      }
+      if (pending.size >= limits.maxPending) {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'QueueSaturatedError',
+          `Background executor has reached maxPending (${limits.maxPending})`,
+        );
+      }
+      try {
+        validateTimeoutMs(
+          taskOptions.timeoutMs ?? limits.defaultTimeoutMs,
+          'timeoutMs',
+        );
+      } catch (error) {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'InvalidTaskOptionsError',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
 
       const handler = handlers[request.type];
       const controller = new AbortController();
       const pendingTask: PendingTask = {
         controller,
+        cleanup: () => {},
         resolve: () => {},
         listeners: new Set(),
         cancelled: false,
         settled: false,
+      };
+      const cancelTask = (reason: string): void => {
+        const current = pending.get(taskId);
+        if (!current) return;
+        current.cancelled = true;
+        current.controller.abort(reason);
+        settlePendingTask(pending, taskId);
+        current.resolve({
+          status: 'cancelled',
+          taskId,
+          reason,
+        });
       };
       const reporter: BackgroundTaskReporter = {
         emit(kind, payload) {
@@ -346,20 +511,11 @@ export function createInlineBackgroundExecutor(
         });
       });
 
-      return {
+      const handle: BackgroundTaskHandle<TResult> = {
         id: taskId,
         result,
         cancel(reason) {
-          const pendingTask = pending.get(taskId);
-          if (!pendingTask) return;
-          pendingTask.cancelled = true;
-          pendingTask.controller.abort(reason ?? 'Cancelled');
-          settlePendingTask(pending, taskId);
-          pendingTask.resolve({
-            status: 'cancelled',
-            taskId,
-            reason: reason ?? 'Cancelled',
-          });
+          cancelTask(reason ?? 'Cancelled');
         },
         subscribe(listener) {
           const pendingTask = pending.get(taskId);
@@ -373,6 +529,13 @@ export function createInlineBackgroundExecutor(
           };
         },
       };
+      configurePendingTaskControls(
+        pendingTask,
+        taskOptions,
+        limits.defaultTimeoutMs,
+        cancelTask,
+      );
+      return handle;
     },
 
     async destroy() {
@@ -381,6 +544,7 @@ export function createInlineBackgroundExecutor(
       for (const [taskId, pendingTask] of pending) {
         pendingTask.cancelled = true;
         pendingTask.settled = true;
+        pendingTask.cleanup();
         pendingTask.listeners.clear();
         pendingTask.controller.abort('Executor destroyed');
         pendingTask.resolve({
@@ -532,14 +696,14 @@ parentPort.on('message', async (message) => {
 
 export function createWorkerExecutor(
   modulePath: string,
-  options?: Pick<WorkerExecutorOptions, 'workerName'>
+  options?: Omit<WorkerExecutorOptions, 'modulePath'>
 ): BackgroundExecutor;
 export function createWorkerExecutor(
   options: WorkerExecutorOptions
 ): BackgroundExecutor;
 export function createWorkerExecutor(
   modulePathOrOptions: string | WorkerExecutorOptions,
-  options?: Pick<WorkerExecutorOptions, 'workerName'>
+  options?: Omit<WorkerExecutorOptions, 'modulePath'>
 ): BackgroundExecutor {
   const resolvedOptions = typeof modulePathOrOptions === 'string'
     ? {
@@ -548,6 +712,7 @@ export function createWorkerExecutor(
       }
     : modulePathOrOptions;
 
+  const limits = normalizeExecutorLimits(resolvedOptions);
   const nextTaskId = createTaskIdFactory();
   const pending = new Map<string, PendingTask>();
   let state: BackgroundExecutorState = 'active';
@@ -587,6 +752,7 @@ export function createWorkerExecutor(
   const rejectAllPending = (error: BackgroundTaskError): void => {
     for (const [taskId, pendingTask] of pending) {
       pendingTask.settled = true;
+      pendingTask.cleanup();
       pendingTask.listeners.clear();
       pendingTask.resolve({
         status: 'rejected',
@@ -620,7 +786,8 @@ export function createWorkerExecutor(
 
   return {
     submit<TPayload = unknown, TResult = unknown>(
-      request: BackgroundTaskRequest<TPayload>
+      request: BackgroundTaskRequest<TPayload>,
+      taskOptions: BackgroundTaskOptions = {},
     ): BackgroundTaskHandle<TResult> {
       const taskId = nextTaskId();
       if (state !== 'active') {
@@ -630,14 +797,62 @@ export function createWorkerExecutor(
           `Background worker is ${state}`
         );
       }
+      if (taskOptions.signal?.aborted) {
+        return createCancelledTaskHandle<TResult>(
+          taskId,
+          taskCancellationReason(taskOptions.signal.reason, 'Aborted'),
+        );
+      }
+      if (pending.size >= limits.maxPending) {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'QueueSaturatedError',
+          `Background worker has reached maxPending (${limits.maxPending})`,
+        );
+      }
+      try {
+        validateTimeoutMs(
+          taskOptions.timeoutMs ?? limits.defaultTimeoutMs,
+          'timeoutMs',
+        );
+      } catch (error) {
+        return createRejectedTaskHandle<TResult>(
+          taskId,
+          'InvalidTaskOptionsError',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
 
       const controller = new AbortController();
       const pendingTask: PendingTask = {
         controller,
+        cleanup: () => {},
         resolve: () => {},
         listeners: new Set(),
         cancelled: false,
         settled: false,
+      };
+      const cancelTask = (reason: string): void => {
+        const current = pending.get(taskId);
+        if (!current) return;
+        current.cancelled = true;
+        current.controller.abort(reason);
+        settlePendingTask(pending, taskId);
+        current.resolve({
+          status: 'cancelled',
+          taskId,
+          reason,
+        });
+        try {
+          worker.postMessage({
+            kind: 'cancel',
+            taskId,
+            reason,
+          });
+        } catch {
+          // The task is already settled; a concurrent worker exit cannot
+          // change the result observed by the caller.
+        }
       };
 
       const result = new Promise<BackgroundTaskResult<TResult>>((resolve) => {
@@ -661,30 +876,11 @@ export function createWorkerExecutor(
         });
       }
 
-      return {
+      const handle: BackgroundTaskHandle<TResult> = {
         id: taskId,
         result,
         cancel(reason) {
-          const pendingTask = pending.get(taskId);
-          if (!pendingTask) return;
-          pendingTask.cancelled = true;
-          pendingTask.controller.abort(reason ?? 'Cancelled');
-          settlePendingTask(pending, taskId);
-          pendingTask.resolve({
-            status: 'cancelled',
-            taskId,
-            reason: reason ?? 'Cancelled',
-          });
-          try {
-            worker.postMessage({
-              kind: 'cancel',
-              taskId,
-              reason: reason ?? 'Cancelled',
-            });
-          } catch {
-            // The handle is already settled. A concurrent worker exit does not
-            // change the cancellation result observed by the caller.
-          }
+          cancelTask(reason ?? 'Cancelled');
         },
         subscribe(listener) {
           const pendingTask = pending.get(taskId);
@@ -698,6 +894,13 @@ export function createWorkerExecutor(
           };
         },
       };
+      configurePendingTaskControls(
+        pendingTask,
+        taskOptions,
+        limits.defaultTimeoutMs,
+        cancelTask,
+      );
+      return handle;
     },
 
     async destroy() {
@@ -706,6 +909,7 @@ export function createWorkerExecutor(
       for (const [taskId, pendingTask] of pending) {
         pendingTask.cancelled = true;
         pendingTask.settled = true;
+        pendingTask.cleanup();
         pendingTask.listeners.clear();
         pendingTask.controller.abort('Executor destroyed');
         pendingTask.resolve({
@@ -736,15 +940,22 @@ export function createBackgroundExecutor(options: {
   handlers?: BackgroundTaskHandlers;
   modulePath?: string;
   workerName?: string;
+  maxPending?: number;
+  defaultTimeoutMs?: number;
 }): BackgroundExecutor {
   if (options.modulePath) {
     return createWorkerExecutor({
       modulePath: options.modulePath,
       workerName: options.workerName,
+      maxPending: options.maxPending,
+      defaultTimeoutMs: options.defaultTimeoutMs,
     });
   }
 
-  return createInlineBackgroundExecutor(options.handlers ?? {});
+  return createInlineBackgroundExecutor(options.handlers ?? {}, {
+    maxPending: options.maxPending,
+    defaultTimeoutMs: options.defaultTimeoutMs,
+  });
 }
 
 function createBusMessageId(): string {
@@ -879,8 +1090,12 @@ export function createThreadBus({
   };
 
   const createThreadBridge = (threadName: string, bridge: TaskBridge): TaskBridge => ({
-    execute<TPayload, TResult>(type: string, payload: TPayload) {
-      const handle = bridge.execute<TPayload, TResult>(type, payload);
+    execute<TPayload, TResult>(
+      type: string,
+      payload: TPayload,
+      options?: BackgroundTaskOptions,
+    ) {
+      const handle = bridge.execute<TPayload, TResult>(type, payload, options);
       const unsubscribe = handle.subscribe((event) => {
         if (event.kind !== THREAD_BUS_EVENT_KIND) {
           return;
@@ -914,8 +1129,11 @@ export function createThreadBus({
       });
       return handle;
     },
-    submit<TPayload, TResult>(request: BackgroundTaskRequest<TPayload>) {
-      const handle = bridge.submit<TPayload, TResult>(request);
+    submit<TPayload, TResult>(
+      request: BackgroundTaskRequest<TPayload>,
+      options?: BackgroundTaskOptions,
+    ) {
+      const handle = bridge.submit<TPayload, TResult>(request, options);
       const unsubscribe = handle.subscribe((event) => {
         if (event.kind !== THREAD_BUS_EVENT_KIND) {
           return;
@@ -951,6 +1169,12 @@ export function createThreadBus({
     },
     async destroy() {
       await bridge.destroy();
+    },
+    get state() {
+      return bridge.state;
+    },
+    get pendingCount() {
+      return bridge.pendingCount;
     },
   });
 
@@ -1051,23 +1275,37 @@ export function createTaskBridge(
       : (executorOrModule as BackgroundExecutor);
 
   const createHandle = <TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>
+    request: BackgroundTaskRequest<TPayload>,
+    options?: BackgroundTaskOptions,
   ): BackgroundTaskHandle<TResult> => {
-    return executor.submit<TPayload, TResult>(request);
+    return executor.submit<TPayload, TResult>(request, options);
   };
 
   return {
-    execute<TPayload, TResult>(type: string, payload: TPayload) {
+    execute<TPayload, TResult>(
+      type: string,
+      payload: TPayload,
+      options?: BackgroundTaskOptions,
+    ) {
       return createHandle<TPayload, TResult>({
         type,
         payload,
-      });
+      }, options);
     },
-    submit<TPayload, TResult>(request: BackgroundTaskRequest<TPayload>) {
-      return createHandle<TPayload, TResult>(request);
+    submit<TPayload, TResult>(
+      request: BackgroundTaskRequest<TPayload>,
+      options?: BackgroundTaskOptions,
+    ) {
+      return createHandle<TPayload, TResult>(request, options);
     },
     async destroy() {
       await executor.destroy();
+    },
+    get state() {
+      return executor.state;
+    },
+    get pendingCount() {
+      return executor.pendingCount;
     },
   };
 }
@@ -1087,54 +1325,100 @@ export function createTaskBridgePool(
     throw new TypeError(`Unknown task pool scheduler: ${String(options.scheduler)}`);
   }
 
+  const limits = normalizeExecutorLimits(options);
   const poolSize = requestedPoolSize;
   const scheduler = options.scheduler ?? 'round-robin';
-  const bridges = Array.from({ length: poolSize }, (_, index) =>
+  const restartFailedWorkers = options.restartFailedWorkers ?? true;
+  const nextPoolTaskId = createTaskIdFactory();
+  let state: BackgroundExecutorState = 'active';
+  let destroyPromise: Promise<void> | null = null;
+  const retiredBridgeDestructions: Promise<void>[] = [];
+
+  const createPoolBridge = (index: number): TaskBridge =>
     createTaskBridge({
       modulePath: options.modulePath,
       workerName: options.workerName
         ? `${options.workerName}-${index + 1}`
         : `tuiuiu-background-executor-pool-${index + 1}`,
-    })
+      maxPending: limits.maxPending,
+      defaultTimeoutMs: limits.defaultTimeoutMs,
+    });
+
+  const bridges = Array.from(
+    { length: poolSize },
+    (_, index) => createPoolBridge(index),
   );
 
-  const workerLoad = bridges.map(() => ({
+  const workerLoad = bridges.map((): { pending: number } => ({
     pending: 0,
   }));
   let rrCursor = -1;
 
-  const pickWorkerIndex = (): number => {
-    if (bridges.length === 1) {
-      return 0;
+  const refreshFailedWorkers = (): void => {
+    if (!restartFailedWorkers || state !== 'active') return;
+
+    for (let index = 0; index < bridges.length; index += 1) {
+      const bridge = bridges[index];
+      if (bridge.state !== 'failed') continue;
+
+      const retired = bridge.destroy();
+      retiredBridgeDestructions.push(retired);
+      bridges[index] = createPoolBridge(index);
+      workerLoad[index] = { pending: 0 };
     }
+  };
+
+  const availableWorkerIndices = (): number[] => {
+    refreshFailedWorkers();
+    const indices: number[] = [];
+    for (let index = 0; index < bridges.length; index += 1) {
+      const bridge = bridges[index];
+      const pendingCount = bridge.pendingCount ?? workerLoad[index].pending;
+      if (bridge.state === 'active' && pendingCount < limits.maxPending) {
+        indices.push(index);
+      }
+    }
+    return indices;
+  };
+
+  const pickWorkerIndex = (): number | null => {
+    const available = availableWorkerIndices();
+    if (available.length === 0) return null;
 
     if (scheduler === 'least-pending') {
-      let selected = 0;
-      let lowestLoad = workerLoad[0].pending;
-      for (let i = 1; i < workerLoad.length; i += 1) {
-        if (workerLoad[i].pending < lowestLoad) {
-          lowestLoad = workerLoad[i].pending;
-          selected = i;
+      let selected = available[0];
+      let lowestLoad = bridges[selected].pendingCount ?? workerLoad[selected].pending;
+      for (const index of available.slice(1)) {
+        const load = bridges[index].pendingCount ?? workerLoad[index].pending;
+        if (load < lowestLoad) {
+          lowestLoad = load;
+          selected = index;
         }
       }
       return selected;
     }
 
-    rrCursor = (rrCursor + 1) % bridges.length;
-    return rrCursor;
+    for (let offset = 1; offset <= bridges.length; offset += 1) {
+      const candidate = (rrCursor + offset) % bridges.length;
+      if (available.includes(candidate)) {
+        rrCursor = candidate;
+        return candidate;
+      }
+    }
+    return null;
   };
 
   const withLoadTracking = <TResult = unknown>(
-    trackedWorkerIndex: number,
+    load: { pending: number },
     handle: BackgroundTaskHandle<TResult>
   ): BackgroundTaskHandle<TResult> => {
-    workerLoad[trackedWorkerIndex].pending += 1;
+    load.pending += 1;
     let settled = false;
 
     const settleLoad = () => {
       if (settled) return;
       settled = true;
-      workerLoad[trackedWorkerIndex].pending -= 1;
+      load.pending = Math.max(0, load.pending - 1);
     };
 
     void handle.result.then(settleLoad, settleLoad);
@@ -1142,32 +1426,68 @@ export function createTaskBridgePool(
   };
 
   const createSubmitHandle = <TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>
+    request: BackgroundTaskRequest<TPayload>,
+    taskOptions?: BackgroundTaskOptions,
   ): BackgroundTaskHandle<TResult> => {
+    if (state !== 'active') {
+      return createRejectedTaskHandle<TResult>(
+        nextPoolTaskId(),
+        'ExecutorUnavailableError',
+        `Background task pool is ${state}`,
+      );
+    }
+
     const index = pickWorkerIndex();
-    const handle = bridges[index].submit<TPayload, TResult>(request);
-    return withLoadTracking<TResult>(index, handle);
+    if (index === null) {
+      return createRejectedTaskHandle<TResult>(
+        nextPoolTaskId(),
+        'QueueSaturatedError',
+        `All ${bridges.length} background workers are unavailable or saturated`,
+      );
+    }
+
+    const load = workerLoad[index];
+    const handle = bridges[index].submit<TPayload, TResult>(request, taskOptions);
+    return withLoadTracking<TResult>(load, handle);
   };
 
   return {
-    execute<TPayload, TResult>(type: string, payload: TPayload) {
-      const index = pickWorkerIndex();
-      const handle = bridges[index].execute<TPayload, TResult>(type, payload);
-      return withLoadTracking<TResult>(index, handle);
+    execute<TPayload, TResult>(
+      type: string,
+      payload: TPayload,
+      taskOptions?: BackgroundTaskOptions,
+    ) {
+      return createSubmitHandle<TPayload, TResult>({
+        type,
+        payload,
+      }, taskOptions);
     },
-    submit(request) {
-      return createSubmitHandle(request);
+    submit(request, taskOptions) {
+      return createSubmitHandle(request, taskOptions);
     },
     async destroy() {
-      const results = await Promise.allSettled(
-        bridges.map(bridge => bridge.destroy())
-      );
-      const errors = results
-        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-        .map(result => result.reason);
-      if (errors.length > 0) {
-        throw new AggregateError(errors, 'Failed to destroy one or more task pool workers');
-      }
+      if (destroyPromise) return destroyPromise;
+      state = 'destroying';
+      destroyPromise = (async () => {
+        const results = await Promise.allSettled([
+          ...bridges.map(bridge => bridge.destroy()),
+          ...retiredBridgeDestructions,
+        ]);
+        state = 'destroyed';
+        const errors = results
+          .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+          .map(result => result.reason);
+        if (errors.length > 0) {
+          throw new AggregateError(errors, 'Failed to destroy one or more task pool workers');
+        }
+      })();
+      return destroyPromise;
+    },
+    get state() {
+      return state;
+    },
+    get pendingCount() {
+      return workerLoad.reduce((total, load) => total + load.pending, 0);
     },
   };
 }

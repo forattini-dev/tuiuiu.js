@@ -13,7 +13,8 @@ Notable changes to Tuiuiu are documented here.
   permissive file modes.
 - Remove shell interpolation from clipboard image commands and bound image
   probing and decoding.
-- Pin GitHub Actions by commit and migrate npm release authentication to OIDC.
+- Pin GitHub Actions by commit and enable provenance-capable OIDC publishing,
+  retaining the existing npm token as a transition fallback.
 - Update the dependency graph to remove known audit advisories.
 
 ### Fixed
@@ -28,6 +29,13 @@ Notable changes to Tuiuiu are documented here.
 - Implement complete `:nth-child()` matching and fail closed for invalid
   pseudo-selectors.
 - Correct autocomplete keyboard navigation and Unicode deletion.
+- Prevent VNode cache collisions caused by incomplete child fingerprints.
+- Make clipboard and notification hooks respect the active app output stream.
+- Refresh inline-trigger sources when their semantic configuration changes.
+- Restore clipboard-image subscriptions after re-enabling the hook and remove
+  temporary image directories during cleanup.
+- Add cancellation, timeouts, bounded queues, health-aware scheduling, and
+  automatic worker recovery to background executors and task pools.
 
 ### Changed
 
@@ -35,3 +43,5 @@ Notable changes to Tuiuiu are documented here.
 - Require Node.js 22.12 or newer.
 - Separate functional tests from performance benchmarks.
 - Make prerelease publication an explicit manual action.
+- Enforce coverage, runtime reachability, package-size, public-contract, and
+  Linux/macOS PTY checks in CI.

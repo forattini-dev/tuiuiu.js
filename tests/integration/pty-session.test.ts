@@ -2,7 +2,9 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const RUN_REAL_PTY = process.platform === 'linux' && process.env.TUIUIU_RUN_PTY === 'true';
+const RUN_REAL_PTY =
+  (process.platform === 'linux' || process.platform === 'darwin')
+  && process.env.TUIUIU_RUN_PTY === 'true';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
@@ -12,7 +14,10 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
   it('restores terminal modes after interactive exit', async () => {
     const fixture = resolve('tests/fixtures/pty-session-child.mjs');
     const command = `${shellQuote(process.execPath)} ${shellQuote(fixture)}`;
-    const child = spawn('script', ['-qfec', command, '/dev/null'], {
+    const scriptArguments = process.platform === 'darwin'
+      ? ['-q', '/dev/null', process.execPath, fixture]
+      : ['-qfec', command, '/dev/null'];
+    const child = spawn('script', scriptArguments, {
       cwd: process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
     });

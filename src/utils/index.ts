@@ -116,6 +116,7 @@ export type {
   BackgroundTaskHandle,
   BackgroundTaskHandler,
   BackgroundTaskHandlers,
+  BackgroundTaskOptions,
   BackgroundTaskReporter,
   BackgroundTaskRequest,
   BackgroundTaskResult,

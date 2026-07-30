@@ -280,20 +280,12 @@ class DirtyRegistry {
   }
 
   hashNode(node: VNode): string {
-    const propsHash = fingerprintValue(node.props ?? {});
-    const childrenHash = fingerprintValue(
-      node.children?.map((child) => {
-        if (typeof child === 'string' || typeof child === 'number') {
-          return child;
-        }
-        if (child && typeof child === 'object' && 'type' in child) {
-          return { type: (child as VNode).type, key: (child as VNode).props?.key };
-        }
-        return null;
-      }) ?? [],
-    );
-
-    return `${node.type}:${propsHash}:${childrenHash}`;
+    return fingerprintValue({
+      type: node.type,
+      key: node.key,
+      props: node.props ?? {},
+      children: node.children ?? [],
+    });
   }
 
   private evictOldest(): void {
@@ -309,7 +301,7 @@ class DirtyRegistry {
   invalidateCache(node: VNode): void {
     const hash = this.hashNode(node);
     for (const key of this.renderCache.keys()) {
-      if (key.startsWith(hash)) {
+      if (key.startsWith(`${hash}:`)) {
         this.renderCache.delete(key);
       }
     }

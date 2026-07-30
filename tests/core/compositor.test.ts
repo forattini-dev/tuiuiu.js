@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
+import type { DrawCommand } from '../../src/core/frame.js';
+import {
+  applyCompositor,
+  fingerprintCompositorBinding,
+  isCompositorBindingMetadata,
+  type BoundCompositorMetadata,
+} from '../../src/core/compositor.js';
 import { reportMotionFrameCost, resetMotionRuntime } from '../../src/core/motion-runtime.js';
 import { stringWidth } from '../../src/utils/text-utils.js';
 
@@ -175,5 +182,106 @@ describe('compositor pipeline', () => {
         inverse: true,
       }),
     });
+  });
+
+  it('composes nested transforms without mutating original draw commands', () => {
+    const command: DrawCommand = {
+      type: 'box',
+      order: 0,
+      x: 1,
+      y: 1,
+      width: 10,
+      height: 4,
+      compositorKeys: ['outer', 'inner'],
+    };
+    const bindings = new Map<string, BoundCompositorMetadata>([
+      ['outer', {
+        key: 'outer',
+        bounds: { x: 0, y: 0, width: 20, height: 10 },
+        transforms: [{ kind: 'slide', offsetX: 2, offsetY: 1 }],
+      }],
+      ['inner', {
+        key: 'inner',
+        bounds: { x: 1, y: 1, width: 10, height: 4 },
+        transforms: [{ kind: 'spring', offsetX: -1, offsetY: 2 }],
+      }],
+    ]);
+
+    const [result] = applyCompositor([command], bindings);
+
+    expect(result).toMatchObject({ x: 2, y: 4 });
+    expect(command).toMatchObject({ x: 1, y: 1 });
+  });
+
+  it.each([
+    ['right', { x: 5, y: 0, width: 5, height: 4 }],
+    ['down', { x: 0, y: 2, width: 10, height: 2 }],
+  ] as const)('clips box reveals from %s', (direction, expected) => {
+    const command: DrawCommand = {
+      type: 'box',
+      order: 0,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 4,
+      compositorKeys: ['reveal'],
+    };
+    const bindings = new Map<string, BoundCompositorMetadata>([
+      ['reveal', {
+        key: 'reveal',
+        bounds: { x: 0, y: 0, width: 10, height: 4 },
+        transforms: [{ kind: 'reveal', direction, progress: 0.5 }],
+      }],
+    ]);
+
+    expect(applyCompositor([command], bindings)[0]).toMatchObject(expected);
+  });
+
+  it('clamps invalid opacity and preserves commands without active bindings', () => {
+    const faded: DrawCommand = {
+      type: 'text',
+      order: 0,
+      x: 0,
+      y: 0,
+      maxWidth: 4,
+      text: 'gone',
+      style: {},
+      compositorKeys: ['fade'],
+    };
+    const stable: DrawCommand = {
+      type: 'box',
+      order: 1,
+      x: 0,
+      y: 1,
+      width: 4,
+      height: 1,
+    };
+    const bindings = new Map<string, BoundCompositorMetadata>([
+      ['fade', {
+        key: 'fade',
+        bounds: { x: 0, y: 0, width: 4, height: 1 },
+        transforms: [{ kind: 'fade', opacity: Number.NaN }],
+      }],
+    ]);
+
+    expect(applyCompositor([faded, stable], bindings)).toEqual([stable]);
+    expect(applyCompositor([stable], new Map())).toEqual([stable]);
+  });
+
+  it('validates and fingerprints compositor binding metadata', () => {
+    const binding = {
+      key: 'panel',
+      transforms: [{ kind: 'fade' as const, opacity: 0.5 }],
+    };
+
+    expect(isCompositorBindingMetadata(binding)).toBe(true);
+    expect(isCompositorBindingMetadata({ key: 1, transforms: [] })).toBe(false);
+    expect(fingerprintCompositorBinding(binding)).toBe(
+      fingerprintCompositorBinding({
+        key: 'panel',
+        transforms: [{ kind: 'fade', opacity: 0.5 }],
+      }),
+    );
+    expect(fingerprintCompositorBinding(null)).toBeNull();
   });
 });

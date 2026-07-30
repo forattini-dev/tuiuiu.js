@@ -43,11 +43,11 @@ const PUBLIC_RUNTIME_EXPORT_BASELINE = {
 } as const;
 
 const PUBLIC_TYPE_EXPORT_BASELINE = {
-  '.': { count: 1751, sha256: 'a91a073261aee32ac55c39948633954c3c9ff0caab5703b46dfa5f15df5a1285' },
+  '.': { count: 1752, sha256: '93e884a8f67e37a8db3a3045473d50d6281bccc44dc82951983abd9733730499' },
   './minimal': { count: 73, sha256: '666fbb8e8100812e8417df6fa09688545a743fd80b03fe1c262c97aa9aef8486' },
   './core': { count: 811, sha256: 'daab951ea348ef231789af1fa68603d78244337dbaa0efa2206eb3c3dd5b11b9' },
   './hooks': { count: 178, sha256: 'b1a43689061b568fb0da078cc3f4b40086300b4e9031dcc038e6ef4d03d68243' },
-  './utils': { count: 117, sha256: 'd9447c5a3ca75d7f9cf3a171facd71fd03212d7e2acbef67906419d0c9b27561' },
+  './utils': { count: 118, sha256: '91f8c6f4f7e791dbc56c912d6d9d6af37530daf0c0c1e42e0db3e8e9931a095f' },
   './storybook': { count: 53, sha256: '6bf91cdc208541dc2a38088ca8334b4cb9ab2d65751a932e1e1dfa970d63ac2a' },
   './mcp': { count: 40, sha256: '47e4dc4b5bb46ce6efeec12f40d975a26e72f872de331920321c18911c746d5c' },
   './prompts': { count: 24, sha256: '021f7d874a2d93cc386af85356b9265986d43fc327dc4defca81fbcb227e0082' },

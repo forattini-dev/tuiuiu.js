@@ -1,103 +1,110 @@
 /**
- * useClipboardImageHint - Show notification when clipboard has an image
+ * useClipboardImageHint - Detect clipboard images after terminal focus returns.
  *
- * When the terminal regains focus, checks if the system clipboard contains
- * an image and shows a hint notification.
- *
- * Uses debounce (500ms) and cooldown (30s) to avoid spamming.
+ * The hook debounces clipboard access and applies a cooldown so applications
+ * can surface a hint without repeatedly invoking platform clipboard tools.
  */
 
-import { onTerminalFocusChange } from '../core/terminal-focus.js';
 import { hasClipboardImage } from '../core/clipboard-image.js';
+import { onTerminalFocusChange } from '../core/terminal-focus.js';
 import {
-  getHookState,
   getCurrentHookIndex,
-  setHookState,
+  getHookState,
   getHookStateByIndex,
   registerHookCleanup,
+  setHookState,
 } from './context.js';
 
 export interface UseClipboardImageHintOptions {
-  /** Whether the hint is enabled (default: true) */
+  /** Whether the hint is enabled (default: true). */
   enabled?: boolean;
-  /** Custom hint message */
+  /** Custom hint message passed to onDetected. */
   message?: string;
-  /** Callback when clipboard image is detected */
-  onDetected?: () => void;
+  /** Callback when a clipboard image is detected. */
+  onDetected?: (message: string) => void;
 }
 
 const CHECK_DEBOUNCE_MS = 500;
 const COOLDOWN_MS = 30_000;
+const DEFAULT_HINT_MESSAGE = 'Clipboard image detected';
+
+interface ClipboardImageHintHookData {
+  cleanup: (() => void) | null;
+  lastHintTime: number;
+  message: string;
+  onDetected?: (message: string) => void;
+  timeoutId: ReturnType<typeof setTimeout> | null;
+}
+
+function subscribeToClipboardImageFocus(hookIndex: number): () => void {
+  return onTerminalFocusChange((focused) => {
+    const stored = getHookStateByIndex(hookIndex) as ClipboardImageHintHookData | null;
+    if (!stored || !focused) return;
+
+    if (stored.timeoutId !== null) {
+      clearTimeout(stored.timeoutId);
+      stored.timeoutId = null;
+    }
+
+    stored.timeoutId = setTimeout(async () => {
+      const current = getHookStateByIndex(hookIndex) as ClipboardImageHintHookData | null;
+      if (!current) return;
+      current.timeoutId = null;
+
+      const now = Date.now();
+      if (now - current.lastHintTime < COOLDOWN_MS) return;
+
+      try {
+        const hasImage = await hasClipboardImage();
+        if (hasImage) {
+          current.lastHintTime = Date.now();
+          current.onDetected?.(current.message);
+        }
+      } catch {
+        // Clipboard access is optional and must not break the render loop.
+      }
+    }, CHECK_DEBOUNCE_MS);
+  });
+}
 
 /**
- * Show a hint when the terminal regains focus and the clipboard has an image.
+ * Check for clipboard images when terminal focus returns.
  *
  * @example
  * function App() {
  *   useClipboardImageHint({
- *     onDetected: () => {
- *       // Show your own UI hint
- *     },
+ *     message: 'Press Ctrl+V to attach the image',
+ *     onDetected: (message) => showHint(message),
  *   });
- *   // ...
  * }
  */
-export function useClipboardImageHint(options: UseClipboardImageHintOptions = {}): void {
-  const { enabled = true, onDetected } = options;
+export function useClipboardImageHint(
+  options: UseClipboardImageHintOptions = {},
+): void {
+  const {
+    enabled = true,
+    message = DEFAULT_HINT_MESSAGE,
+    onDetected,
+  } = options;
 
-  const { value: hookData, isNew } = getHookState<{
-    cleanup: (() => void) | null;
-    lastHintTime: number;
-    timeoutId: ReturnType<typeof setTimeout> | null;
-  } | null>(null);
+  const { value: hookData, isNew } = getHookState<ClipboardImageHintHookData | null>(null);
 
   if (isNew || hookData === null) {
-    const data = {
-      cleanup: null as (() => void) | null,
+    const data: ClipboardImageHintHookData = {
+      cleanup: null,
       lastHintTime: 0,
-      timeoutId: null as ReturnType<typeof setTimeout> | null,
+      message,
+      onDetected,
+      timeoutId: null,
     };
 
     const hookIndex = getCurrentHookIndex();
     setHookState(hookIndex, data);
 
-    function getStoredData() {
-      return getHookStateByIndex(hookIndex) as typeof data | null;
-    }
-
     if (enabled) {
-      data.cleanup = onTerminalFocusChange((focused) => {
-        const stored = getStoredData();
-        if (!stored || !focused) return;
-
-        // Clear any pending check
-        if (stored.timeoutId !== null) {
-          clearTimeout(stored.timeoutId);
-          stored.timeoutId = null;
-        }
-
-        // Debounce the check
-        stored.timeoutId = setTimeout(async () => {
-          const s = getStoredData();
-          if (!s) return;
-          s.timeoutId = null;
-
-          // Cooldown check
-          const now = Date.now();
-          if (now - s.lastHintTime < COOLDOWN_MS) return;
-
-          try {
-            const hasImage = await hasClipboardImage();
-            if (hasImage) {
-              s.lastHintTime = Date.now();
-              onDetected?.();
-            }
-          } catch {
-            // Silently ignore clipboard check errors
-          }
-        }, CHECK_DEBOUNCE_MS);
-      });
+      data.cleanup = subscribeToClipboardImageFocus(hookIndex);
     }
+
     registerHookCleanup(() => {
       data.cleanup?.();
       data.cleanup = null;
@@ -106,15 +113,20 @@ export function useClipboardImageHint(options: UseClipboardImageHintOptions = {}
         data.timeoutId = null;
       }
     }, hookIndex);
-  } else {
-    // Subsequent render — update enabled state
-    if (!enabled && hookData.cleanup) {
-      hookData.cleanup();
-      hookData.cleanup = null;
-      if (hookData.timeoutId !== null) {
-        clearTimeout(hookData.timeoutId);
-        hookData.timeoutId = null;
-      }
+    return;
+  }
+
+  hookData.message = message;
+  hookData.onDetected = onDetected;
+
+  if (!enabled && hookData.cleanup) {
+    hookData.cleanup();
+    hookData.cleanup = null;
+    if (hookData.timeoutId !== null) {
+      clearTimeout(hookData.timeoutId);
+      hookData.timeoutId = null;
     }
+  } else if (enabled && !hookData.cleanup) {
+    hookData.cleanup = subscribeToClipboardImageFocus(getCurrentHookIndex());
   }
 }

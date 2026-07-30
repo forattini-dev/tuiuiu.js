@@ -81,7 +81,7 @@ async function imageDataFromBuffer(
   mediaType: string,
 ): Promise<{ imageData: ImageData; mediaType: string } | null> {
   // Write buffer to temp file for ffmpeg to read
-  const { writeFileSync, unlinkSync, mkdtempSync } = await import('node:fs');
+  const { writeFileSync, rmSync, mkdtempSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
 
@@ -96,7 +96,11 @@ async function imageDataFromBuffer(
   } catch {
     return null;
   } finally {
-    try { unlinkSync(tempPath); } catch { /* ignore */ }
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Temporary cleanup is best-effort.
+    }
   }
 }
 
