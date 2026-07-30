@@ -165,7 +165,12 @@ The local performance suite now includes a burst benchmark that exercises a larg
 The benchmark suite is intentionally skipped by normal push and pull-request
 jobs because hosted-runner variance is too high for narrow absolute thresholds.
 The manually dispatched performance workflow runs it on Linux, Windows, and
-macOS so results can still be compared across controlled revisions.
+macOS so results can still be compared across controlled revisions. Local runs
+use the strict test budgets (`1.0x`). The hosted workflow explicitly uses
+`TUIUIU_PERF_BUDGET_SCALE=1.25` for absolute wall-clock limits only; relative
+performance checks, render-count limits, and output-size checks remain unchanged.
+Values outside the bounded `1.0`–`2.0` range are rejected so the escape hatch
+cannot silently disable regression protection.
 
 ## Stress Suite Notes
 
@@ -176,7 +181,11 @@ The stress suite exists to catch the class of regressions that usually show up a
 - keyboard or mouse bursts causing runaway render counts
 - scheduler collapse/backpressure handling regressing under heavier invalidation storms
 
-The budgets in this suite are intentionally conservative and local-only. They are not meant to certify absolute FPS across machines. They are meant to catch order-of-magnitude regressions in representative interactive workloads.
+The budgets in this suite are intentionally conservative. They are not meant
+to certify absolute FPS across machines. Local runs use the documented limits,
+while the manual cross-platform workflow applies the bounded hosted-runner
+multiplier described above. Both modes are designed to catch material
+regressions in representative interactive workloads.
 
 ## Cross-Framework Comparison
 

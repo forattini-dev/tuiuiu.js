@@ -139,7 +139,7 @@
     "test:run": "vitest run --exclude \"tests/benchmarks/**\"",
     "test:coverage": "vitest run --coverage --exclude \"tests/benchmarks/**\"",
     "test:watch": "vitest watch",
-    "test:performance": "vitest run tests/core/frame-performance.test.ts tests/core/buffer-perf.test.ts tests/benchmarks/runtime-performance.test.ts tests/benchmarks/runtime-stress.test.ts",
+    "test:performance": "vitest run tests/core/frame-performance.test.ts tests/core/buffer-perf.test.ts tests/benchmarks/performance-budget.test.ts tests/benchmarks/runtime-performance.test.ts tests/benchmarks/runtime-stress.test.ts",
     "test:performance:stress": "vitest run tests/benchmarks/runtime-stress.test.ts",
     "benchmark:frameworks": "pnpm run build && pnpm --dir benchmarks/framework-comparison install --frozen-lockfile && pnpm --dir benchmarks/framework-comparison benchmark",
     "benchmark:frameworks:quick": "pnpm run build && pnpm --dir benchmarks/framework-comparison install --frozen-lockfile && pnpm --dir benchmarks/framework-comparison benchmark:quick",

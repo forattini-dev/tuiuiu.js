@@ -16,11 +16,14 @@ import {
   benchmarkLocalizedRuntime,
   createBenchmarkStdin,
   createBenchmarkStdout,
-  isCI,
   waitForMacrotask,
 } from './_shared/runtime-benchmark.js';
+import {
+  performanceBudget,
+  shouldSkipPerformanceBenchmarks,
+} from './_shared/performance-budget.js';
 
-const describeOrSkip = isCI ? describe.skip : describe;
+const describeOrSkip = shouldSkipPerformanceBenchmarks ? describe.skip : describe;
 
 const STRESS_BUDGETS = {
   churn: { frame: 65, layout: 45, draw: 28, delta: 22 },
@@ -252,10 +255,10 @@ describeOrSkip('Runtime stress benchmarks', () => {
     );
 
     expect(result.drawCommands).toBeGreaterThan(1000);
-    expect(result.avgFrameMs).toBeLessThan(STRESS_BUDGETS.churn.frame);
-    expect(result.avgLayoutMs).toBeLessThan(STRESS_BUDGETS.churn.layout);
-    expect(result.avgDrawCommandMs).toBeLessThan(STRESS_BUDGETS.churn.draw);
-    expect(result.avgDeltaMs).toBeLessThan(STRESS_BUDGETS.churn.delta);
+    expect(result.avgFrameMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.churn.frame));
+    expect(result.avgLayoutMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.churn.layout));
+    expect(result.avgDrawCommandMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.churn.draw));
+    expect(result.avgDeltaMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.churn.delta));
   });
 
   it('keeps localized board repaint materially cheaper than full repaint', () => {
@@ -270,13 +273,13 @@ describeOrSkip('Runtime stress benchmarks', () => {
       12,
     );
 
-    expect(localized.avgFrameMs).toBeLessThan(STRESS_BUDGETS.localizedBoard.frame);
-    expect(localized.avgDeltaMs).toBeLessThan(STRESS_BUDGETS.localizedBoard.delta);
-    expect(localized.avgAnsiMs).toBeLessThan(STRESS_BUDGETS.localizedBoard.ansi);
+    expect(localized.avgFrameMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.localizedBoard.frame));
+    expect(localized.avgDeltaMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.localizedBoard.delta));
+    expect(localized.avgAnsiMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.localizedBoard.ansi));
 
-    expect(full.avgFrameMs).toBeLessThan(STRESS_BUDGETS.fullBoard.frame);
-    expect(full.avgDeltaMs).toBeLessThan(STRESS_BUDGETS.fullBoard.delta);
-    expect(full.avgAnsiMs).toBeLessThan(STRESS_BUDGETS.fullBoard.ansi);
+    expect(full.avgFrameMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.fullBoard.frame));
+    expect(full.avgDeltaMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.fullBoard.delta));
+    expect(full.avgAnsiMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.fullBoard.ansi));
 
     // Delta rendering trades a small amount of local CPU for substantially
     // less terminal I/O. Compare each resource directly instead of assuming
@@ -292,7 +295,7 @@ describeOrSkip('Runtime stress benchmarks', () => {
     expect(result.handledEvents).toBe(400);
     expect(result.finalCount).toBe(400);
     expect(result.renderCount).toBeLessThanOrEqual(STRESS_BUDGETS.keyboardBurst.maxRenders);
-    expect(result.burstMs).toBeLessThan(STRESS_BUDGETS.keyboardBurst.burstMs);
+    expect(result.burstMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.keyboardBurst.burstMs));
   });
 
   it('coalesces mouse bursts without runaway rerenders', async () => {
@@ -301,7 +304,7 @@ describeOrSkip('Runtime stress benchmarks', () => {
     expect(result.handledEvents).toBe(240);
     expect(result.finalCount).toBe(240);
     expect(result.renderCount).toBeLessThanOrEqual(STRESS_BUDGETS.mouseBurst.maxRenders);
-    expect(result.burstMs).toBeLessThan(STRESS_BUDGETS.mouseBurst.burstMs);
+    expect(result.burstMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.mouseBurst.burstMs));
   });
 
   it('survives heavier scheduler bursts with bounded rerenders', async () => {
@@ -313,6 +316,6 @@ describeOrSkip('Runtime stress benchmarks', () => {
 
     expect(result.finalValue).toBe(1000);
     expect(result.renderCount).toBeLessThanOrEqual(STRESS_BUDGETS.schedulerBurst.maxRenders);
-    expect(result.burstMs).toBeLessThan(STRESS_BUDGETS.schedulerBurst.burstMs);
+    expect(result.burstMs).toBeLessThan(performanceBudget(STRESS_BUDGETS.schedulerBurst.burstMs));
   });
 });

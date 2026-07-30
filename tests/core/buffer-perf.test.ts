@@ -9,9 +9,12 @@ import {
   type CellPatch,
   type DamageRect,
 } from '../../src/core/buffer.js';
+import {
+  performanceBudget,
+  shouldSkipPerformanceBenchmarks,
+} from '../benchmarks/_shared/performance-budget.js';
 
-const isCI = process.env.CI === 'true';
-const describeOrSkip = isCI ? describe.skip : describe;
+const describeOrSkip = shouldSkipPerformanceBenchmarks ? describe.skip : describe;
 
 interface BenchmarkResult {
   avgMs: number;
@@ -162,8 +165,8 @@ describeOrSkip('CellBuffer performance microbenchmarks', () => {
       }
     });
 
-    expect(optimized.avgMs).toBeLessThan(8);
-    expect(optimized.maxMs).toBeLessThan(20);
+    expect(optimized.avgMs).toBeLessThan(performanceBudget(8));
+    expect(optimized.maxMs).toBeLessThan(performanceBudget(20));
     expect(baseline.avgMs).toBeGreaterThan(0);
   });
 
@@ -197,8 +200,8 @@ describeOrSkip('CellBuffer performance microbenchmarks', () => {
       }
     });
 
-    expect(optimized.avgMs).toBeLessThan(24);
-    expect(optimized.maxMs).toBeLessThan(40);
+    expect(optimized.avgMs).toBeLessThan(performanceBudget(24));
+    expect(optimized.maxMs).toBeLessThan(performanceBudget(40));
     expect(baseline.avgMs).toBeGreaterThan(0);
   });
 });

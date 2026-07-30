@@ -149,6 +149,9 @@ jobs:
         run: pnpm test:performance
         env:
           TUIUIU_RUN_BENCHMARKS: 'true'
+          # Hosted VM jitter can exceed narrow local wall-clock limits without
+          # indicating a runtime regression. Local runs keep the strict 1.0x budgets.
+          TUIUIU_PERF_BUDGET_SCALE: '1.25'
 
       - name: Compare Tuiuiu, Ink, and direct ANSI
         run: pnpm benchmark:frameworks:quick

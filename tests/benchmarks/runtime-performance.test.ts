@@ -5,10 +5,13 @@ import {
   benchmarkBurstScheduler,
   benchmarkLocalizedRuntime,
   benchmarkRuntime,
-  isCI,
 } from './_shared/runtime-benchmark.js';
+import {
+  performanceBudget,
+  shouldSkipPerformanceBenchmarks,
+} from './_shared/performance-budget.js';
 
-const describeOrSkip = isCI ? describe.skip : describe;
+const describeOrSkip = shouldSkipPerformanceBenchmarks ? describe.skip : describe;
 
 // Budgets are generous enough to tolerate GC/JIT pressure when running
 // inside a full 190+ file suite.  They still catch order-of-magnitude
@@ -83,30 +86,30 @@ describeOrSkip('Runtime performance benchmarks', () => {
     const result = benchmarkRuntime(buildDashboard(3, 4, 3), { width: 140, height: 50 });
 
     expect(result.drawCommands).toBeGreaterThan(100);
-    expect(result.avgFrameMs).toBeLessThan(BUDGETS.small.frame);
-    expect(result.avgLayoutMs).toBeLessThan(BUDGETS.small.layout);
-    expect(result.avgAnsiMs).toBeLessThan(BUDGETS.small.ansi);
-    expect(result.avgDeltaMs).toBeLessThan(BUDGETS.small.delta);
+    expect(result.avgFrameMs).toBeLessThan(performanceBudget(BUDGETS.small.frame));
+    expect(result.avgLayoutMs).toBeLessThan(performanceBudget(BUDGETS.small.layout));
+    expect(result.avgAnsiMs).toBeLessThan(performanceBudget(BUDGETS.small.ansi));
+    expect(result.avgDeltaMs).toBeLessThan(performanceBudget(BUDGETS.small.delta));
   });
 
   it('meets the medium dashboard budget', () => {
     const result = benchmarkRuntime(buildDashboard(5, 6, 4), { width: 180, height: 60 });
 
     expect(result.drawCommands).toBeGreaterThan(500);
-    expect(result.avgFrameMs).toBeLessThan(BUDGETS.medium.frame);
-    expect(result.avgLayoutMs).toBeLessThan(BUDGETS.medium.layout);
-    expect(result.avgAnsiMs).toBeLessThan(BUDGETS.medium.ansi);
-    expect(result.avgDeltaMs).toBeLessThan(BUDGETS.medium.delta);
+    expect(result.avgFrameMs).toBeLessThan(performanceBudget(BUDGETS.medium.frame));
+    expect(result.avgLayoutMs).toBeLessThan(performanceBudget(BUDGETS.medium.layout));
+    expect(result.avgAnsiMs).toBeLessThan(performanceBudget(BUDGETS.medium.ansi));
+    expect(result.avgDeltaMs).toBeLessThan(performanceBudget(BUDGETS.medium.delta));
   });
 
   it('meets the large dashboard budget', () => {
     const result = benchmarkRuntime(buildDashboard(8, 10, 6), { width: 180, height: 60 }, 12);
 
     expect(result.drawCommands).toBeGreaterThan(2000);
-    expect(result.avgFrameMs).toBeLessThan(BUDGETS.large.frame);
-    expect(result.avgLayoutMs).toBeLessThan(BUDGETS.large.layout);
-    expect(result.avgAnsiMs).toBeLessThan(BUDGETS.large.ansi);
-    expect(result.avgDeltaMs).toBeLessThan(BUDGETS.large.delta);
+    expect(result.avgFrameMs).toBeLessThan(performanceBudget(BUDGETS.large.frame));
+    expect(result.avgLayoutMs).toBeLessThan(performanceBudget(BUDGETS.large.layout));
+    expect(result.avgAnsiMs).toBeLessThan(performanceBudget(BUDGETS.large.ansi));
+    expect(result.avgDeltaMs).toBeLessThan(performanceBudget(BUDGETS.large.delta));
   });
 
   it('keeps delta cheaper than ANSI when a large tree changes locally', () => {
@@ -117,11 +120,11 @@ describeOrSkip('Runtime performance benchmarks', () => {
     );
 
     expect(result.drawCommands).toBeGreaterThan(2000);
-    expect(result.avgFrameMs).toBeLessThan(65);
-    expect(result.avgLayoutMs).toBeLessThan(45);
-    expect(result.avgDrawCommandMs).toBeLessThan(22);
+    expect(result.avgFrameMs).toBeLessThan(performanceBudget(65));
+    expect(result.avgLayoutMs).toBeLessThan(performanceBudget(45));
+    expect(result.avgDrawCommandMs).toBeLessThan(performanceBudget(22));
     expect(result.avgDeltaMs).toBeLessThan(result.avgAnsiMs);
-    expect(result.avgDeltaMs).toBeLessThan(30);
+    expect(result.avgDeltaMs).toBeLessThan(performanceBudget(30));
   });
 
   it('coalesces a large synchronous burst into one follow-up render', async () => {
@@ -133,6 +136,6 @@ describeOrSkip('Runtime performance benchmarks', () => {
 
     expect(result.finalValue).toBe(200);
     expect(result.renderCount).toBe(2);
-    expect(result.burstMs).toBeLessThan(150);
+    expect(result.burstMs).toBeLessThan(performanceBudget(150));
   });
 });

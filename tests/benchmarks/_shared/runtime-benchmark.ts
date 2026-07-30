@@ -5,10 +5,6 @@ import { createFrameSnapshot } from '../../../src/core/frame.js';
 import { createDeltaRenderer } from '../../../src/core/delta-render.js';
 import { renderFrameToString } from '../../../src/core/renderer.js';
 
-export const isCI =
-  process.env.CI === 'true' &&
-  process.env.TUIUIU_RUN_BENCHMARKS !== 'true';
-
 export interface RuntimeBenchmarkResult {
   avgFrameMs: number;
   avgLayoutMs: number;
