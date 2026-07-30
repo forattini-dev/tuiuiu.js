@@ -28,6 +28,7 @@
       "src/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.ts",
+      "benchmarks/framework-comparison/**/*.mjs",
       "!src/mcp/docs/**",
       "!src/storybook/stories/**"
     ]

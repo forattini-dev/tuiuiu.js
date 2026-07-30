@@ -89,7 +89,7 @@ There is now a complementary microbenchmark pass for buffer hot paths as well:
 - localized `diffRects(...)` with overlapping dirty rects
 - styled `patchesToAnsi(...)` serialization with adjacent same-style runs
 
-Those microbenchmarks are local-only, just like the broader runtime suite, and exist to catch regressions in the cell-buffer hot path before they show up as frame-budget failures.
+Those microbenchmarks are excluded from the default test job and exist to catch regressions in the cell-buffer hot path before they show up as frame-budget failures.
 
 After the conservative subtree-layout reuse pass, a repeated large frame on the same committed tree dropped again to roughly:
 
@@ -162,7 +162,10 @@ It also depends on whether the runtime is doing unnecessary **extra evaluations 
 
 The local performance suite now includes a burst benchmark that exercises a large tree through `render(...)` and asserts that the scheduler collapses the burst into one follow-up render.
 
-The benchmark suite is local-only and intentionally skipped in CI because terminal and machine variance are too high for reliable hosted thresholds.
+The benchmark suite is intentionally skipped by normal push and pull-request
+jobs because hosted-runner variance is too high for narrow absolute thresholds.
+The manually dispatched performance workflow runs it on Linux, Windows, and
+macOS so results can still be compared across controlled revisions.
 
 ## Stress Suite Notes
 
@@ -175,10 +178,45 @@ The stress suite exists to catch the class of regressions that usually show up a
 
 The budgets in this suite are intentionally conservative and local-only. They are not meant to certify absolute FPS across machines. They are meant to catch order-of-magnitude regressions in representative interactive workloads.
 
+## Cross-Framework Comparison
+
+The private package in `benchmarks/framework-comparison` compares:
+
+- the default Tuiuiu root entrypoint;
+- `tuiuiu.js/minimal`;
+- Ink using React state and `React.createElement`;
+- a small handwritten ANSI reference.
+
+No JSX source is required. JSX syntax is compiled away before runtime, so the
+Ink fixture uses the runtime representation that JSX produces. This keeps the
+comparison focused on the meaningful architectural costs: module loading,
+signals versus React state/reconciliation, layout, incremental painting, and
+terminal output.
+
+The localized and full-tree scenarios run in isolated Node.js processes and
+record module load, first paint, p50/p95/p99 updates, output bytes, burst
+handling, memory growth, and median absolute deviation between samples.
+
+Ink and React have a lockfile local to the benchmark package. A normal root
+install does not install competitor dependencies, and the benchmark workspace
+is excluded from the published npm package.
+
 ## Running The Suite
 
 ```bash
 pnpm test:performance
+```
+
+For a quick cross-framework smoke run:
+
+```bash
+pnpm benchmark:frameworks:quick
+```
+
+For the seven-sample comparison:
+
+```bash
+pnpm benchmark:frameworks
 ```
 
 If you only want the interactive stress workloads:

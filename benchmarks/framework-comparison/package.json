@@ -1,0 +1,17 @@
+{
+  "name": "@tuiuiu/benchmark-frameworks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "description": "Isolated, no-JSX runtime comparison for Tuiuiu, Ink, and direct ANSI output",
+  "scripts": {
+    "benchmark": "node runner.mjs",
+    "benchmark:quick": "node runner.mjs --quick"
+  },
+  "dependencies": {
+    "ink": "7.1.1",
+    "react": "19.2.8",
+    "react-devtools-core": "7.0.1"
+  }
+}
