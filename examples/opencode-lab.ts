@@ -12,7 +12,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  BigText,
   Box,
   ShimmerText,
   Spacer,
@@ -48,6 +47,29 @@ const MODELS = ['Big Pickle', 'GPT-5.6', 'Claude Sonnet'] as const;
 const AGENTS = ['Build', 'Plan'] as const;
 const version = await getVersion();
 
+const OPENCODE_LOGO_WIDTH = 39;
+const OPENCODE_LOGO_ACCENT_COLUMN = 33;
+const OPENCODE_LOGO_GLYPHS = [
+  ['█▀▀█', '█  █', '▀▀▀▀'],
+  ['█▀▀█', '█  █', '█▀▀▀'],
+  ['█▀▀█', '█▀▀▀', '▀▀▀▀'],
+  ['█▀▀▄', '█  █', '▀▀▀▀'],
+  ['█▀▀▀', '█   ', '▀▀▀▀'],
+  ['█▀▀█', '█  █', '▀▀▀▀'],
+  ['█▀▀█', '█  █', '▀▀▀▀'],
+  ['█▀▀█', '█▀▀▀', '▀▀▀▀'],
+] as const;
+const OPENCODE_LOGO_COLORS = [
+  colors.subtle,
+  colors.subtle,
+  colors.subtle,
+  colors.muted,
+  colors.text,
+  colors.text,
+  colors.text,
+  colors.text,
+] as const;
+
 export interface ConversationMessage {
   id: number;
   role: 'user' | 'assistant';
@@ -68,6 +90,36 @@ export interface ScreenFrameProps {
 }
 
 let nextMessageId = 1;
+
+function OpenCodeLogo(props: { availableWidth: number }): VNode {
+  if (props.availableWidth < OPENCODE_LOGO_WIDTH) {
+    return Text({ color: colors.text, bold: true }, 'opencode');
+  }
+
+  const rows = [0, 1, 2].map((row) =>
+    Box(
+      { flexDirection: 'row', width: OPENCODE_LOGO_WIDTH },
+      ...OPENCODE_LOGO_GLYPHS.flatMap((glyph, index) => [
+        Text({ color: OPENCODE_LOGO_COLORS[index] }, glyph[row]),
+        index === OPENCODE_LOGO_GLYPHS.length - 1
+          ? Text({}, '')
+          : Text({}, ' '),
+      ]),
+    ),
+  );
+
+  return Box(
+    {
+      flexDirection: 'column',
+      width: OPENCODE_LOGO_WIDTH,
+    },
+    Text(
+      { color: OPENCODE_LOGO_COLORS[6] },
+      `${' '.repeat(OPENCODE_LOGO_ACCENT_COLUMN)}▄`,
+    ),
+    ...rows,
+  );
+}
 
 function AgentLine(props: { agent: string; model: string }): VNode {
   return Box(
@@ -173,18 +225,7 @@ export function HomeScreen(props: ScreenFrameProps): VNode {
             alignItems: 'center',
             marginBottom: 2,
           },
-          BigText({
-            text: 'opencode',
-            font: 'small',
-            gradient: [
-              colors.subtle,
-              colors.subtle,
-              colors.muted,
-              colors.text,
-              colors.text,
-            ],
-            letterSpacing: 1,
-          }),
+          OpenCodeLogo({ availableWidth: cardWidth }),
         ),
         Composer({
           input: props.composer,

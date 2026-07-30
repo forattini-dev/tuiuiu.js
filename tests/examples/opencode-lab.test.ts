@@ -65,6 +65,8 @@ describe('OpenCode lab responsive contracts', () => {
       expect(frame).toContain('ctrl+p');
       expect(frame).toContain('Tip');
       expect(frame).toContain('tuiuiu.js');
+      expect(frame).toContain('█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█');
+      expect(frame).toContain('▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀');
     });
 
     it(`keeps the session composer at the bottom of ${viewport.width}x${viewport.height}`, () => {
