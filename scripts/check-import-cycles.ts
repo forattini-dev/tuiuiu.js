@@ -195,6 +195,72 @@ if (cycles.length > 0) {
   console.log(`[check:cycles] No runtime import cycles across ${files.length} source files.`);
 }
 
+const componentLayerOrder = new Map([
+  ['primitives', 0],
+  ['atoms', 1],
+  ['molecules', 2],
+  ['organisms', 3],
+  ['templates', 4],
+]);
+
+function sourceLayer(file: string): string | null {
+  const relative = path.relative(sourceDir, file).replaceAll(path.sep, '/');
+  const segment = relative.split('/')[0]!;
+  return componentLayerOrder.has(segment) ? segment : null;
+}
+
+const layerViolations: string[] = [];
+for (const [file, dependencies] of graph) {
+  const ownerLayer = sourceLayer(file);
+  if (!ownerLayer) continue;
+  const ownerRank = componentLayerOrder.get(ownerLayer)!;
+  for (const dependency of dependencies) {
+    const dependencyLayer = sourceLayer(dependency);
+    if (!dependencyLayer) continue;
+    const dependencyRank = componentLayerOrder.get(dependencyLayer)!;
+    if (dependencyRank <= ownerRank) continue;
+    layerViolations.push(
+      `${path.relative(rootDir, file).replaceAll(path.sep, '/')} -> ` +
+      `${path.relative(rootDir, dependency).replaceAll(path.sep, '/')}`,
+    );
+  }
+}
+
+if (layerViolations.length > 0) {
+  console.error('[check:cycles] Found component layer inversion(s):');
+  for (const violation of layerViolations.sort()) {
+    console.error(`- ${violation}`);
+  }
+  process.exitCode = 1;
+} else {
+  console.log('[check:cycles] Component dependency direction is valid.');
+}
+
+const directHookContextConsumers = files
+  .filter((file) => {
+    const layer = sourceLayer(file);
+    return layer === 'atoms' || layer === 'molecules' || layer === 'organisms' || layer === 'templates';
+  })
+  .filter((file) =>
+    getRuntimeSpecifiers(file).some((specifier) =>
+      /(?:^|\/)hooks\/context(?:\.js)?$/u.test(specifier)
+    )
+  )
+  .map((file) => path.relative(rootDir, file).replaceAll(path.sep, '/'))
+  .sort();
+
+if (directHookContextConsumers.length > 0) {
+  console.error(
+    '[check:cycles] UI components must use lifecycle hosts instead of hooks/context directly:',
+  );
+  for (const file of directHookContextConsumers) {
+    console.error(`- ${file}`);
+  }
+  process.exitCode = 1;
+} else {
+  console.log('[check:cycles] UI components use the canonical lifecycle boundary.');
+}
+
 type PackageExportTarget =
   | string
   | { import?: string; default?: string; types?: string };

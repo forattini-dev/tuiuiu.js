@@ -16,6 +16,7 @@ import {
   Slot,
 } from '../../src/primitives/index.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { calculateLayout } from '../../src/core/layout.js';
 
 describe('Primitives', () => {
   describe('Text', () => {
@@ -153,6 +154,14 @@ describe('Primitives', () => {
       expect(node.props.flexGrow).toBe(1);
     });
 
+    it('maps fixed x/y sizes to layout axes without flex growth', () => {
+      const node = Spacer({ x: 3, y: 2 });
+
+      expect(node.props.width).toBe(3);
+      expect(node.props.height).toBe(2);
+      expect(node.props.flexGrow).toBe(0);
+    });
+
     it('should expand to fill space', () => {
       const node = Box(
         { flexDirection: 'row', width: 20 },
@@ -163,6 +172,18 @@ describe('Primitives', () => {
       const output = renderToString(node, 80);
       expect(output.startsWith('L')).toBe(true);
       expect(output.trimEnd().endsWith('R')).toBe(true);
+    });
+
+    it('fills remaining height in a column', () => {
+      const node = Box(
+        { flexDirection: 'column', width: 10, height: 5 },
+        Text({}, 'top'),
+        Spacer(),
+        Text({}, 'bottom'),
+      );
+
+      const layout = calculateLayout(node, 10, 5);
+      expect(layout.children[1]?.height).toBe(3);
     });
   });
 

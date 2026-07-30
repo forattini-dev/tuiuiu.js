@@ -403,11 +403,14 @@ function layoutTextNode(node: VNode, ctx: RenderContext): LayoutNode {
 }
 
 function layoutSpacerNode(node: VNode, ctx: RenderContext): LayoutNode {
+  const requestedHeight = typeof node.props.height === 'number'
+    ? node.props.height
+    : 1;
   return {
     x: ctx.x,
     y: ctx.y,
     width: ctx.width,
-    height: Math.min(1, ctx.height),
+    height: Math.min(requestedHeight, ctx.height),
     node,
     children: [],
   };

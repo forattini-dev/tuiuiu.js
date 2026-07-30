@@ -13,8 +13,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { useConst, useInput } from '../hooks/index.js';
-import { isRenderingHooks } from '../hooks/context.js';
+import { useInput } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getTheme } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { createTextInput, renderTextInput, type TextInputOptions } from '../atoms/text-input.js';
@@ -189,13 +189,7 @@ export function SearchInput(props: SearchInputProps): VNode {
     ...inputOptions,
   };
 
-  const internalState = state
-    ? (state.updateOptions(stateOptions), state)
-    : isRenderingHooks()
-    ? useConst(() => createSearchInput(stateOptions))
-    : createSearchInput(stateOptions);
-
-  internalState.updateOptions(stateOptions);
+  const internalState = useFactoryState(state, stateOptions, createSearchInput);
 
   const currentValue = internalState.value();
   const hasValue = currentValue.length > 0;
@@ -375,13 +369,7 @@ export function PasswordInput(props: PasswordInputProps): VNode {
     ...inputOptions,
   };
 
-  const internalState = state
-    ? (state.updateOptions(stateOptions), state)
-    : isRenderingHooks()
-    ? useConst(() => createPasswordInput(stateOptions))
-    : createPasswordInput(stateOptions);
-
-  internalState.updateOptions(stateOptions);
+  const internalState = useFactoryState(state, stateOptions, createPasswordInput);
 
   const isVisible = internalState.isVisible();
 
@@ -554,13 +542,7 @@ export function NumberInput(props: NumberInputProps): VNode {
     onChange,
   };
 
-  const internalState = state
-    ? (state.updateOptions(stateOptions), state)
-    : isRenderingHooks()
-    ? useConst(() => createNumberInput(stateOptions))
-    : createNumberInput(stateOptions);
-
-  internalState.updateOptions(stateOptions);
+  const internalState = useFactoryState(state, stateOptions, createNumberInput);
 
   const currentValue = internalState.value();
   const isActiveResolved = typeof isActive === 'function' ? isActive() : isActive;

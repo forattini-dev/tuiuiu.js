@@ -8,19 +8,12 @@
  * - Header: App header with title and actions
  */
 
-import { Box, Text } from '../primitives/nodes.js';
+import { Box, Text, normalizeChildren } from '../primitives/nodes.js';
 import type { BoxStyle, TuiChild, TuiNode, VNode } from '../utils/types.js';
 import { VStack, HStack, Spacer, Divider } from './stack.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { warnIfPropsPatternUsedVariadically } from '../core/dev-warnings.js';
 import type { SemanticVariant } from '../core/theme-types.js';
-
-/** Normalize TuiNode to TuiChild[] */
-function normalizeChildren(propsChildren: TuiNode | undefined): TuiChild[] {
-  if (!propsChildren) return [];
-  if (Array.isArray(propsChildren)) return propsChildren;
-  return [propsChildren];
-}
 
 // =============================================================================
 // TYPES
@@ -156,7 +149,7 @@ export function Page(props: PageProps): VNode {
     if (subtitle) {
       headerContent.push(Text({ color: subtitleColor, dim: true }, ` - ${subtitle}`));
     }
-    parts.push(HStack({ children: headerContent }));
+    parts.push(HStack({}, ...headerContent));
     if (divider) {
       parts.push(Divider({ color: borderColor }));
     }
@@ -179,13 +172,15 @@ export function Page(props: PageProps): VNode {
   }
 
   // Build the page
-  const pageContent = VStack({
-    gap: 0,
-    padding: border ? 0 : padding,
-    width: border ? undefined : pageWidth,
-    height: border ? undefined : pageHeight,
-    children: parts,
-  });
+  const pageContent = VStack(
+    {
+      gap: 0,
+      padding: border ? 0 : padding,
+      width: border ? undefined : pageWidth,
+      height: border ? undefined : pageHeight,
+    },
+    ...parts
+  );
 
   if (border) {
     return Box(
@@ -434,7 +429,7 @@ export interface StatusBarProps {
  *   left: Text({}, 'Ready'),
  *   center: Text({}, 'file.ts'),
  *   right: Text({}, 'Ln 42, Col 8'),
- *   backgroundColor: 'blue'
+ *   color: 'blue'
  * })
  * ```
  */
@@ -545,10 +540,10 @@ export interface LayoutHeaderProps extends BoxStyle {
  * Header({
  *   title: 'My App',
  *   subtitle: 'v1.0.0',
- *   rightActions: HStack({ gap: 2, children: [
+ *   rightActions: HStack({ gap: 2 },
  *     Text({}, '[H]elp'),
  *     Text({}, '[Q]uit'),
- *   ]}),
+ *   ),
  *   backgroundColor: 'blue'
  * })
  * ```
@@ -654,13 +649,11 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiC
   );
 
   if (border) {
-    return VStack({
-      gap: 0,
-      children: [
-        headerContent,
-        Divider({ color: borderColor, width: 'fill' }),
-      ],
-    });
+    return VStack(
+      { gap: 0 },
+      headerContent,
+      Divider({ color: borderColor, width: 'fill' }),
+    );
   }
 
   return headerContent;

@@ -389,19 +389,11 @@ export type {
   MouseEventData,
   BoxProps,
   TextProps,
+  SpacerProps,
+  NewlineProps,
   LayoutRect,
   LayoutRef,
 } from './utils/types.js';
-
-// Spacer/Newline props
-export interface SpacerProps {
-  x?: number;
-  y?: number;
-}
-
-export interface NewlineProps {
-  count?: number;
-}
 
 // =============================================================================
 // Atomic Design - Atoms (smallest functional units)

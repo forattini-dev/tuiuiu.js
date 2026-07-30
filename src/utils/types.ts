@@ -265,7 +265,14 @@ export interface TextProps extends TextStyle, MouseEventProps, AccessibilityProp
 
 /** Spacer props */
 export interface SpacerProps {
-  // Spacer takes all available space
+  /** Flexible growth factor when no fixed axis is provided */
+  flex?: number;
+  /** Minimum size on both axes */
+  minSize?: number;
+  /** Fixed horizontal size */
+  x?: number;
+  /** Fixed vertical size */
+  y?: number;
 }
 
 /** Newline props */

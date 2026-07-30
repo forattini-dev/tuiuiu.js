@@ -9,8 +9,10 @@
  * - Spacer: Flexible space that pushes siblings apart
  */
 
-import { Box } from '../primitives/nodes.js';
-import type { VNode } from '../utils/types.js';
+import { Box, normalizeChildren } from '../primitives/nodes.js';
+import type { TuiChild, TuiNode, VNode } from '../utils/types.js';
+export { Spacer } from '../primitives/nodes.js';
+export type { SpacerProps } from '../utils/types.js';
 
 // =============================================================================
 // VSTACK - Vertical Stack
@@ -38,7 +40,7 @@ export interface VStackProps {
   /** Border color */
   borderColor?: string;
   /** Children nodes */
-  children: VNode[];
+  children?: TuiNode;
 }
 
 /**
@@ -46,26 +48,35 @@ export interface VStackProps {
  *
  * @example
  * ```typescript
- * VStack({ gap: 1 }, [
+ * VStack({ gap: 1 },
  *   Text({}, 'Line 1'),
  *   Text({}, 'Line 2'),
  *   Text({}, 'Line 3'),
- * ])
+ * )
  *
  * // With alignment
- * VStack({ gap: 1, align: 'center' }, [
+ * VStack({ gap: 1, align: 'center' },
  *   Header(),
  *   Content(),
  *   Footer(),
- * ])
+ * )
  * ```
  */
-export function VStack(props: VStackProps): VNode;
-export function VStack(children: VNode[]): VNode;
-export function VStack(propsOrChildren: VStackProps | VNode[]): VNode {
-  // Handle both signatures
+export function VStack(props?: VStackProps, ...children: TuiChild[]): VNode;
+export function VStack(children: TuiChild[]): VNode;
+export function VStack(
+  propsOrChildren: VStackProps | TuiChild[] = {},
+  ...variadicChildren: TuiChild[]
+): VNode {
   const isArray = Array.isArray(propsOrChildren);
-  const props: VStackProps = isArray ? { children: propsOrChildren } : propsOrChildren;
+  const props: VStackProps = isArray ? {} : propsOrChildren;
+  const children = normalizeChildren(
+    variadicChildren.length > 0
+      ? variadicChildren
+      : isArray
+        ? propsOrChildren
+        : props.children,
+  );
 
   const {
     gap = 0,
@@ -78,7 +89,6 @@ export function VStack(propsOrChildren: VStackProps | VNode[]): VNode {
     border = false,
     borderStyle = 'single',
     borderColor,
-    children,
   } = props;
 
   // Map alignment to flexbox
@@ -140,7 +150,7 @@ export interface HStackProps {
   /** Border color */
   borderColor?: string;
   /** Children nodes */
-  children: VNode[];
+  children?: TuiNode;
 }
 
 /**
@@ -148,24 +158,34 @@ export interface HStackProps {
  *
  * @example
  * ```typescript
- * HStack({ gap: 2 }, [
+ * HStack({ gap: 2 },
  *   Button({ label: 'Cancel' }),
  *   Button({ label: 'OK' }),
- * ])
+ * )
  *
  * // Space between items
- * HStack({ justify: 'between' }, [
+ * HStack({ justify: 'between' },
  *   Logo(),
  *   Navigation(),
  *   UserMenu(),
- * ])
+ * )
  * ```
  */
-export function HStack(props: HStackProps): VNode;
-export function HStack(children: VNode[]): VNode;
-export function HStack(propsOrChildren: HStackProps | VNode[]): VNode {
+export function HStack(props?: HStackProps, ...children: TuiChild[]): VNode;
+export function HStack(children: TuiChild[]): VNode;
+export function HStack(
+  propsOrChildren: HStackProps | TuiChild[] = {},
+  ...variadicChildren: TuiChild[]
+): VNode {
   const isArray = Array.isArray(propsOrChildren);
-  const props: HStackProps = isArray ? { children: propsOrChildren } : propsOrChildren;
+  const props: HStackProps = isArray ? {} : propsOrChildren;
+  const children = normalizeChildren(
+    variadicChildren.length > 0
+      ? variadicChildren
+      : isArray
+        ? propsOrChildren
+        : props.children,
+  );
 
   const {
     gap = 0,
@@ -179,7 +199,6 @@ export function HStack(propsOrChildren: HStackProps | VNode[]): VNode {
     border = false,
     borderStyle = 'single',
     borderColor,
-    children,
   } = props;
 
   // Map alignment
@@ -236,7 +255,7 @@ export interface CenterProps {
   /** Fixed height (defaults to terminal height) */
   height?: number;
   /** Child node */
-  children: VNode;
+  children?: TuiNode;
 }
 
 /**
@@ -245,23 +264,26 @@ export interface CenterProps {
  * @example
  * ```typescript
  * // Center both ways (full screen)
- * Center({ children: Modal({ content: '...' }) })
+ * Center({}, Modal({ content: Text({}, '...') }))
  *
  * // Center only horizontally
- * Center({ horizontal: true, vertical: false, children: Title() })
+ * Center({ horizontal: true, vertical: false }, Title())
  *
  * // Center in a specific area
- * Center({ width: 40, height: 10, children: Spinner() })
+ * Center({ width: 40, height: 10 }, Spinner())
  * ```
  */
-export function Center(props: CenterProps): VNode {
+export function Center(props: CenterProps = {}, ...children: TuiChild[]): VNode {
   const {
     horizontal = true,
     vertical = true,
     width,
     height,
-    children,
+    children: propsChildren,
   } = props;
+  const resolvedChildren = normalizeChildren(
+    children.length > 0 ? children : propsChildren,
+  );
 
   return Box(
     {
@@ -271,7 +293,7 @@ export function Center(props: CenterProps): VNode {
       alignItems: horizontal ? 'center' : 'flex-start',
       justifyContent: vertical ? 'center' : 'flex-start',
     },
-    children
+    ...resolvedChildren
   );
 }
 
@@ -330,46 +352,28 @@ export function FullScreen(props: FullScreenProps): VNode {
 // SPACER - Flexible space
 // =============================================================================
 
-export interface SpacerProps {
-  /** Flex grow value (default: 1) */
-  flex?: number;
-  /** Minimum size */
-  minSize?: number;
-}
-
 /**
  * Spacer - Flexible space that pushes siblings apart
  *
  * @example
  * ```typescript
  * // Push items to opposite ends
- * HStack({ children: [
+ * HStack({},
  *   Logo(),
  *   Spacer(),
  *   UserMenu(),
- * ]})
+ * )
  *
  * // Equal spacing
- * HStack({ children: [
+ * HStack({},
  *   Item1(),
  *   Spacer(),
  *   Item2(),
  *   Spacer(),
  *   Item3(),
- * ]})
+ * )
  * ```
  */
-export function Spacer(props: SpacerProps = {}): VNode {
-  const { flex = 1, minSize = 0 } = props;
-
-  return Box({
-    flexGrow: flex,
-    flexShrink: 0,
-    minWidth: minSize,
-    minHeight: minSize,
-  });
-}
-
 // =============================================================================
 // DIVIDER - Re-export from primitives (canonical implementation)
 // =============================================================================

@@ -28,17 +28,18 @@ import { getHitTestRegistry, registerHitTestFromLayout } from '../core/hit-test.
 import { createDeltaRenderer, type DeltaRenderer } from '../core/delta-render.js';
 import {
   clearCommittedFrameSnapshot,
-  createFrameSnapshot,
-  finalizeFrameRuntimeMetrics,
   getCommittedFrameSnapshot,
   recordFramePhaseMetric,
   recordFrameStructuralMetric,
-  setCommittedFrameSnapshot,
 } from '../core/frame.js';
 import { cleanLayoutTree, clearChanges } from '../core/dirty.js';
 import { onTerminalFocusChange, readTerminalFocus } from '../core/terminal-focus.js';
 import { invalidateCellSize } from '../core/graphics.js';
-import { recordCommittedFrame } from '../core/perf-inspector.js';
+import {
+  activateProductionFrame,
+  commitProductionFrame,
+  createProductionFrameSnapshot,
+} from '../core/frame-lifecycle.js';
 import { configureMotionRuntime } from '../core/motion-runtime.js';
 import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
 import { refreshCapabilities } from '../core/capabilities.js';
@@ -54,12 +55,6 @@ import {
   refreshReactiveVNodes,
 } from '../primitives/computed-node.js';
 import { fingerprintValue } from '../core/structural-fingerprint.js';
-
-const PRODUCTION_FRAME_OPTIONS = {
-  eagerHitTargets: false,
-  eagerQueries: false,
-  eagerWarnings: false,
-} as const;
 
 /**
  * Check if a VNode is marked as static
@@ -794,13 +789,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
 
     // Delta renderer path: optimized cell-level updates
     if (deltaRenderer && !debug) {
-      const frame = createFrameSnapshot(currentNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+      const frame = createProductionFrameSnapshot(currentNode, { width, height });
       frame.metrics.runtimeStartAt = runtimeStartAt;
       if (pendingVNodeEvalMs !== undefined) {
         recordFramePhaseMetric(frame, 'vnodeEvalMs', pendingVNodeEvalMs);
       }
       const commitStart = performance.now();
-      setCommittedFrameSnapshot(frame);
+      activateProductionFrame(frame);
 
       // Register elements in hit-test registry for mouse events
       registerHitTestFromLayout(frame.layout, staticLineCount);
@@ -848,7 +843,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
 
     const previousFrame = getCommittedFrameSnapshot();
-    const frame = createFrameSnapshot(interactiveNode, { width, height }, PRODUCTION_FRAME_OPTIONS);
+    const frame = createProductionFrameSnapshot(interactiveNode, { width, height });
     frame.metrics.runtimeStartAt = runtimeStartAt;
     if (pendingVNodeEvalMs !== undefined) {
       recordFramePhaseMetric(frame, 'vnodeEvalMs', pendingVNodeEvalMs);
@@ -856,7 +851,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const staticRenderMs = performance.now() - staticRenderStart;
     recordFramePhaseMetric(frame, 'staticRenderMs', staticRenderMs);
     const commitStart = performance.now();
-    setCommittedFrameSnapshot(frame);
+    activateProductionFrame(frame);
 
     // Register elements in hit-test registry for mouse events
     registerHitTestFromLayout(frame.layout, staticLineCount);
@@ -883,8 +878,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       const outputCapture = endOutputCapture();
       recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
       recordFrameStructuralMetric(frame, 'outputByteCount', outputCapture.bytes);
-      finalizeFrameRuntimeMetrics(frame, runtimeStartAt);
-      recordCommittedFrame(frame, { renderer: 'ansi' });
+      commitProductionFrame(frame, { renderer: 'ansi', runtimeStartAt });
       cleanLayoutTree(frame.layout);
       clearChanges();
       pendingVNodeEvalMs = undefined;
@@ -902,8 +896,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const outputCapture = endOutputCapture();
     recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
     recordFrameStructuralMetric(frame, 'outputByteCount', outputCapture.bytes);
-    finalizeFrameRuntimeMetrics(frame, runtimeStartAt);
-    recordCommittedFrame(frame, { renderer: 'ansi' });
+    commitProductionFrame(frame, { renderer: 'ansi', runtimeStartAt });
     cleanLayoutTree(frame.layout);
     clearChanges();
 

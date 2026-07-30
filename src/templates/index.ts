@@ -14,7 +14,7 @@
  * } from './templates/index.js';
  *
  * // Simple centered content
- * Center({ children: Modal({ title: 'Welcome' }) })
+ * Center({}, Modal({ title: 'Welcome', content: WelcomeMessage() }))
  *
  * // Complete application shell
  * AppShell({

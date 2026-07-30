@@ -55,6 +55,11 @@ export {
 // All Documentation Combined
 // =============================================================================
 
+const animationComponentNames = new Set(animation.map((component) => component.name));
+const canonicalMedia = media.filter(
+  (component) => !animationComponentNames.has(component.name),
+);
+
 export const allComponents: ComponentDoc[] = [
   ...primitives,
   ...atoms,
@@ -62,7 +67,7 @@ export const allComponents: ComponentDoc[] = [
   ...dataViz,
   ...organisms,
   ...layouts,
-  ...media,
+  ...canonicalMedia,
   ...animation,
   ...colors,
   themeSystem,
@@ -82,7 +87,7 @@ export const categories = {
   molecules: [...molecules, ...dataViz].map(c => c.name),
   organisms: organisms.map(c => c.name),
   layouts: layouts.map(c => c.name),
-  media: media.map(c => c.name),
+  media: canonicalMedia.map(c => c.name),
   animation: animation.map(c => c.name),
   colors: colors.map(c => c.name),
   hooks: hooks.map(h => h.name),

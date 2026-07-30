@@ -18,9 +18,9 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, MouseEventData, TextStyle } from '../utils/types.js';
 import { batch, createSignal, createEffect } from '../primitives/signal.js';
-import { useConst, useInput, type Key } from '../hooks/index.js';
+import { useInput, type Key } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { usePaste } from '../hooks/use-paste.js';
-import { isRenderingHooks } from '../hooks/context.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { stringWidth } from '../utils/text-utils.js';
@@ -1798,20 +1798,14 @@ export interface TextInputProps extends TextInputOptions {
 }
 
 export function useTextInputState(options: TextInputOptions = {}) {
-  const state = useConst(() => createTextInput(options));
-  state.updateOptions(options);
-  return state;
+  return useFactoryState(undefined, options, createTextInput);
 }
 
 /**
  * Simple standalone TextInput component
  */
 export function TextInput({ state, ...options }: TextInputProps): VNode {
-  const internalState = state
-    ? (state.updateOptions(options), state)
-    : isRenderingHooks()
-    ? useTextInputState(options)
-    : createTextInput(options);
+  const internalState = useFactoryState(state, options, createTextInput);
 
   return renderTextInput(internalState, options);
 }

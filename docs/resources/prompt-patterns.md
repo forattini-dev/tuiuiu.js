@@ -221,15 +221,18 @@ unsubscribe();
 
 This keeps worker-side progress real, routes UI mutations through the batched ingress, and avoids one render per ad-hoc timer tick.
 
-## Generic Task Bridge
+## Generic Background Executor
 
-Use `createTaskBridge()` when the domain is not about prompts or UI-specific semantics:
+Use `createBackgroundExecutor()` when the domain is not about prompts or
+UI-specific semantics:
 
 ```typescript
-import { createTaskBridge } from 'tuiuiu.js';
+import { createBackgroundExecutor } from 'tuiuiu.js';
 
-const taskBridge = createTaskBridge('./workers/background-pipeline.mjs');
-const handle = taskBridge.execute('analyze-text', { text: 'heavy payload...' });
+const executor = createBackgroundExecutor({
+  modulePath: './workers/background-pipeline.mjs',
+});
+const handle = executor.execute('analyze-text', { text: 'heavy payload...' });
 
 handle.subscribe((event) => {
   if (event.kind === 'progress') {
@@ -242,12 +245,11 @@ handle.subscribe((event) => {
 const result = await handle.result;
 ```
 
-`createTaskBridge` accepts either:
-- `createTaskBridge('./workers/file.mjs')`
-- `createTaskBridge({ modulePath: './workers/file.mjs', workerName: 'my-worker' })`
-- `createTaskBridge(existingBackgroundExecutor)`
+`createBackgroundExecutor` accepts worker options through `modulePath`, or
+inline handlers through `handlers`. `createTaskBridge` remains a deprecated
+1.x compatibility adapter.
 
-Call `taskBridge.destroy()` when the screen/context is done.
+Call `executor.destroy()` when the screen/context is done.
 
 ## Core vs App-Owned Integration
 

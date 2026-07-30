@@ -110,6 +110,37 @@ describe('background executor', () => {
     await executor.destroy();
   });
 
+  it('uses one canonical executor contract for inline execution and task bridges', async () => {
+    const executor = createInlineBackgroundExecutor({
+      uppercase: (payload: { text: string }) => payload.text.toUpperCase(),
+    });
+    const bridge = createTaskBridge(executor);
+
+    expect(bridge).toBe(executor);
+    await expect(executor.execute('uppercase', { text: 'canonical' }).result)
+      .resolves.toMatchObject({
+        status: 'resolved',
+        value: 'CANONICAL',
+      });
+
+    await executor.destroy();
+  });
+
+  it('keeps execute usable when passed as a detached callback', async () => {
+    const executor = createInlineBackgroundExecutor({
+      uppercase: (payload: { text: string }) => payload.text.toUpperCase(),
+    });
+    const execute = executor.execute;
+
+    await expect(execute('uppercase', { text: 'detached' }).result)
+      .resolves.toMatchObject({
+        status: 'resolved',
+        value: 'DETACHED',
+      });
+
+    await executor.destroy();
+  });
+
   it('delivers ordered progress events through the inline executor before resolution', async () => {
     const executor = createInlineBackgroundExecutor({
       progressEcho: async (payload: { text: string }, _signal, reporter) => {

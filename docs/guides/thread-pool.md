@@ -2,7 +2,9 @@
 
 When one worker is not enough, use `createTaskBridgePool()` to fan heavy tasks across multiple workers.
 
-`createTaskBridgePool()` keeps the same `TaskBridge` contract (`submit`, `execute`, `destroy`) and adds a scheduler in front of multiple workers.
+`createTaskBridgePool()` returns the canonical `BackgroundExecutor` contract
+(`submit`, `execute`, `destroy`) and adds a scheduler in front of multiple
+workers. The factory keeps its 1.x name for compatibility.
 
 ## API
 
@@ -81,11 +83,12 @@ await pool.destroy();
 
 ## Pool + Thread Bus (multi-thread communication)
 
-`createTaskBridgePool()` returns a `TaskBridge`, so you can use it directly in `createThreadBus()` just like one worker.
+`createTaskBridgePool()` returns a `BackgroundExecutor`, so you can use it
+directly in `createThreadBus()` just like one worker.
 
 ```ts
 import {
-  createTaskBridge,
+  createBackgroundExecutor,
   createTaskBridgePool,
   createThreadBus,
 } from 'tuiuiu.js';
@@ -96,7 +99,9 @@ const analyzerPool = createTaskBridgePool({
   scheduler: 'least-pending',
 });
 
-const indexer = createTaskBridge('./workers/indexer.mjs');
+const indexer = createBackgroundExecutor({
+  modulePath: './workers/indexer.mjs',
+});
 
 const bus = createThreadBus({
   threads: {
@@ -125,8 +130,9 @@ await indexer.destroy();
 
 - `poolSize` is not a request-size limiter.
   It controls how many workers exist in parallel.
-- You can still use `createTaskBridge()` for one-off or small integrations.
-- You can pass the pool directly to the Thread Bus by keeping its `TaskBridge` shape.
+- Use `createBackgroundExecutor({ modulePath })` for one-off or small worker integrations.
+- `createTaskBridge()` remains a deprecated 1.x compatibility adapter.
+- You can pass the pool directly to the Thread Bus through its `BackgroundExecutor` shape.
 
 ```ts
 import { createThreadBus } from 'tuiuiu.js';

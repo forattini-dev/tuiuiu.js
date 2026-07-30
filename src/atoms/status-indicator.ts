@@ -17,7 +17,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { resolveColor } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
-import { isRenderingHooks } from '../hooks/context.js';
+import { hasComponentRenderLifecycle } from '../hooks/factory-state.js';
 import { useState } from '../hooks/use-state.js';
 import { useInterval } from '../hooks/use-interval.js';
 
@@ -73,7 +73,7 @@ export interface StatusIndicatorProps {
  * so the indicator simply renders its visible frame.
  */
 function usePulseVisibility(enabled: boolean): boolean {
-  if (!isRenderingHooks()) {
+  if (!hasComponentRenderLifecycle()) {
     return true;
   }
 

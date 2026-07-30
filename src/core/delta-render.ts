@@ -53,23 +53,18 @@ import type {
   ReservedRegion,
 } from './frame.js';
 import {
-  createFrameSnapshot,
-  finalizeFrameRuntimeMetrics,
   recordFramePhaseMetric,
   recordFrameStructuralMetric,
 } from './frame.js';
-import { recordCommittedFrame } from './perf-inspector.js';
+import {
+  commitProductionFrame,
+  createProductionFrameSnapshot,
+} from './frame-lifecycle.js';
 import {
   deleteRuntimeResource,
   getRuntimeResource,
   RUNTIME_RESOURCE_DISPOSE,
 } from './runtime-scope.js';
-
-const PRODUCTION_FRAME_OPTIONS = {
-  eagerHitTargets: false,
-  eagerQueries: false,
-  eagerWarnings: false,
-} as const;
 
 const DIRTY_AREA_FALLBACK_RATIO = 0.4;
 const DIRTY_RECT_FALLBACK_COUNT = 64;
@@ -376,7 +371,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
    */
   function render(node: VNode): void {
     prepareRender(stdout.columns || 80, stdout.rows || 24);
-    const frame = createFrameSnapshot(node, { width, height }, PRODUCTION_FRAME_OPTIONS);
+    const frame = createProductionFrameSnapshot(node, { width, height });
     renderFrame(frame);
   }
 
@@ -509,11 +504,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
         recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
         recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
         recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
-        finalizeFrameRuntimeMetrics(
-          frame,
-          frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
-        );
-        recordCommittedFrame(frame, { renderer: 'delta' });
+        commitProductionFrame(frame, { renderer: 'delta' });
         return;
       }
 
@@ -553,11 +544,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
         recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
         recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
         recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
-        finalizeFrameRuntimeMetrics(
-          frame,
-          frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
-        );
-        recordCommittedFrame(frame, { renderer: 'delta' });
+        commitProductionFrame(frame, { renderer: 'delta' });
         return;
       }
     }
@@ -587,11 +574,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
       recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
       recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
       recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
-      finalizeFrameRuntimeMetrics(
-        frame,
-        frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
-      );
-      recordCommittedFrame(frame, { renderer: 'delta' });
+      commitProductionFrame(frame, { renderer: 'delta' });
       return;
     }
 
@@ -610,11 +593,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
     recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
     recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
     recordFramePhaseMetric(frame, 'deltaRenderMs', Math.max(0, now() - renderStart - outputWriteMs));
-    finalizeFrameRuntimeMetrics(
-      frame,
-      frame.metrics.runtimeStartAt ?? frame.metrics.frameStartAt,
-    );
-    recordCommittedFrame(frame, { renderer: 'delta' });
+    commitProductionFrame(frame, { renderer: 'delta' });
   }
 
   return {

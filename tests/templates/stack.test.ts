@@ -10,6 +10,18 @@ import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
 
 describe('VStack', () => {
+  it('accepts canonical variadic children without dropping them', () => {
+    const vnode = VStack(
+      { gap: 1 },
+      Text({}, 'First'),
+      Text({}, 'Second'),
+    );
+
+    expect(vnode.children).toHaveLength(3);
+    expect(vnode.children[0]?.props.children).toBe('First');
+    expect(vnode.children[2]?.props.children).toBe('Second');
+  });
+
   describe('Basic Usage', () => {
     it('should create a vertical stack with children array', () => {
       const vnode = VStack([
@@ -181,6 +193,18 @@ describe('VStack', () => {
 });
 
 describe('HStack', () => {
+  it('accepts canonical variadic children without dropping them', () => {
+    const vnode = HStack(
+      { gap: 2 },
+      Text({}, 'Left'),
+      Text({}, 'Right'),
+    );
+
+    expect(vnode.children).toHaveLength(3);
+    expect(vnode.children[0]?.props.children).toBe('Left');
+    expect(vnode.children[2]?.props.children).toBe('Right');
+  });
+
   describe('Basic Usage', () => {
     it('should create a horizontal stack with children array', () => {
       const vnode = HStack([
@@ -322,6 +346,13 @@ describe('HStack', () => {
 });
 
 describe('Center', () => {
+  it('accepts canonical variadic children', () => {
+    const vnode = Center({}, Text({}, 'Centered'));
+
+    expect(vnode.children).toHaveLength(1);
+    expect(vnode.children[0]?.props.children).toBe('Centered');
+  });
+
   it('should center both horizontally and vertically by default', () => {
     const vnode = Center({
       width: 80,

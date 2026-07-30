@@ -7,7 +7,13 @@
 
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { Box, Text } from '../../primitives/nodes.js';
-import { getRenderMode } from '../../core/capabilities.js';
+import {
+  normalizeSparklineData,
+  renderSparklineText,
+  SPARKLINE_ASCII_CHARS as ASCII_CHARS,
+  SPARKLINE_BLOCK_CHARS as BLOCK_CHARS,
+  SPARKLINE_BRAILLE_BASE as BRAILLE_BASE,
+} from '../../utils/sparkline.js';
 
 // =============================================================================
 // Types
@@ -45,104 +51,6 @@ export interface SparklineBufferOptions {
   width?: number;
 }
 
-// =============================================================================
-// Character Sets
-// =============================================================================
-
-/** Unicode block characters (8 levels) */
-const BLOCK_CHARS = '▁▂▃▄▅▆▇█';
-
-/** ASCII fallback characters (8 levels) */
-const ASCII_CHARS = '_.-:=*#@';
-
-/** Braille dot patterns for 2x4 resolution */
-const BRAILLE_BASE = 0x2800; // Unicode braille pattern blank
-
-/**
- * Get the appropriate character set based on style and render mode
- */
-function getSparklineChars(style: SparklineStyle): string {
-  if (style === 'ascii' || getRenderMode() === 'ascii') {
-    return ASCII_CHARS;
-  }
-  return BLOCK_CHARS;
-}
-
-// =============================================================================
-// Core Rendering Functions
-// =============================================================================
-
-/**
- * Resample data array to fit target width
- */
-function resampleData(data: number[], targetWidth: number): number[] {
-  if (data.length === 0) return [];
-  if (data.length <= targetWidth) return data;
-
-  const result: number[] = [];
-  const ratio = data.length / targetWidth;
-
-  for (let i = 0; i < targetWidth; i++) {
-    const start = Math.floor(i * ratio);
-    const end = Math.floor((i + 1) * ratio);
-
-    // Average the values in this bucket
-    let sum = 0;
-    let count = 0;
-    for (let j = start; j < end && j < data.length; j++) {
-      if (typeof data[j] === 'number' && !isNaN(data[j]!)) {
-        sum += data[j]!;
-        count++;
-      }
-    }
-
-    result.push(count > 0 ? sum / count : 0);
-  }
-
-  return result;
-}
-
-/**
- * Normalize data to 0-1 range
- */
-function normalizeData(
-  data: number[],
-  min?: number,
-  max?: number
-): { normalized: number[]; min: number; max: number } {
-  if (data.length === 0) {
-    return { normalized: [], min: 0, max: 0 };
-  }
-
-  // Filter out NaN and Infinity
-  const validData = data.filter((v) => typeof v === 'number' && isFinite(v));
-  if (validData.length === 0) {
-    return { normalized: data.map(() => 0), min: 0, max: 0 };
-  }
-
-  const actualMin = min ?? Math.min(...validData);
-  const actualMax = max ?? Math.max(...validData);
-  const range = actualMax - actualMin || 1;
-
-  const normalized = data.map((v) => {
-    if (typeof v !== 'number' || !isFinite(v)) return 0;
-    return (v - actualMin) / range;
-  });
-
-  return { normalized, min: actualMin, max: actualMax };
-}
-
-/**
- * Convert normalized value (0-1) to sparkline character
- */
-function valueToChar(value: number, chars: string): string {
-  const index = Math.min(
-    Math.floor(value * chars.length),
-    chars.length - 1
-  );
-  return chars[Math.max(0, index)] || chars[0]!;
-}
-
 /**
  * Render sparkline string from data
  */
@@ -150,34 +58,7 @@ export function renderSparklineString(
   data: number[],
   options: Omit<SparklineOptions, 'data' | 'color' | 'showLabels' | 'labelColor'> = {}
 ): string {
-  const {
-    width = data.length,
-    min,
-    max,
-    style = 'block',
-    emptyChar = ' ',
-  } = options;
-
-  if (data.length === 0) {
-    return emptyChar.repeat(width);
-  }
-
-  const chars = getSparklineChars(style);
-
-  // Resample if needed
-  const resampled = resampleData(data, width);
-
-  // Normalize values
-  const { normalized } = normalizeData(resampled, min, max);
-
-  // Pad if data is shorter than width
-  const paddingLength = Math.max(0, width - normalized.length);
-  const padding = emptyChar.repeat(paddingLength);
-
-  // Convert to characters
-  const sparkline = normalized.map((v) => valueToChar(v, chars)).join('');
-
-  return padding + sparkline;
+  return renderSparklineText(data, options);
 }
 
 // =============================================================================
@@ -232,7 +113,10 @@ export function Sparkline(options: SparklineOptions): VNode {
   });
 
   // Calculate actual min/max for labels
-  const { min: actualMin, max: actualMax } = normalizeData(data, min, max);
+  const {
+    min: actualMin,
+    max: actualMax,
+  } = normalizeSparklineData(data, min, max);
 
   if (showLabels || label) {
     return Box(
@@ -408,7 +292,7 @@ export function renderBrailleSparkline(
   if (data.length === 0) return '';
 
   // Normalize data to 0-7 range (4 rows × 2 for top/bottom)
-  const { normalized } = normalizeData(data, min, max);
+  const { normalized } = normalizeSparklineData(data, min, max);
   const scaled = normalized.map((v) => Math.floor(v * 7));
 
   // Braille dot positions (column 1: bits 0,1,2,6; column 2: bits 3,4,5,7)

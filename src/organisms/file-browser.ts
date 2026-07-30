@@ -20,7 +20,6 @@
  */
 
 import { Box, Text, Spacer, When } from '../primitives/nodes.js';
-import { VStack, HStack } from '../templates/stack.js';
 import type { VNode, TextStyleProps } from '../utils/types.js';
 import { highlight } from '../core/highlighter.js';
 
@@ -1037,7 +1036,7 @@ export function FileList(options: FileListOptions): VNode {
     ? Box({ flexDirection: 'row', flexWrap: 'wrap', width },
         ...processedItems.map(renderItem)
       )
-    : VStack({ width, children: processedItems.map(renderItem) });
+    : Box({ flexDirection: 'column', width }, ...processedItems.map(renderItem));
 
   return Box(
     { flexDirection: 'column', width, height },
@@ -1105,22 +1104,20 @@ export function PathBreadcrumbs(options: PathBreadcrumbsOptions): VNode {
     );
   });
 
-  return HStack({
-    width,
-    children: [
-      // Root
-      Text(
-        {
-          ...segmentStyle,
-          onClick: () => onNavigate?.(separator),
-        },
-        separator
-      ),
-      // Truncation indicator
+  return Box(
+    { flexDirection: 'row', width },
+    Text(
+      {
+        ...segmentStyle,
+        onClick: () => onNavigate?.(separator),
+      },
+      separator
+    ),
+    ...[
       When(truncated, Text(separatorStyle, ' ... ')),
-      ...pathItems
-    ].filter((n): n is VNode => n !== null)
-  });
+      ...pathItems,
+    ].filter((node): node is VNode => node !== null),
+  );
 }
 
 /**
@@ -1204,15 +1201,14 @@ export function FileDetails(options: FileDetailsOptions): VNode {
     ),
     // Details rows
     ...rows.map(([label, value]) =>
-      HStack({
-        children: [
+      Box(
+        { flexDirection: 'row' },
           Box(
             { width: 12, flexShrink: 0 },
             Text(labelStyle, label + ':')
           ),
           Text(valueStyle, value)
-        ]
-      })
+      )
     )
   );
 }
@@ -1281,8 +1277,9 @@ export function FilePreview(options: FilePreviewOptions): VNode {
   const lineNodes = lines.map((line, index) => {
     const lineNum = String(index + 1).padStart(lineNumberWidth, ' ');
 
-    return HStack({
-      children: [
+    return Box(
+      { flexDirection: 'row' },
+      ...[
         When(lineNumbers,
           Box(
             { width: lineNumberWidth + 2, flexShrink: 0 },
@@ -1290,8 +1287,8 @@ export function FilePreview(options: FilePreviewOptions): VNode {
           )
         ),
         Text({}, syntaxHighlight ? highlight(line, ext || 'plain') : line)
-      ].filter((n): n is VNode => n !== null)
-    });
+      ].filter((node): node is VNode => node !== null),
+    );
   });
 
   return Box(
@@ -1409,8 +1406,8 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
     // Split view with tree on left
     const treeItems = items.filter(i => i.type === 'directory');
 
-    mainContent = HStack({
-      children: [
+    mainContent = Box(
+      { flexDirection: 'row' },
         Box(
           { width: treeWidth, borderStyle: 'single', padding: 1 },
           DirectoryTree({
@@ -1433,9 +1430,8 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
             viewMode: 'list',
             icons,
           })
-        )
-      ]
-    });
+        ),
+    );
   } else {
     mainContent = FileList({
       items,
@@ -1452,27 +1448,25 @@ export function FileBrowser(options: FileBrowserOptions): VNode {
 
   // With preview panel
   if (showPreview) {
-    mainContent = HStack({
-      children: [
+    mainContent = Box(
+      { flexDirection: 'row' },
         Box({ flexGrow: 1, overflow: 'hidden' }, mainContent),
         Box(
           { width: previewWidth, borderStyle: 'single', padding: 1 },
           Text({ color: 'mutedForeground' }, 'Preview')
-        )
-      ]
-    });
+        ),
+    );
   }
 
-  return VStack({
-    width,
-    height,
-    children: [
+  return Box(
+    { flexDirection: 'column', width, height },
+    ...[
       breadcrumbs,
       toolbar,
       Box({ flexGrow: 1 }, mainContent),
       statusBar
-    ].filter(Boolean) as VNode[]
-  });
+    ].filter(Boolean) as VNode[],
+  );
 }
 
 // =============================================================================

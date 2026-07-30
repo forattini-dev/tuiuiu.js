@@ -17,8 +17,6 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { isRenderingHooks } from '../hooks/context.js';
-import { useConst } from '../hooks/use-const.js';
 import { useInput } from '../hooks/use-input.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
@@ -335,10 +333,7 @@ export function useScrollList(options: UseScrollListOptions = {}): UseScrollList
   const nextOptions = {
     inverted: options.inverted,
   };
-  const state = isRenderingHooks()
-    ? useConst(() => createScrollList(nextOptions))
-    : createScrollList(nextOptions);
-  state.updateOptions(nextOptions);
+  const state = useFactoryState(undefined, nextOptions, createScrollList);
 
   return {
     scrollToBottom: () => state.scrollToBottom(),

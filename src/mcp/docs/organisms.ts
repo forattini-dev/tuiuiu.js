@@ -155,9 +155,9 @@ useInput((_, key) => {
   // Overlay Stack
   // =============================================================================
   {
-    name: 'OverlayStack',
-    category: 'organisms',
-    description: 'Overlay stack manager for modals, dialogs, and toasts. Created via createOverlayStack(). Handles z-ordering, exclusive focus, priority levels, and lifecycle callbacks.',
+    name: 'OverlayConfig',
+    category: 'utils',
+    description: 'Entry accepted by createOverlayStack().push() for modal, dialog, and toast z-ordering and lifecycle.',
     props: [
       { name: 'id', type: 'string', required: true, description: 'Unique overlay identifier' },
       { name: 'component', type: '() => VNode | null', required: true, description: 'Component to render' },
@@ -268,7 +268,7 @@ useInput((_, key) => {
     props: [
       { name: 'query', type: 'string', required: true, description: 'Current search query' },
       { name: 'items', type: 'CommandItem[]', required: true, description: 'All available items { id, label, description?, category?, shortcut?, icon?, action? }' },
-      { name: 'filteredItems', type: 'CommandItem[]', required: true, description: 'Filtered items (after search)' },
+      { name: 'filteredItems', type: 'CommandItem[]', required: false, description: 'Filtered items; derived from items/query when omitted' },
       { name: 'selectedIndex', type: 'number', required: true, description: 'Currently selected index' },
       { name: 'placeholder', type: 'string', required: false, description: 'Placeholder text for search input' },
       { name: 'title', type: 'string', required: false, description: 'Palette title' },
@@ -314,26 +314,22 @@ useInput((input, key) => {
   {
     name: 'GoToDialog',
     category: 'organisms',
-    description: 'Quick navigation dialog for jumping to specific line, file, or item. Uses createGoToDialog() for state management.',
+    description: 'Presentational number dialog for jumping to a bounded line, slide, or item.',
     props: [
       { name: 'title', type: 'string', required: false, default: "'Go to'", description: 'Dialog title' },
-      { name: 'placeholder', type: 'string', required: false, description: 'Input placeholder' },
       { name: 'value', type: 'string', required: true, description: 'Current input value' },
-      { name: 'onSubmit', type: '(value: string) => void', required: false, description: 'Submit callback' },
-      { name: 'onClose', type: '() => void', required: false, description: 'Close callback' },
+      { name: 'max', type: 'number', required: true, description: 'Maximum allowed number' },
+      { name: 'prompt', type: 'string', required: false, default: "'Enter number:'", description: 'Prompt shown above the value' },
+      { name: 'width', type: 'number', required: false, default: '30', description: 'Dialog width' },
+      { name: 'borderStyle', type: "'single' | 'double' | 'round' | 'heavy' | 'none'", required: false, default: "'round'", description: 'Dialog border style' },
+      { name: 'borderColor', type: 'string', required: false, default: "'primary'", description: 'Dialog border color' },
     ],
     examples: [
-      `const goTo = createGoToDialog({
-  onSubmit: (line) => jumpToLine(Number(line)),
-  onClose: () => setShowGoTo(false),
-})
-
-GoToDialog({
+      `GoToDialog({
   title: 'Go to line',
-  placeholder: 'Enter line number...',
-  value: goTo.value(),
-  onSubmit: goTo.submit,
-  onClose: goTo.close,
+  prompt: 'Enter line number:',
+  value: lineInput(),
+  max: documentLineCount,
 })`,
     ],
   },
@@ -427,29 +423,32 @@ state.scrollTo(500)`,
     category: 'organisms',
     description: 'Full-featured file browser with tree navigation, file list, breadcrumbs, and preview.',
     props: [
-      { name: 'root', type: 'string', required: true, description: 'Root directory path' },
-      { name: 'currentPath', type: 'string', required: false, description: 'Current path (controlled)' },
+      { name: 'path', type: 'string', required: true, description: 'Current directory path' },
+      { name: 'items', type: 'FileItem[]', required: true, description: 'Items in the current directory' },
+      { name: 'onPathChange', type: '(path: string) => void', required: false, description: 'Directory navigation handler' },
       { name: 'showHidden', type: 'boolean', required: false, default: 'false', description: 'Show hidden files' },
       { name: 'showPreview', type: 'boolean', required: false, default: 'false', description: 'Show file preview pane' },
-      { name: 'showDetails', type: 'boolean', required: false, default: 'true', description: 'Show file details (size, date)' },
-      { name: 'iconSet', type: "'unicode' | 'ascii' | 'nerd'", required: false, default: "'unicode'", description: 'Icon set to use' },
-      { name: 'onSelect', type: '(path: string) => void', required: false, description: 'File selection handler' },
-      { name: 'onNavigate', type: '(path: string) => void', required: false, description: 'Directory navigation handler' },
+      { name: 'icons', type: 'Partial<FileIcons>', required: false, description: 'Custom file icon set' },
+      { name: 'onSelect', type: '(item: FileItem) => void', required: false, description: 'File selection handler' },
+      { name: 'onOpen', type: '(item: FileItem) => void', required: false, description: 'File open handler' },
       { name: 'filter', type: 'FileFilter', required: false, description: 'File filter function' },
-      { name: 'sort', type: "FileSortField", required: false, description: 'Sort field (name, size, date, type)' },
+      { name: 'sort', type: "FileSorter", required: false, description: 'Sort field and direction' },
     ],
     examples: [
       `FileBrowser({
-  root: '/home/user',
+  path: '/home/user',
+  items: currentItems,
   showHidden: false,
   showPreview: true,
-  onSelect: (path) => openFile(path),
+  onPathChange: (path) => loadDirectory(path),
+  onSelect: (item) => selectFile(item.path),
+  onOpen: (item) => openFile(item.path),
   filter: (item) => !item.name.startsWith('.'),
 })`,
     ],
   },
   {
-    name: 'DirectoryTree',
+    name: 'FileDirectoryTree',
     category: 'organisms',
     description: 'File browser tree view built from FileItem data (pairs with FileBrowser).',
     props: [
@@ -471,7 +470,7 @@ state.scrollTo(500)`,
       { name: 'fileStyle', type: 'TextStyleProps', required: false, description: 'File style' },
     ],
     examples: [
-      `DirectoryTree({
+      `FileDirectoryTree({
   items: fileItems,
   onSelect: (item) => openFile(item.path),
   onToggle: (item, expanded) => setExpanded(item.path, expanded),
@@ -684,25 +683,22 @@ VirtualList({
   {
     name: 'SplitPanel',
     category: 'organisms',
-    description: 'Resizable split view with two panels. Supports horizontal and vertical orientation.',
+    description: 'Split view with two panels. Supports horizontal and vertical orientation.',
     props: [
-      { name: 'first', type: 'VNode', required: true, description: 'First panel content' },
-      { name: 'second', type: 'VNode', required: true, description: 'Second panel content' },
+      { name: 'left', type: 'VNode', required: true, description: 'Left or top panel content' },
+      { name: 'right', type: 'VNode', required: true, description: 'Right or bottom panel content' },
       { name: 'direction', type: "'horizontal' | 'vertical'", required: false, default: "'horizontal'", description: 'Split direction' },
-      { name: 'initialSize', type: 'number', required: false, default: '50', description: 'Initial size of first panel (percentage)' },
-      { name: 'minSize', type: 'number', required: false, default: '10', description: 'Minimum size (percentage)' },
-      { name: 'maxSize', type: 'number', required: false, default: '90', description: 'Maximum size (percentage)' },
-      { name: 'dividerStyle', type: "'single' | 'double' | 'thick' | 'dashed'", required: false, default: "'single'", description: 'Divider style' },
+      { name: 'ratio', type: 'number', required: false, default: '0.5', description: 'Fraction assigned to the left or top panel' },
+      { name: 'minWidth', type: 'number', required: false, description: 'Minimum width for each panel' },
+      { name: 'dividerStyle', type: "'line' | 'double' | 'dotted' | 'dashed' | 'none'", required: false, default: "'line'", description: 'Divider style' },
       { name: 'dividerColor', type: 'ColorValue', required: false, description: 'Divider color' },
-      { name: 'resizable', type: 'boolean', required: false, default: 'true', description: 'Allow resizing' },
-      { name: 'state', type: 'SplitPanelState', required: false, description: 'External state from createSplitPanel()' },
     ],
     examples: [
       `SplitPanel({
-  first: FileTree(),
-  second: Editor(),
+  left: FileTree(),
+  right: Editor(),
   direction: 'horizontal',
-  initialSize: 30,
+  ratio: 0.3,
 })`,
     ],
   },
@@ -711,7 +707,7 @@ VirtualList({
     category: 'organisms',
     description: 'Three-panel layout (left sidebar, main content, right sidebar).',
     props: [
-      { name: 'left', type: 'VNode', required: false, description: 'Left panel content' },
+      { name: 'left', type: 'VNode', required: true, description: 'Left panel content' },
       { name: 'center', type: 'VNode', required: true, description: 'Center panel content' },
       { name: 'right', type: 'VNode', required: false, description: 'Right panel content' },
       { name: 'leftWidth', type: 'number', required: false, default: '20', description: 'Left panel width (percentage)' },
@@ -787,7 +783,7 @@ VirtualList({
       { name: 'rowSpan', type: 'number', required: false, description: 'Row span' },
       { name: 'justifySelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Horizontal alignment inside cell' },
       { name: 'alignSelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Vertical alignment inside cell' },
-      { name: 'children', type: 'VNode | VNode[]', required: true, description: 'Item content' },
+      { name: 'children', type: 'VNode | VNode[]', required: false, description: 'Compatibility content prop; variadic children are canonical' },
     ],
     examples: [
       `GridItem({ area: 'sidebar' }, Sidebar())`,

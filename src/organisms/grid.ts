@@ -31,8 +31,8 @@
  * ```
  */
 
-import type { VNode, BoxStyle } from '../utils/types.js';
-import { Box } from '../primitives/nodes.js';
+import type { VNode, BoxStyle, TuiNode } from '../utils/types.js';
+import { Box, normalizeChildren } from '../primitives/nodes.js';
 
 // =============================================================================
 // Types
@@ -86,6 +86,8 @@ export type AlignContent =
 
 /** Grid container options */
 export interface GridOptions {
+  /** Grid items. Variadic children take precedence when both forms are supplied. */
+  children?: TuiNode;
   /** Column track definition (e.g., '1fr 2fr 1fr', [10, '1fr', 'auto'], or 3 for equal columns) */
   columns?: string | TrackSize[] | number;
   /** Row track definition */
@@ -663,7 +665,9 @@ const gridItemData = new WeakMap<VNode, GridItemOptions>();
  * Grid container component
  */
 export function Grid(options: GridOptions, ...children: (VNode | null)[]): VNode {
-  const validChildren = children.filter((c): c is VNode => c !== null);
+  const validChildren = children.length > 0
+    ? children.filter((child): child is VNode => child !== null)
+    : normalizeChildren(options.children);
 
   // Extract item options
   const items = validChildren.map((node) => ({

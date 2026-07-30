@@ -19,8 +19,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
-import { useConst, useInput, type Key } from '../hooks/index.js';
-import { isRenderingHooks } from '../hooks/context.js';
+import { useInput, type Key } from '../hooks/index.js';
+import { useFactoryState } from '../hooks/factory-state.js';
 import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { previousGraphemeBoundary } from '../utils/grapheme.js';
@@ -644,20 +644,14 @@ export interface SelectProps<T = any> extends SelectOptions<T> {
 }
 
 export function useSelectState<T = any>(options: CreateSelectOptions<T>) {
-  const state = useConst(() => createSelect(options));
-  state.updateOptions(options);
-  return state;
+  return useFactoryState(undefined, options, createSelect<T>);
 }
 
 /**
  * Simple standalone Select component
  */
 export function Select<T = any>({ state, ...options }: SelectProps<T>): VNode {
-  const internalState = state
-    ? (state.updateOptions(options), state)
-    : isRenderingHooks()
-    ? useSelectState(options)
-    : createSelect(options);
+  const internalState = useFactoryState(state, options, createSelect<T>);
 
   return renderSelect(internalState, options);
 }

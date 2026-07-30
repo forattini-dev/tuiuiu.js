@@ -22,6 +22,7 @@ import {
   gridAreasToTemplate,
 } from '../../src/organisms/grid.js';
 import { Text, Box } from '../../src/primitives/index.js';
+import { renderToString } from '../../src/core/renderer.js';
 
 // =============================================================================
 // Track Parsing Tests
@@ -551,6 +552,17 @@ describe('calculateGridLayout', () => {
 // =============================================================================
 
 describe('Grid', () => {
+  it('accepts props.children as a compatibility fallback', () => {
+    const grid = Grid({
+      columns: '1fr 1fr',
+      children: [Text({}, 'A'), Text({}, 'B')],
+    });
+
+    const output = renderToString(grid, { width: 20 });
+    expect(output).toContain('A');
+    expect(output).toContain('B');
+  });
+
   it('should create a grid container', () => {
     const grid = Grid({ columns: '1fr 1fr' }, Text({}, 'A'), Text({}, 'B'));
 

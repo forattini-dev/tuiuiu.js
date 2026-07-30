@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 import { examplesManifest } from '../examples/manifest.ts';
+import { allComponents } from '../src/mcp/docs-data.ts';
 import { buildStorybookCoverageDocument } from './storybook-coverage.ts';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -301,6 +302,186 @@ function assertPublicTypeSurface(): void {
   }
 }
 
+function assertMcpPropsMatchPublicTypes(): void {
+  const componentNames = allComponents.map((component) => component.name);
+  const duplicateComponentNames = componentNames.filter(
+    (name, index) => componentNames.indexOf(name) !== index,
+  );
+  if (duplicateComponentNames.length > 0) {
+    fail(
+      'MCP component names are ambiguous across documentation catalogs:\n- ' +
+      [...new Set(duplicateComponentNames)].sort().join('\n- '),
+    );
+  }
+
+  const declarationFiles = walkFiles(distDir)
+    .filter((file) => file.endsWith('.d.ts'));
+  const program = ts.createProgram({
+    rootNames: declarationFiles,
+    options: {
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      skipLibCheck: true,
+    },
+  });
+  const checker = program.getTypeChecker();
+  const rootSource = program.getSourceFile(path.join(distDir, 'index.d.ts'));
+  if (!rootSource) {
+    fail('Root declaration file is unavailable for MCP contract validation.');
+  }
+  const rootSymbol = checker.getSymbolAtLocation(rootSource);
+  if (!rootSymbol) {
+    fail('Root declaration module has no symbol for MCP contract validation.');
+  }
+  const publicSymbols = new Map(
+    checker.getExportsOfModule(rootSymbol).map((symbol) => [symbol.name, symbol]),
+  );
+  const experimentalSource = program.getSourceFile(
+    path.join(distDir, 'experimental', 'index.d.ts'),
+  );
+  const experimentalModule = experimentalSource
+    ? checker.getSymbolAtLocation(experimentalSource)
+    : undefined;
+  const experimentalSymbols = new Map(
+    experimentalModule
+      ? checker.getExportsOfModule(experimentalModule)
+        .map((symbol) => [symbol.name, symbol])
+      : [],
+  );
+  const documentedExperimentalComponents = new Set([
+    'EditableDataTable',
+    'VirtualDataTable',
+  ]);
+  const missingProps: string[] = [];
+  const requirednessMismatches: string[] = [];
+  const missingComponents: string[] = [];
+  const componentCategories = new Set([
+    'primitives',
+    'atoms',
+    'molecules',
+    'organisms',
+    'templates',
+  ]);
+
+  for (const component of allComponents) {
+    if (!componentCategories.has(component.category)) continue;
+    const exported = publicSymbols.get(component.name)
+      ?? (documentedExperimentalComponents.has(component.name)
+        ? experimentalSymbols.get(component.name)
+        : undefined);
+    if (!exported) {
+      missingComponents.push(component.name);
+      continue;
+    }
+    if (component.props.length === 0) continue;
+    const symbol = exported.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(exported)
+      : exported;
+    const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
+    if (!declaration) continue;
+    const signatures = checker.getSignaturesOfType(
+      checker.getTypeOfSymbolAtLocation(symbol, declaration),
+      ts.SignatureKind.Call,
+    );
+    if (signatures.length === 0) continue;
+    const publicProps = new Map<string, boolean>();
+    const firstParameterProps: Array<Map<string, boolean>> = [];
+    const recordProp = (name: string, required: boolean): void => {
+      const existing = publicProps.get(name);
+      publicProps.set(name, existing === undefined ? required : existing && required);
+    };
+    const collectTypePaths = (
+      type: ts.Type,
+      prefix: string,
+      depth: number,
+    ): void => {
+      if (depth < 0) return;
+      for (const property of checker.getPropertiesOfType(type)) {
+        const pathName = prefix ? `${prefix}.${property.name}` : property.name;
+        recordProp(pathName, (property.flags & ts.SymbolFlags.Optional) === 0);
+        if (depth === 0) continue;
+        const propertyDeclaration =
+          property.valueDeclaration ?? property.declarations?.[0] ?? declaration;
+        collectTypePaths(
+          checker.getTypeOfSymbolAtLocation(property, propertyDeclaration),
+          pathName,
+          depth - 1,
+        );
+      }
+    };
+
+    for (const signature of signatures) {
+      signature.parameters.forEach((parameter, index) => {
+        const parameterName = parameter.name;
+        recordProp(parameterName, index < signature.minArgumentCount);
+        const parameterDeclaration =
+          parameter.valueDeclaration ?? parameter.declarations?.[0] ?? declaration;
+        const parameterType = checker.getTypeOfSymbolAtLocation(
+          parameter,
+          parameterDeclaration,
+        );
+        collectTypePaths(parameterType, parameterName, 2);
+        if (index === 0) {
+          collectTypePaths(parameterType, '', 2);
+          firstParameterProps.push(new Map(
+            checker.getPropertiesOfType(parameterType).map((property) => [
+              property.name,
+              (property.flags & ts.SymbolFlags.Optional) === 0,
+            ]),
+          ));
+        }
+      });
+    }
+
+    const topLevelNames = new Set(
+      firstParameterProps.flatMap((props) => [...props.keys()]),
+    );
+    for (const name of topLevelNames) {
+      publicProps.set(
+        name,
+        firstParameterProps.every((props) => props.get(name) === true),
+      );
+    }
+
+    for (const prop of component.props) {
+      const publicRequired = publicProps.get(prop.name);
+      if (publicRequired === undefined) {
+        missingProps.push(`${component.name}.${prop.name}`);
+      } else if (!prop.name.includes('.') && publicRequired !== prop.required) {
+        requirednessMismatches.push(
+          `${component.name}.${prop.name}: docs=${prop.required ? 'required' : 'optional'}, ` +
+          `types=${publicRequired ? 'required' : 'optional'}`,
+        );
+      }
+    }
+  }
+
+  if (
+    missingComponents.length > 0
+    || missingProps.length > 0
+    || requirednessMismatches.length > 0
+  ) {
+    const sections = [
+      missingComponents.length > 0
+        ? 'Components absent from their documented public contract:\n- ' +
+          [...new Set(missingComponents)].sort().join('\n- ')
+        : '',
+      missingProps.length > 0
+        ? 'Props absent from the public TypeScript contract:\n- ' +
+          missingProps.sort().join('\n- ')
+        : '',
+      requirednessMismatches.length > 0
+        ? 'Required/optional mismatches:\n- ' +
+          requirednessMismatches.sort().join('\n- ')
+        : '',
+    ].filter(Boolean);
+    fail(
+      'MCP component contracts diverge from public TypeScript declarations:\n' +
+      sections.join('\n'),
+    );
+  }
+}
+
 function assertNoJsxRuntimeIsPublished(): void {
   const packageJson = JSON.parse(
     readFileSync(path.join(rootDir, 'package.json'), 'utf8')
@@ -566,6 +747,7 @@ function compileExamples(): void {
 assertPackageExports();
 await assertPublicRuntimeSurface();
 assertPublicTypeSurface();
+assertMcpPropsMatchPublicTypes();
 assertNoJsxRuntimeIsPublished();
 assertExampleManifestAndScripts();
 assertDocsDoNotReferenceKnownBadPatterns();

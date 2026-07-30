@@ -5,6 +5,11 @@ type UpdatableFactoryState<TOptions> = {
   updateOptions?: (options: TOptions) => void;
 };
 
+/** Internal capability query for components with optional render lifecycles. */
+export function hasComponentRenderLifecycle(): boolean {
+  return isRenderingHooks();
+}
+
 /**
  * Reuses a factory-backed controller across parent rerenders when hooks are
  * active, while still preserving standalone `createX()` behavior outside the
@@ -20,7 +25,7 @@ export function useFactoryState<TOptions, TState extends UpdatableFactoryState<T
     return externalState;
   }
 
-  if (isRenderingHooks()) {
+  if (hasComponentRenderLifecycle()) {
     const state = useConst(() => createState(options));
     state.updateOptions?.(options);
     return state;

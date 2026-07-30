@@ -476,16 +476,16 @@ For multi-thread orchestration and cross-thread messaging, use:
 
 ```typescript
 import {
-  createTaskBridge,
+  createBackgroundExecutor,
   createThreadBus,
 } from 'tuiuiu.js';
 
-const bridges = {
-  analyzer: createTaskBridge('./workers/analyzer.mjs'),
-  indexer: createTaskBridge('./workers/indexer.mjs'),
+const executors = {
+  analyzer: createBackgroundExecutor({ modulePath: './workers/analyzer.mjs' }),
+  indexer: createBackgroundExecutor({ modulePath: './workers/indexer.mjs' }),
 };
 
-const bus = createThreadBus({ threads: bridges });
+const bus = createThreadBus({ threads: executors });
 ```
 
 Then use `bus.subscribe`, `bus.post({ to, ... })` and `bus.broadcast(...)` to move work/results between workers and main.
@@ -511,15 +511,17 @@ You can combine the pool with `createThreadBus` and still keep the same message 
 
 ```typescript
 import {
-  createTaskBridge,
+  createBackgroundExecutor,
   createThreadBus,
 } from 'tuiuiu.js';
 
-const indexerBridge = createTaskBridge('./workers/indexer.mjs');
+const indexerExecutor = createBackgroundExecutor({
+  modulePath: './workers/indexer.mjs',
+});
 const bus = createThreadBus({
   threads: {
     analyzer: analyzerPool,
-    indexer: indexerBridge,
+    indexer: indexerExecutor,
   },
 });
 

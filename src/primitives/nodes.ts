@@ -88,9 +88,24 @@ export function Text(props: TextProps, ...children: (string | number)[]): VNode 
  * )
  */
 export function Spacer(props: SpacerProps = {}): VNode {
+  const {
+    flex = 1,
+    minSize = 0,
+    x,
+    y,
+  } = props;
+  const hasFixedAxis = x !== undefined || y !== undefined;
+
   return {
     type: 'spacer',
-    props: { flexGrow: 1, ...props },
+    props: {
+      flexGrow: hasFixedAxis ? 0 : flex,
+      flexShrink: 0,
+      minWidth: x ?? minSize,
+      minHeight: y ?? minSize,
+      width: x,
+      height: y,
+    },
     children: [],
   };
 }

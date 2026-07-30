@@ -60,6 +60,11 @@ export type BackgroundTaskHandler<TPayload = unknown, TResult = unknown> = (
 export type BackgroundTaskHandlers = Record<string, BackgroundTaskHandler<any, any>>;
 
 export interface BackgroundExecutor {
+  execute<TPayload = unknown, TResult = unknown>(
+    type: string,
+    payload: TPayload,
+    options?: BackgroundTaskOptions,
+  ): BackgroundTaskHandle<TResult>;
   submit<TPayload = unknown, TResult = unknown>(
     request: BackgroundTaskRequest<TPayload>,
     options?: BackgroundTaskOptions,
@@ -108,7 +113,7 @@ export interface ThreadBus {
 }
 
 export interface ThreadBusOptions {
-  threads: Record<string, TaskBridge>;
+  threads: Record<string, BackgroundExecutor>;
   mainThreadName?: string;
   taskType?: string;
   defaultChannel?: string;
@@ -117,22 +122,15 @@ export interface ThreadBusOptions {
   destroyThreads?: boolean;
 }
 
-export interface TaskBridge {
-  execute<TPayload = unknown, TResult = unknown>(
-    type: string,
-    payload: TPayload,
-    options?: BackgroundTaskOptions,
-  ): BackgroundTaskHandle<TResult>;
-  submit<TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>,
-    options?: BackgroundTaskOptions,
-  ): BackgroundTaskHandle<TResult>;
-  destroy: () => Promise<void>;
-  /** Current lifecycle state for health-aware scheduling. */
-  readonly state?: BackgroundExecutorState;
-  /** Number of tasks waiting for a terminal result. */
-  readonly pendingCount?: number;
-}
+/**
+ * @deprecated Compatibility name for {@link BackgroundExecutor}. New code
+ * should use the canonical executor terminology.
+ */
+export interface TaskBridge extends BackgroundExecutor {}
+
+type LegacyBackgroundExecutor = Omit<BackgroundExecutor, 'execute'> & {
+  execute?: BackgroundExecutor['execute'];
+};
 
 export interface WorkerExecutorOptions {
   modulePath: string;
@@ -372,7 +370,15 @@ export function createInlineBackgroundExecutor(
   const pending = new Map<string, PendingTask>();
   let state: BackgroundExecutorState = 'active';
 
-  return {
+  let executor: BackgroundExecutor;
+  executor = {
+    execute<TPayload = unknown, TResult = unknown>(
+      type: string,
+      payload: TPayload,
+      taskOptions?: BackgroundTaskOptions,
+    ): BackgroundTaskHandle<TResult> {
+      return executor.submit<TPayload, TResult>({ type, payload }, taskOptions);
+    },
     submit<TPayload = unknown, TResult = unknown>(
       request: BackgroundTaskRequest<TPayload>,
       taskOptions: BackgroundTaskOptions = {},
@@ -565,6 +571,7 @@ export function createInlineBackgroundExecutor(
       return pending.size;
     },
   };
+  return executor;
 }
 
 function createWorkerSource(): string {
@@ -784,7 +791,15 @@ export function createWorkerExecutor(
     });
   });
 
-  return {
+  let executor: BackgroundExecutor;
+  executor = {
+    execute<TPayload = unknown, TResult = unknown>(
+      type: string,
+      payload: TPayload,
+      taskOptions?: BackgroundTaskOptions,
+    ): BackgroundTaskHandle<TResult> {
+      return executor.submit<TPayload, TResult>({ type, payload }, taskOptions);
+    },
     submit<TPayload = unknown, TResult = unknown>(
       request: BackgroundTaskRequest<TPayload>,
       taskOptions: BackgroundTaskOptions = {},
@@ -934,6 +949,7 @@ export function createWorkerExecutor(
       return pending.size;
     },
   };
+  return executor;
 }
 
 export function createBackgroundExecutor(options: {
@@ -1025,7 +1041,7 @@ export function createThreadBus({
 }: ThreadBusOptions): ThreadBus {
   const allListeners = new Set<ThreadBusListener<any>>();
   const channelListeners = createThreadBusListenerSet();
-  const activeThreads = new Map<string, TaskBridge>();
+  const activeThreads = new Map<string, BackgroundExecutor>();
   const threadTaskCleanup = new Set<() => void>();
   const defaults = { mainThreadName, defaultChannel };
   let destroyed = false;
@@ -1089,7 +1105,10 @@ export function createThreadBus({
     routeToThread(message);
   };
 
-  const createThreadBridge = (threadName: string, bridge: TaskBridge): TaskBridge => ({
+  const createThreadBridge = (
+    threadName: string,
+    bridge: BackgroundExecutor,
+  ): BackgroundExecutor => ({
     execute<TPayload, TResult>(
       type: string,
       payload: TPayload,
@@ -1262,32 +1281,36 @@ export function createThreadBus({
   };
 }
 
+/**
+ * @deprecated Use {@link createBackgroundExecutor}. This adapter remains for
+ * 1.x source compatibility.
+ */
 export function createTaskBridge(
   executorOrModule:
     | BackgroundExecutor
+    | LegacyBackgroundExecutor
     | string
     | WorkerExecutorOptions
 ): TaskBridge {
-  const executor: BackgroundExecutor = typeof executorOrModule === 'string'
+  const executor: BackgroundExecutor | LegacyBackgroundExecutor = typeof executorOrModule === 'string'
     ? createWorkerExecutor(executorOrModule)
     : typeof executorOrModule === 'object' && 'modulePath' in executorOrModule && !('submit' in executorOrModule)
       ? createWorkerExecutor(executorOrModule as WorkerExecutorOptions)
       : (executorOrModule as BackgroundExecutor);
 
-  const createHandle = <TPayload = unknown, TResult = unknown>(
-    request: BackgroundTaskRequest<TPayload>,
-    options?: BackgroundTaskOptions,
-  ): BackgroundTaskHandle<TResult> => {
-    return executor.submit<TPayload, TResult>(request, options);
-  };
+  if (typeof executor.execute === 'function') {
+    return executor as BackgroundExecutor;
+  }
 
+  // Runtime compatibility for executor-like objects created before execute()
+  // became part of the canonical BackgroundExecutor contract.
   return {
     execute<TPayload, TResult>(
       type: string,
       payload: TPayload,
       options?: BackgroundTaskOptions,
     ) {
-      return createHandle<TPayload, TResult>({
+      return executor.submit<TPayload, TResult>({
         type,
         payload,
       }, options);
@@ -1296,7 +1319,7 @@ export function createTaskBridge(
       request: BackgroundTaskRequest<TPayload>,
       options?: BackgroundTaskOptions,
     ) {
-      return createHandle<TPayload, TResult>(request, options);
+      return executor.submit<TPayload, TResult>(request, options);
     },
     async destroy() {
       await executor.destroy();
@@ -1312,7 +1335,7 @@ export function createTaskBridge(
 
 export function createTaskBridgePool(
   options: TaskBridgePoolOptions
-): TaskBridge {
+): BackgroundExecutor {
   const requestedPoolSize = options.poolSize ?? 1;
   if (
     !Number.isSafeInteger(requestedPoolSize)
@@ -1334,8 +1357,8 @@ export function createTaskBridgePool(
   let destroyPromise: Promise<void> | null = null;
   const retiredBridgeDestructions: Promise<void>[] = [];
 
-  const createPoolBridge = (index: number): TaskBridge =>
-    createTaskBridge({
+  const createPoolBridge = (index: number): BackgroundExecutor =>
+    createWorkerExecutor({
       modulePath: options.modulePath,
       workerName: options.workerName
         ? `${options.workerName}-${index + 1}`

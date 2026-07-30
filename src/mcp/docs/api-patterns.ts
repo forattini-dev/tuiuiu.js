@@ -1,9 +1,7 @@
 /**
- * API Patterns Documentation for MCP
+ * Machine-readable guidance for constructing Tuiuiu calls.
  *
- * CRITICAL: This documentation is essential for AI agents to understand
- * how to correctly construct Tuiuiu component calls. Different components
- * use different patterns - using the wrong pattern will cause failures.
+ * Tuiuiu is a plain TypeScript/VNode library. JSX is not part of its API.
  */
 
 export interface ApiPatternDoc {
@@ -17,22 +15,18 @@ export interface ApiPatternDoc {
 }
 
 export const apiPatterns: ApiPatternDoc[] = [
-  // =============================================================================
-  // Pattern 1: Variadic Children
-  // =============================================================================
   {
     name: 'Variadic Children',
     description:
-      'Children are passed as ADDITIONAL ARGUMENTS after the props object, not inside props. This follows React createElement(type, props, ...children) pattern.',
+      'Free-form layout content follows the props object. Variadic children are canonical and take precedence over a supported props.children fallback.',
     components: [
       'Box',
       'Text',
       'VStack',
       'HStack',
       'Center',
+      'Grid',
       'Fragment',
-      'Spacer',
-      'Newline',
       'Screen',
       'Header',
       'Main',
@@ -42,64 +36,37 @@ export const apiPatterns: ApiPatternDoc[] = [
     ],
     signature: 'Component(props, ...children)',
     correctExamples: [
-      `// Children after props
-Box({ padding: 1 },
-  Text({}, 'First child'),
-  Text({}, 'Second child'),
-  Text({}, 'Third child')
-)`,
-      `// Nested composition
-Box({ flexDirection: 'column' },
-  Box({ flexDirection: 'row' },
-    Text({}, 'Left'),
-    Text({}, 'Right')
+      `Box({ flexDirection: 'column', gap: 1 },
+  Text({ bold: true }, 'Settings'),
+  HStack({ gap: 1 },
+    Text({}, 'Theme'),
+    Spacer(),
+    Text({ color: 'cyan' }, 'dark'),
   ),
-  Text({}, 'Below')
 )`,
-      `// Text with string children
-Text({ color: 'cyan', bold: true }, 'Hello ', 'World')`,
-      `// VStack with gap
-VStack({ gap: 1 },
-  Text({}, 'Line 1'),
-  Text({}, 'Line 2'),
-  Text({}, 'Line 3')
+      `Grid({ columns: '1fr 2fr', gap: 1 },
+  Text({}, 'Name'),
+  Text({}, 'Tuiuiu'),
 )`,
-      `// Layout primitives with sizing tokens
-Screen({},
-  Header({}, Title('Dashboard'), Spacer(), Caption('v1.0')),
-  Main({}, Content()),       // height: 'fill' (takes remaining space)
-  Footer({}, StatusBar())    // height: 'auto' (sizes to content)
-)`,
-      `// Shorthand helpers (no props needed!)
-import { screen, header, main, footer } from 'tuiuiu.js';
-
-screen(
-  header(Title('App'), Spacer(), Caption('v1.0')),
+      `screen(
+  header(Title('Dashboard'), Spacer(), Caption('v1.0')),
   main(Content()),
-  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
+  footer(StatusBar()),
 )`,
-      `// Layout primitives ALSO support props.children as fallback
-Screen({ children: Content() })  // Works!
-Main({ children: Form() })       // Works!`,
     ],
     wrongExamples: [
-      `// WRONG - using children prop
-Box({ padding: 1, children: Text({}, 'Child') })
-// This may work but is NOT the intended API`,
-      `// WRONG - array of children
-Box({ padding: 1 }, [Text({}, 'A'), Text({}, 'B')])
-// Pass children as separate arguments, not array`,
+      `Page({ title: 'Settings' }, SettingsForm())
+// Page is a named-slot component; its children prop is required.`,
+      `Modal({ title: 'Confirm' }, Text({}, 'Continue?'))
+// Modal uses the named content prop.`,
     ],
-    why: 'Layout primitives need maximum flexibility for unlimited children. This pattern enables natural visual nesting where the code structure mirrors the output structure.',
+    why:
+      'Composition primitives need arbitrary nesting. A single canonical normalization path also makes strings, VNodes, and nested arrays predictable.',
   },
-
-  // =============================================================================
-  // Pattern 2: Props Children
-  // =============================================================================
   {
     name: 'Props Children',
     description:
-      'Children are passed as a NAMED PROP called "children" inside the props object. Used by components with multiple named slots (header, footer, sidebar, children).',
+      'Structured components receive named VNode props. The main slot may be called children or content; use the public prop name instead of assuming.',
     components: [
       'Page',
       'AppShell',
@@ -107,60 +74,47 @@ Box({ padding: 1 }, [Text({}, 'A'), Text({}, 'B')])
       'Collapsible',
       'FormField',
       'FormGroup',
-      'Grid',
       'Details',
-      'ContentWidth',
     ],
-    signature: 'Component({ children: VNode, ...otherSlots })',
+    signature: 'Component({ children/content, ...namedSlots })',
     correctExamples: [
-      `// Page with children as prop
-Page({
+      `Page({
   title: 'Settings',
-  footer: StatusBar(),
-  children: SettingsForm()  // Main content area
+  footer: StatusBar({ left: 'Ready' }),
+  children: SettingsForm(),
 })`,
-      `// AppShell with multiple named slots
-AppShell({
-  header: Header(),         // Slot: header
-  sidebar: Navigation(),    // Slot: sidebar
-  footer: StatusBar(),      // Slot: footer
-  children: MainContent()   // Slot: main content
+      `AppShell({
+  header: Header({ title: 'Workspace' }),
+  sidebar: Navigation(),
+  children: MainContent(),
 })`,
-      `// FormField wrapping input
-FormField({
+      `Modal({
+  title: 'Confirm action',
+  content: Text({}, 'Continue?'),
+  footer: Actions(),
+})`,
+      `FormField({
   label: 'Email',
   error: errors.email,
-  helperText: 'We will not share your email',
-  children: TextInput({ ...form.field('email') })
-})`,
-      `// Modal with title and footer
-Modal({
-  title: 'Confirm Action',
-  footer: ButtonGroup({ buttons: [...] }),
-  children: Text({}, 'Are you sure?')
+  children: TextInput({ onChange: setEmail }),
 })`,
     ],
     wrongExamples: [
-      `// WRONG - passing as argument
-Page({ title: 'Settings' }, SettingsForm())
-// Page does NOT accept variadic children!`,
-      `// WRONG - forgetting children
-Page({ title: 'Settings' })
-// TypeScript error: children is required`,
-      `// WRONG - treating like Box
-Modal({ padding: 1 }, Text({}, 'Content'))
-// Modal uses props children, not variadic!`,
+      `Modal({
+  title: 'Confirm action',
+  children: Text({}, 'Continue?'),
+})
+// Modal has content, not children.`,
+      `Page({ title: 'Settings' }, SettingsForm())
+// Page does not accept variadic children.`,
     ],
-    why: 'These components have MULTIPLE named slots (header, footer, sidebar, children). The children prop is just ONE of several content areas. This makes it explicit where each piece of content goes.',
+    why:
+      'Named slots make the ownership of headers, sidebars, footers, main content, and actions explicit and type-checkable.',
   },
-
-  // =============================================================================
-  // Pattern 3: Data-Driven Content
-  // =============================================================================
   {
     name: 'Data-Driven Content',
     description:
-      'Content is defined INSIDE data objects within an array prop. Each item is a complete configuration object with properties like key, label, content, disabled, etc.',
+      'Selection and navigation components receive arrays of complete item objects. Content belonging to an item stays inside that item.',
     components: [
       'Tabs',
       'Select',
@@ -172,359 +126,155 @@ Modal({ padding: 1 }, Text({}, 'Content'))
       'ButtonGroup',
       'Accordion',
     ],
-    signature: 'Component({ items/tabs/nodes/buttons: Array<{ content?, label, ... }> })',
+    signature: 'Component({ items/tabs/nodes/buttons: Array<Item> })',
     correctExamples: [
-      `// Tabs - content INSIDE each tab object
-Tabs({
+      `Tabs({
   tabs: [
-    { key: 'files', label: 'Files', icon: '📁', content: FilesPanel() },
-    { key: 'settings', label: 'Settings', icon: '⚙️', content: SettingsPanel() },
-    { key: 'help', label: 'Help', disabled: true, content: HelpPanel() },
+    { key: 'files', label: 'Files', content: FilesPanel() },
+    { key: 'settings', label: 'Settings', content: SettingsPanel() },
   ],
-  isActive: true,
 })`,
-      `// Select with items array
-Select({
+      `Select({
   items: [
     { value: 'sm', label: 'Small' },
-    { value: 'md', label: 'Medium' },
     { value: 'lg', label: 'Large' },
   ],
   onChange: setSize,
 })`,
-      `// ButtonGroup with buttons array
-ButtonGroup({
-  buttons: [
-    { label: 'Save', onClick: save, variant: 'solid' },
-    { label: 'Cancel', onClick: cancel, variant: 'outline' },
-  ],
-})`,
-      `// Tree with nested children inside nodes
-Tree({
-  nodes: [
-    {
-      id: 'src',
-      label: 'src',
-      icon: '📁',
-      children: [
-        { id: 'index', label: 'index.ts', icon: '📄' },
-        { id: 'utils', label: 'utils.ts', icon: '📄' },
-      ]
-    },
-  ],
-})`,
-      `// Accordion with sections
-Accordion({
-  sections: [
-    { key: 'general', title: 'General', content: GeneralContent() },
-    { key: 'advanced', title: 'Advanced', content: AdvancedContent() },
-  ],
+      `Tree({
+  nodes: [{
+    id: 'src',
+    label: 'src',
+    children: [{ id: 'index', label: 'index.ts' }],
+  }],
 })`,
     ],
     wrongExamples: [
-      `// WRONG - using children prop for Tabs
-Tabs({
-  tabs: [...],
-  children: SomeContent()  // NO! Tabs doesn't have children prop
-})`,
-      `// WRONG - content outside of tab object
-Tabs({
-  tabs: [{ key: 'a', label: 'A' }],  // Missing content!
-  content: ContentA()  // NO! content goes INSIDE each tab
-})`,
-      `// WRONG - content outside of accordion section
-Accordion({
-  sections: [{ key: 'a', title: 'A' }],
-  children: AccordionContent()  // NO!
-})`,
+      `Tabs({
+  tabs: [{ key: 'files', label: 'Files' }],
+  children: FilesPanel(),
+})
+// Put content inside the matching tab object.`,
+      `Select({}, Text({}, 'Small'), Text({}, 'Large'))
+// Select is driven by its items prop.`,
     ],
-    why: 'Each item is a COMPLETE data object with multiple properties (key, label, icon, disabled, content). This enables dynamic array operations like filter(), map(), and dynamic add/remove. TypeScript can validate the entire structure.',
+    why:
+      'Complete data objects support filtering, ordering, selection, and dynamic updates while preserving stable item identity.',
   },
-
-  // =============================================================================
-  // Pattern 4: Compound Components (State Factory)
-  // =============================================================================
   {
     name: 'Compound Components',
     description:
-      'Multiple components share state via a state factory function (createX). This enables flexible positioning - you can place each piece anywhere in your component hierarchy. The state factory creates all the logic, and the components are just UI renderers.',
+      'A stable controller can be shared by multiple renderers. Inside components, prefer the corresponding useXState hook when one exists.',
     components: [
       'AutocompleteInput + AutocompleteSuggestions',
-      'TabPanel',
-      'ScrollArea + ScrollAreaContent',
+      'ScrollArea',
+      'TextInput',
+      'Select',
     ],
-    signature: 'createX({ options }) → state; ComponentA({ state }); ComponentB({ state })',
+    signature: 'const state = useXState(options); ComponentA({ state }); ComponentB({ state })',
     correctExamples: [
-      `// Create shared state
-const state = createAutocomplete({
-  items: countries,
-  onSelect: (item) => console.log(item),
-})
-
-// Place components ANYWHERE in hierarchy
-Box({ flexDirection: 'row', gap: 2 },
-  // Input on the left
-  AutocompleteInput({ state, width: 20 }),
-  // Suggestions on the right
-  AutocompleteSuggestions({ state, width: 30 })
-)`,
-      `// Suggestions ABOVE input
-Box({ flexDirection: 'column' },
-  AutocompleteSuggestions({ state }),
-  AutocompleteInput({ state })
-)`,
-      `// Suggestions in a completely different panel
-Box({ flexDirection: 'row' },
-  Box({ width: 30 },
-    Text({}, 'Search:'),
-    AutocompleteInput({ state })
-  ),
-  Box({ marginLeft: 2, width: 40 },
-    Text({}, 'Results:'),
-    AutocompleteSuggestions({ state, autoHide: false })
+      `function Search() {
+  const state = useAutocompleteState({ items: commands })
+  return VStack({},
+    AutocompleteInput({ state }),
+    AutocompleteSuggestions({ state }),
   )
-)`,
-      `// Tabs with TabPanel for custom layout
-const tabState = createTabs({ tabs: [...] })
+}`,
+      `const input = createTextInput({ multiline: true })
 
-Box({ flexDirection: 'row' },
-  TabList({ state: tabState }),  // Tab buttons
-  Box({ flex: 1 },
-    TabPanel({ state: tabState, id: 'home' }, HomeContent()),
-    TabPanel({ state: tabState, id: 'settings' }, SettingsContent()),
-  )
-)`,
+function Prompt() {
+  return TextInput({ state: input, fullWidth: true })
+}`,
     ],
     wrongExamples: [
-      `// WRONG - Creating state inside render (recreates every render!)
-function MyComponent() {
-  const state = createAutocomplete({ items })  // BAD!
+      `function Search() {
+  const state = createAutocomplete({ items: commands })
   return AutocompleteInput({ state })
 }
-
-// RIGHT - Create state OUTSIDE or use useMemo-like pattern
-const state = createAutocomplete({ items })
-function MyComponent() {
-  return AutocompleteInput({ state })
-}`,
-      `// WRONG - Not sharing state between components
-AutocompleteInput({ state: createAutocomplete({ items }) })
-AutocompleteSuggestions({ state: createAutocomplete({ items }) })  // Different state!
-
-// RIGHT - Share the SAME state
-const state = createAutocomplete({ items })
-AutocompleteInput({ state })
-AutocompleteSuggestions({ state })  // Same state!`,
+// This recreates the controller on every render.`,
+      `AutocompleteInput({ state: createAutocomplete({ items }) })
+AutocompleteSuggestions({ state: createAutocomplete({ items }) })
+// These renderers do not share the same controller.`,
     ],
-    why: 'Compound components enable maximum flexibility in layout. The state factory holds all logic (keyboard handling, filtering, selection), while the UI components just render. You can position input and dropdown anywhere, even in different parts of the component tree.',
+    why:
+      'Controller identity must survive rerenders so signals, subscriptions, focus, and keyboard state are not reset or leaked.',
   },
-
-  // =============================================================================
-  // Pattern 5: Render Function
-  // =============================================================================
   {
     name: 'Render Function',
     description:
-      'The children prop is a FUNCTION that receives each item and returns a VNode. Used for list rendering with virtual scrolling or dynamic content. Items can be reactive (signal or store) for auto-updates!',
+      'Deferred and virtualized collections receive a callback that creates a VNode for an item when it is needed.',
     components: ['ScrollList', 'ChatList', 'Static', 'Each'],
     signature: 'Component({ items, children: (item, index) => VNode })',
     correctExamples: [
-      `// ScrollList with render function
-ScrollList({
-  items: messages(),
-  children: (msg) => ChatBubble({ message: msg }),
+      `ScrollList({
+  items: messages,
   height: 20,
+  children: (message) => ChatBubble({ message }),
 })`,
-      `// With Redux-like store - auto-updates on dispatch!
-const store = createStore(todoReducer, { items: [] });
-
-ScrollList({
-  items: () => store.state().items,
-  children: (item) => TodoItem({ item }),
-  height: 20,
-})
-
-store.dispatch({ type: 'ADD', payload: newItem }); // List re-renders!`,
-      `// Static with render function and index
-Static({
-  items: logs(),
-  children: (log, index) => Text({ key: index, color: 'gray' }, log),
+      `Static({
+  items: logs,
+  children: (line, index) => Text({ key: index }, line),
 })`,
-      `// Each for inline lists (helper function, not component)
-Box({},
-  Each(items(), (item) => ListItem({ item }))
-)`,
+      `Box({}, Each(items(), (item) => ListItem({ item })))`,
     ],
     wrongExamples: [
-      `// WRONG - passing VNode directly
-ScrollList({
-  items: messages(),
-  children: ChatBubble({ message: messages()[0] })  // NO! Must be function
-})`,
-      `// WRONG - pre-mapping items
-ScrollList({
-  items: messages().map(m => ChatBubble({ message: m })),  // NO!
-  // children is missing!
-})`,
-      `// WRONG - forgetting to return VNode
-ScrollList({
-  items: messages(),
-  children: (msg) => { ChatBubble({ message: msg }) }  // Missing return!
-})`,
+      `ScrollList({
+  items: messages,
+  children: ChatBubble({ message: messages()[0] }),
+})
+// Pass the callback, not a VNode created eagerly.`,
     ],
-    why: 'Items is a REACTIVE array that changes over time. The function is called for EACH item when rendering. This enables VIRTUAL SCROLLING (only visible items rendered) and deferred rendering for performance.',
+    why:
+      'Deferring row creation enables virtualization and lets reactive collections rerender only the rows they need.',
   },
 ];
 
-// =============================================================================
-// Quick Reference
-// =============================================================================
-
 export const quickReference = `
-# API Patterns Quick Reference
+## Quick reference
 
-| Pattern | Components | Example |
-|---------|------------|---------|
-| Variadic | Box, Text, VStack, HStack | \`Box({}, child1, child2)\` |
-| Variadic | Screen, Header, Main, Footer, Sidebar, Panel | \`Screen({}, Header(), Main(), Footer())\` |
-| Shorthand | screen, header, main, footer, sidebar | \`screen(header(...), main(...), footer(...))\` |
-| Props | Page, AppShell, Modal | \`Page({ children: content })\` |
-| Data | Tabs, Select, ButtonGroup | \`Tabs({ tabs: [{ content }] })\` |
-| Compound | AutocompleteInput/Suggestions | \`const s = createAutocomplete({}); AutocompleteInput({ state: s })\` |
-| Render | ScrollList, Static, Each | \`ScrollList({ items, children: fn })\` |
+Tuiuiu uses TypeScript function calls and VNodes, never JSX.
 
-## Layout Primitives Default Sizing
+| Component shape | Correct form |
+|---|---|
+| Layout composition | \`Box(props, ...children)\` |
+| Stack/grid composition | \`VStack(props, ...children)\`, \`Grid(props, ...children)\` |
+| Named slots | \`Page({ children })\`, \`Modal({ content })\` |
+| Data collection | \`Tabs({ tabs: [{ content }] })\` |
+| Deferred rows | \`ScrollList({ items, children: item => Row(item) })\` |
+| Stateful renderer | \`const state = useXState(options); X({ state })\` |
 
-| Primitive | Default Sizing |
-|-----------|----------------|
-| Screen | Terminal width/height, column layout |
-| Header | height: 'auto', width: 'fill', row layout |
-| Main | height: 'fill', column layout |
-| Footer | height: 'auto', row layout |
-| Sidebar | height: 'fill', width: 'auto', column layout |
-| Panel | Bordered container with padding |
-
-\`\`\`typescript
-// Shorthand helpers - no props needed!
-import { screen, header, main, footer, Title, Caption, Spacer } from 'tuiuiu.js';
-
-screen(
-  header(Title('App'), Spacer(), Caption('v1.0')),
-  main(Content()),
-  footer(Caption('[Q] Quit'), Spacer(), Caption('Ready'))
-)
-\`\`\`
-
-## Reactive Data Sources
-
-List components (ScrollList, Each, Static) accept reactive data sources:
-
-| Source | Example | Auto-Updates? |
-|--------|---------|---------------|
-| Static array | \`items: [1, 2, 3]\` | ❌ No |
-| Signal | \`items: items\` or \`items: () => items()\` | ✅ Yes |
-| Store | \`items: () => store.state().items\` | ✅ Yes |
-
-\`\`\`typescript
-// With createStore (Redux-like)
-const store = createStore(todoReducer, { items: [] });
-
-ScrollList({
-  items: () => store.state().items,  // Auto-updates on dispatch!
-  children: (item) => TodoItem({ item }),
-  height: 20,
-});
-
-store.dispatch({ type: 'ADD', payload: newItem }); // List re-renders!
-\`\`\`
-
-## Width Constraints
-
-Some components benefit from explicit width constraints for proper layout:
-
-| Component | Prop | Default | Notes |
-|-----------|------|---------|-------|
-| Markdown | \`maxWidth\` | \`'100%'\` | Auto-fills parent width. Set explicitly for custom constraints |
-| Scroll | \`width\` | terminal width | Content layout calculation |
-| SplitPanel | \`width\`, \`height\` | terminal size | Panel size calculations |
-| CodeBlock | \`maxWidth\` | - | Code line wrapping |
-
-\`\`\`typescript
-// ✅ Markdown auto-fills parent width
-Scroll({ height: 20, width: 60 },
-  Markdown({ content: readme })  // Fills to parent width automatically
-)
-
-// ✅ Explicit maxWidth for custom constraints
-Markdown({ content: readme, maxWidth: 50 })
-
-// ✅ Inside SplitPanel - works automatically
-SplitPanel({
-  width: 100, height: 30, ratio: 0.4,
-  left: MenuList(),
-  right: Markdown({ content: doc }),  // Fills right panel automatically
-})
-\`\`\`
-
-## Most Common Mistakes
-
-1. **Using children: with Box/Text/VStack/HStack**
-   - WRONG: \`Box({ children: Text({}, 'Hi') })\`
-   - RIGHT: \`Box({}, Text({}, 'Hi'))\`
-
-2. **Using variadic children with Page/Modal/AppShell**
-   - WRONG: \`Page({ title: 'Home' }, Content())\`
-   - RIGHT: \`Page({ title: 'Home', children: Content() })\`
-
-3. **Forgetting content inside Tabs/Accordion items**
-   - WRONG: \`Tabs({ tabs: [{ key: 'a', label: 'A' }], children: X })\`
-   - RIGHT: \`Tabs({ tabs: [{ key: 'a', label: 'A', content: X }] })\`
-
-4. **Passing VNode instead of function to ScrollList**
-   - WRONG: \`ScrollList({ items, children: Item({ data }) })\`
-   - RIGHT: \`ScrollList({ items, children: (d) => Item({ data: d }) })\`
+Variadic children take precedence when a component also supports a
+\`props.children\` compatibility fallback.
 `;
 
-// =============================================================================
-// Component Pattern Lookup
-// =============================================================================
-
 export const componentPatternMap: Record<string, string> = {
-  // Variadic Children
   Box: 'variadic',
   Text: 'variadic',
   VStack: 'variadic',
   HStack: 'variadic',
   Center: 'variadic',
+  Grid: 'variadic',
   Fragment: 'variadic',
-  Spacer: 'variadic',
-  Newline: 'variadic',
-  // Layout Primitives (variadic with props.children fallback)
   Screen: 'variadic',
   Header: 'variadic',
   Main: 'variadic',
   Footer: 'variadic',
   Sidebar: 'variadic',
   Panel: 'variadic',
-  // Shorthand helpers (also variadic)
   screen: 'variadic',
   header: 'variadic',
   main: 'variadic',
   footer: 'variadic',
   sidebar: 'variadic',
 
-  // Props Children
   Page: 'props',
   AppShell: 'props',
   Modal: 'props',
   Collapsible: 'props',
   FormField: 'props',
   FormGroup: 'props',
-  Grid: 'props',
   Details: 'props',
-  ContentWidth: 'props',
 
-  // Data-Driven Content
   Tabs: 'data',
   Select: 'data',
   MultiSelect: 'data',
@@ -535,21 +285,17 @@ export const componentPatternMap: Record<string, string> = {
   ButtonGroup: 'data',
   Accordion: 'data',
 
-  // Compound Components (State Factory)
   AutocompleteInput: 'compound',
   AutocompleteSuggestions: 'compound',
-  TabPanel: 'compound',
+  ScrollArea: 'compound',
+  TextInput: 'compound',
 
-  // Render Function
   ScrollList: 'render',
   ChatList: 'render',
   Static: 'render',
   Each: 'render',
 };
 
-/**
- * Get the API pattern for a component
- */
 export function getComponentPattern(componentName: string): ApiPatternDoc | undefined {
   const patternName = componentPatternMap[componentName];
   if (!patternName) return undefined;
@@ -562,5 +308,5 @@ export function getComponentPattern(componentName: string): ApiPatternDoc | unde
     render: 'Render Function',
   };
 
-  return apiPatterns.find((p) => p.name === patternNameToDoc[patternName]);
+  return apiPatterns.find((pattern) => pattern.name === patternNameToDoc[patternName]);
 }

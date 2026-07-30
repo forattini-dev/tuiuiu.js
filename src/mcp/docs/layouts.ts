@@ -127,11 +127,11 @@ export const layouts: ComponentDoc[] = [
     description: 'Single page layout with title, content, and footer. Supports borders and full-screen mode.',
     props: [
       { name: 'title', type: "string", required: false, description: 'Page title at top' },
-      { name: 'titleColor', type: "ColorValue", required: false, default: "'primary'", description: 'Title color (theme-aware)' },
       { name: 'subtitle', type: "string", required: false, description: 'Subtitle/description' },
+      { name: 'variant', type: "'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'", required: false, default: "'default'", description: 'Semantic page color variant' },
+      { name: 'color', type: "ColorValue", required: false, description: 'Custom page background color' },
       { name: 'border', type: "boolean", required: false, default: 'false', description: 'Show border around page' },
       { name: 'borderStyle', type: "'single' | 'double' | 'round' | 'bold'", required: false, default: "'single'", description: 'Border style' },
-      { name: 'borderColor', type: "ColorValue", required: false, default: "'border'", description: 'Border color (theme-aware)' },
       { name: 'header', type: "VNode", required: false, description: 'Custom header (overrides title)' },
       { name: 'footer', type: "VNode", required: false, description: 'Footer content' },
       { name: 'divider', type: "boolean", required: false, default: 'true', description: 'Show dividers' },
@@ -245,12 +245,11 @@ export const layouts: ComponentDoc[] = [
       { name: 'left', type: "VNode", required: false, description: 'Left section content' },
       { name: 'center', type: "VNode", required: false, description: 'Center section content' },
       { name: 'right', type: "VNode", required: false, description: 'Right section content' },
-      { name: 'backgroundColor', type: "ColorValue", required: false, description: 'Background color' },
-      { name: 'color', type: "ColorValue", required: false, default: "'white'", description: 'Text color' },
+      { name: 'color', type: "ColorValue", required: false, description: 'Custom background color' },
       { name: 'separator', type: "string", required: false, default: "' │ '", description: 'Separator character' },
     ],
     examples: [
-      `StatusBar({\n  left: Text({}, 'Ready'),\n  center: Text({}, 'file.ts'),\n  right: Text({}, 'Ln 42, Col 8'),\n  backgroundColor: 'blue'\n})`,
+      `StatusBar({\n  left: Text({}, 'Ready'),\n  center: Text({}, 'file.ts'),\n  right: Text({}, 'Ln 42, Col 8'),\n  color: 'blue'\n})`,
     ],
   },
   {

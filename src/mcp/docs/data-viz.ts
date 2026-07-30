@@ -78,7 +78,6 @@ LineChart({
     props: [
       { name: 'data', type: 'number[]', required: true, description: 'Data points' },
       { name: 'width', type: 'number', required: false, description: 'Chart width' },
-      { name: 'height', type: 'number', required: false, default: '1', description: 'Chart height in rows' },
       { name: 'color', type: 'ColorValue', required: false, description: 'Line color' },
     ],
     examples: [

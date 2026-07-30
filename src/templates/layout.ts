@@ -2,15 +2,8 @@
  * Layout Primitives - Terminal-first layout helpers
  */
 
-import { Box, Text } from '../primitives/nodes.js';
+import { Box, Text, normalizeChildren } from '../primitives/nodes.js';
 import type { BoxStyle, ColorValue, TuiChild, TuiNode, VNode } from '../utils/types.js';
-
-/** Normalize TuiNode to TuiChild[] */
-function normalizeChildren(propsChildren: TuiNode | undefined): TuiChild[] {
-  if (!propsChildren) return [];
-  if (Array.isArray(propsChildren)) return propsChildren;
-  return [propsChildren];
-}
 
 export interface ScreenProps extends BoxStyle {
   children?: TuiNode;

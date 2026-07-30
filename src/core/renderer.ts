@@ -6,7 +6,6 @@
 
 import type { VNode, LayoutNode, BoxStyle } from '../utils/types.js';
 import {
-  createFrameSnapshot,
   recordFramePhaseMetric,
   type DrawTerminalImageCommand,
   type FrameSnapshot,
@@ -19,12 +18,7 @@ import { passthroughWrap } from './progressive.js';
 import { getCapabilities } from './capabilities.js';
 import { CellBuffer, bufferToAnsi } from './buffer.js';
 import { renderFrameToCellBuffer } from './delta-render.js';
-
-const PRODUCTION_FRAME_OPTIONS = {
-  eagerHitTargets: false,
-  eagerQueries: false,
-  eagerWarnings: false,
-} as const;
+import { createProductionFrameSnapshot } from './frame-lifecycle.js';
 
 function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -300,10 +294,10 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
   const viewportHeight = !callerProvidedHeight && node.props.height === 'fill'
     ? process.stdout.rows ?? 24
     : resolved.height;
-  const frame = createFrameSnapshot(node, {
+  const frame = createProductionFrameSnapshot(node, {
     width: resolved.width,
     height: viewportHeight,
-  }, PRODUCTION_FRAME_OPTIONS);
+  });
 
   return renderFrameToString(frame, {
     fullHeight: resolved.fullHeight,
@@ -316,10 +310,10 @@ export function renderToString(node: VNode, widthOrOptions?: number | RenderOpti
  */
 export function measureHeight(node: VNode, width?: number): number {
   const termWidth = width ?? process.stdout.columns ?? 80;
-  const frame = createFrameSnapshot(node, {
+  const frame = createProductionFrameSnapshot(node, {
     width: termWidth,
     height: 1000,
-  }, PRODUCTION_FRAME_OPTIONS);
+  });
   const layout = frame.layout;
 
   // Calculate full bounding box height including margins AND absolute positioned elements

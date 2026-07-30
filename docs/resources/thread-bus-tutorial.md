@@ -6,7 +6,7 @@ The same message contract is reused everywhere:
 
 - one event contract: `InterThreadBusMessage`
 - one routing mechanism: `createThreadBus`
-- one worker bridge: `createTaskBridge`
+- one executor contract: `BackgroundExecutor`
 
 ## 1) Define a single contract
 
@@ -103,19 +103,19 @@ export default backgroundTaskHandlers;
 
 ## 3) Main: bridge + bus in one place
 
-Create two task bridges, one thread bus, and keep one subscription point for updates.
+Create two background executors, one thread bus, and keep one subscription point for updates.
 
 ```ts
 import {
-  createTaskBridge,
+  createBackgroundExecutor,
   createThreadBus,
   THREAD_BUS_EVENT_KIND,
   useApp,
 } from 'tuiuiu.js';
 
 const threadBus = {
-  analyzer: createTaskBridge('./workers/analyzer.mjs'),
-  indexer: createTaskBridge('./workers/indexer.mjs'),
+  analyzer: createBackgroundExecutor({ modulePath: './workers/analyzer.mjs' }),
+  indexer: createBackgroundExecutor({ modulePath: './workers/indexer.mjs' }),
 };
 
 const bus = createThreadBus({
@@ -216,7 +216,8 @@ await bus.destroy();
 
 ## Quick API cheatsheet
 
-- `createTaskBridge('./worker.mjs')`: wraps one worker in a stable API for `execute`/`submit`.
+- `createBackgroundExecutor({ modulePath: './worker.mjs' })`: creates one worker with stable `execute`/`submit` methods.
+- `createTaskBridge(...)`: deprecated 1.x compatibility adapter for the same executor contract.
 - `createThreadBus({ threads })`: centralizes communication.
 - `bus.post(...)`: route one message (`to` can be a specific thread, `main`, or `*`).
 - `bus.broadcast(...)`: send to all threads.

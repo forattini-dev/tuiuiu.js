@@ -19,7 +19,7 @@ import { resolveColor } from '../core/theme.js';
 import { createSignal, createMemo } from '../primitives/signal.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import { formatDelta } from '../utils/formatters.js';
-import { Sparkline } from '../molecules/data-viz/sparkline.js';
+import { renderSparklineText } from '../utils/sparkline.js';
 import {
   useThresholdColor,
   getThresholdColor,
@@ -264,10 +264,8 @@ export function MetricDisplay(props: MetricDisplayProps): VNode {
         )
       ),
       // Trend
-      showTrend && trend && trend.length > 1 && Sparkline({
-        data: trend,
-        width: trendWidth,
-      })
+      showTrend && trend && trend.length > 1
+        && Text({}, renderSparklineText(trend, { width: trendWidth }))
     );
   }
 
@@ -284,10 +282,8 @@ export function MetricDisplay(props: MetricDisplayProps): VNode {
       formatDelta(delta)
     ),
     // Trend sparkline
-    showTrend && trend && trend.length > 1 && Sparkline({
-      data: trend,
-      width: trendWidth,
-    })
+    showTrend && trend && trend.length > 1
+      && Text({}, renderSparklineText(trend, { width: trendWidth }))
   );
 }
 

@@ -38,7 +38,7 @@ Centers content horizontally and/or vertically.
 ```typescript
 import { Center } from 'tuiuiu.js';
 
-Center({ width: 40, height: 10, children: Spinner() })
+Center({ width: 40, height: 10 }, Spinner())
 ```
 
 ## Sizing Tokens
@@ -158,10 +158,9 @@ Grid({ columns: 3, gap: 1 },
 
 // Advanced template
 Grid({
-  templateColumns: [10, '1fr', '2fr'], // Fixed, Flexible, Double-Flex
+  columns: [10, '1fr', '2fr'], // Fixed, Flexible, Double-Flex
   gap: 1,
-  children: [...]
-})
+}, ...items)
 ```
 
 ## Tabs
