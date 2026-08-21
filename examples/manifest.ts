@@ -274,7 +274,7 @@ export const examplesManifest: ExampleManifestEntry[] = [
   {
     name: 'opencode-lab',
     file: 'opencode-lab.ts',
-    description: 'OpenCode-inspired responsive agent shell with a centered composer, session timeline, command overlay, and sidebar.',
+    description: 'OpenCode experience simulation with slash-command completion, model/provider setup modals, animated agent phases, a responsive transcript/sidebar, and two-press interruption.',
     category: 'showcase',
     difficulty: 'advanced',
     validate: true,
