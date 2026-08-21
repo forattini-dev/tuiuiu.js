@@ -261,6 +261,204 @@ if (directHookContextConsumers.length > 0) {
   console.log('[check:cycles] UI components use the canonical lifecycle boundary.');
 }
 
+interface LocalFunctionInfo {
+  exportedComponent: boolean;
+  directLifecycleCall: boolean;
+  localCalls: Set<string>;
+}
+
+function hasExportModifier(node: ts.Node): boolean {
+  return ts.canHaveModifiers(node)
+    && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true;
+}
+
+function collectLifecycleOwnershipViolations(file: string): string[] {
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const lifecycleCalls = new Set<string>();
+  const functions = new Map<string, LocalFunctionInfo>();
+
+  for (const statement of source.statements) {
+    if (
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || !/(?:^|\/)hooks\//u.test(statement.moduleSpecifier.text)
+    ) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      const imported = element.propertyName?.text ?? element.name.text;
+      if (/^use[A-Z]/u.test(imported)) lifecycleCalls.add(element.name.text);
+    }
+  }
+
+  const inspectFunction = (
+    name: string,
+    node: ts.FunctionLikeDeclaration,
+    exportedComponent: boolean,
+  ): void => {
+    const info: LocalFunctionInfo = {
+      exportedComponent,
+      directLifecycleCall: false,
+      localCalls: new Set(),
+    };
+    const visit = (child: ts.Node): void => {
+      if (child !== node && ts.isFunctionLike(child)) return;
+      if (ts.isCallExpression(child) && ts.isIdentifier(child.expression)) {
+        const called = child.expression.text;
+        if (lifecycleCalls.has(called)) info.directLifecycleCall = true;
+        info.localCalls.add(called);
+      }
+      ts.forEachChild(child, visit);
+    };
+    if (node.body) visit(node.body);
+    functions.set(name, info);
+  };
+
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
+      inspectFunction(
+        statement.name.text,
+        statement,
+        hasExportModifier(statement) && /^[A-Z]/u.test(statement.name.text),
+      );
+      continue;
+    }
+    if (!ts.isVariableStatement(statement)) continue;
+    const exported = hasExportModifier(statement);
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      const initializer = declaration.initializer;
+      if (
+        (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+        && initializer.body
+      ) {
+        inspectFunction(
+          declaration.name.text,
+          initializer,
+          exported && /^[A-Z]/u.test(declaration.name.text),
+        );
+      }
+    }
+  }
+
+  const lifecycleMemo = new Map<string, boolean>();
+  const ownsLifecycleTransitively = (name: string, visiting = new Set<string>()): boolean => {
+    const memoized = lifecycleMemo.get(name);
+    if (memoized !== undefined) return memoized;
+    const info = functions.get(name);
+    if (!info || visiting.has(name)) return false;
+    if (info.directLifecycleCall) {
+      lifecycleMemo.set(name, true);
+      return true;
+    }
+    const nextVisiting = new Set(visiting).add(name);
+    const result = [...info.localCalls].some((called) =>
+      ownsLifecycleTransitively(called, nextVisiting)
+    );
+    lifecycleMemo.set(name, result);
+    return result;
+  };
+
+  return [...functions.entries()]
+    .filter(([name, info]) => info.exportedComponent && ownsLifecycleTransitively(name))
+    .map(([name]) => name)
+    .sort();
+}
+
+const unownedStatefulComponents = files
+  .filter((file) => sourceLayer(file) !== null)
+  .flatMap((file) => collectLifecycleOwnershipViolations(file).map((componentName) =>
+    `${path.relative(rootDir, file).replaceAll(path.sep, '/')}: ${componentName}`
+  ))
+  .sort();
+
+if (unownedStatefulComponents.length > 0) {
+  console.error('[check:cycles] Stateful UI exports must be defined through component():');
+  for (const violation of unownedStatefulComponents) console.error(`- ${violation}`);
+  process.exitCode = 1;
+} else {
+  console.log('[check:cycles] Every stateful UI export has an explicit ComponentOwner.');
+}
+
+const forbiddenV2Symbols = [
+  'createFocusAdapter',
+  'FocusContext',
+  'themeColor',
+  'themeSpacing',
+  'hasComponentRenderLifecycle',
+  'createInputState',
+  'applyInputAction',
+  'parseInput',
+  'KeyboardProtocol',
+] as const;
+const freeFormProps = new Set([
+  'BoxProps',
+  'TextProps',
+  'TransformProps',
+  'VStackProps',
+  'HStackProps',
+  'CenterProps',
+  'FullScreenProps',
+  'GridOptions',
+  'ScreenProps',
+  'MainProps',
+  'FooterProps',
+  'SidebarProps',
+  'PanelProps',
+]);
+const compatibilityViolations: string[] = [];
+
+for (const file of files) {
+  const sourceText = readFileSync(file, 'utf8');
+  const relative = path.relative(rootDir, file).replaceAll(path.sep, '/');
+  for (const symbol of forbiddenV2Symbols) {
+    if (new RegExp(`\\b${symbol}\\b`, 'u').test(sourceText)) {
+      compatibilityViolations.push(`${relative}: forbidden v1 symbol ${symbol}`);
+    }
+  }
+  if (/@deprecated\b/u.test(sourceText)) {
+    compatibilityViolations.push(`${relative}: @deprecated API in clean v2 source`);
+  }
+
+  const source = ts.createSourceFile(
+    file,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  for (const statement of source.statements) {
+    if (!ts.isInterfaceDeclaration(statement) || !freeFormProps.has(statement.name.text)) {
+      continue;
+    }
+    const children = statement.members.find((member) =>
+      ts.isPropertySignature(member)
+      && member.name !== undefined
+      && ts.isIdentifier(member.name)
+      && member.name.text === 'children'
+    );
+    if (children) {
+      compatibilityViolations.push(
+        `${relative}: ${statement.name.text}.children duplicates variadic composition`,
+      );
+    }
+  }
+}
+
+if (compatibilityViolations.length > 0) {
+  console.error('[check:cycles] Found v1 source-compatibility shims:');
+  for (const violation of compatibilityViolations.sort()) console.error(`- ${violation}`);
+  process.exitCode = 1;
+} else {
+  console.log('[check:cycles] Clean-v2 API invariants are valid.');
+}
+
 type PackageExportTarget =
   | string
   | { import?: string; default?: string; types?: string };

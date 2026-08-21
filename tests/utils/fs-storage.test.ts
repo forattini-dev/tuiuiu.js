@@ -10,7 +10,7 @@ import * as path from 'path';
 import {
   createNodeFsStorage,
   createNodeFsSyncStorage,
-} from '../../src/utils/fs-storage.js';
+} from '../../src/app/fs-storage.js';
 
 const TEST_DIR = './.tuiuiu-test-data';
 

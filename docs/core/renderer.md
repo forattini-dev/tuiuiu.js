@@ -33,10 +33,10 @@ const { waitUntilExit } = render(App, { useDeltaRenderer: false });
 
 ### String Renderer
 
-The legacy string-based renderer can be useful for:
+The string renderer is the full-frame presentation backend. It is useful for:
 - Static component support (`<Static>`)
 - Debugging rendering issues
-- Compatibility with older terminals
+- Streams where deterministic full-frame ANSI output is preferable to cell deltas
 
 ## How it Works
 
@@ -100,17 +100,35 @@ interface RenderOptions {
   maxPendingEscapeBytes?: number; // Maximum buffered partial escape (default: 4 KiB)
   escapeSequenceTimeoutMs?: number; // Ambiguous escape deadline (default: 25ms)
   pasteTimeoutMs?: number;        // Unterminated paste deadline (default: 30s)
-  maxFps?: number;                // Maximum FPS for throttling (default: 30)
-  clearOnStart?: boolean;         // Clear screen on start (default: true)
-  showCursor?: boolean;           // Show cursor (default: false)
+  maxFps?: number;                // Maximum presentation FPS (default: 60)
+  showHardwareCursor?: boolean;   // Show the cursor at the active IME anchor (default: false)
   autoTabNavigation?: boolean;    // Tab/Shift+Tab navigation (default: true)
-  fullHeight?: boolean;           // Fill entire terminal (default: false)
   useDeltaRenderer?: boolean;     // Use delta renderer (default: true)
-  alternateScreen?: boolean;      // Use alternate buffer (default: true)
-  screenMode?: 'inline' | 'fullscreen' | 'alternate';
+  screen?: 'inline' | 'fullscreen' | 'alternate'; // default: alternate
   fixedStep?: FixedStepOptions;   // Fixed-step logical updates for game-like workloads
 }
 ```
+
+## Cursor ownership and IME
+
+The focused text editor owns one physical cursor anchor. Tuiuiu always moves
+the terminal cursor to that anchor so Chinese, Japanese, and Korean IME
+candidate windows appear beside the edit position. The cursor remains hidden
+by default because `TextInput` paints its own stable virtual cursor; set
+`showHardwareCursor: true` only when the terminal cursor should be visible.
+
+Custom editors place the anchor at their active insertion point:
+
+```typescript
+import { CursorAnchor, Text } from 'tuiuiu.js/ui';
+
+Text({}, beforeCursor)
+CursorAnchor()
+Text({}, afterCursor)
+```
+
+Render exactly one active anchor. Its position is resolved after layout,
+clipping, scrolling, overlay placement, and wide-cell measurement.
 
 ```typescript
 interface FixedStepOptions {
@@ -133,7 +151,7 @@ The renderer is optimized for terminal performance:
 - **Cell-level Diffing**: Delta renderer only updates changed cells
 - **Text Measurement Caching**: It caches the width of strings to avoid repeated calculations
 - **Batched Updates**: Multiple signal changes result in a single re-render frame
-- **FPS Throttling**: Renders are throttled to 30 FPS by default
+- **FPS Throttling**: Presentation is capped at 60 FPS by default
 - **Latest-State Scheduling**: Burst invalidations collapse to the newest frame instead of painting every intermediate state
 - **Backpressure Handling**: Terminal saturation pauses flushes and resumes from the latest pending frame
 - **ANSI/Delta Parity**: The string renderer and delta renderer consume the same renderable-symbol boundaries so wide-character layout stays consistent across both paths
@@ -149,21 +167,21 @@ Renders an interactive application with input handling.
 ```typescript
 import { render } from 'tuiuiu.js';
 
-const { waitUntilExit, rerender, unmount, clear, writeLine } = render(App);
-await waitUntilExit();
+const app = render(App, { screen: 'alternate' });
+await app.waitUntilExit();
 ```
 
-For new applications, prefer the explicit `renderInline()`,
-`renderFullscreen()`, or `renderAlternateScreen()` helpers. `writeLine()` is
-the safe way to publish imperative output above a live frame; direct writes to
-the same terminal stream can corrupt the renderer's cursor state.
+`app.writeLine()` safely publishes imperative output above a live inline frame;
+direct writes to the same terminal stream can corrupt cursor state. Signal
+invalidations schedule renders automatically; `AppHandle` has no manual
+`rerender()` method.
 
 ### `renderToString(node, width, height)`
 
 Renders a VNode tree to a string directly. Useful for testing or generating static output.
 
 ```typescript
-import { renderToString } from 'tuiuiu.js';
+import { renderToString } from 'tuiuiu.js/core';
 
 const output = renderToString(Text({}, 'Hello'), 80, 24);
 console.log(output);
@@ -178,7 +196,7 @@ import { createDeltaRenderer } from 'tuiuiu.js/core';
 
 const deltaRenderer = createDeltaRenderer({
   stdout: process.stdout,
-  showCursor: false,
+  showHardwareCursor: false,
   useDelta: true,
 });
 

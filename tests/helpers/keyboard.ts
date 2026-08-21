@@ -7,7 +7,7 @@
  */
 
 import type { Key } from '../../src/hooks/types.js';
-import { emitInput, getInputHandlerCount } from '../../src/hooks/context.js';
+import { dispatchTestKey, getTestInteractionHandlerCount } from '../../src/testing/interaction.js';
 
 // =============================================================================
 // Types
@@ -589,19 +589,19 @@ export function getFunctionKeyName(key: Key): string | null {
  * ```
  */
 export function simulateInput(input: string, key: Key): void {
-  emitInput(input, key);
+  dispatchTestKey(input, key);
 }
 
 /**
  * Simulate input from a KeyPress object
  */
 export function simulateInputFromKeyPress(keyPress: KeyPress): void {
-  emitInput(keyPress.input, keyPress.key);
+  dispatchTestKey(keyPress.input, keyPress.key);
 }
 
 /**
  * Get the count of registered input handlers
  */
 export function getHandlerCount(): number {
-  return getInputHandlerCount();
+  return getTestInteractionHandlerCount();
 }

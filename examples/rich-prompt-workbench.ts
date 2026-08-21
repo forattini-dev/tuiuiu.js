@@ -25,26 +25,33 @@ import {
   Spinner,
   Text,
   TextInput,
-  createPromptCommandRegistry,
-  createPromptModeRegistry,
-  createNodeFsSyncStorage,
-  createTaskBridge,
   useApp,
   useConst,
   useEffect,
-  useInput,
   useState,
+  useShortcut,
   useTerminalSize,
-  useTextInputState,
-  type PromptCommandArgumentCompletionContext,
-  type SyncStorageAdapter,
-  type PromptCommandDefinition,
-  type PromptCommandLiveContext,
-  type PromptModeResolved,
-  type TextInputCompletionAnchor,
-  type TextInputSegment,
   type VNode,
 } from '../src/index.js';
+import {
+  useTextInputState,
+  type TextInputCompletionAnchor,
+  type TextInputSegment,
+} from '../src/atoms/text-input.js';
+import {
+  createPromptCommandRouter,
+  type PromptCommandArgumentCompletionContext,
+  type PromptCommandDefinition,
+  type PromptCommandLiveContext,
+} from '../src/interaction/index.js';
+import {
+  createPromptModeResolver,
+  type PromptModeResolved,
+} from '../src/interaction/index.js';
+import { createNodeFsSyncStorage } from '../src/app/index.js';
+import { createBackgroundExecutor } from '../src/app/index.js';
+import type { SyncStorageAdapter } from '../src/primitives/store.js';
+import { useInteraction } from '../src/app/index.js';
 
 type Activity = {
   id: number;
@@ -455,10 +462,10 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
   const rankingStorageKey = props.rankingStorageKey ?? DEFAULT_RANKING_STORAGE_KEY;
   const historyStorage = props.historyStorage ?? rankingStorage;
   const historyStorageKey = props.historyStorageKey ?? DEFAULT_HISTORY_STORAGE_KEY;
-  const promptModes = useConst(() => createPromptModeRegistry(PROMPT_MODES));
-  const promptCommands = useConst(() => createPromptCommandRegistry(SLASH_COMMANDS));
+  const promptModes = useConst(() => createPromptModeResolver(PROMPT_MODES));
+  const promptCommands = useConst(() => createPromptCommandRouter(SLASH_COMMANDS));
   const taskBridge = useConst(() =>
-    createTaskBridge({
+    createBackgroundExecutor({
       modulePath: workerModulePath,
       workerName: 'tuiuiu-rich-prompt',
     })
@@ -798,7 +805,20 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
     };
   });
 
-  useInput((input, key) => {
+  useShortcut(['escape', 'ctrl+x'], () => {
+    runtime.currentTask?.cancel('Cancelled from the prompt');
+    setStatus('Cancelling background task');
+  }, {
+    id: 'rich-prompt.cancel-task',
+    title: 'Cancel background task',
+    priority: 1_000,
+    isActive: busy(),
+  });
+
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.ctrl && input === 'c') {
       app.exit();
       return true;
@@ -836,12 +856,6 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
       return true;
     }
 
-    if ((key.escape || (key.ctrl && input === 'x')) && busy()) {
-      runtime.currentTask?.cancel('Cancelled from the prompt');
-      setStatus('Cancelling background task');
-      return true;
-    }
-
     if (key.ctrl && input === 'l') {
       runtime.currentTask?.cancel('Reset workbench');
       if (runtime.currentTaskSubscription) {
@@ -858,7 +872,7 @@ export function RichPromptWorkbench(props: RichPromptWorkbenchProps = {}): VNode
     }
 
     return false;
-  }, { priority: 'critical', stopPropagation: true });
+  }, { priority: 1_000 });
 
   const sidebarWidth = Math.max(36, Math.min(44, Math.floor(columns * 0.34)));
   const transcriptWidth = Math.max(40, columns - sidebarWidth - 7);
@@ -961,7 +975,7 @@ function isMainModule(): boolean {
 
 if (isMainModule()) {
   const { waitUntilExit } = render(() => RichPromptWorkbench(), {
-    fullHeight: true,
+    screen: 'fullscreen',
     maxFps: 30,
   });
   await waitUntilExit();

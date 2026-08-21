@@ -1,19 +1,14 @@
 /**
  * FocusZoneManagerAdapter Tests
- *
- * Tests for the adapter that bridges FocusManager interface to FocusZoneManager.
- * This ensures backward compatibility while using the advanced focus system.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FocusZoneManagerAdapter, createFocusAdapter } from '../../src/hooks/use-focus.js';
+import { FocusZoneManagerAdapter } from '../../src/hooks/use-focus.js';
 import { resetFocusZoneManager, getFocusZoneManager } from '../../src/core/focus.js';
-import { setFocusManager, getFocusManager } from '../../src/hooks/context.js';
 
 describe('FocusZoneManagerAdapter', () => {
   beforeEach(() => {
     resetFocusZoneManager();
-    setFocusManager(null as any);
   });
 
   describe('register', () => {
@@ -184,81 +179,5 @@ describe('FocusZoneManagerAdapter', () => {
 
       expect(adapter.getActiveId()).toBe('element1');
     });
-  });
-});
-
-describe('createFocusAdapter', () => {
-  beforeEach(() => {
-    resetFocusZoneManager();
-    setFocusManager(null as any);
-  });
-
-  it('should create adapter and set as global focus manager', () => {
-    const adapter = createFocusAdapter();
-
-    expect(adapter).toBeInstanceOf(FocusZoneManagerAdapter);
-    expect(getFocusManager()).toBe(adapter);
-  });
-
-  it('should create adapter with custom zone id', () => {
-    const manager = getFocusZoneManager();
-    const zoneId = manager.createZone({ id: 'custom-zone' });
-    const adapter = createFocusAdapter(zoneId);
-    const setFocused = vi.fn();
-
-    adapter.register('element1', setFocused);
-
-    const zone = manager.getZone(zoneId);
-    expect(zone?.elements.has('element1')).toBe(true);
-  });
-});
-
-describe('Adapter vs FocusManagerImpl Compatibility', () => {
-  beforeEach(() => {
-    resetFocusZoneManager();
-    setFocusManager(null as any);
-  });
-
-  it('should work with useFocus flow', () => {
-    const adapter = createFocusAdapter();
-    const callbacks: boolean[] = [];
-
-    // Simulate useFocus registering components
-    adapter.register('input1', (focused) => callbacks.push(focused));
-    adapter.register('input2', (focused) => callbacks.push(focused));
-    adapter.register('input3', (focused) => callbacks.push(focused));
-
-    // Simulate tab navigation
-    adapter.focus('input1');
-    expect(callbacks).toContain(true);
-
-    adapter.focusNext();
-    expect(adapter.getActiveId()).toBe('input2');
-
-    adapter.focusPrevious();
-    expect(adapter.getActiveId()).toBe('input1');
-
-    adapter.blur();
-    expect(adapter.getActiveId()).toBeUndefined();
-  });
-
-  it('should handle rapid registration/unregistration', () => {
-    const adapter = createFocusAdapter();
-    const setFocused = vi.fn();
-
-    for (let i = 0; i < 10; i++) {
-      adapter.register(`element${i}`, setFocused);
-    }
-
-    adapter.focus('element5');
-    expect(adapter.getActiveId()).toBe('element5');
-
-    adapter.unregister('element5');
-    // Should auto-focus next element after unregistering focused one
-    expect(adapter.getActiveId()).not.toBe('element5');
-
-    for (let i = 0; i < 10; i++) {
-      adapter.unregister(`element${i}`);
-    }
   });
 });

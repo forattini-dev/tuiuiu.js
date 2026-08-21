@@ -89,6 +89,8 @@ import { tokyoNightTheme } from '../themes/tokyo-night.theme.js';
 import { catppuccinTheme } from '../themes/catppuccin.theme.js';
 import { highContrastDarkTheme } from '../themes/high-contrast-dark.theme.js';
 import { monochromeTheme } from '../themes/monochrome.theme.js';
+import { pinkTheme } from '../themes/pink.theme.js';
+import { orangeTheme } from '../themes/orange.theme.js';
 
 // Re-export themes
 export {
@@ -103,6 +105,8 @@ export {
   catppuccinTheme,
   highContrastDarkTheme,
   monochromeTheme,
+  pinkTheme,
+  orangeTheme,
 };
 
 // =============================================================================
@@ -240,12 +244,14 @@ export const themes = {
   monokai: monokaiTheme,
   dracula: draculaTheme,
   nord: nordTheme,
-  solarizedDark: solarizedDarkTheme,
+  'solarized-dark': solarizedDarkTheme,
   gruvbox: gruvboxTheme,
-  tokyoNight: tokyoNightTheme,
+  'tokyo-night': tokyoNightTheme,
   catppuccin: catppuccinTheme,
-  highContrastDark: highContrastDarkTheme,
+  'high-contrast-dark': highContrastDarkTheme,
   monochrome: monochromeTheme,
+  pink: pinkTheme,
+  orange: orangeTheme,
 } as const;
 
 /** Theme name type */

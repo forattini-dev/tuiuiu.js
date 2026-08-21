@@ -24,7 +24,7 @@ import { hooks } from './docs/hooks.js';
 import { signals } from './docs/signals.js';
 import { themeSystem, availableThemes } from './docs/themes.js';
 
-// Re-export everything for backwards compatibility
+// Public documentation collections
 export { primitives } from './docs/primitives.js';
 export { atoms } from './docs/atoms.js';
 export { molecules } from './docs/molecules.js';

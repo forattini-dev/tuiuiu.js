@@ -408,24 +408,6 @@ describe('createPersistMiddleware', () => {
     warnSpy.mockRestore();
   });
 
-  it('should warn when deprecated persistence options are used', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    createPersistMiddleware({
-      path: './state.json',
-      format: 'json',
-    });
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Persist middleware ignores `path`. Use `storage` and `key` instead.'
-    );
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Persist middleware always serializes as JSON. `format` is deprecated.'
-    );
-
-    warnSpy.mockRestore();
-  });
-
   it('should work as pass-through without storage', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 

@@ -44,10 +44,17 @@ export const examplesManifest: ExampleManifestEntry[] = [
   {
     name: 'confirm-dialog-overlay',
     file: 'confirm-dialog-overlay.ts',
-    description: 'Complete keyboard-and-mouse quit confirmation using ConfirmDialog and OverlayContainer.',
+    description: 'Complete keyboard-and-mouse quit confirmation using ConfirmDialog and the canonical OverlayHost.',
     category: 'interaction',
     difficulty: 'medium',
     validate: true,
+  },
+  {
+    name: 'interaction-workbench',
+    file: 'interaction-workbench.ts',
+    description: 'Semantic commands, identity-based Tabs/Select, OverlayHost sessions, and in-app prompts.',
+    category: 'interaction',
+    difficulty: 'advanced',
   },
   {
     name: 'app-forms',
@@ -217,7 +224,7 @@ export const examplesManifest: ExampleManifestEntry[] = [
   {
     name: 'thread-pool-demo',
     file: 'thread-pool-demo.ts',
-    description: 'Dispatch multiple CPU-heavy jobs through createTaskBridgePool.',
+    description: 'Dispatch multiple CPU-heavy jobs through createBackgroundExecutorPool.',
     category: 'programmatic',
     difficulty: 'advanced',
   },

@@ -25,6 +25,9 @@ import {
   previousGraphemeBoundary,
 } from '../utils/grapheme.js';
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { createTextEditor } from '../interaction/text-editor.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -173,99 +176,98 @@ export function createAutocomplete<T = string>(
   const [cursorPos, setCursorPos] = createSignal(initialValue.length);
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [isOpen, setIsOpen] = createSignal(false);
-
-  // Filtered suggestions
-  const suggestions = createMemo(() => {
-    optionsVersion();
-    const query = inputValue();
-    if (query.length < getMinChars()) return [];
-
-    const filtered = getFilter()(query, getItems().filter((i) => !i.disabled));
-    return filtered.slice(0, getMaxSuggestions());
+  const editor = createTextEditor({ initialValue });
+  editor.subscribe((snapshot) => {
+    setInputValue(snapshot.value);
+    setCursorPos(snapshot.cursor);
+  });
+  const [suggestions, setSuggestions] = createSignal<AutocompleteItem<T>[]>([]);
+  const collection = createCollectionController<AutocompleteItem<T>, T>({
+    items: [],
+    getKey: (item) => item.value,
+    isDisabled: (item) => item.disabled === true,
+    loop: true,
+    viewportSize: getMaxSuggestions(),
+  });
+  collection.subscribe((snapshot) => {
+    setSelectedIndex(Math.max(0, snapshot.activeIndex));
   });
 
+  const refreshSuggestions = (resetSelection: boolean) => {
+    optionsVersion();
+    const query = inputValue();
+    const next = query.length < getMinChars()
+      ? []
+      : getFilter()(query, getItems().filter((item) => !item.disabled))
+        .slice(0, getMaxSuggestions());
+    collection.setViewportSize(getMaxSuggestions());
+    collection.reconcile(next);
+    if (resetSelection) collection.first();
+    setSuggestions([...collection.snapshot().items]);
+    setSelectedIndex(Math.max(0, collection.snapshot().activeIndex));
+  };
+  refreshSuggestions(true);
+
   const setInput = (value: string) => {
-    setInputValue(value);
-    setCursorPos(value.length);
-    setSelectedIndex(0);
+    editor.setValue(value);
+    refreshSuggestions(true);
     setIsOpen(value.length >= getMinChars());
     runtimeOptions.onChange?.(value);
   };
 
   const insertChar = (char: string) => {
-    const value = inputValue();
-    const pos = cursorPos();
-    const newValue = value.slice(0, pos) + char + value.slice(pos);
-    setInputValue(newValue);
-    setCursorPos(pos + char.length);
-    setSelectedIndex(0);
+    editor.insert(char);
+    const newValue = editor.snapshot().value;
+    refreshSuggestions(true);
     setIsOpen(newValue.length >= getMinChars());
     runtimeOptions.onChange?.(newValue);
   };
 
   const deleteBack = () => {
-    const value = inputValue();
-    const pos = cursorPos();
-    if (pos === 0) return;
-
-    const previous = previousGraphemeBoundary(value, pos);
-    const newValue = value.slice(0, previous) + value.slice(pos);
-    setInputValue(newValue);
-    setCursorPos(previous);
-    setSelectedIndex(0);
+    if (!editor.backspace()) return;
+    const newValue = editor.snapshot().value;
+    refreshSuggestions(true);
     runtimeOptions.onChange?.(newValue);
   };
 
   const deleteForward = () => {
-    const value = inputValue();
-    const pos = cursorPos();
-    if (pos >= value.length) return;
-
-    const next = nextGraphemeBoundary(value, pos);
-    const newValue = value.slice(0, pos) + value.slice(next);
-    setInputValue(newValue);
+    if (!editor.deleteForward()) return;
+    const newValue = editor.snapshot().value;
+    refreshSuggestions(true);
     runtimeOptions.onChange?.(newValue);
   };
 
   const moveCursorLeft = () => {
-    setCursorPos((p) => previousGraphemeBoundary(inputValue(), p));
+    editor.moveLeft();
   };
 
   const moveCursorRight = () => {
-    setCursorPos((p) => nextGraphemeBoundary(inputValue(), p));
+    editor.moveRight();
   };
 
   const moveCursorHome = () => {
-    setCursorPos(0);
+    editor.moveHome();
   };
 
   const moveCursorEnd = () => {
-    setCursorPos(inputValue().length);
+    editor.moveEnd();
   };
 
   const moveUp = () => {
-    const suggs = suggestions();
-    if (suggs.length === 0) return;
-
-    setSelectedIndex((i) => (i - 1 + suggs.length) % suggs.length);
+    collection.move(-1);
   };
 
   const moveDown = () => {
-    const suggs = suggestions();
-    if (suggs.length === 0) return;
-
-    setSelectedIndex((i) => (i + 1) % suggs.length);
+    collection.move(1);
   };
 
   const selectCurrent = () => {
-    const suggs = suggestions();
-    const idx = selectedIndex();
-    const item = suggs[idx];
+    const item = collection.activate();
 
     if (item) {
-      setInputValue(item.label);
-      setCursorPos(item.label.length);
+      editor.setValue(item.label);
       setIsOpen(false);
+      refreshSuggestions(true);
       runtimeOptions.onSelect?.(item);
     }
   };
@@ -281,9 +283,7 @@ export function createAutocomplete<T = string>(
   };
 
   const submit = () => {
-    const suggs = suggestions();
-    const idx = selectedIndex();
-    const item = suggs[idx];
+    const item = collection.activate();
     runtimeOptions.onSubmit?.(inputValue(), item);
     setIsOpen(false);
   };
@@ -311,9 +311,7 @@ export function createAutocomplete<T = string>(
     updateOptions: (nextOptions: AutocompleteOptions<T>) => {
       runtimeOptions = nextOptions;
       setOptionsVersion((version) => version + 1);
-      setSelectedIndex((index) =>
-        Math.min(index, Math.max(0, suggestions().length - 1))
-      );
+      refreshSuggestions(false);
     },
   };
 }
@@ -328,7 +326,7 @@ export function useAutocompleteState<T = string>(options: AutocompleteOptions<T>
 // Separate Components (Flexible Positioning)
 // =============================================================================
 
-export interface AutocompleteInputProps<T = string> {
+export interface AutocompleteInputProps<T = string> extends ComponentKeyProps {
   /** Autocomplete state from createAutocomplete() */
   state: AutocompleteState<T>;
   /** Placeholder text */
@@ -367,7 +365,9 @@ export interface AutocompleteInputProps<T = string> {
  *   AutocompleteInput({ state })
  * )
  */
-export function AutocompleteInput<T = string>(props: AutocompleteInputProps<T>): VNode {
+export const AutocompleteInput = component('AutocompleteInput', function AutocompleteInput<T = string>(
+  props: AutocompleteInputProps<T>,
+): VNode {
   const {
     state,
     placeholder = '',
@@ -451,7 +451,7 @@ export function AutocompleteInput<T = string>(props: AutocompleteInputProps<T>):
           Text({}, afterCursor)
         )
   );
-}
+});
 
 export interface AutocompleteSuggestionsProps<T = string> {
   /** Autocomplete state from createAutocomplete() */
@@ -573,7 +573,7 @@ export function AutocompleteSuggestions<T = string>(props: AutocompleteSuggestio
 // Combined Component (Convenience Wrapper)
 // =============================================================================
 
-export interface AutocompleteProps<T = string> extends AutocompleteOptions<T> {
+export interface AutocompleteProps<T = string> extends AutocompleteOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: AutocompleteState<T>;
   /** Label */
@@ -616,7 +616,9 @@ export interface AutocompleteProps<T = string> extends AutocompleteOptions<T> {
  *   AutocompleteSuggestions({ state })
  * )
  */
-export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
+export const Autocomplete = component('Autocomplete', function Autocomplete<T = string>(
+  props: AutocompleteProps<T>,
+): VNode {
   const {
     placeholder = '',
     width = 30,
@@ -674,7 +676,7 @@ export function Autocomplete<T = string>(props: AutocompleteProps<T>): VNode {
     },
     ...parts
   );
-}
+});
 
 // =============================================================================
 // Combobox (Autocomplete with required selection)
@@ -688,7 +690,9 @@ export interface ComboboxProps<T = string> extends AutocompleteProps<T> {
 /**
  * Combobox - Autocomplete that requires selection from list
  */
-export function Combobox<T = string>(props: ComboboxProps<T>): VNode {
+export const Combobox = component('Combobox', function Combobox<T = string>(
+  props: ComboboxProps<T>,
+): VNode {
   const { errorMessage = 'Please select from the list', ...rest } = props;
 
   // Override to not allow free text
@@ -696,7 +700,7 @@ export function Combobox<T = string>(props: ComboboxProps<T>): VNode {
     ...rest,
     allowFreeText: false,
   });
-}
+});
 
 // =============================================================================
 // TagInput (Multiple selections)
@@ -838,7 +842,7 @@ export function createTagInput<T = string>(
   };
 }
 
-export interface TagInputProps<T = string> extends TagInputOptions<T> {
+export interface TagInputProps<T = string> extends TagInputOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: TagInputState<T>;
 }
@@ -860,7 +864,9 @@ export function useTagInputState<T = string>(options: TagInputOptions<T>) {
  *   onChange: (values) => console.log(values),
  * })
  */
-export function TagInput<T = string>(props: TagInputProps<T>): VNode {
+export const TagInput = component('TagInput', function TagInput<T = string>(
+  props: TagInputProps<T>,
+): VNode {
   const {
     items,
     placeholder = 'Add tag...',
@@ -960,4 +966,4 @@ export function TagInput<T = string>(props: TagInputProps<T>): VNode {
     ),
     suggestionsNode
   );
-}
+});

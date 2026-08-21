@@ -3,27 +3,15 @@ import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createInlineBackgroundExecutor,
-  createTaskBridge,
-  createTaskBridgePool,
-  createThreadBus,
-  createWorkerExecutor,
-  THREAD_BUS_EVENT_KIND,
-  THREAD_BUS_TASK_TYPE,
-  type BackgroundTaskEvent,
-  type TaskBridge,
-} from '../../src/utils/background-executor.js';
+  createInlineBackgroundExecutor, createBackgroundExecutorPool, createThreadBus, createWorkerExecutor, THREAD_BUS_EVENT_KIND, THREAD_BUS_TASK_TYPE, type BackgroundExecutor, type BackgroundTaskEvent, } from '../../src/utils/background-executor.js';
 import { render } from '../../src/app/render-loop.js';
 import { Text } from '../../src/primitives/nodes.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { useApp, useEffect, useInput, useState } from '../../src/hooks/index.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import {
-  clearInputHandlers,
-  emitInput,
-  resetHookState,
-  setAppContext,
-} from '../../src/hooks/context.js';
+import { resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
+import { dispatchTestKey } from '../../src/testing/interaction.js';
 import { charKey } from '../helpers/keyboard.js';
 
 function createMockStdin(): NodeJS.ReadStream {
@@ -71,14 +59,14 @@ const workerModulePath = fileURLToPath(new URL('../fixtures/background-task-hand
 describe('background executor', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
   });
 
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('resolves results and serializes errors through the inline executor contract', async () => {
@@ -110,13 +98,10 @@ describe('background executor', () => {
     await executor.destroy();
   });
 
-  it('uses one canonical executor contract for inline execution and task bridges', async () => {
+  it('uses one canonical executor contract for inline execution', async () => {
     const executor = createInlineBackgroundExecutor({
       uppercase: (payload: { text: string }) => payload.text.toUpperCase(),
     });
-    const bridge = createTaskBridge(executor);
-
-    expect(bridge).toBe(executor);
     await expect(executor.execute('uppercase', { text: 'canonical' }).result)
       .resolves.toMatchObject({
         status: 'resolved',
@@ -320,8 +305,8 @@ describe('background executor', () => {
         stdin,
         stdout,
         maxFps: 0,
-        clearOnStart: false,
-        showCursor: true,
+        screen: 'inline',
+        showHardwareCursor: true,
         useDeltaRenderer: false,
       }
     );
@@ -331,7 +316,7 @@ describe('background executor', () => {
       payload: { text: 'done', delayMs: 40 },
     });
 
-    emitInput('x', charKey('x').key);
+    dispatchTestKey('x', charKey('x').key);
     await Promise.resolve();
 
     expect(stdout.output).toContain('Typed: x');
@@ -388,8 +373,8 @@ describe('background executor', () => {
         stdin,
         stdout,
         maxFps: 0,
-        clearOnStart: false,
-        showCursor: true,
+        screen: 'inline',
+        showHardwareCursor: true,
         useDeltaRenderer: false,
       }
     );
@@ -630,7 +615,7 @@ describe('background executor', () => {
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 129])(
     'rejects invalid task pool size %s',
     (poolSize) => {
-      expect(() => createTaskBridgePool({
+      expect(() => createBackgroundExecutorPool({
         modulePath: workerModulePath,
         poolSize,
       })).toThrow('poolSize must be a safe integer between 1 and 128');
@@ -638,7 +623,7 @@ describe('background executor', () => {
   );
 
   it('creates globally unique task ids across a worker pool', async () => {
-    const pool = createTaskBridgePool({
+    const pool = createBackgroundExecutorPool({
       modulePath: workerModulePath,
       poolSize: 2,
     });
@@ -652,7 +637,7 @@ describe('background executor', () => {
   });
 
   it('applies backpressure across a saturated task pool', async () => {
-    const pool = createTaskBridgePool({
+    const pool = createBackgroundExecutorPool({
       modulePath: workerModulePath,
       poolSize: 1,
       maxPending: 1,
@@ -674,7 +659,7 @@ describe('background executor', () => {
   });
 
   it('restarts failed pool workers before accepting new work', async () => {
-    const pool = createTaskBridgePool({
+    const pool = createBackgroundExecutorPool({
       modulePath: workerModulePath,
       poolSize: 1,
     });
@@ -693,7 +678,7 @@ describe('background executor', () => {
   });
 
   it('can keep failed pool workers retired when restart is disabled', async () => {
-    const pool = createTaskBridgePool({
+    const pool = createBackgroundExecutorPool({
       modulePath: workerModulePath,
       poolSize: 1,
       restartFailedWorkers: false,
@@ -710,7 +695,7 @@ describe('background executor', () => {
   });
 
   it('keeps thread-bus listener and worker identity isolated', async () => {
-    const workerBridge = createTaskBridge(createInlineBackgroundExecutor({
+    const workerBridge = createInlineBackgroundExecutor({
       [THREAD_BUS_TASK_TYPE]: (_payload, _signal, reporter) => {
         reporter.emit(THREAD_BUS_EVENT_KIND, {
           from: 'forged-worker',
@@ -720,7 +705,7 @@ describe('background executor', () => {
           payload: 'done',
         });
       },
-    }));
+    });
     const bus = createThreadBus({ threads: { analyzer: workerBridge } });
     const observed: Array<{ from: string; type: string }> = [];
     bus.subscribe(() => {
@@ -749,7 +734,7 @@ describe('background executor', () => {
 
   it('can release a thread bus without taking ownership of its bridges', async () => {
     const destroy = vi.fn(async () => {});
-    const bridge: TaskBridge = {
+    const bridge: BackgroundExecutor = {
       execute: () => {
         throw new Error('not used');
       },
@@ -774,7 +759,7 @@ describe('background executor', () => {
       throw new Error('first failed');
     });
     const secondDestroy = vi.fn(async () => {});
-    const makeBridge = (destroy: () => Promise<void>): TaskBridge => ({
+    const makeBridge = (destroy: () => Promise<void>): BackgroundExecutor => ({
       execute: () => {
         throw new Error('not used');
       },

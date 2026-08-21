@@ -1,109 +1,53 @@
-# Overlay Components
+# Overlays
 
-Components that appear on top of other content, such as modals, dialogs, and command palettes.
+Tuiuiu has one runtime-scoped `OverlayHost`. The app mounts its visual adapter;
+application code opens sessions and closes the exact session it owns.
 
-## CommandPalette
+## Open a modal
 
-A searchable command menu, similar to VS Code's command palette (Ctrl+Shift+P) or Spotlight.
+```ts
+import { Text } from 'tuiuiu.js';
+import { openModal } from 'tuiuiu.js/ui';
 
-### Usage
-
-```typescript
-import { createCommandPalette, CommandPalette, useInput } from 'tuiuiu.js';
-
-// 1. Create state
-const palette = createCommandPalette({
-  items: [
-    { id: 'save', label: 'Save File', shortcut: 'Ctrl+S', action: () => save() },
-    { id: 'open', label: 'Open File', shortcut: 'Ctrl+O' },
-  ],
-  onSelect: (item) => item.action?.(),
-  onClose: () => setShowPalette(false)
+const session = openModal({
+  id: 'delete-file',
+  title: 'Delete file?',
+  content: Text({}, 'This action cannot be undone.'),
+  closeOnEscape: true,
+  closeOnBackdrop: false,
 });
 
-// 2. Handle input
-useInput((input, key) => {
-  if (showPalette()) {
-    if (key.upArrow) palette.selectPrev();
-    if (key.downArrow) palette.selectNext();
-    if (key.return) palette.confirm();
-    // ... forward input to palette.type(input)
-  }
+const outcome = await session.closed;
+```
+
+The session owns its exclusive interaction mode, focus capture/restoration,
+backdrop, timer, updates, and exactly-once close result.
+
+## Custom overlay presentation
+
+```ts
+import { getOverlayHost } from 'tuiuiu.js/interaction';
+
+const session = getOverlayHost().open({
+  id: 'quick-open',
+  priority: 'modal',
+  placement: 'center',
+  content: () => QuickOpen(),
+  closeOnEscape: true,
 });
 
-// 3. Render
-if (showPalette()) {
-  CommandPalette({
-    ...palette.props,
-    query: palette.query(),
-    filteredItems: palette.filteredItems(),
-    selectedIndex: palette.selectedIndex()
-  });
-}
+session.update({ content: () => UpdatedQuickOpen() });
+session.close('completed', selectedItem);
 ```
 
-## OverlayStack
+Do not render a second host, mutate a global overlay array, or pop an unrelated
+entry. Non-blocking overlays such as toasts use a lower priority and do not steal
+modal input authority.
 
-A manager for handling multiple overlapping overlays (modals, dialogs, etc.) with correct z-ordering and focus handling.
+## Prompts
 
-### Usage
+`prompt.*` from `tuiuiu.js/interaction` uses the same host inside an app. It
+therefore cannot create a competing raw-mode owner or input listener.
 
-```typescript
-import {
-  ConfirmDialog,
-  OverlayContainer,
-  createModalOverlay,
-  createOverlayStack,
-} from 'tuiuiu.js';
-
-// Create global stack
-const overlays = createOverlayStack();
-
-// Push an overlay
-overlays.push(createModalOverlay({
-  id: 'confirm-delete',
-  component: () => ConfirmDialog({
-    title: 'Delete file?',
-    message: 'This action cannot be undone.',
-  }),
-}));
-
-// Render last inside a full-size, position: 'relative' root Box.
-OverlayContainer({ stack: overlays });
-```
-
-`OverlayContainer` occupies the root as an absolute layer, centers each
-overlay, and keeps later/higher-priority entries above earlier ones. See the
-[complete quit-confirmation example](/components/organisms/modal.md#complete-quit-confirmation)
-for keyboard handling, cancellation, callbacks, mouse input, and a PowerShell
-run command.
-
-## GoToDialog
-
-A simple numeric input dialog, often used for jumping to a specific page or line.
-
-```typescript
-import { GoToDialog } from 'tuiuiu.js';
-
-GoToDialog({
-  value: '10',
-  max: 100,
-  prompt: 'Go to line:'
-});
-```
-
-## Modal
-
-See the [Modal](/components/organisms/modal.md) documentation for comprehensive coverage of:
-
-- **Modal** - Centered modal dialog with backdrop
-- **ConfirmDialog** - Pre-built Yes/No confirmation
-- **Toast** - Temporary notifications
-- **AlertBox** - Inline alert messages
-- **Window** - Floating draggable windows
-
-## Related
-
-- [Modal Documentation](/components/organisms/modal.md) - Full modal component reference
-- [Forms](/components/forms.md) - Form components for modal content
-- [Button](/components/atoms/button.md) - Button components for modal actions
+See [Modal](/components/organisms/modal.md) and the
+[interaction runtime](/core/interaction-runtime.md).

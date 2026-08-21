@@ -1,23 +1,25 @@
 # ADR 0004: Public entrypoint ownership
 
 - Status: accepted
-- Date: 2026-07-30
+- Date: 2026-08-21
 
 ## Context
 
-The root package became a broad aggregation with ambiguous aliases and a large
-compatibility burden.
+The v1 root and layer-specific subpaths exposed overlapping APIs, aliases, and
+unfinished surfaces. Developers could not infer lifecycle or dependency
+ownership from an import.
 
 ## Decision
 
-The root entrypoint is retained for 1.x compatibility. New APIs should be
-exported from the smallest owned subpath. Unstable APIs use
-`tuiuiu.js/experimental`; compact applications should prefer
-`tuiuiu.js/minimal`.
+Version 2 exposes only `.`, `app`, `colors`, `core`, `devtools`, `interaction`,
+`mcp`, `storybook`, `testing`, `ui`, and `package.json`. The root is a capped
+everyday surface. Each other subpath represents one architectural owner.
+
+There are no compatibility, minimal, experimental, or visual-layer
+entrypoints. New exports enter the smallest owning module and reach the root
+only when they are common application vocabulary.
 
 ## Consequences
 
-Root export growth is exceptional and requires an explicit compatibility
-reason. Public export baselines and semantic contract checks guard accidental
-surface changes.
-
+Imports communicate responsibility, obsolete concepts cannot survive through
+aliases, and exact export baselines catch accidental surface growth.

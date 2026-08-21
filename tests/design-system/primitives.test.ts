@@ -5,9 +5,12 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/index.js';
-import { When, Each, Transform, Static } from '../../src/primitives/index.js';
+import { When, Each, Transform, Static as OwnedStatic } from '../../src/primitives/index.js';
 import { Divider } from '../../src/primitives/index.js';
 import { Slot } from '../../src/primitives/index.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Static = testComponent(OwnedStatic);
 
 describe('Primitive Components', () => {
   describe('When', () => {
@@ -83,12 +86,13 @@ describe('Primitive Components', () => {
       expect(node.props['aria-label']).toBe('Description');
     });
 
-    it('should handle children in props', () => {
-      const node = Transform({
-        transform: (text) => text,
-        children: Text({}, 'child'),
-      });
+    it('should transform variadic children', () => {
+      const node = Transform(
+        { transform: (text) => text.toUpperCase() },
+        Text({}, 'child'),
+      );
       expect(node.children.length).toBeGreaterThan(0);
+      expect(node.children[0]?.props.children).toBe('CHILD');
     });
   });
 

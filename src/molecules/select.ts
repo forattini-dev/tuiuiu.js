@@ -25,6 +25,8 @@ import { getTheme } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { previousGraphemeBoundary } from '../utils/grapheme.js';
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 export interface SelectItem<T = any> {
   /** Unique value */
@@ -122,6 +124,7 @@ function resolveRuntimeOptions<T>(options: CreateSelectOptions<T>): SelectRuntim
  */
 export function createSelect<T = any>(options: CreateSelectOptions<T>) {
   let runtimeOptions = resolveRuntimeOptions(options);
+  let lastExternalItems = options.items;
   const { initialValue } = options;
 
   // Helper to check if select is currently active
@@ -142,117 +145,86 @@ export function createSelect<T = any>(options: CreateSelectOptions<T>) {
     initialSelected = [initialValue as T];
   }
 
-  const [cursorIndex, setCursorIndex] = createSignal(0);
+  const collection = createCollectionController<SelectItem<T>, T>({
+    items: runtimeOptions.items,
+    getKey: (item) => item.value,
+    isDisabled: (item) => !!item.disabled,
+    selection: runtimeOptions.multiple ? 'multiple' : 'single',
+    selectedKeys: initialSelected,
+    viewportSize: runtimeOptions.maxVisible,
+    filter: (item, query) => (
+      item.label.toLowerCase().includes(query.toLowerCase())
+      || item.description?.toLowerCase().includes(query.toLowerCase())
+      ? true
+      : false
+    ),
+  });
+  const [cursorIndex, setCursorIndex] = createSignal(collection.snapshot().activeIndex);
   const [selected, setSelected] = createSignal<T[]>(initialSelected);
-  const [scrollOffset, setScrollOffset] = createSignal(0);
+  const [scrollOffset, setScrollOffset] = createSignal(collection.snapshot().viewportStart);
   const [searchQuery, setSearchQuery] = createSignal('');
   const [isSearching, setIsSearching] = createSignal(false);
 
+  const syncCollection = () => {
+    const snapshot = collection.snapshot();
+    setCursorIndex(Math.max(0, snapshot.activeIndex));
+    setScrollOffset(snapshot.viewportStart);
+    setSelected([...snapshot.selectedKeys]);
+  };
+  collection.subscribe(syncCollection);
+  syncCollection();
+
   // Filter items based on search
   const getFilteredItems = (): SelectItem<T>[] => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return runtimeOptions.items;
-    return runtimeOptions.items.filter((item) =>
-      item.label.toLowerCase().includes(query) ||
-      item.description?.toLowerCase().includes(query)
-    );
+    return [...collection.snapshot().items];
   };
 
   // Get visible items based on scroll
   const getVisibleItems = (): { items: SelectItem<T>[]; startIndex: number } => {
-    const filtered = getFilteredItems();
-    const offset = scrollOffset();
-    const visible = filtered.slice(offset, offset + runtimeOptions.maxVisible);
-    return { items: visible, startIndex: offset };
+    const snapshot = collection.snapshot();
+    return { items: [...snapshot.visibleItems], startIndex: snapshot.viewportStart };
   };
 
   // Navigation
   const moveUp = () => {
-    const filtered = getFilteredItems();
-    setCursorIndex((i) => {
-      let newIndex = i - 1;
-      // Skip disabled items
-      while (newIndex >= 0 && filtered[newIndex]?.disabled) {
-        newIndex--;
-      }
-      if (newIndex < 0) newIndex = i; // Stay at current if can't move
-
-      // Adjust scroll
-      if (newIndex < scrollOffset()) {
-        setScrollOffset(newIndex);
-      }
-      return newIndex;
-    });
+    collection.move(-1);
   };
 
   const moveDown = () => {
-    const filtered = getFilteredItems();
-    setCursorIndex((i) => {
-      let newIndex = i + 1;
-      // Skip disabled items
-      while (newIndex < filtered.length && filtered[newIndex]?.disabled) {
-        newIndex++;
-      }
-      if (newIndex >= filtered.length) newIndex = i; // Stay at current if can't move
-
-      // Adjust scroll
-      if (newIndex >= scrollOffset() + runtimeOptions.maxVisible) {
-        setScrollOffset(newIndex - runtimeOptions.maxVisible + 1);
-      }
-      return newIndex;
-    });
+    collection.move(1);
   };
 
   const moveToTop = () => {
-    setCursorIndex(0);
-    setScrollOffset(0);
+    collection.first();
   };
 
   const moveToBottom = () => {
-    const filtered = getFilteredItems();
-    const lastIndex = filtered.length - 1;
-    setCursorIndex(lastIndex);
-    setScrollOffset(Math.max(0, filtered.length - runtimeOptions.maxVisible));
+    collection.last();
   };
 
   // Selection
   const toggleSelection = () => {
-    const filtered = getFilteredItems();
-    const item = filtered[cursorIndex()];
-    if (!item || item.disabled) return;
-
-    if (runtimeOptions.multiple) {
-      setSelected((prev) => {
-        const newSelected = prev.includes(item.value)
-          ? prev.filter((v) => v !== item.value)
-          : [...prev, item.value];
-        runtimeOptions.onChange?.(newSelected);
-        return newSelected;
-      });
-    } else {
-      setSelected([item.value]);
-      runtimeOptions.onChange?.(item.value);
-    }
+    if (!collection.toggle()) return;
+    runtimeOptions.onChange?.(runtimeOptions.multiple ? selected() : selected()[0]!);
   };
 
   const selectAll = () => {
     if (!runtimeOptions.multiple) return;
-    const filtered = getFilteredItems();
-    const allValues = filtered.filter((i) => !i.disabled).map((i) => i.value);
-    setSelected(allValues);
+    const allValues = getFilteredItems().filter((i) => !i.disabled).map((i) => i.value);
+    collection.setSelected(allValues);
     runtimeOptions.onChange?.(allValues);
   };
 
   const selectNone = () => {
-    setSelected([]);
+    collection.clearSelection();
     runtimeOptions.onChange?.(runtimeOptions.multiple ? [] : undefined as any);
   };
 
   // Search
   const updateSearch = (query: string) => {
     setSearchQuery(query);
-    setCursorIndex(0);
-    setScrollOffset(0);
+    collection.setQuery(query);
+    collection.first();
   };
 
   // Input handling - returns true if input was handled (for stopPropagation)
@@ -398,28 +370,9 @@ export function createSelect<T = any>(options: CreateSelectOptions<T>) {
     const item = filtered[index];
     if (item?.disabled) return;
 
-    setCursorIndex(index);
-
-    // Adjust scroll if needed
-    if (index < scrollOffset()) {
-      setScrollOffset(index);
-    } else if (index >= scrollOffset() + runtimeOptions.maxVisible) {
-      setScrollOffset(index - runtimeOptions.maxVisible + 1);
-    }
-
-    // Toggle selection
-    if (runtimeOptions.multiple) {
-      setSelected((prev) => {
-        const newSelected = prev.includes(item.value)
-          ? prev.filter((v) => v !== item.value)
-          : [...prev, item.value];
-        runtimeOptions.onChange?.(newSelected);
-        return newSelected;
-      });
-    } else {
-      setSelected([item.value]);
-      runtimeOptions.onChange?.(item.value);
-    }
+    collection.setActive(item.value, 'mouse');
+    collection.toggle(item.value);
+    runtimeOptions.onChange?.(runtimeOptions.multiple ? selected() : selected()[0]!);
   };
 
   return {
@@ -439,6 +392,12 @@ export function createSelect<T = any>(options: CreateSelectOptions<T>) {
     handleInput, // Expose handler to be registered during render
     updateOptions: (nextOptions: CreateSelectOptions<T>) => {
       runtimeOptions = resolveRuntimeOptions(nextOptions);
+      collection.setViewportSize(runtimeOptions.maxVisible);
+      if (nextOptions.items !== lastExternalItems) {
+        lastExternalItems = nextOptions.items;
+        collection.reconcile(nextOptions.items);
+      }
+      syncCollection();
     },
   };
 }
@@ -639,7 +598,7 @@ export function renderSelect<T = any>(
   );
 }
 
-export interface SelectProps<T = any> extends SelectOptions<T> {
+export interface SelectProps<T = any> extends SelectOptions<T>, ComponentKeyProps {
   state?: ReturnType<typeof createSelect<T>>;
 }
 
@@ -650,23 +609,27 @@ export function useSelectState<T = any>(options: CreateSelectOptions<T>) {
 /**
  * Simple standalone Select component
  */
-export function Select<T = any>({ state, ...options }: SelectProps<T>): VNode {
+export const Select = component('Select', function Select<T = any>(
+  { state, ...options }: SelectProps<T>,
+): VNode {
   const internalState = useFactoryState(state, options, createSelect<T>);
 
   return renderSelect(internalState, options);
-}
+});
 
 /**
  * Confirmation dialog
  */
-export function Confirm(options: {
+export interface ConfirmProps extends ComponentKeyProps {
   message: string;
   defaultValue?: boolean;
   yesLabel?: string;
   noLabel?: string;
   onConfirm?: (value: boolean) => void;
   isActive?: boolean;
-}): VNode {
+}
+
+export const Confirm = component<ConfirmProps, VNode>('Confirm', (options) => {
   const theme = getTheme();
   const {
     message,
@@ -697,11 +660,15 @@ export function Confirm(options: {
       showCount: false,
     })
   );
-}
+});
 
 /**
  * Multi-choice checkbox list
  */
-export function Checkbox<T = any>(options: Omit<SelectOptions<T>, 'multiple'>): VNode {
+export type CheckboxProps<T = any> = Omit<SelectOptions<T>, 'multiple'> & ComponentKeyProps;
+
+export const Checkbox = component('Checkbox', function Checkbox<T = any>(
+  options: CheckboxProps<T>,
+): VNode {
   return Select({ ...options, multiple: true });
-}
+});

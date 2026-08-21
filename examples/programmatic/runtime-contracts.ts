@@ -14,13 +14,13 @@ import {
   Divider,
   ScrollArea,
   Text,
-  getCommittedFrameQueries,
-  getInspectorSnapshot,
   render,
   useApp,
-  useInput,
+  useInteraction,
   useState,
 } from '../../src/index.js';
+import { getCommittedFrameQueries } from '../../src/core/index.js';
+import { getInspectorSnapshot } from '../../src/dev-tools/index.js';
 
 const logLines = Array.from(
   { length: 40 },
@@ -32,7 +32,10 @@ function RuntimeContractsExample() {
   const [status, setStatus] = useState('Press g, s, j, k, t, b, i or q.');
   const [inspectorLine, setInspectorLine] = useState('Inspector idle.');
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.escape || input === 'q') {
       app.exit();
       return;

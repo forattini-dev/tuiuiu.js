@@ -14,27 +14,20 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  createDataTable,
-  createVirtualDataTable,
-  DataTable,
-  VirtualDataTable,
-  EditableDataTable,
-  type DataTableColumn,
-  type DataTableOptions,
-  type DataTableState,
-} from '../../src/organisms/data-table.js';
+  createDataTable, createVirtualDataTable, DataTable as OwnedDataTable, VirtualDataTable as OwnedVirtualDataTable, EditableDataTable as OwnedEditableDataTable, type DataTableColumn, type DataTableOptions, type DataTableState, } from '../../src/organisms/data-table.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { checkAccessibility } from '../../src/dev-tools/testing.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import type { VNode } from '../../src/utils/types.js';
 import { stringWidth } from '../../src/utils/text-utils.js';
 import { charKey, keys } from '../helpers/keyboard.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const DataTable = testComponent(OwnedDataTable);
+const VirtualDataTable = testComponent(OwnedVirtualDataTable);
+const EditableDataTable = testComponent(OwnedEditableDataTable);
 
 // =============================================================================
 // Test Data
@@ -789,12 +782,12 @@ describe('Cursor Navigation', () => {
 describe('DataTable component', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('should render without errors', () => {
@@ -863,19 +856,19 @@ describe('DataTable component', () => {
       state,
     }));
 
-    emitInput('/', keys.slash().key);
+    dispatchTestKey('/', keys.slash().key);
     expect(state.searchActive()).toBe(true);
-    emitInput('j', charKey('j').key);
-    emitInput('👩‍💻', charKey('x').key);
+    dispatchTestKey('j', charKey('j').key);
+    dispatchTestKey('👩‍💻', charKey('x').key);
     expect(state.filterText()).toBe('j👩‍💻');
 
-    emitInput('', keys.backspace().key);
+    dispatchTestKey('', keys.backspace().key);
     expect(state.filterText()).toBe('j');
-    emitInput('', keys.escape().key);
+    dispatchTestKey('', keys.escape().key);
     expect(state.searchActive()).toBe(false);
 
     state.setFilter('');
-    emitInput('j', charKey('j').key);
+    dispatchTestKey('j', charKey('j').key);
     expect(state.cursorIndex()).toBe(1);
   });
 

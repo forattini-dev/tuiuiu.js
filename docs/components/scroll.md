@@ -135,7 +135,6 @@ Use `useScrollList()` when wrappers or sibling controls need to coordinate the s
 | `keysEnabled` | `boolean` | `true` | Enable keyboard navigation |
 | `isActive` | `boolean` | `true` | Is component focused |
 | `state` | `ScrollListState` | - | External state from useScrollList |
-| `hotkeyScope` | `string` | `'global'` | Hotkey scope for conflict prevention |
 
 ### Height Estimation & Caching
 
@@ -365,7 +364,7 @@ function TermsModal({ terms }: { terms: string }) {
 }
 ```
 
-### Multiple Scroll Areas with Hotkey Scopes
+### Multiple active scroll areas
 
 ```typescript
 function DualPane() {
@@ -379,7 +378,6 @@ function DualPane() {
         items: leftItems(),
         children: (item) => LeftItem({ item }),
         height: 20,
-        hotkeyScope: 'left-pane',
         isActive: activePane === 'left',
       })
     ),
@@ -389,7 +387,6 @@ function DualPane() {
         items: rightItems(),
         children: (item) => RightItem({ item }),
         height: 20,
-        hotkeyScope: 'right-pane',
         isActive: activePane === 'right',
       })
     )
@@ -477,7 +474,7 @@ ScrollList({
 
 1. **Use `autoScrollThreshold` for streaming content** - Respects user scroll position
 2. **Use `ChatList` for chat UIs** - Pre-configured for best chat experience
-3. **Combine with keyboard shortcuts** - Add navigation with `useHotkeys`
+3. **Combine with semantic shortcuts** - Add application-level navigation with `useShortcut`
 
 ```typescript
 // Smart auto-scroll for logs
@@ -493,7 +490,7 @@ ScrollList({
 ### Accessibility
 
 1. **Set `isActive` appropriately** - Disables keyboard when not focused
-2. **Use `hotkeyScope`** - Prevents conflicts between multiple scroll areas
+2. **Set `isActive` from focus state** - Prevents conflicts between multiple scroll areas
 3. **Show scrollbar** - Visual indicator of more content
 
 ---

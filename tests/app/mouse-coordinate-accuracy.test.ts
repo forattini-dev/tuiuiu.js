@@ -4,12 +4,8 @@ import { EventEmitter } from 'node:events';
 import { render } from '../../src/app/render-loop.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import {
-  clearInputHandlers,
-  clearMouseHandlers,
-  resetHookState,
-  setAppContext,
-} from '../../src/hooks/context.js';
+import { clearMouseHandlers, resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { useLocalMouse } from '../../src/hooks/use-local-mouse.js';
 import { useLayoutRef } from '../../src/hooks/use-layout-ref.js';
 import { useState } from '../../src/hooks/use-state.js';
@@ -80,7 +76,7 @@ async function waitForOutput(
 describe('mouse coordinate accuracy', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     clearMouseHandlers();
     setAppContext(null);
   });
@@ -88,7 +84,7 @@ describe('mouse coordinate accuracy', () => {
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     clearMouseHandlers();
   });
 
@@ -127,10 +123,9 @@ describe('mouse coordinate accuracy', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: false,
+      showHardwareCursor: false,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await wait(50);
@@ -179,10 +174,9 @@ describe('mouse coordinate accuracy', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: false,
+      showHardwareCursor: false,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await wait(50);

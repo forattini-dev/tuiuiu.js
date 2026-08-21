@@ -14,16 +14,18 @@ import {
   render,
   Box,
   Text,
-  useInput,
+  useInteraction,
   useApp,
   useState,
   TextInput,
-  useTextInputState,
   Select,
-  useSelectState,
   type VNode,
-  type SelectItem,
 } from '../src/index.js';
+import {
+  useSelectState,
+  useTextInputState,
+  type SelectItem,
+} from '../src/ui/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
@@ -128,7 +130,7 @@ function FormsDemo(): VNode {
   };
 
   // Global navigation
-  useInput(withKeyIndicator((char, key) => {
+  useInteraction(withKeyIndicator((char, key) => {
     clearOldKeyPresses();
     // Tab navigation for text inputs
     if (activeField() < 2) {

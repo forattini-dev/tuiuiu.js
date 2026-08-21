@@ -217,14 +217,13 @@ await bus.destroy();
 ## Quick API cheatsheet
 
 - `createBackgroundExecutor({ modulePath: './worker.mjs' })`: creates one worker with stable `execute`/`submit` methods.
-- `createTaskBridge(...)`: deprecated 1.x compatibility adapter for the same executor contract.
 - `createThreadBus({ threads })`: centralizes communication.
 - `bus.post(...)`: route one message (`to` can be a specific thread, `main`, or `*`).
 - `bus.broadcast(...)`: send to all threads.
 - `bus.sendToMain(...)`: shortcut to address main.
 - `THREAD_BUS_EVENT_KIND`: event kind your worker handlers must emit through `reporter.emit`.
 - `THREAD_BUS_TASK_TYPE`: reserved task type your worker must handle for bus messages.
-- `createTaskBridgePool()` is the multi-thread version when one worker per domain is no longer enough.
+- `createBackgroundExecutorPool()` is the multi-thread version when one worker per domain is no longer enough.
 
 ```ts
 // message contract (common pattern)

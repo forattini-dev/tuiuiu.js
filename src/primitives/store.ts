@@ -265,18 +265,8 @@ export interface PersistedStoreOptions<S, A extends Action = AnyAction> {
 }
 
 export interface PersistOptions {
-  /**
-   * @deprecated `path` is not used by this middleware.
-   * Pass a storage adapter and key instead.
-   */
-  path?: string;
   /** Key to use if using localStorage */
   key?: string;
-  /**
-   * @deprecated Only JSON save-through is supported.
-   * This option has no runtime effect and will be removed.
-   */
-  format?: 'json';
   /** Debounce save time in ms */
   debounce?: number;
   /** Receives serialization and storage failures. */
@@ -362,23 +352,13 @@ export function createPersistedStore<S, A extends Action = AnyAction>(
  */
 export function createPersistMiddleware(options: PersistOptions): PersistMiddleware<any, any> {
   const {
-    path,
     key = 'root',
-    format,
     debounce = 1000,
     storage,
     onError,
   } = options;
   if (!Number.isSafeInteger(debounce) || debounce < 0) {
     throw new RangeError('Persist debounce must be a non-negative safe integer');
-  }
-
-  if (typeof path !== 'undefined') {
-    console.warn('Persist middleware ignores `path`. Use `storage` and `key` instead.');
-  }
-
-  if (typeof format !== 'undefined') {
-    console.warn('Persist middleware always serializes as JSON. `format` is deprecated.');
   }
 
   if (!storage) {

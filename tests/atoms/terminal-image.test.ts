@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
-import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
 
 describe('TerminalImage', () => {
   it('attaches terminal-image metadata to a box vnode', () => {

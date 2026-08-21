@@ -19,7 +19,7 @@ import {
   Text,
   useState,
   useApp,
-  useInput,
+  useInteraction,
   type MouseEventData,
 } from '../src/index.js'
 
@@ -58,7 +58,10 @@ function MouseEventsDemo() {
   const [logId, setLogId] = useState(0)
 
   // Exit on 'q' or Escape
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input === 'q' || key.escape) exit()
     if (input === 'c') {
       setLogs([])

@@ -5,7 +5,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { VNode } from '../../src/utils/types.js';
 import { Text } from '../../src/primitives/nodes.js';
-import { beginRender, endRender, resetHookState, clearInputHandlers, emitInput } from '../../src/hooks/context.js';
+import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import { createSplitView, SplitView } from '../../src/molecules/split-view.js';
 import { createKey } from '../helpers/keyboard.js';
 
@@ -41,31 +42,31 @@ describe('createSplitView', () => {
 
   it('handles keyboard input when enabled', () => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
 
     beginRender();
     const view = createSplitView({ items: ['x', 'y'], keysEnabled: true });
     endRender();
 
-    emitInput('j', createKey());
+    dispatchTestKey('j', createKey());
     expect(view.selectedIndex()).toBe(0);
 
-    emitInput('k', createKey());
+    dispatchTestKey('k', createKey());
     expect(view.selectedIndex()).toBe(1);
 
-    emitInput('', createKey({ escape: true }));
+    dispatchTestKey('', createKey({ escape: true }));
     expect(view.selectedIndex()).toBe(null);
   });
 
   it('ignores input when inactive', () => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
 
     beginRender();
     const view = createSplitView({ items: ['x', 'y'], keysEnabled: true, isActive: false });
     endRender();
 
-    emitInput('j', createKey());
+    dispatchTestKey('j', createKey());
     expect(view.selectedIndex()).toBe(null);
   });
 });
@@ -73,7 +74,7 @@ describe('createSplitView', () => {
 describe('SplitView component', () => {
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('renders horizontal layout with divider', () => {

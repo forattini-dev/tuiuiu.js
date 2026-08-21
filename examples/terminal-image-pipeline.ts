@@ -7,23 +7,27 @@
 
 import {
   Box,
+  Panel,
+  Spacer,
+  Text,
+  render,
+  useApp,
+  useInteraction,
+} from '../src/index.js';
+import {
+  createGradientImage,
+  loadImageFile,
+  queryGraphicsCapabilities,
+  type ImageData,
+} from '../src/core/index.js';
+import {
   Footer,
   Header,
   Main,
-  Panel,
   Screen,
-  Spacer,
   TerminalImage,
-  Text,
-  createGradientImage,
   createTerminalImage,
-  type ImageData,
-  loadImageFile,
-  queryGraphicsCapabilities,
-  render,
-  useApp,
-  useInput,
-} from '../src/index.js';
+} from '../src/ui/index.js';
 
 const DEFAULT_IMAGE_PATH = 'tests/tuiuiu.png';
 
@@ -53,7 +57,10 @@ function TerminalImagePipelineDemo() {
   const activeProtocol = imageState.protocol() ?? capabilities.protocol;
   const stats = imageState.protocolState.stats();
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input === 'q' || key.escape) {
       app.exit();
       return;
@@ -138,5 +145,5 @@ function TerminalImagePipelineDemo() {
   );
 }
 
-const { waitUntilExit } = render(TerminalImagePipelineDemo, { fullHeight: true });
+const { waitUntilExit } = render(TerminalImagePipelineDemo, { screen: 'fullscreen' });
 await waitUntilExit();

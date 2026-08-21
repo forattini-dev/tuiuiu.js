@@ -16,13 +16,10 @@ import {
   Text,
   createSignal,
   batch,
-  Computed,
-  ComputedText,
-  Memo,
-  PreText,
   setTheme,
   darkTheme,
 } from '../../src/index.js';
+import { Computed, ComputedText, Memo, PreText } from '../../src/primitives/computed-node.js';
 import {
   createBenchmarkStdin,
   createBenchmarkStdout,
@@ -145,7 +142,7 @@ describe('Real Render Pipeline: Original vs Optimized', () => {
     }
 
     const instance = render(GameOriginal, {
-      stdin, stdout, clearOnStart: false, showCursor: true, maxFps: 0,
+      stdin, stdout, screen: 'inline', showHardwareCursor: true, maxFps: 0,
     });
 
     await waitForMacrotask();
@@ -224,7 +221,7 @@ describe('Real Render Pipeline: Original vs Optimized', () => {
     }
 
     const instance = render(GameOptimized, {
-      stdin, stdout, clearOnStart: false, showCursor: true, maxFps: 0,
+      stdin, stdout, screen: 'inline', showHardwareCursor: true, maxFps: 0,
     });
 
     await waitForMacrotask();
@@ -288,7 +285,7 @@ describe('Real Render Pipeline: Original vs Optimized', () => {
     }
 
     const instance = render(GameOptimized, {
-      stdin, stdout, clearOnStart: false, showCursor: true, maxFps: 0,
+      stdin, stdout, screen: 'inline', showHardwareCursor: true, maxFps: 0,
     });
 
     await waitForMacrotask();
@@ -337,7 +334,7 @@ describe('Real Render Pipeline: Original vs Optimized', () => {
     }
 
     const instance = render(GameWithMemo, {
-      stdin, stdout, clearOnStart: false, showCursor: true, maxFps: 0,
+      stdin, stdout, screen: 'inline', showHardwareCursor: true, maxFps: 0,
     });
 
     await waitForMacrotask();

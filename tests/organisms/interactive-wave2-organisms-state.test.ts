@@ -2,12 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderToString } from '../../src/core/renderer.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import {
   DataTable,
   ScrollArea,
@@ -59,12 +55,12 @@ const tableRows: UserRow[] = [
 describe('Wave 2 stateful organisms', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('keeps ScrollArea position across parent re-renders and updates callbacks', () => {
@@ -82,10 +78,10 @@ describe('Wave 2 stateful organisms', () => {
       );
 
     renderApp(firstOnScroll);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const rerendered = renderApp(secondOnScroll);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const output = renderToString(rerendered, 60);
     expect(output).toContain('Line 3');
@@ -113,10 +109,10 @@ describe('Wave 2 stateful organisms', () => {
       );
 
     renderApp(firstOnSelect);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     renderApp(secondOnSelect);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
     const rerendered = renderApp(secondOnSelect);
 
     const output = renderToString(rerendered, 60);
@@ -139,8 +135,8 @@ describe('Wave 2 stateful organisms', () => {
       );
 
     renderApp();
-    emitInput('', keys.down().key);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 30);
@@ -166,8 +162,8 @@ describe('Wave 2 stateful organisms', () => {
       });
 
     const first = renderController();
-    emitInput('', keys.down().key);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const second = renderController();
 
@@ -193,10 +189,10 @@ describe('Wave 2 stateful organisms', () => {
       );
 
     renderApp(firstOnPageChange);
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
 
     renderApp(secondOnPageChange);
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
     const rerendered = renderApp(secondOnPageChange);
 
     const output = renderToString(rerendered, 80);

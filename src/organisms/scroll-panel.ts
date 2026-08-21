@@ -5,8 +5,9 @@
 import { Box, Text } from '../primitives/nodes.js';
 import { ScrollArea, type ScrollAreaHeight } from './scroll-area.js';
 import type { ColorValue, BoxStyle, VNode } from '../utils/types.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
-export interface ScrollPanelProps {
+export interface ScrollPanelProps extends ComponentKeyProps {
   /** Panel title */
   title?: string;
   /** Scrollable content */
@@ -37,7 +38,7 @@ export interface ScrollPanelProps {
   isActive?: boolean;
 }
 
-export function ScrollPanel(props: ScrollPanelProps): VNode {
+function renderScrollPanel(props: ScrollPanelProps): VNode {
   const {
     title,
     content,
@@ -87,3 +88,5 @@ export function ScrollPanel(props: ScrollPanelProps): VNode {
     })
   );
 }
+
+export const ScrollPanel = component<ScrollPanelProps, VNode>('ScrollPanel', renderScrollPanel);

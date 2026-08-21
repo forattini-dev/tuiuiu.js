@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createSelect, Select, renderSelect, type SelectItem } from '../../src/molecules/select.js';
+import { createSelect, Select as OwnedSelect, renderSelect, type SelectItem } from '../../src/molecules/select.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
@@ -15,8 +15,11 @@ import {
   registerHitTestFromLayout,
 } from '../../src/core/hit-test.js';
 import { MouseSimulator, simulateClick, simulateScroll } from '../../src/dev-tools/mouse-simulator.js';
-import { clearInputHandlers } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import type { VNode } from '../../src/utils/types.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Select = testComponent(OwnedSelect);
 
 // Test items
 const basicItems: SelectItem<string>[] = [
@@ -43,12 +46,12 @@ const manyItems: SelectItem<number>[] = Array.from({ length: 20 }, (_, i) => ({
 describe('Select Mouse Events', () => {
   beforeEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('Item Click Selection', () => {

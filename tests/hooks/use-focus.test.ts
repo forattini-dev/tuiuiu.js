@@ -175,7 +175,7 @@ describe('FocusZoneManagerAdapter', () => {
   });
 });
 
-describe('createFocusAdapter', () => {
+describe('focus manager installation', () => {
   beforeEach(() => {
     resetFocusZoneManager();
   });

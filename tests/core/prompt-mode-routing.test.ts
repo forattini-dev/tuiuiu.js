@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { createPromptModeRegistry } from '../../src/core/prompt-mode-routing.js';
+import { createPromptModeResolver } from '../../src/interaction/prompt-mode.js';
 
-describe('createPromptModeRegistry', () => {
-  const registry = createPromptModeRegistry({
+describe('createPromptModeResolver', () => {
+  const registry = createPromptModeResolver({
     defaultMode: {
       id: 'text',
       label: 'Text',
@@ -34,7 +34,7 @@ describe('createPromptModeRegistry', () => {
   });
 
   it('resolves slash-prefixed prompts to command mode', () => {
-    expect(registry.parse('/help')).toMatchObject({
+    expect(registry.inspectPrompt('/help')).toMatchObject({
       mode: {
         id: 'command',
       },
@@ -45,7 +45,7 @@ describe('createPromptModeRegistry', () => {
   });
 
   it('resolves bang-prefixed prompts to shell mode', () => {
-    expect(registry.parse('!git status')).toMatchObject({
+    expect(registry.inspectPrompt('!git status')).toMatchObject({
       mode: {
         id: 'shell',
       },
@@ -57,7 +57,7 @@ describe('createPromptModeRegistry', () => {
 
   it('keeps inspectPrompt and parse aligned for the same input', () => {
     expect(registry.inspectPrompt('!echo hello')).toEqual(
-      registry.parse('!echo hello')
+      registry.inspectPrompt('!echo hello')
     );
   });
 });

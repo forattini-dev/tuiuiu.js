@@ -21,7 +21,7 @@ This is the #1 cause of "input works but UI doesn't update" bugs.
 \`\`\`typescript
 function App() {
   const [count, setCount] = createSignal(0);  // Recreated every render!
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
+  useShortcut('up', () => setCount(c => c + 1));  // Updates OLD signal
   return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
 }
 \`\`\`
@@ -32,7 +32,7 @@ function App() {
 const [count, setCount] = createSignal(0);
 
 function App() {
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
+  useShortcut('up', () => setCount(c => c + 1));  // Updates THE signal
   return Text({}, \`Count: \${count()}\`);  // Shows THE signal
 }
 \`\`\`
@@ -60,7 +60,7 @@ export const signals: HookDoc[] = [
     ],
     returns: 'Tuple of [getter, setter]',
     examples: [
-      `// ✅ CORRECT - At module level (outside component)\nconst [count, setCount] = createSignal(0);\n\nfunction App() {\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
+      `// ✅ CORRECT - At module level (outside component)\nconst [count, setCount] = createSignal(0);\n\nfunction App() {\n  useShortcut('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
       `// ❌ WRONG - Inside component (will lose state!)\nfunction App() {\n  const [count, setCount] = createSignal(0);  // DON'T DO THIS!\n  // ...\n}`,
     ],
   },

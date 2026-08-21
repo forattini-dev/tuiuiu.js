@@ -17,21 +17,23 @@ import {
   Box,
   Text,
   useState,
-  useHotkeys,
+  useShortcut,
   useApp,
   useInterval,
-  useFps,
   setTheme,
   darkTheme,
+  onCleanup,
+  createEffect,
+  createSignal,
+} from '../src/index.js';
+import { useFps } from '../src/app/index.js';
+import {
   Computed,
   ComputedText,
   Memo,
   PreText,
-  onCleanup,
-  createEffect,
   createReactiveStore,
-  createSignal,
-} from '../src/index.js';
+} from '../src/ui/index.js';
 import type { VNode } from '../src/utils/types.js';
 
 setTheme(darkTheme);
@@ -92,11 +94,11 @@ function PerformanceDemo(): VNode {
   }, 500);
 
   // Hotkeys
-  useHotkeys('q', () => exit());
-  useHotkeys('1', () => setSelectedTab(0));
-  useHotkeys('2', () => setSelectedTab(1));
-  useHotkeys('up', () => { store.combo = Math.min(store.combo + 1, 10); });
-  useHotkeys('down', () => { store.combo = Math.max(store.combo - 1, 1); });
+  useShortcut('q', () => exit());
+  useShortcut('1', () => setSelectedTab(0));
+  useShortcut('2', () => setSelectedTab(1));
+  useShortcut('up', () => { store.combo = Math.min(store.combo + 1, 10); });
+  useShortcut('down', () => { store.combo = Math.max(store.combo - 1, 1); });
 
   // onCleanup demo: log when component unmounts
   const dispose = createEffect(() => {

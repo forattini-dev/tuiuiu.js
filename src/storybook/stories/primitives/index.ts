@@ -295,7 +295,7 @@ export const dividerStories: Story[] = [
       Box(
         { flexDirection: 'row', gap: 2, height: props.height },
         Text({}, 'Left'),
-        Divider({ direction: 'vertical', color: props.color, width: props.height }),
+        Divider({ direction: 'vertical', color: props.color, height: props.height }),
         Text({}, 'Right')
       )
     ),

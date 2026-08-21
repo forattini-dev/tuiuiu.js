@@ -16,11 +16,7 @@ import { createTerminalSession } from '../core/terminal-session.js';
 import {
   getAppContext,
   setAppContext,
-  emitInput,
-  emitPaste,
   emitMouseEvent,
-  clearInputHandlers,
-  clearPasteHandlers,
   clearMouseHandlers,
   setFocusManager,
   getRuntimeScopeForApp,
@@ -45,6 +41,12 @@ import {
   getActiveRuntimeScope,
   runInRuntimeScope,
 } from '../core/runtime-scope.js';
+import {
+  createInteractionKeyEvent,
+  getInteractionRuntime,
+  type InteractionDispatchResult,
+} from '../interaction/runtime.js';
+import { installAppCommands } from '../interaction/app-commands.js';
 
 export type { AppContext };
 
@@ -79,6 +81,8 @@ export interface InitAppOptions {
   escapeSequenceTimeoutMs?: number;
   /** Time to wait for a bracketed paste terminator (default: 30s) */
   pasteTimeoutMs?: number;
+  /** Internal render ingress used to bypass background throttling after input. */
+  onInteraction?: () => void;
 }
 
 export interface ExternalUpdateIngress {
@@ -209,6 +213,7 @@ export function initializeApp(
         batch(() => {
           setTerminalFocusState(focusEvent.focused);
         });
+        options.onInteraction?.();
         rawInput = rawInput.slice(3);
         continue;
       }
@@ -223,6 +228,7 @@ export function initializeApp(
             // Emit to registered mouse handlers (useMouse consumers)
             emitMouseEvent(mouseResult.event);
           });
+          options.onInteraction?.();
 
           // Consume and continue
           rawInput = rawInput.slice(mouseResult.length);
@@ -237,44 +243,16 @@ export function initializeApp(
       const consumed = length > 0 ? length : 1; // Safety fallback
       rawInput = rawInput.slice(consumed);
 
-      if (exitOnCtrlC && key.ctrl && input === 'c') {
-        exit();
-        return;
-      }
-
-      // Automatic Tab navigation
-      if (autoTabNavigation) {
-        if (key.tab && !key.shift) {
-          // Tab - focus next
-          batch(() => {
-            focusManager.focusNext();
-          });
-          continue; // Don't propagate Tab to handlers
-        }
-
-        if (key.tab && key.shift) {
-          // Shift+Tab - focus previous
-          batch(() => {
-            focusManager.focusPrevious();
-          });
-          continue; // Don't propagate Shift+Tab to handlers
-        }
-
-        if (key.escape) {
-          // Escape - blur focus (only if something is focused)
-          if (focusManager.getActiveId() !== undefined) {
-            batch(() => {
-              focusManager.blur();
-            });
-            continue; // Don't propagate Escape to handlers when blurring
-          }
-        }
-      }
-
-      // Emit input event to all handlers (wrapped in batch for single re-render)
+      let interaction!: InteractionDispatchResult;
       batch(() => {
-        emitInput(input, key);
+        interaction = getInteractionRuntime().dispatch({
+          type: 'key',
+          key: createInteractionKeyEvent(input, key),
+        });
       });
+      void interaction;
+      if (disposed) return;
+      options.onInteraction?.();
     }
   };
 
@@ -284,9 +262,16 @@ export function initializeApp(
     for (const event of events) {
       if (disposed) return;
       if (event.type === 'paste') {
+        let interaction!: InteractionDispatchResult;
         batch(() => {
-          emitPaste(event.text, event.bracketed);
+          interaction = getInteractionRuntime().dispatch({
+            type: 'paste',
+            text: event.text,
+            bracketed: event.bracketed,
+          });
         });
+        void interaction;
+        options.onInteraction?.();
       } else {
         processRawInput(event.input);
       }
@@ -353,8 +338,6 @@ export function initializeApp(
       attempt(() => terminalSession.dispose());
       attempt(() => resetHookState(runtimeScope));
       attempt(() => resetTerminalFocusState(runtimeScope));
-      attempt(() => clearInputHandlers(runtimeScope));
-      attempt(() => clearPasteHandlers(runtimeScope));
       attempt(() => clearMouseHandlers(runtimeScope));
       attempt(() => forceDisableMouseTracking(runtimeScope));
       attempt(() => removeMouseExitHandlers(runtimeScope));
@@ -441,6 +424,17 @@ export function initializeApp(
   };
 
   setAppContext(appContext, runtimeScope);
+  runInRuntimeScope(runtimeScope, () => {
+    installAppCommands(getInteractionRuntime(), {
+      exit: () => exit(),
+      focusNext: () => focusManager.focusNext(),
+      focusPrevious: () => focusManager.focusPrevious(),
+      blurFocus: () => focusManager.blur(),
+      hasFocus: () => focusManager.getActiveId() !== undefined,
+      isExitEnabled: () => exitOnCtrlC,
+      isFocusNavigationEnabled: () => autoTabNavigation,
+    });
+  });
 
   return appContext;
 }
@@ -458,8 +452,6 @@ export function cleanupApp(targetAppContext?: AppContext): void {
     setAppContext(null, scope);
     return;
   }
-  clearInputHandlers(scope);
-  clearPasteHandlers(scope);
   clearMouseHandlers(scope);
   setFocusManager(null, scope);
   setAppContext(null, scope);

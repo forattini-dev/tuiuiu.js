@@ -111,7 +111,7 @@ describe('Theme System', () => {
     it('should export themes object', () => {
       expect(themes.dark).toBe(darkTheme);
       expect(themes.light).toBe(lightTheme);
-      expect(themes.highContrastDark).toBe(highContrastDarkTheme);
+      expect(themes['high-contrast-dark']).toBe(highContrastDarkTheme);
       expect(themes.monochrome).toBe(monochromeTheme);
     });
   });
@@ -283,7 +283,6 @@ describe('Theme System', () => {
     });
   });
 
-  // Note: themeColor and themeSpacing were deprecated in v3 - use getTheme() directly
 
   describe('getBorderRadiusChars', () => {
     it('should return square corners for none', () => {

@@ -67,12 +67,7 @@ const nextTheme = getNextTheme(currentTheme);
 setTheme(nextTheme);
 
 // Common pattern for Tab key cycling
-useInput((input, key) => {
-  if (key.tab) {
-    const current = useTheme();
-    setTheme(getNextTheme(current));
-  }
-});
+useShortcut('tab', () => setTheme(getNextTheme(useTheme())));
 ```
 
 ## Semantic Colors
@@ -359,31 +354,11 @@ useSystemTheme();
 
 ```typescript
 // Development pattern for theme testing
-useInput((input, key) => {
-  if (key.tab) {
-    const current = useTheme();
-    setTheme(getNextTheme(current));
-  }
-});
+useShortcut('tab', () => setTheme(getNextTheme(useTheme())));
 ```
 
-## Migration from Legacy API
-
-If upgrading from older versions:
-
-```typescript
-// Old (deprecated)
-import { themeColor } from 'tuiuiu.js';
-Text({ color: themeColor('primary') });
-
-// New (recommended)
-import { resolveColor } from 'tuiuiu.js';
-Text({ color: resolveColor('primary') });
-```
-
-The `resolveColor` function is more powerful, supporting:
+The `resolveColor` function supports:
 - All semantic colors with auto-contrast
 - Tailwind-style color names (`blue-500`, `red-600`)
 - Theme palette access
 - Background/foreground hierarchy
-

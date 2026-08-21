@@ -27,44 +27,24 @@ That separation matters because the fastest terminal app is usually **not** the 
 1. The first render is eager so the app becomes visible immediately.
 2. Later signal-driven reruns are scheduled instead of re-running synchronously for every invalidation.
 3. Multiple invalidations in the same burst window collapse into one evaluation of the latest state.
-4. Presentation is still bounded by `maxFps` (`30` by default).
+4. Presentation is bounded by `maxFps` (`60` by default).
 5. If the output stream applies backpressure, stale intermediate frames are dropped and the runtime resumes with the newest pending frame after `drain`.
 
 In practice this gives the runtime a **latest-state-wins** policy.
 
 ## Screen Modes
 
-The 1.x `render()` defaults remain unchanged for compatibility. New
-applications should choose their terminal ownership explicitly:
+Choose terminal ownership explicitly on `render()`:
 
 ```typescript
-import {
-  renderAlternateScreen,
-  renderFullscreen,
-  renderInline,
-} from 'tuiuiu.js/minimal';
+import { render } from 'tuiuiu.js';
 
-// Progress, prompts, and output that should stay in shell scrollback.
-renderInline(ProgressApp);
-
-// Full-height app on the primary buffer.
-renderFullscreen(Dashboard);
-
-// Full-height app that restores the user's primary screen on exit.
-renderAlternateScreen(Editor);
+render(ProgressApp, { screen: 'inline' });
+render(Dashboard, { screen: 'fullscreen' });
+render(Editor, { screen: 'alternate' });
 ```
 
-The equivalent low-level option is:
-
-```typescript
-render(App, {
-  screenMode: 'inline', // 'inline' | 'fullscreen' | 'alternate'
-});
-```
-
-If a legacy `clearOnStart`, `fullHeight`, or `alternateScreen` boolean is
-provided with `screenMode`, that explicit boolean wins. This makes migration
-incremental instead of changing existing 1.x behavior.
+`alternate` is the default and restores the user's primary screen on exit.
 
 ## Safe External Output
 
@@ -72,7 +52,7 @@ Writing directly to `process.stdout` while a live frame owns the terminal can
 split ANSI sequences or leave ghost rows. Use `writeLine()` instead:
 
 ```typescript
-const tui = renderInline(App);
+const tui = render(App, { screen: 'inline' });
 
 worker.on('message', (message) => {
   tui.writeLine(`worker: ${message}`);

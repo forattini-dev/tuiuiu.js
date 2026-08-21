@@ -15,6 +15,7 @@ import { createSignal, createMemo } from '../primitives/signal.js';
 import { useInput, useLayoutRef } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -165,7 +166,7 @@ export function createScrollArea(options: ScrollAreaStateOptions): ScrollAreaSta
 // Component
 // =============================================================================
 
-export interface ScrollAreaProps extends ScrollAreaOptions {
+export interface ScrollAreaProps extends ScrollAreaOptions, ComponentKeyProps {
   /** Explicit runtime query ID */
   id?: string;
   /** Pre-created state */
@@ -220,7 +221,7 @@ function resolveScrollHeight(
  *   scrollbarColor: 'cyan',
  * })
  */
-export function ScrollArea(props: ScrollAreaProps): VNode {
+function renderScrollArea(props: ScrollAreaProps): VNode {
   const {
     id,
     height: heightProp,
@@ -487,7 +488,7 @@ export function createVirtualList<T = unknown>(
   };
 }
 
-export interface VirtualListProps<T = unknown> extends VirtualListOptions<T> {
+export interface VirtualListProps<T = unknown> extends VirtualListOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: VirtualListState<T>;
   /** Width */
@@ -506,7 +507,7 @@ export interface VirtualListProps<T = unknown> extends VirtualListOptions<T> {
  *   onActivate: (item) => openFile(item.data),
  * })
  */
-export function VirtualList<T = unknown>(props: VirtualListProps<T>): VNode {
+function renderVirtualList<T = unknown>(props: VirtualListProps<T>): VNode {
   const {
     height,
     renderItem,
@@ -600,7 +601,7 @@ export function VirtualList<T = unknown>(props: VirtualListProps<T>): VNode {
 // ScrollableText - Simple scrollable text component
 // =============================================================================
 
-export interface ScrollableTextProps {
+export interface ScrollableTextProps extends ComponentKeyProps {
   /** Text content */
   text: string;
   /** Visible height */
@@ -618,7 +619,7 @@ export interface ScrollableTextProps {
 /**
  * ScrollableText - Simple scrollable text
  */
-export function ScrollableText(props: ScrollableTextProps): VNode {
+function renderScrollableText(props: ScrollableTextProps): VNode {
   const {
     text,
     height,
@@ -643,7 +644,7 @@ export function ScrollableText(props: ScrollableTextProps): VNode {
 // LogViewer - Auto-scrolling log viewer
 // =============================================================================
 
-export interface LogViewerOptions {
+export interface LogViewerOptions extends ComponentKeyProps {
   /** Log lines */
   lines: string[];
   /** Visible height */
@@ -674,7 +675,7 @@ export interface LogViewerOptions {
  *   highlightColor: 'red',
  * })
  */
-export function LogViewer(props: LogViewerOptions): VNode {
+function renderLogViewer(props: LogViewerOptions): VNode {
   const {
     lines,
     height,
@@ -767,3 +768,8 @@ export function LogViewer(props: LogViewerOptions): VNode {
     scrollbar
   );
 }
+
+export const ScrollArea = component<ScrollAreaProps, VNode>('ScrollArea', renderScrollArea);
+export const VirtualList = component('VirtualList', renderVirtualList);
+export const ScrollableText = component<ScrollableTextProps, VNode>('ScrollableText', renderScrollableText);
+export const LogViewer = component<LogViewerOptions, VNode>('LogViewer', renderLogViewer);

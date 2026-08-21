@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import {
-  clearInputHandlers,
-  resetHookState,
-  setAppContext,
-} from '../../src/hooks/context.js';
+import { resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { clearCommittedFrameSnapshot, createFrameSnapshot, finalizeFrameRuntimeMetrics, recordFrameStructuralMetric } from '../../src/core/frame.js';
 import {
@@ -80,7 +77,7 @@ describe('perf-inspector', () => {
     vi.useFakeTimers();
     resetPerfInspector();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     resetProgressive();
     configureProgressive({ overrides: { focusEvents: false } });
@@ -91,7 +88,7 @@ describe('perf-inspector', () => {
     cleanupApp();
     clearCommittedFrameSnapshot();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     resetProgressive();
     resetPerfInspector();
@@ -178,7 +175,7 @@ describe('perf-inspector', () => {
       stdin,
       stdout,
       useDeltaRenderer: false,
-      clearOnStart: false,
+      screen: 'inline',
     });
 
     const summary = getPerfInspectorSummary();
@@ -202,7 +199,7 @@ describe('perf-inspector', () => {
       stdin,
       stdout,
       useDeltaRenderer: true,
-      clearOnStart: false,
+      screen: 'inline',
     });
 
     const summary = getPerfInspectorSummary();

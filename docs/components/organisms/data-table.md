@@ -22,7 +22,7 @@ import {
   createVirtualDataTable,
   VirtualDataTable,
   EditableDataTable,
-} from 'tuiuiu.js/experimental'
+} from 'tuiuiu.js/ui'
 ```
 
 ## Basic Usage

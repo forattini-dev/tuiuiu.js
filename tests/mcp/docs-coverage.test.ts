@@ -124,10 +124,10 @@ describe('MCP Documentation Coverage', () => {
       const hookNames = [
         'useState',
         'useEffect',
-        'useInput',
+        'useInteraction',
         'useApp',
         'useFocus',
-        'useHotkeys',
+        'useShortcut',
         'useMouse',
         'useTerminalSize',
         'useForm',

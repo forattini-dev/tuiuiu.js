@@ -56,7 +56,7 @@ download()
 | Full App | Simple CLI |
 |----------|------------|
 | `await waitUntilExit()` | `unmount()` when done |
-| `useInput()` for keyboard | No keyboard handling |
+| interactive command bindings | No keyboard handling |
 | `useApp().exit()` | Just call `unmount()` |
 | Interactive components | Display-only components |
 
@@ -242,7 +242,7 @@ doWork()
 render(Component, {
   clearOnStart: false,   // Keep previous terminal output
   exitOnCtrlC: true,     // Allow abort with Ctrl+C
-  showCursor: false,     // Hide cursor during progress
+  showHardwareCursor: false,     // Hide cursor during progress
   debug: false,          // Don't use incremental rendering
 })
 ```

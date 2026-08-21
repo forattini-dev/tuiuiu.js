@@ -59,10 +59,10 @@ export function createThing(options: ThingOptions): ThingState {
   };
 }
 
-export function Thing(props: ThingProps): VNode {
+export const Thing = component('Thing', function Thing(props: ThingProps): VNode {
   const state = useFactoryState(props.state, props, createThing);
   return renderThing(state, props);
-}
+});
 ```
 
 ### Interactive Regression Checklist

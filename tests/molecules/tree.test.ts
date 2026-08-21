@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createTree, Tree, type TreeNode } from '../../src/molecules/tree.js';
+import { createTree, Tree as OwnedTree, type TreeNode } from '../../src/molecules/tree.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Tree = testComponent(OwnedTree);
 
 // Sample tree data
 const sampleTree: TreeNode[] = [

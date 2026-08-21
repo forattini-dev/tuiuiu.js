@@ -18,18 +18,18 @@ import {
   Box,
   Panel,
   Text,
-  createCanvas,
   darkTheme,
   setTheme,
   useApp,
-  useFps,
-  useHotkeys,
-  useInput,
+  useShortcut,
+  useInteraction,
   useInterval,
   useLayoutRef,
   useState,
   useTerminalSize,
 } from '../../src/index.js';
+import { useFps } from '../../src/app/index.js';
+import { createCanvas } from '../../src/ui/index.js';
 import { useLocalMouse } from '../../src/hooks/use-local-mouse.js';
 import type { VNode } from '../../src/utils/types.js';
 
@@ -1695,7 +1695,10 @@ function TuiuiuDoom(): VNode {
     { onlyInside: false },
   );
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (isHelpOpen) {
       return;
     }
@@ -1745,7 +1748,7 @@ function TuiuiuDoom(): VNode {
     }
   });
 
-  useHotkeys('-', () => {
+  useShortcut('-', () => {
     if (isHelpOpen) {
       return;
     }
@@ -1753,7 +1756,7 @@ function TuiuiuDoom(): VNode {
     setMouseSensitivity((current) => clamp(Number((current - 0.005).toFixed(3)), 0.02, 0.12));
   });
 
-  useHotkeys(['=', '+'], () => {
+  useShortcut(['=', '+'], () => {
     if (isHelpOpen) {
       return;
     }
@@ -1761,7 +1764,7 @@ function TuiuiuDoom(): VNode {
     setMouseSensitivity((current) => clamp(Number((current + 0.005).toFixed(3)), 0.02, 0.12));
   });
 
-  useHotkeys('space', () => {
+  useShortcut('space', () => {
     if (isHelpOpen) {
       return;
     }
@@ -1769,7 +1772,7 @@ function TuiuiuDoom(): VNode {
     setGame((current) => fireWeapon(current, 0));
   });
 
-  useHotkeys('p', () => {
+  useShortcut('p', () => {
     if (isHelpOpen || state.phase === 'dead' || state.phase === 'victory') {
       return;
     }
@@ -1781,7 +1784,7 @@ function TuiuiuDoom(): VNode {
     }));
   });
 
-  useHotkeys('r', () => {
+  useShortcut('r', () => {
     pushRecentEvent('R');
     setHelpOpen(false);
     setMinimapOpen(false);
@@ -1791,13 +1794,13 @@ function TuiuiuDoom(): VNode {
     setGame((current) => createNewGameState(Math.max(current.hiScore, scoreGame(current))));
   });
 
-  useHotkeys('f1', () => {
+  useShortcut('f1', () => {
     pushRecentEvent('F1');
     setMinimapOpen(false);
     setHelpOpen((open) => !open);
   });
 
-  useHotkeys('tab', () => {
+  useShortcut('tab', () => {
     if (isHelpOpen) {
       return;
     }
@@ -1805,7 +1808,7 @@ function TuiuiuDoom(): VNode {
     setMinimapOpen((open) => !open);
   });
 
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (isHelpOpen) {
       pushRecentEvent('ENTER');
       setHelpOpen(false);
@@ -1828,7 +1831,7 @@ function TuiuiuDoom(): VNode {
     });
   });
 
-  useHotkeys(['escape', 'ctrl+c'], () => {
+  useShortcut(['escape', 'ctrl+c'], () => {
     if (isHelpOpen) {
       pushRecentEvent('ESC');
       setHelpOpen(false);
@@ -1914,7 +1917,7 @@ function isMainModule(): boolean {
 
 export async function runTuiuiuDoom(): Promise<void> {
   const { waitUntilExit } = render(TuiuiuDoom, {
-    fullHeight: true,
+    screen: 'fullscreen',
     autoTabNavigation: false,
     maxFps: 30,
   });

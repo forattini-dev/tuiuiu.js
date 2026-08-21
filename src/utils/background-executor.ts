@@ -122,16 +122,6 @@ export interface ThreadBusOptions {
   destroyThreads?: boolean;
 }
 
-/**
- * @deprecated Compatibility name for {@link BackgroundExecutor}. New code
- * should use the canonical executor terminology.
- */
-export interface TaskBridge extends BackgroundExecutor {}
-
-type LegacyBackgroundExecutor = Omit<BackgroundExecutor, 'execute'> & {
-  execute?: BackgroundExecutor['execute'];
-};
-
 export interface WorkerExecutorOptions {
   modulePath: string;
   workerName?: string;
@@ -141,11 +131,11 @@ export interface WorkerExecutorOptions {
   defaultTimeoutMs?: number;
 }
 
-export type TaskBridgePoolScheduler = 'round-robin' | 'least-pending';
+export type BackgroundExecutorPoolScheduler = 'round-robin' | 'least-pending';
 
-export interface TaskBridgePoolOptions extends WorkerExecutorOptions {
+export interface BackgroundExecutorPoolOptions extends WorkerExecutorOptions {
   poolSize?: number;
-  scheduler?: TaskBridgePoolScheduler;
+  scheduler?: BackgroundExecutorPoolScheduler;
   /** Replace failed workers before accepting new work (default: true). */
   restartFailedWorkers?: boolean;
 }
@@ -1281,60 +1271,8 @@ export function createThreadBus({
   };
 }
 
-/**
- * @deprecated Use {@link createBackgroundExecutor}. This adapter remains for
- * 1.x source compatibility.
- */
-export function createTaskBridge(
-  executorOrModule:
-    | BackgroundExecutor
-    | LegacyBackgroundExecutor
-    | string
-    | WorkerExecutorOptions
-): TaskBridge {
-  const executor: BackgroundExecutor | LegacyBackgroundExecutor = typeof executorOrModule === 'string'
-    ? createWorkerExecutor(executorOrModule)
-    : typeof executorOrModule === 'object' && 'modulePath' in executorOrModule && !('submit' in executorOrModule)
-      ? createWorkerExecutor(executorOrModule as WorkerExecutorOptions)
-      : (executorOrModule as BackgroundExecutor);
-
-  if (typeof executor.execute === 'function') {
-    return executor as BackgroundExecutor;
-  }
-
-  // Runtime compatibility for executor-like objects created before execute()
-  // became part of the canonical BackgroundExecutor contract.
-  return {
-    execute<TPayload, TResult>(
-      type: string,
-      payload: TPayload,
-      options?: BackgroundTaskOptions,
-    ) {
-      return executor.submit<TPayload, TResult>({
-        type,
-        payload,
-      }, options);
-    },
-    submit<TPayload, TResult>(
-      request: BackgroundTaskRequest<TPayload>,
-      options?: BackgroundTaskOptions,
-    ) {
-      return executor.submit<TPayload, TResult>(request, options);
-    },
-    async destroy() {
-      await executor.destroy();
-    },
-    get state() {
-      return executor.state;
-    },
-    get pendingCount() {
-      return executor.pendingCount;
-    },
-  };
-}
-
-export function createTaskBridgePool(
-  options: TaskBridgePoolOptions
+export function createBackgroundExecutorPool(
+  options: BackgroundExecutorPoolOptions
 ): BackgroundExecutor {
   const requestedPoolSize = options.poolSize ?? 1;
   if (

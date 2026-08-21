@@ -5,12 +5,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   useThemeOverride,
-  useHotkeyScope,
-  useCurrentHotkeyScope,
 } from '../../src/hooks/use-state-cleanup.js';
 import { resetHookState } from '../../src/hooks/context.js';
 import * as theme from '../../src/core/theme.js';
-import * as hotkeys from '../../src/hooks/use-hotkeys.js';
 
 describe('State Cleanup Hooks', () => {
   beforeEach(() => {
@@ -65,90 +62,4 @@ describe('State Cleanup Hooks', () => {
     });
   });
 
-  describe('useHotkeyScope', () => {
-    it('should call pushHotkeyScope with the provided scope', () => {
-      const pushSpy = vi.spyOn(hotkeys, 'pushHotkeyScope').mockImplementation(() => {});
-      vi.spyOn(hotkeys, 'popHotkeyScope').mockImplementation(() => '');
-
-      useHotkeyScope('modal');
-
-      expect(pushSpy).toHaveBeenCalledWith('modal');
-    });
-
-    it('should register popHotkeyScope as cleanup', () => {
-      const pushSpy = vi.spyOn(hotkeys, 'pushHotkeyScope').mockImplementation(() => {});
-      vi.spyOn(hotkeys, 'popHotkeyScope').mockImplementation(() => '');
-
-      useHotkeyScope('modal');
-
-      // Push is called, cleanup function is registered via useEffect
-      expect(pushSpy).toHaveBeenCalled();
-    });
-
-    it('should support different scope names', () => {
-      const scopes: string[] = [];
-      vi.spyOn(hotkeys, 'pushHotkeyScope').mockImplementation((scope) => {
-        scopes.push(scope);
-      });
-      vi.spyOn(hotkeys, 'popHotkeyScope').mockImplementation(() => '');
-
-      useHotkeyScope('command-palette');
-      expect(scopes).toContain('command-palette');
-
-      resetHookState();
-      useHotkeyScope('search');
-      expect(scopes).toContain('search');
-    });
-
-    it('should allow nested scopes', () => {
-      const pushCalls: string[] = [];
-
-      vi.spyOn(hotkeys, 'pushHotkeyScope').mockImplementation((scope) => {
-        pushCalls.push(scope);
-      });
-      vi.spyOn(hotkeys, 'popHotkeyScope').mockImplementation(() => {
-        return pushCalls.pop() || 'global';
-      });
-
-      // First scope
-      useHotkeyScope('modal');
-      expect(pushCalls).toEqual(['modal']);
-
-      // A second mounted hook is nested. resetHookState() would unmount the
-      // first scope and must therefore pop it before another root is mounted.
-      useHotkeyScope('dialog');
-      expect(pushCalls).toEqual(['modal', 'dialog']);
-    });
-  });
-
-  describe('useCurrentHotkeyScope', () => {
-    it('should return the current hotkey scope', () => {
-      vi.spyOn(hotkeys, 'getHotkeyScope').mockReturnValue('modal');
-
-      const scope = useCurrentHotkeyScope();
-
-      expect(scope).toBe('modal');
-    });
-
-    it('should return global as default scope', () => {
-      vi.spyOn(hotkeys, 'getHotkeyScope').mockReturnValue('global');
-
-      const scope = useCurrentHotkeyScope();
-
-      expect(scope).toBe('global');
-    });
-
-    it('should reflect scope changes', () => {
-      let currentScope = 'global';
-      vi.spyOn(hotkeys, 'getHotkeyScope').mockImplementation(() => currentScope);
-
-      expect(useCurrentHotkeyScope()).toBe('global');
-
-      currentScope = 'modal';
-      expect(useCurrentHotkeyScope()).toBe('modal');
-
-      currentScope = 'search';
-      expect(useCurrentHotkeyScope()).toBe('search');
-    });
-  });
 });

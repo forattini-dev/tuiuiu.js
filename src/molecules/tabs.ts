@@ -23,6 +23,8 @@ import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfDataDrivenPatternMisused } from '../core/dev-warnings.js';
 import { getContrastColor, getTheme } from '../core/theme.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 /** Variant type for Tabs component */
 export type TabsVariant = 'primary' | 'secondary' | 'default';
@@ -70,6 +72,8 @@ export interface TabsOptions<T = string> {
   onClose?: (key: T) => void;
   /** Is component active (receives keyboard input) */
   isActive?: boolean;
+  /** Whether moving focus also activates the tab (default: automatic) */
+  activationMode?: 'automatic' | 'manual';
 }
 
 export interface TabsState<T = string> {
@@ -95,56 +99,60 @@ export interface TabsState<T = string> {
 export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
   const { tabs: initialTabs, initialTab } = options;
   let runtimeOptions = options;
+  let lastExternalTabs = initialTabs;
+
+  const firstEnabled = initialTabs.find((tab) => !tab.disabled);
+  const requested = initialTabs.find((tab) => Object.is(tab.key, initialTab) && !tab.disabled);
+  const initialActive = requested?.key ?? firstEnabled?.key ?? ('' as T);
 
   const [tabsSignal, setTabs] = createSignal<Tab<T>[]>(initialTabs);
-  const [activeTab, setActiveTabSignal] = createSignal<T>(
-    initialTab ?? initialTabs[0]?.key ?? ('' as T)
-  );
-  const [focusIndex, setFocusIndex] = createSignal(
-    initialTab
-      ? Math.max(0, initialTabs.findIndex((t) => t.key === initialTab))
-      : 0
-  );
+  const [activeTab, setActiveTabSignal] = createSignal<T>(initialActive);
+  const [focusIndex, setFocusIndex] = createSignal(Math.max(0, initialTabs.findIndex(
+    (tab) => Object.is(tab.key, initialActive),
+  )));
+  const collection = createCollectionController<Tab<T>, T>({
+    items: initialTabs,
+    getKey: (tab) => tab.key,
+    isDisabled: (tab) => !!tab.disabled,
+    activeKey: firstEnabled ? initialActive : null,
+    selection: 'single',
+    selectedKeys: firstEnabled ? [initialActive] : [],
+  });
+
+  const syncFocus = () => {
+    const snapshot = collection.snapshot();
+    setFocusIndex(Math.max(0, snapshot.activeIndex));
+  };
 
   const setActiveTab = (key: T) => {
-    const currentTabs = tabsSignal();
-    const tab = currentTabs.find((t) => t.key === key);
-    if (tab && !tab.disabled) {
-      setActiveTabSignal(key);
-      setFocusIndex(currentTabs.findIndex((t) => t.key === key));
-      runtimeOptions.onChange?.(key);
-    }
+    if (!collection.setActive(key)) return;
+    collection.selectOnly(key);
+    syncFocus();
+    setActiveTabSignal(key);
+    runtimeOptions.onChange?.(key);
   };
 
   const movePrev = () => {
-    const currentTabs = tabsSignal();
-    setFocusIndex((i) => {
-      let newIndex = i - 1;
-      while (newIndex >= 0 && currentTabs[newIndex]?.disabled) {
-        newIndex--;
-      }
-      return newIndex >= 0 ? newIndex : i;
-    });
+    if (!collection.move(-1)) return;
+    syncFocus();
+    if ((runtimeOptions.activationMode ?? 'automatic') === 'automatic') {
+      const key = collection.snapshot().activeKey;
+      if (key !== null) setActiveTab(key);
+    }
   };
 
   const moveNext = () => {
-    const currentTabs = tabsSignal();
-    setFocusIndex((i) => {
-      let newIndex = i + 1;
-      while (newIndex < currentTabs.length && currentTabs[newIndex]?.disabled) {
-        newIndex++;
-      }
-      return newIndex < currentTabs.length ? newIndex : i;
-    });
+    if (!collection.move(1)) return;
+    syncFocus();
+    if ((runtimeOptions.activationMode ?? 'automatic') === 'automatic') {
+      const key = collection.snapshot().activeKey;
+      if (key !== null) setActiveTab(key);
+    }
   };
 
   const selectFocused = () => {
-    const currentTabs = tabsSignal();
-    const tab = currentTabs[focusIndex()];
-    if (tab && !tab.disabled) {
-      setActiveTabSignal(tab.key);
-      runtimeOptions.onChange?.(tab.key);
-    }
+    const key = collection.snapshot().activeKey;
+    if (key !== null) setActiveTab(key);
   };
 
   const closeTab = (key: T) => {
@@ -153,18 +161,25 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     if (index >= 0) {
       const newTabs = currentTabs.filter((t) => t.key !== key);
       setTabs(newTabs);
+      collection.reconcile(newTabs);
+      syncFocus();
       runtimeOptions.onClose?.(key);
 
       // If closed tab was active, select adjacent
       if (activeTab() === key && newTabs.length > 0) {
-        const newIndex = Math.min(index, newTabs.length - 1);
-        setActiveTab(newTabs[newIndex]!.key);
+        const nextKey = collection.snapshot().activeKey;
+        if (nextKey !== null) setActiveTab(nextKey);
+      } else if (newTabs.length === 0) {
+        setActiveTabSignal('' as T);
       }
     }
   };
 
   const addTab = (tab: Tab<T>) => {
-    setTabs((tabs) => [...tabs, tab]);
+    const nextTabs = [...tabsSignal(), tab];
+    setTabs(nextTabs);
+    collection.reconcile(nextTabs);
+    syncFocus();
   };
 
   return {
@@ -179,6 +194,20 @@ export function createTabs<T = string>(options: TabsOptions<T>): TabsState<T> {
     addTab,
     updateOptions: (nextOptions: TabsOptions<T>) => {
       runtimeOptions = nextOptions;
+      if (nextOptions.tabs !== lastExternalTabs) {
+        lastExternalTabs = nextOptions.tabs;
+        setTabs(nextOptions.tabs);
+        collection.reconcile(nextOptions.tabs);
+        syncFocus();
+        const selectedExists = nextOptions.tabs.some(
+          (tab) => Object.is(tab.key, activeTab()) && !tab.disabled,
+        );
+        if (!selectedExists) {
+          const nextKey = collection.snapshot().activeKey;
+          if (nextKey !== null) setActiveTab(nextKey);
+          else setActiveTabSignal('' as T);
+        }
+      }
     },
   };
 }
@@ -193,7 +222,7 @@ export function useTabsState<T = string>(options: TabsOptions<T>) {
 // Component
 // =============================================================================
 
-export interface TabsProps<T = string> extends TabsOptions<T> {
+export interface TabsProps<T = string> extends TabsOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: TabsState<T>;
   /** Height of content area (optional) */
@@ -225,7 +254,7 @@ export interface TabsProps<T = string> extends TabsOptions<T> {
  *   colorActive: 'cyan',
  * })
  */
-export function Tabs<T = string>(props: TabsProps<T>): VNode {
+export const Tabs = component('Tabs', function Tabs<T = string>(props: TabsProps<T>): VNode {
   const maybeMisusedProps = props as TabsProps<T> & Record<string, unknown>;
   warnIfDataDrivenPatternMisused(
     'Tabs',
@@ -496,7 +525,7 @@ export function Tabs<T = string>(props: TabsProps<T>): VNode {
     renderTabHeader(),
     contentBox
   );
-}
+});
 
 // =============================================================================
 // TabPanel - Individual tab content wrapper
@@ -538,7 +567,7 @@ export interface VerticalTabsOptions<T = string> extends Omit<TabsOptions<T>, 'p
   contentWidth?: number;
 }
 
-export interface VerticalTabsProps<T = string> extends VerticalTabsOptions<T> {
+export interface VerticalTabsProps<T = string> extends VerticalTabsOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: TabsState<T>;
 }
@@ -546,7 +575,9 @@ export interface VerticalTabsProps<T = string> extends VerticalTabsOptions<T> {
 /**
  * VerticalTabs - Tabs with vertical tab bar on the left
  */
-export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
+export const VerticalTabs = component('VerticalTabs', function VerticalTabs<T = string>(
+  props: VerticalTabsProps<T>,
+): VNode {
   const theme = getTheme();
   const {
     position = 'left',
@@ -642,7 +673,7 @@ export function VerticalTabs<T = string>(props: VerticalTabsProps<T>): VNode {
     { flexDirection: 'row' },
     ...(position === 'left' ? [tabBar, contentPanel] : [contentPanel, tabBar]),
   );
-}
+});
 
 // =============================================================================
 // Lazy Tabs - Load content only when tab is activated
@@ -658,7 +689,9 @@ export interface LazyTabsProps<T = string> extends TabsProps<T> {
  *
  * Content functions are called lazily, only when the tab becomes active.
  */
-export function LazyTabs<T = string>(props: LazyTabsProps<T>): VNode {
+export const LazyTabs = component('LazyTabs', function LazyTabs<T = string>(
+  props: LazyTabsProps<T>,
+): VNode {
   const { loadingContent = Text({ dim: true }, 'Loading...'), ...rest } = props;
 
   // useConst ensures signals + state persist across re-renders (created once)
@@ -694,4 +727,4 @@ export function LazyTabs<T = string>(props: LazyTabsProps<T>): VNode {
     ...rest,
     state,
   });
-}
+});

@@ -19,6 +19,7 @@ import type { VNode } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { Button, type ButtonVariant, type ButtonSize } from '../atoms/button.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 export interface ConfirmButtonState {
   /** Is in confirmation state */
@@ -140,7 +141,7 @@ export function createConfirmButton(options: ConfirmButtonOptions = {}): Confirm
   };
 }
 
-export interface ConfirmButtonProps {
+export interface ConfirmButtonProps extends ComponentKeyProps {
   /** State from createConfirmButton() */
   state?: ConfirmButtonState;
   /** Button label */
@@ -192,7 +193,7 @@ export interface ConfirmButtonProps {
  * });
  * ```
  */
-export function ConfirmButton(props: ConfirmButtonProps): VNode {
+function renderConfirmButton(props: ConfirmButtonProps): VNode {
   const {
     state,
     label,
@@ -237,3 +238,5 @@ export function ConfirmButton(props: ConfirmButtonProps): VNode {
     onClick: () => internalState.click(),
   });
 }
+
+export const ConfirmButton = component<ConfirmButtonProps, VNode>('ConfirmButton', renderConfirmButton);

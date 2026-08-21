@@ -143,10 +143,8 @@ function App() {
 function Counter() {
   const { setCount } = useContext(CounterContext);
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-  });
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('down', () => setCount(c => c - 1));
 
   return Text({}, 'Use arrows to change count');
 }
@@ -154,27 +152,6 @@ function Counter() {
 function Display() {
   const { count } = useContext(CounterContext);
   return Text({ bold: true }, `Count: ${count()}`);
-}
-```
-
-## Built-in Contexts
-
-### FocusContext
-
-Tuiuiu provides a built-in `FocusContext` for focus management:
-
-```typescript
-import { FocusContext, useFocusContext, useFocusContextRequired } from 'tuiuiu.js';
-
-// Get focus manager (returns null if not in provider)
-const fm = useFocusContext();
-
-// Get focus manager (throws if not in provider)
-const fm = useFocusContextRequired();
-
-// Check if focus context is available
-if (hasFocusContext()) {
-  // ...
 }
 ```
 
@@ -206,4 +183,4 @@ function App() {
 ## See Also
 
 - [Signals](/core/signals.md) - Reactive state primitives
-- [Focus Management](/hooks/use-focus.md) - Focus hooks and FocusContext
+- [Focus Management](/hooks/use-focus.md) - App-scoped focus hooks

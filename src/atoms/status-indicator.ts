@@ -17,9 +17,9 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { resolveColor } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
-import { hasComponentRenderLifecycle } from '../hooks/factory-state.js';
 import { useState } from '../hooks/use-state.js';
 import { useInterval } from '../hooks/use-interval.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -48,7 +48,7 @@ export type StatusType = BuiltInStatus | CustomStatus;
 export type StatusSize = 'sm' | 'md' | 'lg';
 
 /** StatusIndicator props */
-export interface StatusIndicatorProps {
+export interface StatusIndicatorProps extends ComponentKeyProps {
   /** Status type or custom status object */
   status: MaybeReactive<StatusType>;
   /** Optional text label */
@@ -65,18 +65,8 @@ export interface StatusIndicatorProps {
   gap?: number;
 }
 
-/**
- * Keep pulse state stable when StatusIndicator is rendered from a component.
- *
- * Components can also be constructed outside the render cycle for snapshots and
- * one-off rendering. In that case there is no animation lifecycle to attach to,
- * so the indicator simply renders its visible frame.
- */
+/** Keep pulse state stable in the StatusIndicator ComponentOwner. */
 function usePulseVisibility(enabled: boolean): boolean {
-  if (!hasComponentRenderLifecycle()) {
-    return true;
-  }
-
   const [visible, setVisible] = useState(true);
   useInterval(
     () => setVisible((current) => !current),
@@ -142,7 +132,7 @@ const DOT_CHARS = {
  *   label: () => isOk() ? 'Online' : 'Offline'
  * })
  */
-export function StatusIndicator(props: StatusIndicatorProps): VNode {
+export const StatusIndicator = component<StatusIndicatorProps, VNode>('StatusIndicator', (props) => {
   const {
     showIcon = true,
     showDot = false,
@@ -200,7 +190,7 @@ export function StatusIndicator(props: StatusIndicatorProps): VNode {
       label
     )
   );
-}
+});
 
 // =============================================================================
 // Presets
@@ -277,4 +267,3 @@ export function pendingStatus(label?: string): StatusIndicatorProps {
 export function stoppedStatus(label?: string): StatusIndicatorProps {
   return { status: 'stopped', label };
 }
-

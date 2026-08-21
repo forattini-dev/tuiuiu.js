@@ -18,6 +18,7 @@ import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getRenderMode } from '../core/capabilities.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -167,7 +168,7 @@ export function createSlider(options: SliderOptions = {}): SliderState {
 // Component
 // =============================================================================
 
-export interface SliderProps extends SliderOptions {
+export interface SliderProps extends SliderOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: SliderState;
   /** Label */
@@ -197,7 +198,7 @@ export interface SliderProps extends SliderOptions {
  *   color: 'green',
  * })
  */
-export function Slider(props: SliderProps): VNode {
+export const Slider = component<SliderProps, VNode>('Slider', (props) => {
   const {
     min = 0,
     max = 100,
@@ -295,7 +296,7 @@ export function Slider(props: SliderProps): VNode {
     { flexDirection: 'row', alignItems: 'center' },
     ...parts
   );
-}
+});
 
 // =============================================================================
 // Range Slider (two thumbs)
@@ -442,12 +443,12 @@ export function createRangeSlider(options: RangeSliderOptions = {}): RangeSlider
  *   onChange: ([start, end]) => console.log(start, end),
  * })
  */
-export interface RangeSliderProps extends RangeSliderOptions {
+export interface RangeSliderProps extends RangeSliderOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: RangeSliderState;
 }
 
-export function RangeSlider(props: RangeSliderProps): VNode {
+export const RangeSlider = component<RangeSliderProps, VNode>('RangeSlider', (props) => {
   const {
     min = 0,
     max = 100,
@@ -521,4 +522,4 @@ export function RangeSlider(props: RangeSliderProps): VNode {
     { flexDirection: 'row', alignItems: 'center' },
     ...parts
   );
-}
+});

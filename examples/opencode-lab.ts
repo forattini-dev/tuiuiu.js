@@ -13,21 +13,21 @@ import { fileURLToPath } from 'node:url';
 
 import {
   Box,
-  ShimmerText,
   Spacer,
   Text,
   TextInput,
   getVersion,
   render,
-  truncateText,
   useApp,
-  useInput,
   useState,
   useTerminalSize,
-  useTextInputState,
   useTimeout,
   type VNode,
 } from '../src/index.js';
+import { ShimmerText } from '../src/atoms/shimmer-text.js';
+import { useTextInputState } from '../src/atoms/text-input.js';
+import { truncateText } from '../src/utils/text-utils.js';
+import { useInteraction } from '../src/app/index.js';
 
 export const colors = {
   background: '#050505',
@@ -673,8 +673,11 @@ export function OpenCodeLab(): VNode {
     { enabled: thinking() },
   );
 
-  useInput(
-    (char, key) => {
+  useInteraction(
+    (event) => {
+      if (event.type !== 'key') return;
+      const char = event.key.text;
+      const key = event.key.native;
       if (key.ctrl && char === 'c') {
         exit();
         return true;
@@ -706,7 +709,7 @@ export function OpenCodeLab(): VNode {
       }
       return false;
     },
-    { priority: 'modal', stopPropagation: true },
+    { priority: 100 },
   );
 
   const composer = TextInput({
@@ -749,7 +752,7 @@ export function OpenCodeLab(): VNode {
 
 export async function runOpenCodeLab(): Promise<void> {
   const app = render(() => OpenCodeLab(), {
-    screenMode: 'alternate',
+    screen: 'alternate',
     autoTabNavigation: false,
     exitOnCtrlC: false,
     maxFps: 30,

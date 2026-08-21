@@ -325,7 +325,7 @@ const tools: MCPTool[] = [
       properties: {
         name: {
           type: 'string',
-          description: 'Hook name (e.g., useState, useInput, useEffect, createSignal)',
+          description: 'Hook name (e.g., useState, useShortcut, useEffect, createSignal)',
         },
       },
       required: ['name'],
@@ -658,11 +658,11 @@ Before writing any code, you MUST follow these rules:
 - \`useState()\` - Hook that persists across re-renders (use inside components)
 - \`createSignal()\` - Primitive that creates new signal each call (use at module level only)
 
-### 2. Call \`setTheme()\` BEFORE \`render()\`
-Required for proper input handling.
+### 2. Stateful child components use \`component()\`
+Give repeated stateful children stable keys so ownership survives reordering.
 
-### 3. Arrow keys have empty \`input\` string
-Use \`key.upArrow\`, \`key.downArrow\`, etc. or \`useHotkeys('up', ...)\`
+### 3. Bind intent, not terminal bytes
+Use \`useShortcut('arrowup', ...)\` for actions and \`useInteraction()\` only for normalized text-control events.
 
 ## Basic Example (Recommended Pattern!)
 
@@ -672,16 +672,16 @@ import {
   Box,
   Text,
   useState,      // Use useState for component state!
-  useHotkeys,
+  useShortcut,
   useApp,
   setTheme,
   darkTheme,
 } from 'tuiuiu.js';
 
-// 1. Set theme BEFORE render (required!)
+// Set the initial runtime theme
 setTheme(darkTheme);
 
-// 2. Component function with useState
+// Component function with owned state
 function App() {
   const { exit } = useApp();
 
@@ -689,9 +689,9 @@ function App() {
   const [count, setCount] = useState(0);
 
   // Hooks go inside component
-  useHotkeys('up', () => setCount(c => c + 1));
-  useHotkeys('down', () => setCount(c => c - 1));
-  useHotkeys('q', () => exit());
+  useShortcut('arrowup', () => setCount(c => c + 1));
+  useShortcut('arrowdown', () => setCount(c => c - 1));
+  useShortcut('q', () => exit());
 
   return Box({ flexDirection: 'column', padding: 1 },
     Text({ color: 'cyan', bold: true }, 'Counter'),
@@ -700,7 +700,7 @@ function App() {
   );
 }
 
-// 3. Render and wait
+// Render and wait
 const { waitUntilExit } = render(App);
 await waitUntilExit();
 \`\`\`
@@ -729,15 +729,15 @@ function App() {
 
 1. **Components**: Use \`Box\` for layout, \`Text\` for content
 2. **State**: Use \`useState\` inside components, \`createSignal\` at module level
-3. **Hooks**: Use \`useHotkeys\` or \`useInput\` for keyboard (inside components)
-4. **Theming**: Call \`setTheme(darkTheme)\` BEFORE \`render()\`
+3. **Interaction**: Use semantic \`useShortcut\` bindings for application actions
+4. **Ownership**: Wrap hook-owning reusable children with \`component()\`
 
 ## Troubleshooting
 
 If input doesn't work or state resets:
-1. ✅ Is \`setTheme(darkTheme)\` called BEFORE \`render()\`?
+1. ✅ Is the hook-owning component evaluated inside \`render(() => ...)\`?
 2. ✅ Using \`useState\` (not \`createSignal\`) inside components?
-3. ✅ For arrow keys, using \`key.upArrow\` not \`input\`?
+3. ✅ Using canonical key names such as \`arrowup\` in shortcuts?
 
 ## Canonical Pitfalls Guide
 
@@ -851,17 +851,15 @@ function StatusBar() {
     name: 'Interactive Counter',
     category: 'form',
     description: 'Basic counter with keyboard input handling',
-    code: `import { Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+    code: `import { Box, Text, useState, useShortcut, useApp } from 'tuiuiu.js';
 
 function Counter() {
   const [count, setCount] = useState(0);
   const app = useApp();
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-    if (key.escape) app.exit();
-  });
+  useShortcut('arrowup', () => setCount(c => c + 1));
+  useShortcut('arrowdown', () => setCount(c => c - 1));
+  useShortcut('escape', () => app.exit());
 
   return Box(
     { borderStyle: 'round', padding: 1, flexDirection: 'column' },
@@ -869,33 +867,31 @@ function Counter() {
     Text({ color: 'muted', dim: true }, '↑/↓ change, ESC exit'),
   );
 }`,
-    components: ['Box', 'Text', 'useState', 'useInput', 'useApp'],
+    components: ['Box', 'Text', 'useState', 'useShortcut', 'useApp'],
   },
   {
     name: 'Hotkey Navigation',
     category: 'form',
-    description: 'Use useHotkeys for declarative keyboard shortcuts',
-    code: `import { Box, Text, useState, useHotkeys, getRegisteredHotkeys, formatHotkeyPlatform } from 'tuiuiu.js';
+    description: 'Use useShortcut for declarative keyboard shortcuts',
+    code: `import { Box, Text, useState, useShortcut } from 'tuiuiu.js';
+import { getInteractionRuntime } from 'tuiuiu.js/interaction';
 
 function App() {
   const [mode, setMode] = useState('normal');
 
-  useHotkeys([
-    { key: 'ctrl+s', handler: () => save(), description: 'Save file' },
-    { key: 'ctrl+k', handler: () => openPalette(), description: 'Command palette' },
-    { key: 'escape', handler: () => setMode('normal'), description: 'Cancel' },
-  ]);
+  useShortcut('ctrl+s', () => save(), { title: 'Save file' });
+  useShortcut('ctrl+k', () => openPalette(), { title: 'Command palette' });
+  useShortcut('escape', () => setMode('normal'), { title: 'Cancel' });
 
-  // Display hotkeys
-  const hotkeys = getRegisteredHotkeys();
+  const bindings = getInteractionRuntime().inspect().bindings;
   return Box(
     { flexDirection: 'column' },
-    ...hotkeys.map(h =>
-      Text({}, \`\${formatHotkeyPlatform(h.key)}: \${h.description}\`)
+    ...bindings.map(binding =>
+      Text({}, \`\${binding.keys.join(' ')}: \${binding.command}\`)
     ),
   );
 }`,
-    components: ['useHotkeys', 'getRegisteredHotkeys', 'formatHotkeyPlatform'],
+    components: ['useShortcut', 'getInteractionRuntime'],
   },
   {
     name: 'Dashboard Cards',
@@ -1031,14 +1027,12 @@ Box(
     name: 'Theme Switching',
     category: 'theme',
     description: 'Cycle through themes with Tab key',
-    code: `import { Box, Text, useInput, setTheme, getTheme, getNextTheme, themes } from 'tuiuiu.js';
+    code: `import { Box, Text, useShortcut, setTheme, getTheme, getNextTheme, themes } from 'tuiuiu.js';
 
 function App() {
-  useInput((input, key) => {
-    if (key.tab) {
-      const current = getTheme();
-      setTheme(getNextTheme(current));
-    }
+  useShortcut('tab', () => {
+    const current = getTheme();
+    setTheme(getNextTheme(current));
   });
 
   const theme = getTheme();
@@ -2264,7 +2258,6 @@ For creating apps, try prompts like:
     const uri = params.uri;
     this.logger.resourceRead(uri);
 
-    // Use the new resource system
     const content = readResource(uri);
     if (content) {
       return {
@@ -2274,43 +2267,6 @@ For creating apps, try prompts like:
           contents: [content],
         },
       };
-    }
-
-    // Fallback for legacy URIs (component:// and hook://)
-    if (uri.startsWith('component://')) {
-      const name = uri.replace('component://', '');
-      const comp = allComponents.find(c => c.name === name);
-      if (comp) {
-        return {
-          jsonrpc: '2.0',
-          id: id ?? 0,
-          result: {
-            contents: [{
-              uri,
-              mimeType: 'text/markdown',
-              text: formatComponentDoc(comp),
-            }],
-          },
-        };
-      }
-    }
-
-    if (uri.startsWith('hook://')) {
-      const name = uri.replace('hook://', '');
-      const hook = allHooks.find(h => h.name === name);
-      if (hook) {
-        return {
-          jsonrpc: '2.0',
-          id: id ?? 0,
-          result: {
-            contents: [{
-              uri,
-              mimeType: 'text/markdown',
-              text: formatHookDoc(hook),
-            }],
-          },
-        };
-      }
     }
 
     return {

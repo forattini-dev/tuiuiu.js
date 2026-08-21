@@ -13,26 +13,20 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  createTextInput,
-  getVisualLines,
-  renderTextInput,
-  TextInput,
-} from '../../src/atoms/text-input.js';
+  createTextInput, getVisualLines, renderTextInput, TextInput, } from '../../src/atoms/text-input.js';
 import { createPasteCollapseStore, createPasteCollapseTransform } from '../../src/atoms/paste-collapse.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { createInlineBackgroundExecutor } from '../../src/utils/background-executor.js';
 import { stringWidth } from '../../src/utils/text-utils.js';
 import { keys, charKey, typeString } from '../helpers/keyboard.js';
-import {
-  addInputHandler,
-  clearInputHandlers,
-  emitInput,
-} from '../../src/hooks/context.js';
+import { registerTestKeyHandler } from '../../src/testing/interaction.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
+import { renderTestComponent } from '../../src/testing/component.js';
 import type { Key, InputHandler } from '../../src/hooks/types.js';
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
-  emitInput(input, key);
+  dispatchTestKey(input, key);
 }
 
 // Helper to type a sequence
@@ -45,17 +39,17 @@ function type(sequence: Array<{ input: string; key: Key }>): void {
 // Helper to create input and register handler
 function createTestInput(options?: Parameters<typeof createTextInput>[0]) {
   const ti = createTextInput(options);
-  addInputHandler(ti.handleInput);
+  registerTestKeyHandler(ti.handleInput);
   return ti;
 }
 
 describe('TextInput Keyboard Interactions', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('Unicode visual layout', () => {
@@ -1508,7 +1502,7 @@ describe('TextInput Keyboard Interactions', () => {
       expect(ti.completion()?.items.map((item) => item.id)).toEqual(['ada', 'alan']);
     });
 
-    it('keeps task-backed completions compatible when ranking is enabled', async () => {
+    it('combines task-backed completions with ranking', async () => {
       const executor = createInlineBackgroundExecutor({
         suggest: async (_payload: { query: string }, _signal, reporter) => {
           reporter.emit('progress', { status: 'Ranking refs', progress: 50 });
@@ -2074,28 +2068,28 @@ describe('TextInput Keyboard Interactions', () => {
 
   describe('TextInput Component', () => {
     it('should render TextInput component', () => {
-      const vnode = TextInput({ initialValue: 'test' });
+      const vnode = renderTestComponent(() => TextInput({ initialValue: 'test' }));
       expect(vnode).toBeDefined();
       expect(vnode.type).toBe('box');
     });
 
     it('should render TextInput with placeholder', () => {
-      const vnode = TextInput({ placeholder: 'Enter text...' });
+      const vnode = renderTestComponent(() => TextInput({ placeholder: 'Enter text...' }));
       expect(vnode).toBeDefined();
     });
 
     it('should render TextInput in password mode', () => {
-      const vnode = TextInput({ initialValue: 'secret', password: true });
+      const vnode = renderTestComponent(() => TextInput({ initialValue: 'secret', password: true }));
       expect(vnode).toBeDefined();
     });
 
     it('should render TextInput with width', () => {
-      const vnode = TextInput({ initialValue: 'hello', width: 30 });
+      const vnode = renderTestComponent(() => TextInput({ initialValue: 'hello', width: 30 }));
       expect(vnode).toBeDefined();
     });
 
     it('should render TextInput with label', () => {
-      const vnode = TextInput({ initialValue: 'test', placeholder: 'Name:' });
+      const vnode = renderTestComponent(() => TextInput({ initialValue: 'test', placeholder: 'Name:' }));
       expect(vnode).toBeDefined();
     });
   });

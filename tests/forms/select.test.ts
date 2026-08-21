@@ -10,20 +10,33 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createSelect, Select, Confirm, Checkbox, type SelectItem, type SelectOptions } from '../../src/molecules/select.js';
-import { emitInput, clearInputHandlers, getInputHandlerCount, addInputHandler } from '../../src/hooks/context.js';
+import {
+  createSelect,
+  Select as OwnedSelect,
+  Confirm as OwnedConfirm,
+  Checkbox as OwnedCheckbox,
+  type SelectItem,
+  type SelectOptions,
+} from '../../src/molecules/select.js';
+import { testComponent, withTestComponent } from '../../src/testing/component.js';
+import { dispatchTestKey } from '../../src/testing/interaction.js';
+import { resetTestInteractions, getTestInteractionHandlerCount, registerTestKeyHandler } from '../../src/testing/interaction.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
 
+const Select = testComponent(OwnedSelect);
+const Confirm = testComponent(OwnedConfirm);
+const Checkbox = testComponent(OwnedCheckbox);
+
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
-  emitInput(input, key);
+  dispatchTestKey(input, key);
 }
 
 // Helper to create select and register handler (since useInput moved to renderSelect)
 function createTestSelect<T = any>(options: SelectOptions<T>) {
   const sel = createSelect(options);
-  addInputHandler(sel.handleInput);
+  registerTestKeyHandler(sel.handleInput);
   return sel;
 }
 
@@ -51,11 +64,11 @@ const manyItems: SelectItem<number>[] = Array.from({ length: 20 }, (_, i) => ({
 
 describe('Select Keyboard Interactions', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   // ============================================================================
@@ -825,11 +838,11 @@ describe('Select Keyboard Interactions', () => {
 
 describe('Confirm Component', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('should render with message', () => {
@@ -857,13 +870,10 @@ describe('Confirm Component', () => {
 
   it('should call onConfirm when submitted', () => {
     const onConfirm = vi.fn();
-    Confirm({
-      message: 'Proceed?',
-      onConfirm,
-    });
-
-    // Simulate Enter key to confirm
-    simulateInput('', keys.enter().key);
+    withTestComponent(
+      () => OwnedConfirm({ message: 'Proceed?', onConfirm }),
+      () => simulateInput('', keys.enter().key),
+    );
     expect(onConfirm).toHaveBeenCalledWith(false); // Default is first option (Yes = true)
   });
 
@@ -886,11 +896,11 @@ describe('Confirm Component', () => {
 
 describe('Checkbox Component', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('should render as multi-select', () => {
@@ -899,31 +909,33 @@ describe('Checkbox Component', () => {
   });
 
   it('should allow multiple selections', () => {
-    Checkbox({ items: basicItems });
-
-    // Select first item
-    simulateInput(' ', charKey(' ').key);
-    // Move down and select second
-    simulateInput('', keys.down().key);
-    simulateInput(' ', charKey(' ').key);
-
-    // Both should be selected (verify via handlers being called)
-    expect(getInputHandlerCount()).toBeGreaterThan(0);
+    withTestComponent(
+      () => OwnedCheckbox({ items: basicItems }),
+      () => {
+        simulateInput(' ', charKey(' ').key);
+        simulateInput('', keys.down().key);
+        simulateInput(' ', charKey(' ').key);
+        expect(getTestInteractionHandlerCount()).toBeGreaterThan(0);
+      },
+    );
   });
 
   it('should pass through all options except multiple', () => {
     const onSubmit = vi.fn();
     const onChange = vi.fn();
 
-    Checkbox({
-      items: basicItems,
-      onSubmit,
-      onChange,
-      initialValue: ['a', 'b'],
-    });
-
-    expect(onChange).not.toHaveBeenCalled(); // Not called on init
-    simulateInput('', keys.enter().key);
+    withTestComponent(
+      () => OwnedCheckbox({
+        items: basicItems,
+        onSubmit,
+        onChange,
+        initialValue: ['a', 'b'],
+      }),
+      () => {
+        expect(onChange).not.toHaveBeenCalled(); // Not called on init
+        simulateInput('', keys.enter().key);
+      },
+    );
     expect(onSubmit).toHaveBeenCalledWith(['a', 'b']);
   });
 });
@@ -934,11 +946,11 @@ describe('Checkbox Component', () => {
 
 describe('Select Component (VNode)', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('should render with items', () => {

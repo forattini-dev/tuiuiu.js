@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TextInput, useTextInputState } from '../../src/atoms/text-input.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { charKey, keys } from '../helpers/keyboard.js';
-import { beginRender, clearInputHandlers, emitInput, endRender, resetHookState } from '../../src/hooks/context.js';
+import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import { Select, useSelectState, type SelectItem } from '../../src/molecules/select.js';
 
 function renderWithHooks<T>(factory: () => T): T {
@@ -21,12 +22,12 @@ const items: SelectItem<string>[] = [
 describe('Interactive component state hooks', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('keeps TextInput value across parent re-renders without external state', () => {
@@ -34,7 +35,7 @@ describe('Interactive component state hooks', () => {
       renderWithHooks(() => TextInput({ placeholder, isActive: true }));
 
     renderApp('First');
-    emitInput('x', charKey('x').key);
+    dispatchTestKey('x', charKey('x').key);
 
     const rerendered = renderApp('Second');
     const output = renderToString(rerendered, 40);
@@ -136,7 +137,7 @@ describe('Interactive component state hooks', () => {
       );
 
     renderApp();
-    emitInput(' ', keys.space().key);
+    dispatchTestKey(' ', keys.space().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 60);

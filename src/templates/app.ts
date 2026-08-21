@@ -8,8 +8,8 @@
  * - Header: App header with title and actions
  */
 
-import { Box, Text, normalizeChildren } from '../primitives/nodes.js';
-import type { BoxStyle, TuiChild, TuiNode, VNode } from '../utils/types.js';
+import { Box, Text } from '../primitives/nodes.js';
+import type { BoxStyle, TuiChild, VNode } from '../utils/types.js';
 import { VStack, HStack, Spacer, Divider } from './stack.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { warnIfPropsPatternUsedVariadically } from '../core/dev-warnings.js';
@@ -528,8 +528,6 @@ export interface HeaderProps {
 }
 
 export interface LayoutHeaderProps extends BoxStyle {
-  /** Header content */
-  children?: TuiNode;
 }
 
 /**
@@ -551,14 +549,10 @@ export interface LayoutHeaderProps extends BoxStyle {
 export function Header(props: HeaderProps): VNode;
 export function Header(props: LayoutHeaderProps, ...children: TuiChild[]): VNode;
 export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiChild[]): VNode {
-  const hasLayoutChildren = children.length > 0 || (props as LayoutHeaderProps).children !== undefined;
-  const isLayoutHeader = hasLayoutChildren || !('title' in props);
+  const isLayoutHeader = children.length > 0 || !('title' in props);
 
   if (isLayoutHeader) {
-    const { height, children: propsChildren, ...rest } = props as LayoutHeaderProps;
-
-    // Fallback to props.children if variadic children empty
-    const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
+    const { height, ...rest } = props as LayoutHeaderProps;
 
     return Box(
       {
@@ -568,7 +562,7 @@ export function Header(props: HeaderProps | LayoutHeaderProps, ...children: TuiC
         height: height ?? 'auto',
         ...rest,
       },
-      ...resolvedChildren
+      ...children
     );
   }
 

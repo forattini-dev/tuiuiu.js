@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest';
 import type { VNode } from '../../src/utils/types.js';
 import { createSignal } from '../../src/primitives/signal.js';
-import { DataRow } from '../../src/atoms/data-row.js';
+import { DataRow as OwnedDataRow } from '../../src/atoms/data-row.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const DataRow = testComponent(OwnedDataRow);
 
 function collectText(node: VNode): string[] {
   if (node.type === 'text') {

@@ -15,7 +15,6 @@
  *   ScrollArea, VirtualList,
  *   SplitPanel, ThreePanel,
  *   Grid, MasonryGrid,
- *   createOverlayStack, OverlayContainer,
  * } from './organisms/index.js';
  * ```
  */
@@ -27,12 +26,11 @@
 export {
   // Components
   Modal,
+  openModal,
   ConfirmDialog,
   Toast,
   AlertBox,
   Window,
-  // State factory
-  createModal,
   createConfirmDialog,
   // Types
   type BorderStyle,
@@ -43,7 +41,7 @@ export {
   type ToastType,
   type ToastProps,
   type AlertBoxProps,
-  type ModalState,
+  type OpenModalOptions,
   type WindowVariant,
   type WindowProps,
 } from './modal.js';
@@ -58,40 +56,24 @@ export {
   GoToDialog,
   // State factories
   createCommandPalette,
+  createInteractionCommandPalette,
+  commandItemsFromInteractionRuntime,
   createGoToDialog,
   // Types
   type CommandItem,
   type CommandPaletteProps,
   type CommandPaletteState,
   type CreateCommandPaletteOptions,
+  type CreateInteractionCommandPaletteOptions,
+  type InteractionCommandPaletteState,
   type GoToDialogProps,
 } from './command-palette.js';
 
-// =============================================================================
-// Overlay Stack
-// =============================================================================
-
 export {
-  // State factory
-  createOverlayStack,
-  // Components
-  OverlayContainer,
-  // Utility functions
-  shouldBlockInput,
-  handleOverlayEscape,
-  // Overlay factories
-  createModalOverlay,
-  createToastOverlay,
-  createCriticalOverlay,
-  // Types
-  type OverlayPriority,
-  type OverlayPosition,
-  type OverlayConfig,
-  type OverlayEntry,
-  type OverlayStackState,
-  type OverlayContainerProps,
-  type UseOverlayInputOptions,
-} from './overlay-stack.js';
+  OverlayHostView,
+  type OverlayHostViewProps,
+} from './overlay-host.js';
+export { createVNodePromptRenderer } from './prompt-host.js';
 
 // =============================================================================
 // Split Panel
@@ -217,6 +199,17 @@ export {
   type DataTableOptions,
   type DataTableState,
   type DataTableProps,
+  VirtualDataTable,
+  EditableDataTable,
+  createVirtualDataTable,
+  createEditableDataTable,
+  type VirtualDataTableOptions,
+  type VirtualDataTableRange,
+  type VirtualDataTableState,
+  type EditableColumn,
+  type EditableDataTableOptions,
+  type EditableDataTableCell,
+  type EditableDataTableState,
 } from './data-table.js';
 
 // =============================================================================

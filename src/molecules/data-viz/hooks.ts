@@ -15,6 +15,7 @@ import { Box, Text } from '../../primitives/nodes.js';
 import { Spinner } from '../../atoms/spinner.js';
 import { useTerminalSize } from '../../hooks/use-terminal-size.js';
 import type { VNode } from '../../utils/types.js';
+import { component, type ComponentKeyProps } from '../../app/component.js';
 
 // =============================================================================
 // Types
@@ -588,7 +589,7 @@ export interface ResponsiveBreakpoint {
   render: (width: number) => VNode;
 }
 
-export interface ResponsiveChartProps {
+export interface ResponsiveChartProps extends ComponentKeyProps {
   /** Breakpoints sorted by minWidth (largest first gets priority) */
   breakpoints: ResponsiveBreakpoint[];
   /** Fallback render when no breakpoint matches */
@@ -610,7 +611,7 @@ export interface ResponsiveChartProps {
  *   fallback: () => Text({}, 'Terminal too narrow'),
  * })
  */
-export function ResponsiveChart(props: ResponsiveChartProps): VNode {
+function renderResponsiveChart(props: ResponsiveChartProps): VNode {
   const { columns } = useTerminalSize();
   const width = columns;
 
@@ -652,3 +653,8 @@ export function useResponsiveChart<T extends Record<string, unknown>>(
 
   return baseProps;
 }
+
+export const ResponsiveChart = component<ResponsiveChartProps, VNode>(
+  'ResponsiveChart',
+  renderResponsiveChart,
+);

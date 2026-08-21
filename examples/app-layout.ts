@@ -7,24 +7,22 @@
 
 import {
   render,
-  Screen,
-  Header,
-  Main,
-  Footer,
   Box,
   Text,
   Spacer,
   Panel,
-  Title,
-  Caption,
-  useInput,
+  useInteraction,
   useApp,
 } from '../src/index.js';
+import { Caption, Footer, Header, Main, Screen, Title } from '../src/ui/index.js';
 
 function LayoutDemo() {
   const app = useApp();
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input === 'q' || key.escape) {
       app.exit();
     }
@@ -55,5 +53,5 @@ function LayoutDemo() {
   );
 }
 
-const { waitUntilExit } = render(LayoutDemo, { fullHeight: true });
+const { waitUntilExit } = render(LayoutDemo, { screen: 'fullscreen' });
 await waitUntilExit();

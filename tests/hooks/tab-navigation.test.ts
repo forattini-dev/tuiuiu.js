@@ -1,22 +1,16 @@
 /**
  * Tab Navigation Tests
  *
- * Tests for automatic Tab/Shift+Tab focus navigation and FocusContext.
+ * Tests for automatic Tab/Shift+Tab focus navigation.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FocusZoneManagerAdapter } from '../../src/hooks/use-focus.js';
 import { initializeApp, cleanupApp } from '../../src/hooks/use-app.js';
-import { setFocusManager, getFocusManager, clearInputHandlers } from '../../src/hooks/context.js';
+import { setFocusManager, getFocusManager } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { resetHookState } from '../../src/hooks/context.js';
 import { resetFocusZoneManager } from '../../src/core/focus.js';
-import {
-  FocusContext,
-  useFocusContext,
-  useFocusContextRequired,
-  hasFocusContext,
-  createFocusManagerInstance,
-} from '../../src/hooks/focus-context.js';
 
 describe('Tab Navigation', () => {
   let mockStdin: any;
@@ -25,7 +19,7 @@ describe('Tab Navigation', () => {
 
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setFocusManager(null);
     resetFocusZoneManager();
 
@@ -52,7 +46,7 @@ describe('Tab Navigation', () => {
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setFocusManager(null);
   });
 
@@ -247,208 +241,5 @@ describe('Tab Navigation', () => {
       // Note: The internal variable changes, but appContext.autoTabNavigation is a snapshot
       // This tests the setter exists and doesn't throw
     });
-  });
-});
-
-describe('FocusContext', () => {
-  beforeEach(() => {
-    resetHookState();
-    clearInputHandlers();
-    setFocusManager(null);
-    // Reset FocusContext state
-    FocusContext._currentValue = null;
-    FocusContext._stack = [];
-  });
-
-  afterEach(() => {
-    cleanupApp();
-    resetHookState();
-    clearInputHandlers();
-    setFocusManager(null);
-    FocusContext._currentValue = null;
-    FocusContext._stack = [];
-  });
-
-  describe('createFocusManagerInstance', () => {
-    it('should create a new FocusManager instance', () => {
-      const fm = createFocusManagerInstance();
-
-      expect(fm).toBeDefined();
-      expect(typeof fm.register).toBe('function');
-      expect(typeof fm.unregister).toBe('function');
-      expect(typeof fm.focus).toBe('function');
-      expect(typeof fm.focusNext).toBe('function');
-      expect(typeof fm.focusPrevious).toBe('function');
-      expect(typeof fm.blur).toBe('function');
-      expect(typeof fm.getActiveId).toBe('function');
-    });
-  });
-
-  describe('useFocusContext', () => {
-    it('should return null when no FocusContext.Provider exists', () => {
-      const result = useFocusContext();
-      expect(result).toBeNull();
-    });
-
-    it('should return FocusManager when inside FocusContext.Provider', () => {
-      const fm = createFocusManagerInstance();
-      FocusContext._currentValue = fm;
-
-      const result = useFocusContext();
-      expect(result).toBe(fm);
-
-      // Cleanup
-      FocusContext._currentValue = null;
-    });
-  });
-
-  describe('useFocusContextRequired', () => {
-    it('should throw when no FocusContext.Provider exists', () => {
-      expect(() => useFocusContextRequired()).toThrow(
-        'useFocusContextRequired must be called within a FocusContext.Provider'
-      );
-    });
-
-    it('should return FocusManager when inside FocusContext.Provider', () => {
-      const fm = createFocusManagerInstance();
-      FocusContext._currentValue = fm;
-
-      const result = useFocusContextRequired();
-      expect(result).toBe(fm);
-
-      // Cleanup
-      FocusContext._currentValue = null;
-    });
-  });
-
-  describe('hasFocusContext', () => {
-    it('should return false when no FocusContext exists', () => {
-      expect(hasFocusContext()).toBe(false);
-    });
-
-    it('should return true when FocusContext has value', () => {
-      const fm = createFocusManagerInstance();
-      FocusContext._currentValue = fm;
-      FocusContext._stack.push(null); // Simulate being inside provider
-
-      expect(hasFocusContext()).toBe(true);
-
-      // Cleanup
-      FocusContext._currentValue = null;
-      FocusContext._stack = [];
-    });
-
-    it('should return false when FocusContext value is null', () => {
-      FocusContext._currentValue = null;
-      expect(hasFocusContext()).toBe(false);
-    });
-  });
-
-  describe('FocusContext.Provider', () => {
-    it('should provide FocusManager to children', () => {
-      const fm = createFocusManagerInstance();
-
-      // Simulate Provider wrapping
-      FocusContext._stack.push(FocusContext._currentValue);
-      FocusContext._currentValue = fm;
-
-      expect(useFocusContext()).toBe(fm);
-
-      // Restore
-      FocusContext._currentValue = FocusContext._stack.pop() ?? null;
-    });
-
-    it('should support nested providers', () => {
-      const fm1 = createFocusManagerInstance();
-      const fm2 = createFocusManagerInstance();
-
-      // Outer provider
-      FocusContext._stack.push(FocusContext._currentValue);
-      FocusContext._currentValue = fm1;
-
-      expect(useFocusContext()).toBe(fm1);
-
-      // Inner provider
-      FocusContext._stack.push(FocusContext._currentValue);
-      FocusContext._currentValue = fm2;
-
-      expect(useFocusContext()).toBe(fm2);
-
-      // Exit inner
-      FocusContext._currentValue = FocusContext._stack.pop() ?? null;
-      expect(useFocusContext()).toBe(fm1);
-
-      // Exit outer
-      FocusContext._currentValue = FocusContext._stack.pop() ?? null;
-      expect(useFocusContext()).toBeNull();
-    });
-  });
-
-  describe('FocusContext displayName', () => {
-    it('should have displayName set', () => {
-      expect(FocusContext.displayName).toBe('FocusContext');
-    });
-  });
-});
-
-describe('Focus integration with Context', () => {
-  beforeEach(() => {
-    resetHookState();
-    clearInputHandlers();
-    setFocusManager(null);
-    FocusContext._currentValue = null;
-    FocusContext._stack = [];
-  });
-
-  afterEach(() => {
-    cleanupApp();
-    resetHookState();
-    clearInputHandlers();
-    setFocusManager(null);
-    FocusContext._currentValue = null;
-    FocusContext._stack = [];
-  });
-
-  it('should prefer FocusContext over global when both exist', () => {
-    // Set up global FocusManager
-    const globalFm = new FocusZoneManagerAdapter();
-    setFocusManager(globalFm);
-
-    const globalSetFocused = vi.fn();
-    globalFm.register('global-field', globalSetFocused);
-
-    // Set up context FocusManager
-    const contextFm = createFocusManagerInstance();
-    FocusContext._stack.push(FocusContext._currentValue);
-    FocusContext._currentValue = contextFm;
-
-    const contextSetFocused = vi.fn();
-    contextFm.register('context-field', contextSetFocused);
-
-    // useFocusContext should return context FM
-    expect(useFocusContext()).toBe(contextFm);
-
-    // Focus via context FM
-    contextFm.focus('context-field');
-    expect(contextSetFocused).toHaveBeenCalledWith(true);
-    expect(globalSetFocused).not.toHaveBeenCalled();
-
-    // Cleanup
-    FocusContext._currentValue = FocusContext._stack.pop() ?? null;
-  });
-
-  it('should fall back to global when FocusContext is empty', () => {
-    // Set up global FocusManager only
-    const globalFm = new FocusZoneManagerAdapter();
-    setFocusManager(globalFm);
-
-    const globalSetFocused = vi.fn();
-    globalFm.register('global-field', globalSetFocused);
-
-    // No context set
-    expect(useFocusContext()).toBeNull();
-
-    // getFocusManager should still work
-    expect(getFocusManager()).toBe(globalFm);
   });
 });

@@ -14,7 +14,7 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { formatHotkeyPlatform } from '../hooks/use-hotkeys.js';
+import { formatKeyChord } from '../interaction/key-sequence.js';
 import { getTheme } from '../core/theme.js';
 
 export interface KeyboardShortcutHintProps {
@@ -57,7 +57,7 @@ export function KeyboardShortcutHint(props: KeyboardShortcutHintProps): VNode {
 
   const theme = getTheme();
   const textColor = color ?? theme.foreground?.muted ?? 'gray';
-  const formatted = formatHotkeyPlatform(shortcut);
+  const formatted = formatKeyChord(shortcut);
 
   let content: string;
   if (action) {

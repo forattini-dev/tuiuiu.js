@@ -196,8 +196,17 @@ class FocusZoneManager {
       this.deactivateZone(zoneId);
     }
 
-    // Remove from stack
-    this.stack = this.stack.filter((entry) => entry.zoneId !== zoneId);
+    // Remove stale restoration links when a non-active zone disappears.
+    const removed = [...this.stack].reverse().find((entry) => entry.zoneId === zoneId);
+    this.stack = this.stack
+      .filter((entry) => entry.zoneId !== zoneId)
+      .map((entry) => entry.previousZoneId === zoneId
+        ? {
+            ...entry,
+            previousZoneId: removed?.previousZoneId ?? this.rootZoneId,
+            previousFocusId: removed?.previousFocusId ?? null,
+          }
+        : entry);
 
     // Remove zone
     this.zones.delete(zoneId);
@@ -209,6 +218,7 @@ class FocusZoneManager {
   activateZone(zoneId: string): void {
     const zone = this.zones.get(zoneId);
     if (!zone || zone.options.disabled) return;
+    if (this.activeZoneId === zoneId) return;
 
     const currentZone = this.getActiveZone();
     const previousFocusId = currentZone?.activeId ?? null;
@@ -221,7 +231,7 @@ class FocusZoneManager {
     // Push current state to stack
     if (this.activeZoneId && this.activeZoneId !== zoneId) {
       this.stack.push({
-        zoneId: this.activeZoneId,
+        zoneId,
         previousFocusId,
         previousZoneId: this.activeZoneId,
         timestamp: Date.now(),
@@ -233,8 +243,10 @@ class FocusZoneManager {
     zone.isActive = true;
 
     // Auto-focus first element if enabled
-    if (zone.options.autoFocus && zone.order.length > 0) {
+    if (zone.options.autoFocus && zone.activeId === null && zone.order.length > 0) {
       this.focusElement(zone.order[0]!, zoneId);
+    } else if (zone.activeId) {
+      this.focusElement(zone.activeId, zoneId);
     }
   }
 
@@ -247,16 +259,37 @@ class FocusZoneManager {
 
     zone.isActive = false;
 
-    // Pop from stack
-    const entry = this.stack.pop();
+    let index = -1;
+    for (let cursor = this.stack.length - 1; cursor >= 0; cursor--) {
+      if (this.stack[cursor]!.zoneId === zoneId) {
+        index = cursor;
+        break;
+      }
+    }
+    const entry = index >= 0 ? this.stack.splice(index, 1)[0] : undefined;
+
+    // A non-active zone can be removed without disturbing the active owner.
+    if (this.activeZoneId !== zoneId) {
+      if (entry) {
+        this.stack = this.stack.map((candidate) => candidate.previousZoneId === zoneId
+          ? {
+              ...candidate,
+              previousZoneId: entry.previousZoneId,
+              previousFocusId: entry.previousFocusId,
+            }
+          : candidate);
+      }
+      return;
+    }
+
     if (entry) {
-      this.activeZoneId = entry.previousZoneId;
+      this.activeZoneId = entry.previousZoneId ?? this.rootZoneId;
 
       // Restore focus if enabled
-      if (zone.options.restoreFocus && entry.previousFocusId) {
-        const parentZone = this.zones.get(entry.previousZoneId!);
+      if (zone.options.restoreFocus && entry.previousFocusId && entry.previousZoneId) {
+        const parentZone = this.zones.get(entry.previousZoneId);
         if (parentZone) {
-          this.focusElement(entry.previousFocusId, entry.previousZoneId!);
+          this.focusElement(entry.previousFocusId, entry.previousZoneId);
         }
       }
     } else {

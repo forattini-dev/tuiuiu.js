@@ -17,6 +17,7 @@ import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars } from '../core/capabilities.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -141,7 +142,7 @@ export function createRadioGroup<T = string>(
 // Component
 // =============================================================================
 
-export interface RadioGroupProps<T = string> extends RadioGroupOptions<T> {
+export interface RadioGroupProps<T = string> extends RadioGroupOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: RadioGroupState<T>;
 }
@@ -160,7 +161,7 @@ export interface RadioGroupProps<T = string> extends RadioGroupOptions<T> {
  *   onChange: (value) => console.log(value),
  * })
  */
-export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
+function renderRadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
   const {
     options,
     direction = 'vertical',
@@ -235,6 +236,8 @@ export function RadioGroup<T = string>(props: RadioGroupProps<T>): VNode {
     ...optionNodes
   );
 }
+
+export const RadioGroup = component('RadioGroup', renderRadioGroup);
 
 // =============================================================================
 // Inline Radio (single option display)

@@ -20,13 +20,13 @@ import {
   createSignal,
   useEffect,
   batch,
-  useInput,
+  useInteraction,
   useApp,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
 } from '../src/index.js';
+import { getNextTheme } from '../src/ui/index.js';
 import {
   getCpuUsage,
   getMemoryInfo,
@@ -38,7 +38,7 @@ import {
   type CpuUsage,
   type MemoryInfo,
   type SystemInfo,
-} from '../src/utils/system-data.js';
+} from './_shared/system-data.js';
 import type { VNode } from '../src/utils/types.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader, startFpsTracking, stopFpsTracking } from './_shared/tuiuiu-header.js';
@@ -332,7 +332,7 @@ function HtopApp(): VNode {
   };
 
   // Input handling
-  useInput(withKeyIndicator((input, key) => {
+  useInteraction(withKeyIndicator((input, key) => {
     if (showHelp()) {
       if (key.escape || input === 'q' || input === 'h') {
         setShowHelp(false);

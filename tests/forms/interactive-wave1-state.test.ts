@@ -4,12 +4,8 @@ import { RangeSlider, Slider } from '../../src/atoms/slider.js';
 import { Switch } from '../../src/atoms/switch.js';
 import { renderToString } from '../../src/core/renderer.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import {
   Autocomplete,
   createAutocomplete,
@@ -67,12 +63,12 @@ const treeNodes: TreeNode[] = [
 describe('Wave 1 interactive component state', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('keeps Switch state across parent re-renders', () => {
@@ -87,7 +83,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput(' ', charKey(' ').key);
+    dispatchTestKey(' ', charKey(' ').key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 40);
@@ -109,7 +105,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 60);
@@ -130,7 +126,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 60);
@@ -155,11 +151,11 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp(firstOnChange);
-    emitInput('', keys.down().key);
-    emitInput(' ', charKey(' ').key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey(' ', charKey(' ').key);
 
     const rerendered = renderApp(secondOnChange);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
 
     expect(renderToString(rerendered, 60)).toContain('Beta');
     expect(firstOnChange).toHaveBeenCalledWith('b');
@@ -176,8 +172,8 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.right().key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.right().key);
+    dispatchTestKey('', keys.enter().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -209,7 +205,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput(' ', keys.space().key);
+    dispatchTestKey(' ', keys.space().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -237,17 +233,17 @@ describe('Wave 1 interactive component state', () => {
     renderWithHooks(() =>
       MultiSelect({ items: selectionItems, searchable: true, state })
     );
-    emitInput('/', charKey('/').key);
-    emitInput(`j${family}`, charKey(family).key);
+    dispatchTestKey('/', charKey('/').key);
+    dispatchTestKey(`j${family}`, charKey(family).key);
 
     expect(state.isSearching()).toBe(true);
     expect(state.searchQuery()).toBe(`j${family}`);
     expect(state.cursorIndex()).toBe(0);
 
-    emitInput('', keys.backspace().key);
+    dispatchTestKey('', keys.backspace().key);
     expect(state.searchQuery()).toBe('j');
 
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
     expect(state.isSearching()).toBe(false);
     expect(state.searchQuery()).toBe('j');
   });
@@ -263,7 +259,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('b', charKey('b').key);
+    dispatchTestKey('b', charKey('b').key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -295,11 +291,11 @@ describe('Wave 1 interactive component state', () => {
         isActive: true,
       })
     );
-    emitInput(family, charKey(family).key);
+    dispatchTestKey(family, charKey(family).key);
     expect(autocompleteState.inputValue()).toBe(family);
 
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
 
     const tagState = createTagInput({ items: autocompleteItems });
     renderWithHooks(() =>
@@ -309,9 +305,9 @@ describe('Wave 1 interactive component state', () => {
         isActive: true,
       })
     );
-    emitInput(family, charKey(family).key);
+    dispatchTestKey(family, charKey(family).key);
     expect(tagState.inputValue()).toBe(family);
-    emitInput('', keys.backspace().key);
+    dispatchTestKey('', keys.backspace().key);
     expect(tagState.inputValue()).toBe('');
   });
 
@@ -326,8 +322,8 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('a', charKey('a').key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('a', charKey('a').key);
+    dispatchTestKey('', keys.enter().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -345,7 +341,7 @@ describe('Wave 1 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);

@@ -16,15 +16,14 @@ import {
   Text,
   createSignal,
   createEffect,
-  useInput,
+  useInteraction,
   useApp,
-  LineChart,
   Sparkline,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
 } from '../src/index.js';
+import { LineChart, getNextTheme } from '../src/ui/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader as SharedHeader, trackFrame, resetFps } from './_shared/tuiuiu-header.js';
 
@@ -481,7 +480,7 @@ function Footer() {
 function App() {
   const app = useApp();
 
-  useInput(withKeyIndicator((char, key) => {
+  useInteraction(withKeyIndicator((char, key) => {
     if (char === 'q' || key.escape) {
       setIsRunning(false);
       app.exit();

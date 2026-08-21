@@ -24,6 +24,7 @@ import {
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
 import { stringWidth, truncateText } from '../utils/text-utils.js';
 import { type TableColumn, type TableBorderStyle, type TextAlign, calculateColumnWidths, getTerminalWidth } from '../molecules/table.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -436,7 +437,7 @@ function fitTableCell(
 // Component
 // =============================================================================
 
-export interface DataTableProps<T = Record<string, any>> extends DataTableOptions<T> {
+export interface DataTableProps<T = Record<string, any>> extends DataTableOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: DataTableState<T>;
   /**
@@ -489,7 +490,7 @@ export interface DataTableProps<T = Record<string, any>> extends DataTableOption
  *   onSelect: (rows) => console.log('Selected:', rows),
  * })
  */
-export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VNode {
+function renderDataTable<T = Record<string, any>>(props: DataTableProps<T>): VNode {
   const {
     columns,
     showPagination = true,
@@ -882,7 +883,7 @@ export function DataTable<T = Record<string, any>>(props: DataTableProps<T>): VN
 // VirtualDataTable (for large datasets)
 // =============================================================================
 
-export interface VirtualDataTableOptions<T> extends DataTableOptions<T> {
+export interface VirtualDataTableOptions<T> extends DataTableOptions<T>, ComponentKeyProps {
   /** Visible row count */
   visibleRows?: number;
   /** Fixed height of each rendered row */
@@ -1056,7 +1057,7 @@ export function createVirtualDataTable<T = Record<string, any>>(
  *   overscan: 3,
  * })
  */
-export function VirtualDataTable<T = Record<string, any>>(
+function renderVirtualDataTable<T = Record<string, any>>(
   props: VirtualDataTableOptions<T>
 ): VNode {
   const {
@@ -1103,7 +1104,7 @@ export interface EditableColumn<T> extends DataTableColumn<T> {
   validate?: (value: any, row: T) => boolean | string;
 }
 
-export interface EditableDataTableOptions<T> extends Omit<DataTableOptions<T>, 'columns'> {
+export interface EditableDataTableOptions<T> extends Omit<DataTableOptions<T>, 'columns'>, ComponentKeyProps {
   /** Editable columns */
   columns: EditableColumn<T>[];
   /** Pre-created editable table state */
@@ -1492,7 +1493,7 @@ export function createEditableDataTable<T = Record<string, any>>(
 /**
  * EditableDataTable - Table with inline cell editing
  */
-export function EditableDataTable<T = Record<string, any>>(
+function renderEditableDataTable<T = Record<string, any>>(
   props: EditableDataTableOptions<T>
 ): VNode {
   const {
@@ -1676,3 +1677,7 @@ export function EditableDataTable<T = Record<string, any>>(
         ),
   );
 }
+
+export const DataTable = component('DataTable', renderDataTable);
+export const VirtualDataTable = component('VirtualDataTable', renderVirtualDataTable);
+export const EditableDataTable = component('EditableDataTable', renderEditableDataTable);

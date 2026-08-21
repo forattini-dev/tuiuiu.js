@@ -12,10 +12,13 @@ import { Box, Text } from '../../src/primitives/nodes.js';
 import {
   useChartData,
   ChartDataProvider,
-  ResponsiveChart,
+  ResponsiveChart as OwnedResponsiveChart,
   useResponsiveChart,
 } from '../../src/molecules/data-viz/hooks.js';
 import type { ChartDataState } from '../../src/molecules/data-viz/hooks.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ResponsiveChart = testComponent(OwnedResponsiveChart);
 
 // Mock useTerminalSize to control terminal width in tests
 let mockColumns = 80;

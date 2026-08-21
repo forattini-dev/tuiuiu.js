@@ -76,7 +76,6 @@ const explicitNotes: Record<string, string> = {
   'Molecules::ImpactSplashScreen': 'Preset art composition is not controllable.',
   'Molecules::MinimalSplash': 'Preset layout composition is not controllable.',
   'Molecules::ProgressSplash': 'Preset layout composition is not controllable.',
-  'Organisms::OverlayContainer': 'Overlay stack entries are not controllable.',
   'Organisms::Grid': 'Named area definitions are not controllable.',
   'Organisms::GridItem': 'Span/layout placement is not controllable.',
   'Organisms::GridRow': 'Column content arrays are not controllable.',

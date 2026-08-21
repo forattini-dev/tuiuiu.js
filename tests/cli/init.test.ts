@@ -56,7 +56,7 @@ describe('tuiuiu init', () => {
     expect(tsconfig.compilerOptions).not.toHaveProperty('jsx');
     expect(tsconfig.compilerOptions).not.toHaveProperty('jsxImportSource');
     expect(tsconfig.include).toEqual(['src/**/*.ts']);
-    expect(entry).toContain('renderInline');
+    expect(entry).toContain("screen: 'inline'");
     expect(entry).not.toContain('<Box');
   });
 

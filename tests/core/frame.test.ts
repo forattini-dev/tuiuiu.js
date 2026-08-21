@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { createFrameSnapshot, resetFrameSequenceForTesting } from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { getHitTestRegistry, resetHitTestRegistry } from '../../src/core/hit-test.js';
 import { renderFrameToString, renderToString } from '../../src/core/renderer.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
 
 describe('FrameSnapshot', () => {
   beforeEach(() => {

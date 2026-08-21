@@ -6,7 +6,7 @@ import type { Key } from '../core/hotkeys.js';
 
 export type { Key };
 
-/** Extended input event metadata (backward-compatible 3rd param) */
+/** Metadata used by the internal terminal-input adapter. */
 export interface InputEvent {
   /** The input string */
   input: string;

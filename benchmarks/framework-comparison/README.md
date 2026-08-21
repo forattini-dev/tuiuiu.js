@@ -21,9 +21,8 @@ Each framework runs in its own Node.js process with forced garbage collection
 available. Framework order rotates between samples to reduce order bias. Both
 Tuiuiu and Ink render incrementally with FPS throttling disabled.
 
-Tuiuiu is measured through both its default root entrypoint and
-`tuiuiu.js/minimal`. This separates renderer performance from the module-loading
-cost of the complete component catalog.
+Tuiuiu is measured through its compact v2 root entrypoint. Package export
+budgets separately guard module-surface growth.
 
 The runner measures:
 

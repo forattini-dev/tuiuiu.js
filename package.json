@@ -1,6 +1,6 @@
 {
   "name": "tuiuiu.js",
-  "version": "1.0.75",
+  "version": "2.0.0",
   "description": "Zero-dependency Terminal UI library with Component-based experience for Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -51,21 +51,17 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./minimal": {
-      "types": "./dist/minimal.d.ts",
-      "import": "./dist/minimal.js"
-    },
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
     },
-    "./hooks": {
-      "types": "./dist/hooks/index.d.ts",
-      "import": "./dist/hooks/index.js"
+    "./interaction": {
+      "types": "./dist/interaction/index.d.ts",
+      "import": "./dist/interaction/index.js"
     },
-    "./utils": {
-      "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js"
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js"
     },
     "./storybook": {
       "types": "./dist/storybook/index.d.ts",
@@ -75,57 +71,21 @@
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js"
     },
-    "./prompts": {
-      "types": "./dist/prompts/index.d.ts",
-      "import": "./dist/prompts/index.js"
-    },
-    "./themes": {
-      "types": "./dist/themes/index.d.ts",
-      "import": "./dist/themes/index.js"
-    },
-    "./dev-tools": {
+    "./devtools": {
       "types": "./dist/dev-tools/index.d.ts",
       "import": "./dist/dev-tools/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     },
     "./app": {
       "types": "./dist/app/index.d.ts",
       "import": "./dist/app/index.js"
     },
-    "./primitives": {
-      "types": "./dist/primitives/index.d.ts",
-      "import": "./dist/primitives/index.js"
-    },
-    "./atoms": {
-      "types": "./dist/atoms/index.d.ts",
-      "import": "./dist/atoms/index.js"
-    },
-    "./molecules": {
-      "types": "./dist/molecules/index.d.ts",
-      "import": "./dist/molecules/index.js"
-    },
-    "./organisms": {
-      "types": "./dist/organisms/index.d.ts",
-      "import": "./dist/organisms/index.js"
-    },
-    "./experimental": {
-      "types": "./dist/experimental/index.d.ts",
-      "import": "./dist/experimental/index.js"
-    },
-    "./templates": {
-      "types": "./dist/templates/index.d.ts",
-      "import": "./dist/templates/index.js"
-    },
-    "./design-system": {
-      "types": "./dist/design-system/index.d.ts",
-      "import": "./dist/design-system/index.js"
-    },
     "./colors": {
       "types": "./dist/colors/index.d.ts",
       "import": "./dist/colors/index.js"
-    },
-    "./styling": {
-      "types": "./dist/styling/index.d.ts",
-      "import": "./dist/styling/index.js"
     },
     "./package.json": "./package.json"
   },

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createPromptCommandRegistry } from '../../src/core/prompt-command-routing.js';
+import { createPromptCommandRouter } from '../../src/interaction/prompt-command.js';
 
-describe('createPromptCommandRegistry', () => {
+describe('createPromptCommandRouter', () => {
   it('returns slash command completion items for matching queries', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       { id: 'help', command: 'help', description: 'Show available commands.' },
       { id: 'clear', command: 'clear', description: 'Reset the transcript.' },
     ]);
@@ -17,7 +17,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('keeps command-token completion context stable for / queries', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       { id: 'help', command: 'help', description: 'Show available commands.' },
       { id: 'clear', command: 'clear', description: 'Reset the transcript.' },
     ]);
@@ -33,7 +33,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('reuses fuzzy matching and aliases when ranking completion results', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       { id: 'clear', command: 'clear', description: 'Reset the transcript.', aliases: ['wipe'] },
       { id: 'tokens', command: 'tokens', description: 'Summarize semantic tokens.' },
       { id: 'help', command: 'help', description: 'Show available commands.' },
@@ -44,7 +44,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('parses submitted prompt text into canonical command matches and arguments', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       { id: 'clear', command: 'clear', description: 'Reset the transcript.', aliases: ['wipe'] },
       { id: 'seed', command: 'seed', description: 'Seed the prompt.' },
     ]);
@@ -63,7 +63,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('resolves argument completion context for matched commands', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',
@@ -93,7 +93,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('returns command-specific argument suggestions when the cursor is inside arguments', async () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',
@@ -120,7 +120,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('inspects matched live context while editing a recognized slash command token', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'help',
         command: 'help',
@@ -144,7 +144,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('inspects unresolved live context for unknown slash command tokens', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       { id: 'help', command: 'help', description: 'Show available commands.' },
     ]);
 
@@ -162,7 +162,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('inspects matched live context for slash-command arguments and exposes usage metadata', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',
@@ -188,7 +188,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('exposes informational live diagnostics for matched commands', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',
@@ -210,7 +210,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('surfaces warning and error diagnostics for incomplete or invalid arguments', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',
@@ -257,7 +257,7 @@ describe('createPromptCommandRegistry', () => {
   });
 
   it('does not fabricate matched-command diagnostics for unresolved commands', () => {
-    const registry = createPromptCommandRegistry([
+    const registry = createPromptCommandRouter([
       {
         id: 'seed',
         command: 'seed',

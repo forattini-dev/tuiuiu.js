@@ -16,8 +16,8 @@ import type {
   BoxStyle 
 } from '../utils/types.js';
 import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
-import { isRenderingHooks } from '../hooks/context.js';
 import { useConst } from '../hooks/use-const.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 /**
  * Normalize children into VNode array
@@ -32,7 +32,7 @@ export function normalizeChildren(children: TuiNode): VNode[] {
   }
 
   if (typeof children === 'string' || typeof children === 'number') {
-    return [Text({ children: String(children) })];
+    return [Text({}, String(children))];
   }
 
   return [children as VNode];
@@ -50,8 +50,9 @@ export function normalizeChildren(children: TuiNode): VNode[] {
 export function Box(props: BoxProps, ...children: TuiChild[]): VNode {
   return {
     type: 'box',
+    key: props.key,
     props: { ...props },
-    children: normalizeChildren(children.length > 0 ? children : props.children),
+    children: normalizeChildren(children),
   };
 }
 
@@ -64,17 +65,19 @@ export function Box(props: BoxProps, ...children: TuiChild[]): VNode {
 export function Text(props: TextProps, ...children: (string | number)[]): VNode {
   // Filter out null/undefined values to prevent "undefined" or "null" being rendered
   const filteredChildren = children.filter(c => c != null);
-  const content = filteredChildren.length > 0
-    ? filteredChildren.join('')
-    : Array.isArray(props.children)
-      ? props.children.filter(c => c != null).join('')
-      : String(props.children ?? '');
+  const content = filteredChildren.join('');
 
   return {
     type: 'text',
+    key: props.key,
     props: { ...props, children: content },
     children: [],
   };
+}
+
+/** Zero-width anchor used to position the terminal cursor for IME candidate windows. */
+export function CursorAnchor(active = true): VNode {
+  return Text({ __cursorAnchor: active }, '');
 }
 
 /**
@@ -190,7 +193,6 @@ export interface TransformProps extends BoxStyle {
   transform: (text: string, lineIndex: number) => string;
   /** Accessibility label for screen readers */
   accessibilityLabel?: string;
-  children?: TuiNode;
 }
 
 export function Transform(props: TransformProps, ...children: TuiChild[]): VNode {
@@ -214,9 +216,7 @@ export function Transform(props: TransformProps, ...children: TuiChild[]): VNode
       children: node.children.map(transformNode),
     };
   };
-  const content = normalizeChildren(
-    children.length > 0 ? children : props.children
-  ).map(transformNode);
+  const content = normalizeChildren(children).map(transformNode);
 
   return {
     type: 'box',
@@ -243,7 +243,7 @@ export function Transform(props: TransformProps, ...children: TuiChild[]): VNode
  *   children: (task, i) => Text({ key: i, color: 'green' }, `✓ ${task.name}`)
  * })
  */
-export interface StaticProps<T> {
+export interface StaticProps<T> extends ComponentKeyProps {
   /** Array of items to render */
   items: T[];
   /** Render function for each item */
@@ -262,7 +262,7 @@ function normalizeStaticKey(key: string | number): string {
   return `${typeof key}:${String(key)}`;
 }
 
-export function Static<T>(props: StaticProps<T>): VNode {
+function renderStatic<T>(props: StaticProps<T>): VNode {
   warnIfRenderFunctionPatternMisused(
     'Static',
     'children',
@@ -277,15 +277,10 @@ export function Static<T>(props: StaticProps<T>): VNode {
     id,
     getKey = (_item: T, index: number) => index,
   } = props;
-  const state = isRenderingHooks()
-    ? useConst(() => ({
-        instanceId: nextStaticInstanceId++,
-        emittedKeys: new Set<string>(),
-      }))
-    : {
-        instanceId: nextStaticInstanceId++,
-        emittedKeys: new Set<string>(),
-      };
+  const state = useConst(() => ({
+    instanceId: nextStaticInstanceId++,
+    emittedKeys: new Set<string>(),
+  }));
   const keys = items.map((item, index) =>
     normalizeStaticKey(getKey(item, index))
   );
@@ -314,6 +309,8 @@ export function Static<T>(props: StaticProps<T>): VNode {
     children: renderedItems,
   };
 }
+
+export const Static = component('Static', renderStatic);
 
 /**
  * Slot - Reserved layout space for content that may appear/disappear

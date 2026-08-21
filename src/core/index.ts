@@ -1,8 +1,5 @@
-/**
- * Core module exports
- */
+/** Low-level rendering engine. No UI components or app lifecycle ownership. */
 
-// Signals - Reactive primitives
 export {
   createSignal,
   createEffect,
@@ -10,32 +7,17 @@ export {
   batch,
   untrack,
   onCleanup,
-  Signal,
-  Effect,
   createReducer,
   createRef,
   createDeferred,
   createId,
-  resetIdCounter,
   createPrevious,
   createThrottled,
   createDebounced,
+  type Signal,
+  type Effect,
 } from '../primitives/signal.js';
 
-// Object pools
-export {
-  createPool,
-  vnodePool,
-  acquireVNode,
-  releaseVNodeTree,
-  layoutNodePool,
-  acquireLayoutNode,
-  releaseLayoutNodeTree,
-} from './pool.js';
-
-export type { Pool, PoolOptions } from './pool.js';
-
-// Layout engine
 export {
   calculateLayout,
   getVisibleWidth,
@@ -43,1163 +25,102 @@ export {
   clearTextMeasureCache,
 } from './layout.js';
 
-// Renderer
 export {
   renderToString,
+  renderFrameToString,
   measureHeight,
-  OutputBuffer,
+  type RenderOptions as StaticRenderOptions,
 } from './renderer.js';
 
-export type { RenderOptions as StaticRenderOptions } from './renderer.js';
-
-// Frame runtime contracts
 export {
   createFrameSnapshot,
-  setCommittedFrameSnapshot,
   getCommittedFrameSnapshot,
   getCommittedFrameQueries,
-  clearCommittedFrameSnapshot,
-  recordFramePhaseMetric,
-  recordFrameStructuralMetric,
-  finalizeFrameRuntimeMetrics,
-  resetFrameSequenceForTesting,
+  type Bounds,
+  type DrawBoxCommand,
+  type DrawCommand,
+  type DrawCommandBase,
+  type DrawTextCommand,
+  type ElementQueryResult,
+  type FrameInfo,
+  type FrameInput,
+  type FrameMetrics,
+  type FramePhaseMetrics,
+  type FrameQueries,
+  type FrameSnapshot,
+  type FrameSnapshotOptions,
+  type FrameStructuralMetrics,
+  type QueryStatus,
+  type RuntimeWarning,
+  type RuntimeWarningCode,
+  type RuntimeWarningSeverity,
+  type ScrollQueryControls,
+  type ScrollQueryResult,
 } from './frame.js';
 
-export type {
-  FrameInput,
-  FrameSnapshotOptions,
-  FrameInfo,
-  FrameSnapshot,
-  FrameQueries,
-  QueryStatus,
-  Bounds,
-  ElementQueryResult,
-  ScrollQueryControls,
-  ScrollQueryResult,
-  RuntimeWarning,
-  RuntimeWarningCode,
-  RuntimeWarningSeverity,
-  FramePhaseMetrics,
-  FrameStructuralMetrics,
-  FrameMetrics,
-  DrawCommandBase,
-  DrawBoxCommand,
-  DrawTextCommand,
-  DrawCommand,
-} from './frame.js';
-
-// Performance inspector
 export {
   configurePerfInspector,
   getPerfInspectorConfig,
-  recordCommittedFrame,
   getPerfFrames,
   getPerfInspectorSummary,
   onSlowFrame,
   resetPerfInspector,
+  type PerfBudgetConfig,
+  type PerfFrameRecord,
+  type PerfInspectorConfig,
+  type PerfInspectorSummary,
+  type PerfRendererKind,
 } from './perf-inspector.js';
 
-export type {
-  PerfRendererKind,
-  PerfFrameRecord,
-  PerfBudgetConfig,
-  PerfInspectorConfig,
-  PerfInspectorSummary,
-  RecordPerfFrameOptions,
-} from './perf-inspector.js';
-
-// Motion runtime
-// Hit Testing (mouse event dispatch)
 export {
-  getHitTestRegistry,
-  resetHitTestRegistry,
-  registerHitTestFromLayout,
-  hitTestAt,
-  enableHitTesting,
-  disableHitTesting,
-} from './hit-test.js';
-
-export type {
-  ElementBounds,
-  HitTestResult,
-} from './hit-test.js';
-
-// App lifecycle
-export {
-  render,
-  renderInline,
-  renderFullscreen,
-  renderAlternateScreen,
-  renderOnce,
-} from '../app/render-loop.js';
-
-export type {
-  FixedStepOptions,
-  FixedStepUpdate,
-  RenderOptions,
-  ScreenMode,
-  TuiInstance,
-} from '../app/render-loop.js';
-
-// Theme system
-export {
-  // Core API
-  useTheme,
-  getTheme,
-  setTheme,
-  pushTheme,
-  popTheme,
-  createTheme,
-  // Theme mode helpers
-  useThemeMode,
-  useIsDark,
-  // Component tokens
-  useComponentTokens,
-  // Convenience accessors
-  th,
-  useBg,
-  useFg,
-  usePalette,
-  useAccents,
-  useStates,
-  useBorders,
-  useOpacity,
-  // Color utilities
-  getContrastColor,
-  getColor,
-  getDarker,
-  getLighter,
-  getBorderRadiusChars,
-  resolveColor,
-  // System detection
-  detectColorScheme,
-  useSystemTheme,
-  // Built-in themes
-  darkTheme,
-  lightTheme,
-  highContrastDarkTheme,
-  monochromeTheme,
-  // Popular terminal themes
-  monokaiTheme,
-  draculaTheme,
-  nordTheme,
-  solarizedDarkTheme,
-  gruvboxTheme,
-  tokyoNightTheme,
-  catppuccinTheme,
-  // Theme collection
-  themes,
-  themeNames,
-  getThemeByName,
-  getNextTheme,
-  getPreviousTheme,
-} from './theme.js';
-
-export type {
-  Theme,
-  ThemeMode,
-  ThemePalette,
-  ThemeBackground,
-  ThemeForeground,
-  ThemeAccent,
-  ThemeStates,
-  ThemeBorders,
-  ThemeOpacity,
-  ComponentTokens,
-  ComponentName,
-  ColorScale,
-  ShadeValue,
-  BorderRadius,
-} from './theme.js';
-
-// Colors - Tailwind CSS palette
-export {
-  colors,
-  color,
-  parseColor,
-  getShades,
-  listColors,
-  listShades,
-  white,
-  black,
-  transparent,
-  slate,
-  gray,
-  zinc,
-  neutral,
-  stone,
-  red,
-  orange,
-  amber,
-  yellow,
-  lime,
-  green,
-  emerald,
-  teal,
-  cyan,
-  sky,
-  blue,
-  indigo,
-  violet,
-  purple,
-  fuchsia,
-  pink,
-  rose,
-} from './colors.js';
-
-export type {
-  ColorShade,
-  ColorPalette,
-  ColorName,
-} from './colors.js';
-
-// Animation system
-export {
-  useAnimation,
-  useTransition,
-  lerp,
-  lerpColor,
-  requestAnimationFrame,
-  cancelAllAnimationFrames,
-  createSpring,
-  easingFunctions,
-  // Spring with frequency/damping model
-  createHarmonicaSpring,
-  // Composite transitions
-  createCompositeTransition,
-  createSwipeTransition,
-  createSlideTransition,
-} from './animation.js';
-
-export type {
-  AnimationOptions,
-  AnimationControls,
-  TransitionOptions,
-  TransitionState,
-  TransitionEffect,
-  EasingFunction,
-  EasingName,
-  SpringOptions,
-  // Harmonica spring types
-  HarmonicaSpringOptions,
-  // Composite transition types
-  CompositeDirection,
-  CompositeTransitionState,
-  CompositeTransitionOptions,
-  SwipeOptions,
-} from './animation.js';
-
-// Terminal capabilities and ASCII fallback
-export {
-  detectTerminalCapabilities,
-  setRenderMode,
-  getRenderModeSetting,
-  getRenderMode,
   getCapabilities,
   refreshCapabilities,
-  getChars,
-  char,
-  supports,
-  supportsTrueColor,
-  supports256Colors,
   getTerminalSize,
-  onResize,
-  unicodeChars,
-  asciiChars,
+  getRenderMode,
+  setRenderMode,
+  type RenderMode,
+  type TerminalCapabilities,
 } from './capabilities.js';
 
-export type {
-  TerminalCapabilities,
-  RenderMode,
-  ColorSupport,
-  CharacterSet,
-} from './capabilities.js';
-
-// Terminal Profile Database
 export {
-  detectTerminalId,
-  detectMultiplexer,
-  detectTerminalProfile,
-  getTerminalProfileById,
-  listTerminalIds,
-} from './terminal-profile.js';
+  createGradientImage,
+  createTerminalImageSource,
+  queryGraphicsCapabilities,
+  type ImageData,
+  type TerminalImageCapabilities,
+  type GraphicsProtocol,
+} from './graphics.js';
 
-export type {
-  TerminalId,
-  MultiplexerType,
-  MultiplexerInfo,
-  NotificationProtocol,
-  UnderlineStyle,
-  CursorStyle,
-  KnownTerminalCaps,
-  TerminalProfile,
-  GraphicsProtocolId,
-} from './terminal-profile.js';
+export { loadImageFile } from './image-file.js';
 
-// Progressive Enhancement
-export {
-  passthroughWrap,
-  wrapSynchronized,
-  getSynchronizedBegin,
-  getSynchronizedEnd,
-  setCursorStyle,
-  resetCursorStyle,
-  setWindowTitle,
-  getClipboardWriteSequence,
-  getClipboardQuerySequence,
-  formatHyperlink,
-  getNotificationSequence,
-  getUnderlineCode,
-  getUnderlineColorCode,
-  getUnderlineColorResetCode,
-  setHyperlinksEnabled,
-  areHyperlinksEnabled,
-  setNerdFonts,
-  hasNerdFonts,
-  configureProgressive,
-  resetProgressive,
-  getProgressiveVersion,
-  getProgressiveOverrides,
-  BSU,
-  ESU,
-} from './progressive.js';
-
-// Adaptive Rendering Utilities
 export {
   adaptive,
-  adaptiveUnderline,
   adaptiveColor,
-  canSyncOutput,
-  canStyleUnderlines,
-  canColorUnderlines,
+  adaptiveUnderline,
   canClipboard,
-  canNotify,
+  canColorUnderlines,
   canHyperlink,
-  hasGpuAcceleration,
+  canNotify,
+  canStyleUnderlines,
+  canSyncOutput,
   getTerminalName,
+  hasGpuAcceleration,
 } from './adaptive.js';
 
 export {
-  readTerminalFocus,
-  onTerminalFocusChange,
-} from './terminal-focus.js';
-
-// Advanced buffer system (delta rendering)
-export {
-  // Cell types and utilities
-  createCell,
-  emptyCell,
-  cloneCell,
-  cellEquals,
-  colorEquals,
-  attrsEquals,
-  // Buffer classes
-  CellBuffer,
-  DoubleBuffer,
-  BufferPool,
-  // ANSI conversion
-  colorToAnsi,
-  attrsToAnsi,
-  cellToAnsi,
-  bufferToAnsi,
-  patchesToAnsi,
-} from './buffer.js';
-
-export type {
-  Cell,
-  CellAttrs,
-  Color,
-  DamageRect,
-  CellPatch,
-} from './buffer.js';
-
-// Event system (DOM-like bubbling/capturing)
-export {
-  // Event creation
-  createEvent,
-  // Event emitter
-  EventEmitter,
-  // Global event bus
-  getEventBus,
-  // Delegation helpers
-  delegate,
-  // Async helpers
-  waitForEvent,
-  eventIterator,
-  // Composition helpers
-  combineHandlers,
-  conditionalHandler,
-  debounceHandler,
-  throttleHandler,
-} from './events.js';
-
-export type {
-  TuiEvent,
-  EventPhase,
-  EventHandler,
-  EventListenerOptions,
-  DelegateOptions,
-  // Common event data types
-  KeyEventData,
-  MouseEventData,
-  FocusEventData,
-  ChangeEventData,
-} from './events.js';
-
-// Graphics protocols (Kitty, iTerm2, Sixel, Braille)
-export {
-  // Protocol detection
-  detectGraphicsProtocol,
-  setGraphicsProtocol,
-  getGraphicsProtocol,
-  getGraphicsCapabilities,
-  getProtocolCapabilities,
-  queryGraphicsCapabilities,
-  parseGraphicsCapabilityResponse,
-  resetGraphicsDetection,
-  // Cell size invalidation
-  invalidateCellSize,
-  onCellSizeChange,
-  // Protocol implementations
-  kittyGraphics,
-  iterm2Graphics,
-  sixelGraphics,
-  halfblockGraphics,
-  brailleGraphics,
-  // Unified rendering
-  renderImage,
-  renderImageWithProtocol,
-  clearImages,
-  createTerminalImageSource,
-  planImageRender,
-  createTerminalImageProtocolState,
-  // Image utilities
-  createImageData,
-  createSolidImage,
-  createGradientImage,
-  scaleImage,
-  encodePng,
-} from './graphics.js';
-
-export {
-  loadImageFile,
-  loadTerminalImageSourceFromFile,
-  probeImageFile,
-  isImagePath,
-  extractImagePaths,
-} from './image-file.js';
-
-export {
-  readClipboardImage,
-  hasClipboardImage,
-} from './clipboard-image.js';
-
-export type {
-  ClipboardImageResult,
-} from './clipboard-image.js';
-
-export type {
-  GraphicsProtocol,
-  CellSize,
-  ImageOptions,
-  ImageData,
-  ProtocolCapabilities,
-  TerminalImageCapabilities,
-  TerminalImageProtocolRenderOptions,
-  TerminalImageProtocolRenderResult,
-  TerminalImageProtocolState,
-  TerminalGraphicsQueryTransport,
-  TerminalImageSource,
-  TerminalImageRenderPlan,
-} from './graphics.js';
-
-export type {
-  ProbeImageFileResult,
-  ImageFileCommandOptions,
-  ImageFileCommandRunner,
-  LoadImageFileOptions,
-} from './image-file.js';
-
-// Advanced Focus Management
-export {
-  // Zone manager
-  getFocusZoneManager,
-  resetFocusZoneManager,
-  // Zone helpers
-  createFocusZone,
-  createFocusTrap,
-  // Programmatic focus
-  focusElement,
-  focusNext,
-  focusPrevious,
-  focusFirst,
-  focusLast,
-  blurFocus,
-  getActiveId,
-  isFocused,
-  registerFocusable,
-  onFocusChange,
-} from './focus.js';
-
-export type {
-  FocusZoneOptions,
-  FocusableElement,
-  FocusZoneState,
-  FocusStackEntry,
-  FocusZoneEventData,
-  FocusZoneComponentOptions,
-} from './focus.js';
-
-// Advanced Input Handling
-export {
-  // Protocol detection
-  detectKeyboardProtocol,
-  setKeyboardProtocol,
-  getKeyboardProtocol,
-  resetKeyboardProtocol,
-  // Kitty protocol
-  enableKittyProtocol,
-  disableKittyProtocol,
-  queryKittyProtocol,
-  parseKittyKeyEvent,
-  // Mouse handling
-  enableMouseTracking,
-  disableMouseTracking,
-  parseMouseEvent,
-  // Bracketed paste
-  enableBracketedPaste,
-  disableBracketedPaste,
-  enableFocusEvents,
-  disableFocusEvents,
-  isFocusEvent,
-  parseFocusEvent,
-  hasBracketedPaste,
-  extractBracketedPaste,
-  // Input state machine
-  createInputState,
-  applyInputAction,
-  getSelectedText,
-  // Unified parsing
-  parseInput,
-  // Terminal control
-  enableAlternateScreen,
-  disableAlternateScreen,
-  hideCursor,
-  showCursor,
-  requestCursorPosition,
-  parseCursorPosition,
-} from './input.js';
-
-export type {
-  KeyboardProtocol,
-  MouseButton,
-  MouseEventType,
-  MouseEvent,
-  MouseMode,
-  KittyKeyEvent,
-  KeyModifiers,
-  PasteEvent,
-  TerminalFocusEvent,
-  ParsedInput,
-  InputState,
-  InputAction,
-} from './input.js';
-
-// Virtual Scrolling
-export {
-  // Core manager
-  createVirtualScroll,
-  VirtualScrollManager,
-  // Fixed/variable height helpers
-  createFixedHeightVirtualScroll,
-  createVariableHeightVirtualScroll,
-  // Scroll helpers
-  getScrollDirection,
-  getVisibleRangePercent,
-  createScrollIndicator,
-  // Infinite scroll
-  createInfiniteScroll,
-} from './virtual-scroll.js';
-
-export type {
-  VirtualItem,
-  MeasureHeight,
-  VirtualScrollOptions,
-  VirtualScrollState,
-  VirtualScrollResult,
-  ScrollDirection,
-  InfiniteScrollState,
-} from './virtual-scroll.js';
-
-// Data Visualization
-export {
-  // Sparklines
-  sparkline,
-  sparklineGradient,
-  // Bar charts
-  barChart,
-  verticalBarChart,
-  horizontalBar,
-  // Box plot
-  calculateBoxPlotStats,
-  boxPlot,
-  // Histogram
-  calculateHistogramBins,
-  histogram,
-  // Pie chart
-  pieChart,
-  // Line chart
-  lineChart,
-  // Gauge
-  gauge,
-  // Heatmap
-  heatmap,
-  // Utilities
-  calculateStats,
-  normalizeData,
-  scaleData,
-} from './visualization.js';
-
-export type {
-  ChartColor,
-  DataPoint,
-  SparklineOptions,
-  BarChartOptions,
-  BoxPlotOptions,
-  BoxPlotStats,
-  HistogramOptions,
-  HistogramBin,
-  PieChartOptions,
-  LineChartOptions,
-  GaugeOptions,
-  HeatmapOptions,
-} from './visualization.js';
-
-// Overlay System
-export {
-  // Manager
-  resetOverlayManager,
-  setOverlayTerminalSize,
-  getOverlayTerminalSize,
-  // Layer management
-  addLayer,
-  removeLayer,
-  getLayer,
-  getLayers,
-  getVisibleLayers,
-  getTopLayer,
-  hasBackdrop,
-  updateLayer,
-  showLayer,
-  hideLayer,
-  bringToFront,
-  getLayerCount,
-  hasLayer,
-  // Modal
-  showModal,
-  closeModal,
-  closeTopModal,
-  // Toast
-  showToast,
-  dismissToast,
-  dismissAllToasts,
-  // Popup
-  showPopup,
-  closePopup,
-  // Tooltip
-  showTooltip,
-  hideTooltip,
-  // Menu
-  showMenu,
-  closeMenu,
-  updateMenuSelection,
-  selectMenuItem,
-  // Rendering
-  renderOverlays,
-  isPointInOverlay,
-  handleOverlayClick,
-  handleOverlayEscape,
-} from './overlay.js';
-
-export type {
-  OverlayType,
-  OverlayPosition,
-  AnchorPosition,
-  OverlaySize,
-  OverlayLayer,
-  ModalOptions,
-  ToastOptions,
-  PopupOptions,
-  TooltipOptions,
-  MenuItem,
-  MenuOptions,
-} from './overlay.js';
-
-// Constraint-Based Layout
-export {
-  // Variable creation
-  createVariable,
-  // Expression building
-  expr,
-  constant,
-  add,
-  subtract,
-  multiply,
-  divide,
-  addConstant,
-  // Constraint creation
-  eq,
-  lte,
-  gte,
-  // Element creation
-  createElement,
-  // Convenience constraints
-  equalWidths,
-  equalHeights,
-  equalSizes,
-  percentWidth,
-  percentHeight,
-  aspectRatio,
-  centerHorizontally,
-  centerVertically,
-  center,
-  pinToEdges,
-  stackHorizontally,
-  stackVertically,
-  alignTops,
-  alignLefts,
-  distributeHorizontally,
-  // Solver
-  ConstraintSolver,
-  ConstraintLayoutManager,
-  UnsatisfiedConstraintError,
-  Solver,
-} from './constraint.js';
-
-export type {
-  ConstraintPriority,
-  ConstraintOperator,
-  ConstraintVariable,
-  ConstraintTerm,
-  ConstraintExpression,
-  Constraint,
-  ConstraintSolution,
-  ConstraintElement,
-  ConstraintLayoutOptions,
-  ConstraintLayout,
-  ConstraintLayoutResult,
-} from './constraint.js';
-
-// Hotkeys & Input Processing
-export {
-  isHotkey,
-  parseKeypress,
-} from './hotkeys.js';
-
-export type {
-  Key,
-  InputHandler,
-} from './hotkeys.js';
-
-// Key Binding System
-export {
-  // Parsing
-  parseKeyCombo,
-  keyComboToString,
-  keyComboEquals,
-  keyComboFromEvent,
-  formatKeyCombo,
-  formatKeyString,
-  // Registry
-  KeyBindingRegistry,
-  getKeyBindingRegistry,
-  resetKeyBindingRegistry,
-  resetBindingIdCounter,
-  // Convenience functions
-  registerKeybinding,
-  unregisterKeybinding,
-  setKeyMode,
-  getKeyMode,
-  handleKeyEvent,
-  // Hook
-  useKeyBindings,
-} from './keybindings.js';
-
-export type {
-  KeyModifiers as KeyBindingModifiers,
-  KeyCombo,
-  KeyBinding,
-  KeyBindingOptions,
-  KeyMode,
-  KeyConflict,
-} from './keybindings.js';
-
-// Command Palette
-export {
-  // Fuzzy search
-  fuzzyMatch,
-  searchCommands,
-  // Registry
-  CommandRegistry,
-  getCommandRegistry,
-  resetCommandRegistry,
-  resetCommandIdCounter,
-  // Convenience functions
-  registerCommand,
-  unregisterCommand,
-  executeCommand,
-  searchGlobalCommands,
-  // State management
-  createCommandPaletteState,
-  // Helpers
-  highlightMatches,
-  formatCommand,
-  groupByCategory,
-} from './command-palette.js';
-
-export type {
-  Command,
-  CommandOptions,
-  FuzzyMatch,
-  CommandPaletteState,
-  CommandPaletteOptions,
-} from './command-palette.js';
-
-// Prompt command routing
-export {
-  createPromptCommandRegistry,
-} from './prompt-command-routing.js';
-
-export type {
-  PromptCommandArgumentCompletionContext,
-  PromptCommandArgumentCompletionItem,
-  PromptCommandCompletion,
-  PromptCommandCompletionContext,
-  PromptCommandDefinition,
-  PromptCommandLiveDiagnostic,
-  PromptCommandLiveDiagnosticContext,
-  PromptCommandLiveContext,
-  PromptCommandMatchedLiveContext,
-  PromptCommandParseResult,
-  PromptCommandRegistry,
-  PromptCommandResolvedCompletion,
-  PromptCommandUnresolvedLiveContext,
-} from './prompt-command-routing.js';
-
-// Prompt mode routing
-export {
-  createPromptModeRegistry,
-} from './prompt-mode-routing.js';
-
-export type {
-  PromptModeDefinition,
-  PromptModeRegistry,
-  PromptModeRegistryOptions,
-  PromptModeResolved,
-} from './prompt-mode-routing.js';
-
-// Screen Manager
-export {
-  // Manager
-  ScreenManager,
-  getScreenManager,
-  resetScreenManager,
-  createScreenManager,
-  // Screen creation
-  createScreen,
-  generateScreenId,
-  resetScreenIdCounter,
-  // Convenience navigation
-  pushScreen,
-  popScreen,
-  replaceScreen,
-  goBack,
-  // Hooks
-  useScreen,
-  useScreenState,
-} from './screen.js';
-
-export type {
-  ScreenComponent,
-  Screen,
-  ScreenStackEntry,
-  TransitionDirection,
-  ScreenNavigationEvent,
-  ScreenManagerOptions,
-  ScreenManagerState,
-  ScreenManagerEvents,
-  UseScreenResult,
-} from './screen.js';
-
-// Screen Transitions
-export {
-  // Manager
-  ScreenTransitionManager,
-  createScreenTransitionManager,
-  getTransitionManager,
-  resetTransitionManager,
-  // Configuration helpers
-  createTransition,
-  createSpringTransition,
-  // Offset calculations
-  calculateTransitionOffsets,
-  // Render helpers
-  applyHorizontalOffset,
-  applyVerticalOffset,
-  applyOpacity,
-  compositeScreens,
-  // Hook
-  useScreenTransition,
-  // Presets
-  transitionPresets,
-  DEFAULT_FORWARD_TRANSITION,
-  DEFAULT_BACKWARD_TRANSITION,
-  SPRING_FORWARD_TRANSITION,
-  SPRING_BACKWARD_TRANSITION,
-  FADE_TRANSITION,
-  NO_TRANSITION,
-} from './transitions.js';
-
-export type {
-  ScreenTransitionType,
-  ScreenTransitionConfig,
-  ScreenTransitionState,
-  TransitionOffsets,
-  ScreenTransitionManagerOptions,
-  TransitionFrameCallback,
-} from './transitions.js';
-
-// Router
-export {
-  // Router class
-  Router,
-  createRouter,
-  getRouter,
-  setRouter,
-  resetRouter,
-  // Path utilities
-  parsePathPattern,
-  matchPath,
-  buildPath,
-  parseQuery,
-  buildQuery,
-  parsePath,
-  normalizePath,
-  // Hooks
-  useRoute,
-  useNavigate,
-  useParams,
-  useQuery,
-  useRouteMatch,
-  // Guard helpers
-  createAuthGuard,
-  createRoleGuard,
-  combineGuards,
-} from './router.js';
-
-export type {
-  RouteParams,
-  QueryParams,
-  RouteLocation,
-  NavigationTarget,
-  RouteDefinition,
-  MatchedRoute,
-  NavigationGuard,
-  NavigationResult,
-  RouterOptions,
-  HistoryEntry,
-  RouterEvents,
-  PathSegment,
-} from './router.js';
-
-// Syntax Highlighter
-export {
-  // Language detection
-  getLanguage,
-  listLanguages,
-  // Tokenization
-  tokenize,
-  tokenizeLines,
-  // Themes (renamed to avoid conflict with theme.js)
-  themes as highlightThemes,
-  getTokenColor,
-  // ANSI output
-  tokensToAnsi,
-  highlight,
-  highlightWithLineNumbers,
-} from './highlighter.js';
-
-export type {
-  TokenType,
-  Token,
-  HighlightedLine,
-  HighlightTheme,
-  LanguageDefinition,
-} from './highlighter.js';
-
-// Query API - CSS-like selector system
-export {
-  // Main query functions
-  query,
-  queryAll,
-  queryResults,
-  matches,
-  closest,
-  // Convenience functions
-  findByType,
-  findByClass,
-  findById,
-  countMatches,
-  hasMatch,
-} from './query.js';
-
-export type {
-  QueryOptions,
-  QueryResult,
-  MatchContext,
-  SelectorPart,
-  ParsedSelector,
-  Combinator,
-} from './query.js';
-
-// Dirty Flag System (blessed-style optimization)
-export {
-  // Registry
-  getDirtyRegistry,
-  resetDirtyRegistry,
-  beginDirtyFrame,
-  registerDirtyNode,
-  DirtyFlags,
-  // Convenience functions
-  markDirty,
-  markClean,
-  markLayoutClean,
-  canReuseSubtree,
-  needsRender,
-  hasChanges,
-  clearChanges,
-  getDirtyDiagnostics,
-  noteDirtyReuse,
-  noteDirtyFresh,
-  // Cache functions
-  getCachedRender,
-  setCachedRender,
-  invalidateCache,
-  clearAllCaches,
-  // Layout tree helpers
-  markLayoutTreeDirty,
-  cleanLayoutTree,
-  // Signal integration
-  withDirtyTracking,
-} from './dirty.js';
-
-export type {
-  RenderCacheEntry,
-  DirtyState,
-  DirtyDiagnostics,
-} from './dirty.js';
-
-// Delta Renderer (blessed-style diff rendering)
-export {
-  createDeltaRenderer,
-  getDeltaRenderer,
-  resetDeltaRenderer,
-} from './delta-render.js';
-
-export type {
-  DeltaRenderOptions,
-  DeltaRenderer,
-  RenderStats,
-} from './delta-render.js';
-
-// Error Boundary
-export {
-  // Stack trace parsing
-  parseStackLine,
-  parseStackTrace,
-  // Source code extraction
-  extractCodeExcerpt,
-  // Error display component
-  ErrorOverview,
-  // Error state management
-  setError,
-  clearError,
-  getError,
-  onError,
-  // Error boundary wrapper
-  withErrorBoundary,
-  withSilentErrorBoundary,
-  tryCatch,
-  resetErrorBoundary,
-} from './error-boundary.js';
-
-export type {
-  ErrorInfo,
-  StackFrame,
-  CodeExcerpt,
-} from './error-boundary.js';
-
-// Terminal Panic Hooks (centralized terminal restoration on crash)
-export {
-  installPanicHooks,
-  removePanicHooks,
-  onTerminalPanic,
-  restoreTerminal,
-} from './terminal-panic.js';
-
-// Reduced Motion Preference
-export {
-  setPrefersReducedMotion,
-  getPrefersReducedMotion,
-} from './motion-runtime.js';
-
-// Global Tick System (synchronized animations)
-export {
-  // Tick control
-  startTick,
-  stopTick,
-  pauseTick,
-  resumeTick,
-  resetTick,
-  setTickRate,
-  getTickRate,
-  // Tick state
-  getTick,
-  tick,
-  isTickRunning,
-  // Subscriptions
-  onTick,
-  // Manual control (for testing/storybook)
-  advanceTick,
-  setTickValue,
-  // Animation utilities
-  getFrame,
-  getFrameItem,
-  oscillate,
-  getElapsedSeconds,
-  everyNTicks,
-} from './tick.js';
-
-// FPS Tracking
-export {
-  trackFrame,
-  getFps,
-  getFpsMetrics,
-  resetFps,
-  getFpsColor,
-} from './fps.js';
-
-export type { FpsMetrics } from './fps.js';
-
-// Image Animation
-export {
-  createAnimatedImageSource,
   createAnimatedImage,
+  createAnimatedImageSource,
   framesFromSpriteSheet,
+  type AnimatedImageFrame,
+  type AnimatedImageSource,
+  type AnimatedImageState,
 } from './image-animation.js';
 
-export type {
-  AnimatedImageFrame,
-  AnimatedImageSource,
-  AnimatedImageState,
-} from './image-animation.js';
+export { parseKeypress, type Key } from './hotkeys.js';
+
+export {
+  createTerminalInputStream,
+  type TerminalInputStream,
+  type TerminalInputStreamEvent,
+  type TerminalInputStreamOptions,
+} from './input-stream.js';

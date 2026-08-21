@@ -16,8 +16,6 @@ import {
   CommandPalette,
   createCommandPalette,
   GoToDialog,
-  createOverlayStack,
-  OverlayContainer,
   SplitPanel,
   ThreePanel,
   ScrollArea,
@@ -43,11 +41,9 @@ import {
   FilePreview,
   FileIcon,
   DirectoryIndicator,
-} from '../../../organisms/index.js';
-import {
   VirtualDataTable,
   EditableDataTable,
-} from '../../../experimental/index.js';
+} from '../../../organisms/index.js';
 import type { CommandItem, FileItem, VirtualListItem } from '../../../organisms/index.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
@@ -394,57 +390,6 @@ export const commandPaletteStories: Story[] = [
         borderColor: 'primary',
       })
     ),
-];
-
-// ============================================================================
-// Overlay Stack
-// ============================================================================
-
-export const overlayStories: Story[] = [
-  story('OverlayContainer - Stack')
-    .category('Organisms')
-    .description('Overlay stack renders multiple layers')
-    .render(() => {
-      const stack = createOverlayStack();
-
-      stack.push({
-        id: 'toast',
-        priority: 'low',
-        showBackdrop: false,
-        component: () => Toast({ message: 'Saved snapshot', type: 'success' }),
-      });
-
-      stack.push({
-        id: 'modal',
-        priority: 'normal',
-        showBackdrop: true,
-        component: () =>
-          Modal({
-            title: 'Overlay Modal',
-            size: 'small',
-            borderStyle: 'round',
-            content: Box(
-              { flexDirection: 'column', gap: 1 },
-              Text({ color: 'foreground' }, 'This modal is inside the stack.'),
-              Text({ color: 'mutedForeground' }, 'Backdrop is handled by container.')
-            ),
-          }),
-      });
-
-      return Box(
-        { flexDirection: 'column', width: 60, height: 14 },
-        Box(
-          { flexDirection: 'column', padding: 1, borderStyle: 'single', borderColor: 'border' },
-          Text({ color: 'foreground', bold: true }, 'Main View'),
-          Text({ color: 'mutedForeground' }, 'Overlay container renders above this content.')
-        ),
-        OverlayContainer({
-          stack,
-          renderBackdrop: () =>
-            Box({ width: 60, height: 14, backgroundColor: 'muted' }, Text({ dim: true }, ' ')),
-        })
-      );
-    }),
 ];
 
 // ============================================================================
@@ -1074,7 +1019,6 @@ export const fileBrowserStories: Story[] = [
 export const allOrganismStories: Story[] = [
   ...modalStories,
   ...commandPaletteStories,
-  ...overlayStories,
   ...splitPanelStories,
   ...scrollAreaStories,
   ...scrollPanelStories,

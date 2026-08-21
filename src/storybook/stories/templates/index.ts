@@ -59,7 +59,7 @@ export const stackStories: Story[] = [
         borderStyle: props.borderStyle,
         padding: props.padding,
         width: props.width,
-        children: [
+      },
           Box(
             { borderStyle: 'single', borderColor: 'primary', paddingX: 1 },
             Text({ color: 'primary' }, 'First item')
@@ -71,9 +71,8 @@ export const stackStories: Story[] = [
           Box(
             { borderStyle: 'single', borderColor: 'warning', paddingX: 1 },
             Text({ color: 'warning' }, 'Third item')
-          ),
-        ],
-      })
+          )
+      )
     ),
 
   story('HStack - Basic')
@@ -97,7 +96,7 @@ export const stackStories: Story[] = [
         borderStyle: props.borderStyle,
         padding: props.padding,
         width: props.width,
-        children: [
+      },
           Box(
             { borderStyle: 'round', borderColor: 'primary', paddingX: 1 },
             Text({ color: 'primary' }, 'Alpha')
@@ -109,9 +108,8 @@ export const stackStories: Story[] = [
           Box(
             { borderStyle: 'round', borderColor: 'success', paddingX: 1 },
             Text({ color: 'success' }, 'Gamma')
-          ),
-        ],
-      })
+          )
+      )
     ),
 
   story('Center - Basic')
@@ -129,11 +127,12 @@ export const stackStories: Story[] = [
         vertical: props.vertical,
         width: props.width,
         height: props.height,
-        children: Box(
+      },
+        Box(
           { borderStyle: 'round', borderColor: 'primary', paddingX: 2, paddingY: 1 },
           Text({ color: 'primary', bold: true }, 'Centered')
-        ),
-      })
+        )
+      )
     ),
 
   story('FullScreen - Basic')
@@ -147,11 +146,12 @@ export const stackStories: Story[] = [
       FullScreen({
         backgroundColor: props.backgroundColor,
         padding: props.padding,
-        children: Box(
+      },
+        Box(
           { borderStyle: 'single', borderColor: 'primary', paddingX: 2, paddingY: 1 },
           Text({ color: 'primary', bold: true }, 'FullScreen content')
-        ),
-      })
+        )
+      )
     ),
 
   story('Spacer - Basic')
@@ -164,12 +164,11 @@ export const stackStories: Story[] = [
         borderStyle: 'round',
         padding: 1,
         width: 60,
-        children: [
+      },
           Text({ color: 'foreground' }, 'Left'),
           TemplateSpacer(),
-          Text({ color: 'mutedForeground' }, 'Right'),
-        ],
-      })
+          Text({ color: 'mutedForeground' }, 'Right')
+      )
     ),
 
   story('Divider - Basic')
@@ -362,25 +361,21 @@ export const layoutPrimitiveStories: Story[] = [
         padding: props.padding,
         borderStyle: props.borderStyle,
         borderColor: 'primary',
-        children: [
+      },
           Header({
             title: 'Runtime Overview',
             subtitle: 'Screen layout primitive',
             border: false,
           }),
-          Main({
-            padding: 1,
-            children: Panel({
-              title: 'Main Content',
-              children: Text({ color: 'mutedForeground' }, 'Compose Header, Main and Footer inside Screen.'),
-            }),
-          }),
-          Footer({
-            paddingX: 1,
-            children: Text({ color: 'mutedForeground', dim: true }, 'Status: Ready'),
-          }),
-        ],
-      })
+          Main({ padding: 1 },
+            Panel({ title: 'Main Content' },
+              Text({ color: 'mutedForeground' }, 'Compose Header, Main and Footer inside Screen.'),
+            ),
+          ),
+          Footer({ paddingX: 1 },
+            Text({ color: 'mutedForeground', dim: true }, 'Status: Ready'),
+          ),
+      )
     ),
 
   story('Main - Basic')
@@ -390,21 +385,21 @@ export const layoutPrimitiveStories: Story[] = [
       padding: defaultControls.range('Padding', 1, 0, 2),
       borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'single'),
     })
-    .render((props) =>
-      Box(
+    .render((props) => {
+      const body = Box(
+        { flexDirection: 'column', gap: 1 },
+        Text({ color: 'foreground', bold: true }, 'Scrollable area or dashboard body'),
+        Text({ color: 'mutedForeground' }, 'Main defaults to fill height inside column layouts.'),
+      );
+      return Box(
         { width: 60, height: 12, borderStyle: 'round', borderColor: 'border' },
         Main({
           padding: props.padding,
           borderStyle: props.borderStyle,
           borderColor: 'primary',
-          children: Box(
-            { flexDirection: 'column', gap: 1 },
-            Text({ color: 'foreground', bold: true }, 'Scrollable area or dashboard body'),
-            Text({ color: 'mutedForeground' }, 'Main defaults to fill height inside column layouts.'),
-          ),
-        })
-      )
-    ),
+        }, body),
+      );
+    }),
 
   story('Footer - Basic')
     .category('Templates')
@@ -422,11 +417,10 @@ export const layoutPrimitiveStories: Story[] = [
           borderStyle: props.borderStyle,
           borderColor: 'muted',
           justifyContent: props.justifyContent,
-          children: [
+        },
             Text({ color: 'mutedForeground' }, 'Esc Close'),
             Text({ color: 'primary' }, 'Deploy'),
-          ],
-        })
+        )
       )
     ),
 
@@ -445,15 +439,14 @@ export const layoutPrimitiveStories: Story[] = [
         padding: props.padding,
         borderStyle: props.borderStyle,
         borderColor: 'primary',
-        children: [
+      },
           Text({ color: 'primary', bold: true }, 'Navigation'),
           Text({ color: 'foreground' }, 'Dashboard'),
           Text({ color: 'mutedForeground' }, 'Logs'),
           Text({ color: 'mutedForeground' }, 'Settings'),
           TemplateSpacer(),
           Text({ color: 'mutedForeground', dim: true }, 'v1.0.56'),
-        ],
-      })
+      )
     ),
 
   story('Panel - Basic')
@@ -465,20 +458,20 @@ export const layoutPrimitiveStories: Story[] = [
       borderStyle: defaultControls.select('Border Style', ['none', 'single', 'double', 'round', 'bold'], 'round'),
       borderColor: defaultControls.color('Border Color', 'muted'),
     })
-    .render((props) =>
-      Panel({
+    .render((props) => {
+      const content = Box(
+        { flexDirection: 'column', gap: 1 },
+        Text({ color: 'success' }, 'API healthy'),
+        Text({ color: 'warning' }, '1 worker restarting'),
+      );
+      return Panel({
         title: props.title,
         padding: props.padding,
         borderStyle: props.borderStyle,
         borderColor: props.borderColor,
         width: 40,
-        children: Box(
-          { flexDirection: 'column', gap: 1 },
-          Text({ color: 'success' }, 'API healthy'),
-          Text({ color: 'warning' }, '1 worker restarting'),
-        ),
-      })
-    ),
+      }, content);
+    }),
 ];
 
 // ============================================================================

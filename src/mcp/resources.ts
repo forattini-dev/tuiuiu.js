@@ -554,24 +554,22 @@ pnpm add tuiuiu.js
 ## Basic Example
 
 \`\`\`typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { render, Box, Text, component, useState, useShortcut, useApp } from 'tuiuiu.js';
 
-function App() {
+const App = component('App', () => {
   const [count, setCount] = useState(0);
   const app = useApp();
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-    if (key.escape) app.exit();
-  });
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('down', () => setCount(c => c - 1));
+  useShortcut('escape', app.exit);
 
   return Box({ flexDirection: 'column', padding: 1 },
     Text({ color: 'cyan', bold: true }, 'Counter'),
     Text({}, \`Count: \${count()}\`),
     Text({ color: 'gray' }, 'Use ↑/↓ to change, ESC to exit')
   );
-}
+});
 
 const { waitUntilExit } = render(App);
 await waitUntilExit();
@@ -581,7 +579,7 @@ await waitUntilExit();
 
 1. **Components**: Use \`Box\` for layout, \`Text\` for content
 2. **Signals**: Use \`useState\` or \`createSignal\` for reactive state
-3. **Hooks**: Use \`useInput\` for keyboard, \`useEffect\` for side effects
+3. **Interaction**: Use semantic \`useShortcut\` or discoverable commands
 4. **Theming**: Use \`setTheme\`, \`getTheme\`, and \`resolveColor\`
 
 ## Next Steps
@@ -624,7 +622,7 @@ Box({ flexDirection: 'column' },
 |-----|--------|
 | useState | useState (same) |
 | useEffect | useEffect (same) |
-| useInput | useInput (similar API) |
+| useInput | useShortcut / useInteraction |
 | useApp | useApp (same) |
 | useFocus | useFocus (same) |
 | useStdin | Not needed |
@@ -665,21 +663,19 @@ const App = () => {
 };
 
 // Tuiuiu
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { render, Box, Text, component, useState, useShortcut, useApp } from 'tuiuiu.js';
 
-function App() {
+const App = component('App', () => {
   const [count, setCount] = useState(0);
   const app = useApp();
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (input === 'q') app.exit();
-  });
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('q', app.exit);
 
   return Box({},
     Text({}, \`Count: \${count()}\`)
   );
-}
+});
 
 const { waitUntilExit } = render(App);
 await waitUntilExit();
@@ -922,52 +918,29 @@ FullScreen({}, child)    // Fill terminal
 function getInputHandlingGuide(): string {
   return `# Input Handling in Tuiuiu
 
-## useInput Hook
+## Semantic shortcuts
 
 \`\`\`typescript
-import { useInput } from 'tuiuiu.js';
+import { useShortcut } from 'tuiuiu.js';
 
-useInput((input, key) => {
-  // input: raw character
-  // key: parsed key info
-
-  if (input === 'q') exit();
-  if (key.upArrow) moveUp();
-  if (key.return) submit();
-  if (key.ctrl && input === 'c') exit();
-});
+useShortcut('q', exit);
+useShortcut('up', moveUp);
+useShortcut('enter', submit);
+useShortcut('ctrl+s', save, { id: 'document.save', title: 'Save document' });
 \`\`\`
 
-## Key Properties
-
-| Property | Description |
-|----------|-------------|
-| key.upArrow | Up arrow |
-| key.downArrow | Down arrow |
-| key.leftArrow | Left arrow |
-| key.rightArrow | Right arrow |
-| key.return | Enter key |
-| key.escape | Escape key |
-| key.tab | Tab key |
-| key.backspace | Backspace |
-| key.delete | Delete |
-| key.ctrl | Ctrl modifier |
-| key.meta | Meta/Cmd modifier |
-| key.shift | Shift modifier |
-
-## useHotkeys (Declarative)
+## Discoverable commands
 
 \`\`\`typescript
-import { useHotkeys } from 'tuiuiu.js';
+import { useCommand, useCommandBinding, useInteractionMode } from 'tuiuiu.js/app';
 
-useHotkeys('ctrl+s', () => save(), { description: 'Save file' });
-useHotkeys('ctrl+k', () => openPalette());
-useHotkeys(['ctrl+z', 'cmd+z'], () => undo()); // Cross-platform
-
-// With scopes
-useHotkeys('escape', () => closeModal(), { scope: 'modal' });
-setHotkeyScope('modal'); // Enable modal hotkeys
+useCommand({ id: 'document.save', title: 'Save document', run: save });
+useCommandBinding({ command: 'document.save', keys: ['ctrl+s', 'meta+s'] });
+useInteractionMode({ mode: 'editor', target: documentId }, editorIsActive);
 \`\`\`
+
+Use \`useInteraction\` only when an editor or terminal protocol needs normalized
+key text, names, modifiers, and press/repeat/release phases.
 
 ## Mouse Input
 
@@ -1061,17 +1034,15 @@ function getCounterExample(): string {
 A simple counter demonstrating basic Tuiuiu concepts.
 
 \`\`\`typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js';
+import { render, Box, Text, component, useState, useShortcut, useApp } from 'tuiuiu.js';
 
-function Counter() {
+const Counter = component('Counter', () => {
   const [count, setCount] = useState(0);
   const app = useApp();
 
-  useInput((input, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-    if (key.escape) app.exit();
-  });
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('down', () => setCount(c => c - 1));
+  useShortcut('escape', app.exit);
 
   return Box(
     { borderStyle: 'round', padding: 1, flexDirection: 'column' },
@@ -1079,7 +1050,7 @@ function Counter() {
     Text({}, \`Count: \${count()}\`),
     Text({ color: 'gray', dim: true }, '↑/↓ to change, ESC to exit'),
   );
-}
+});
 
 const { waitUntilExit } = render(Counter);
 await waitUntilExit();
@@ -1236,7 +1207,7 @@ File explorer with navigation and preview.
 \`\`\`typescript
 import {
   render, Box, Text, Tree, SplitPanel,
-  useState, useInput
+  useState
 } from 'tuiuiu.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -1383,14 +1354,14 @@ VS Code-style command palette.
 \`\`\`typescript
 import {
   render, Box, Text, CommandPalette,
-  useState, useHotkeys
+  useState, useShortcut
 } from 'tuiuiu.js';
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
   const [lastCommand, setLastCommand] = useState('');
 
-  useHotkeys('ctrl+k', () => setIsOpen(true));
+  useShortcut('ctrl+k', () => setIsOpen(true));
 
   const commands = [
     { id: 'new', label: 'New File', shortcut: 'Ctrl+N' },
@@ -1520,7 +1491,7 @@ Classic snake game implementation.
 \`\`\`typescript
 import {
   render, Box, Text,
-  useState, useEffect, useInput, useTick
+  useState, useEffect, useShortcut, useTick
 } from 'tuiuiu.js';
 
 type Point = { x: number; y: number };
@@ -1536,12 +1507,12 @@ function SnakeGame() {
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
 
-  useInput((input, key) => {
-    if (key.upArrow && direction() !== 'down') setDirection('up');
-    if (key.downArrow && direction() !== 'up') setDirection('down');
-    if (key.leftArrow && direction() !== 'right') setDirection('left');
-    if (key.rightArrow && direction() !== 'left') setDirection('right');
-    if (input === 'r' && gameOver()) {
+  useShortcut('up', () => direction() !== 'down' && setDirection('up'));
+  useShortcut('down', () => direction() !== 'up' && setDirection('down'));
+  useShortcut('left', () => direction() !== 'right' && setDirection('left'));
+  useShortcut('right', () => direction() !== 'left' && setDirection('right'));
+  useShortcut('r', () => {
+    if (gameOver()) {
       setSnake([{ x: 10, y: 5 }]);
       setDirection('right');
       setGameOver(false);

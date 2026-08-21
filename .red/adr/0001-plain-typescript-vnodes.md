@@ -17,6 +17,5 @@ collections, or render callbacks according to the public signature.
 ## Consequences
 
 Documentation, MCP guidance, examples, and tests must not imply JSX support.
-Composition compatibility is implemented by `normalizeChildren`, not by a JSX
+Composition normalization is implemented by `normalizeChildren`, not by a JSX
 transform.
-

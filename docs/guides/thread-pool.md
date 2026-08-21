@@ -1,23 +1,23 @@
 # Worker Pool Guide
 
-When one worker is not enough, use `createTaskBridgePool()` to fan heavy tasks across multiple workers.
+When one worker is not enough, use `createBackgroundExecutorPool()` to fan heavy tasks across multiple workers.
 
-`createTaskBridgePool()` returns the canonical `BackgroundExecutor` contract
+`createBackgroundExecutorPool()` returns the `BackgroundExecutor` contract
 (`submit`, `execute`, `destroy`) and adds a scheduler in front of multiple
-workers. The factory keeps its 1.x name for compatibility.
+workers.
 
 ## API
 
 ```ts
 import {
-  createTaskBridgePool,
-  type TaskBridgePoolScheduler,
-  type TaskBridgePoolOptions,
+  createBackgroundExecutorPool,
+  type BackgroundExecutorPoolScheduler,
+  type BackgroundExecutorPoolOptions,
 } from 'tuiuiu.js';
 ```
 
 ```ts
-const pool = createTaskBridgePool({
+const pool = createBackgroundExecutorPool({
   modulePath: './workers/compute.mjs',
   poolSize: 4,              // number of workers in the pool
   scheduler: 'least-pending', // 'round-robin' | 'least-pending'
@@ -56,13 +56,13 @@ export default backgroundTaskHandlers;
 
 ```ts
 import { fileURLToPath } from 'node:url';
-import { createTaskBridgePool } from '../src/index.js';
+import { createBackgroundExecutorPool } from '../src/index.js';
 
 const workerPath = fileURLToPath(
   new URL('./_shared/thread-pool-worker.mjs', import.meta.url)
 );
 
-const pool = createTaskBridgePool({
+const pool = createBackgroundExecutorPool({
   modulePath: workerPath,
   poolSize: 4,
   scheduler: 'least-pending',
@@ -83,17 +83,17 @@ await pool.destroy();
 
 ## Pool + Thread Bus (multi-thread communication)
 
-`createTaskBridgePool()` returns a `BackgroundExecutor`, so you can use it
+`createBackgroundExecutorPool()` returns a `BackgroundExecutor`, so you can use it
 directly in `createThreadBus()` just like one worker.
 
 ```ts
 import {
   createBackgroundExecutor,
-  createTaskBridgePool,
+  createBackgroundExecutorPool,
   createThreadBus,
 } from 'tuiuiu.js';
 
-const analyzerPool = createTaskBridgePool({
+const analyzerPool = createBackgroundExecutorPool({
   modulePath: './workers/analyzer.mjs',
   poolSize: 3,
   scheduler: 'least-pending',
@@ -131,7 +131,6 @@ await indexer.destroy();
 - `poolSize` is not a request-size limiter.
   It controls how many workers exist in parallel.
 - Use `createBackgroundExecutor({ modulePath })` for one-off or small worker integrations.
-- `createTaskBridge()` remains a deprecated 1.x compatibility adapter.
 - You can pass the pool directly to the Thread Bus through its `BackgroundExecutor` shape.
 
 ```ts

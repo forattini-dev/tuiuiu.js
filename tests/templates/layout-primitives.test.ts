@@ -7,9 +7,12 @@ import { calculateLayout } from '../../src/core/layout.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
 import { createGradientImage } from '../../src/core/graphics.js';
-import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage } from '../../src/atoms/terminal-image.js';
 import { Text } from '../../src/primitives/nodes.js';
 import { Screen, Main, Footer, Sidebar, Panel, Header, screen, main, footer, sidebar, header } from '../../src/templates/index.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
 
 describe('layout primitives', () => {
   it('applies default props for primitives', () => {
@@ -60,35 +63,18 @@ describe('layout primitives', () => {
     expect(node.children[2].props.height).toBe('auto'); // footer
   });
 
-  it('supports props.children as fallback for variadic children', () => {
-    // Test that children can be passed via props (for React-like patterns)
+  it('uses one variadic composition contract across layout primitives', () => {
     const content = Text({}, 'Content');
+    const nodes = [
+      Screen({}, content),
+      Main({}, content),
+      Footer({}, content),
+      Sidebar({}, content),
+      Panel({}, content),
+      Header({}, content),
+    ];
 
-    const screenNode = Screen({ children: content });
-    const mainNode = Main({ children: content });
-    const footerNode = Footer({ children: content });
-    const sidebarNode = Sidebar({ children: content });
-    const panelNode = Panel({ children: content });
-    const headerNode = Header({ children: content });
-
-    // All should have the content as a child
-    expect(screenNode.children.length).toBe(1);
-    expect(mainNode.children.length).toBe(1);
-    expect(footerNode.children.length).toBe(1);
-    expect(sidebarNode.children.length).toBe(1);
-    expect(panelNode.children.length).toBe(1); // Panel may have title box too
-    expect(headerNode.children.length).toBe(1);
-  });
-
-  it('prefers variadic children over props.children', () => {
-    const propsChild = Text({}, 'Props');
-    const variadicChild = Text({}, 'Variadic');
-
-    // When both are provided, variadic wins
-    const node = Screen({ children: propsChild }, variadicChild);
-
-    expect(node.children.length).toBe(1);
-    expect(node.children[0]).toBe(variadicChild);
+    for (const node of nodes) expect(node.children).toContain(content);
   });
 
   it('renders TerminalImage inside Panel as a normal container child', () => {

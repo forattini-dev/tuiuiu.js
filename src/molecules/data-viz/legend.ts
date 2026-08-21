@@ -13,6 +13,7 @@ import { Box, Text } from '../../primitives/nodes.js';
 import type { VNode, ColorValue } from '../../utils/types.js';
 import { createSignal } from '../../primitives/signal.js';
 import { useFactoryState } from '../../hooks/factory-state.js';
+import { component, type ComponentKeyProps } from '../../app/component.js';
 
 // =============================================================================
 // Types
@@ -154,7 +155,7 @@ function getSymbol(
 // Component
 // =============================================================================
 
-export interface LegendProps extends LegendOptions {
+export interface LegendProps extends LegendOptions, ComponentKeyProps {
   state?: LegendState;
 }
 
@@ -181,7 +182,7 @@ export interface LegendProps extends LegendOptions {
  *   onItemClick: (idx, label) => console.log(`Clicked: ${label}`),
  * })
  */
-export function Legend(props: LegendProps): VNode {
+function renderLegend(props: LegendProps): VNode {
   const {
     items,
     position = 'bottom',
@@ -259,6 +260,8 @@ export function Legend(props: LegendProps): VNode {
     ...legendItems
   );
 }
+
+export const Legend = component<LegendProps, VNode>('Legend', renderLegend);
 
 // =============================================================================
 // Exports

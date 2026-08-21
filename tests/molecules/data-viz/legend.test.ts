@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { createLegend, Legend } from '../../../src/molecules/data-viz/legend.js';
+import { createLegend, Legend as OwnedLegend } from '../../../src/molecules/data-viz/legend.js';
 import { renderOnce } from '../../../src/app/render-loop.js';
 import { calculateLayout } from '../../../src/core/layout.js';
 import {
@@ -12,6 +12,9 @@ import {
   resetHitTestRegistry,
 } from '../../../src/core/hit-test.js';
 import { MouseSimulator } from '../../../src/dev-tools/mouse-simulator.js';
+import { testComponent } from '../../../src/testing/component.js';
+
+const Legend = testComponent(OwnedLegend);
 
 describe('Legend', () => {
   const sampleItems = [

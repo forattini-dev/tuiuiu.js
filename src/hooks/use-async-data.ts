@@ -57,7 +57,7 @@ interface AsyncDataHookData<T> {
   refreshTimer: ReturnType<typeof setInterval> | null;
   enabled: boolean;
   refreshInterval: number | undefined;
-  hookIndex: number;
+  hookIndex: import('./context.js').HookSlotToken;
 }
 
 /**

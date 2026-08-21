@@ -4,10 +4,10 @@
 
 import type { BoxStyle, VNode } from '../utils/types.js';
 import { Box } from './nodes.js';
-import { isRenderingHooks } from '../hooks/context.js';
 import { useConst } from '../hooks/use-const.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
-export interface AppendListProps<T> {
+export interface AppendListProps<T> extends ComponentKeyProps {
   /** Items to render (append-only) */
   items: T[];
   /** Render function for each item */
@@ -41,19 +41,13 @@ function isSameList<T>(prev: T[], next: T[]): boolean {
 
 let nextAppendListInstanceId = 1;
 
-export function AppendList<T>(props: AppendListProps<T>): VNode {
+function renderAppendList<T>(props: AppendListProps<T>): VNode {
   const { items, children: renderItem, style, getKey, id } = props;
-  const state = isRenderingHooks()
-    ? useConst(() => ({
-        instanceId: nextAppendListInstanceId++,
-        prevItems: [] as T[],
-        appendOnly: true,
-      }))
-    : {
-        instanceId: nextAppendListInstanceId++,
-        prevItems: [] as T[],
-        appendOnly: true,
-      };
+  const state = useConst(() => ({
+    instanceId: nextAppendListInstanceId++,
+    prevItems: [] as T[],
+    appendOnly: true,
+  }));
 
   const prev = state.prevItems;
   const allowAppendOnly = state.appendOnly;
@@ -100,3 +94,5 @@ export function AppendList<T>(props: AppendListProps<T>): VNode {
     ),
   };
 }
+
+export const AppendList = component('AppendList', renderAppendList);

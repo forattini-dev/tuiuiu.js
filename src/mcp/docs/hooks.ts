@@ -30,15 +30,15 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
-    name: 'useInput',
-    description: 'Handle keyboard input events.',
-    signature: 'useInput(handler: InputHandler): void',
+    name: 'useInteraction',
+    description: 'Handle normalized key, paste, and command events for text controls and protocol tools.',
+    signature: 'useInteraction(handler: (event: InteractionEvent) => boolean | void, options?: InteractionHandlerOptions): void',
     params: [
-      { name: 'handler', type: '(input: string, key: Key) => void', required: true, description: 'Input event handler' },
+      { name: 'handler', type: '(event: InteractionEvent) => boolean | void', required: true, description: 'Normalized interaction handler' },
     ],
     returns: 'void',
     examples: [
-      `useInput((input, key) => {\n  if (key.upArrow) setIndex(i => i - 1);\n  if (key.downArrow) setIndex(i => i + 1);\n  if (key.return) select();\n  if (key.escape) cancel();\n});`,
+      `useInteraction((event) => {\n  if (event.type !== 'key') return;\n  if (event.key.name === 'arrowup') setIndex(i => i - 1);\n  if (event.key.name === 'arrowdown') setIndex(i => i + 1);\n  if (event.key.name === 'enter') return select();\n});`,
     ],
   },
   {
@@ -54,7 +54,7 @@ export const hooks: HookDoc[] = [
 - setRawMode() / rawModeEnabledCount / isRawModeEnabled() - coordinate raw mode references
 - clearScreen?() - reset renderer state when available`,
     examples: [
-      `const app = useApp();\nconst { focused } = useTerminalFocus();\n\nuseInput((_, key) => {\n  if (key.escape) app.exit();\n});\n\nText({}, focused ? 'Focused' : 'Backgrounded')`,
+      `const app = useApp();\nconst { focused } = useTerminalFocus();\n\nuseShortcut('escape', () => app.exit());\n\nText({}, focused ? 'Focused' : 'Backgrounded')`,
     ],
   },
   {
@@ -83,22 +83,23 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
-    name: 'useHotkeys',
-    description: 'Register a keyboard shortcut with human-readable syntax. Supports scopes to prevent conflicts between components.',
-    signature: 'useHotkeys(hotkeys: string | string[], handler: () => void, options?: HotkeyOptions): void',
+    name: 'useShortcut',
+    description: 'Register a semantic command and one or more key bindings owned by the current component.',
+    signature: 'useShortcut(keys: string | readonly string[], handler: () => void | Promise<void>, options?: ShortcutOptions): void',
     params: [
-      { name: 'hotkeys', type: 'string | string[]', required: true, description: 'Hotkey string(s) like "ctrl+s" or ["ctrl+z", "cmd+z"]' },
+      { name: 'keys', type: 'string | readonly string[]', required: true, description: 'Key chord(s) like "ctrl+s" or ["ctrl+z", "meta+z"]' },
       { name: 'handler', type: '() => void', required: true, description: 'Function to call when hotkey is triggered' },
-      { name: 'options.scope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope - only fires when scope matches current scope' },
-      { name: 'options.description', type: 'string', required: false, description: 'Description for help screens (via getRegisteredHotkeys)' },
+      { name: 'options.mode', type: 'string', required: false, description: 'Interaction mode in which the binding is active' },
+      { name: 'options.target', type: 'string', required: false, description: 'Active target required by the binding' },
+      { name: 'options.description', type: 'string', required: false, description: 'Description exposed through runtime inspection' },
     ],
     returns: 'void',
     examples: [
-      `// Simple hotkey\nuseHotkeys('ctrl+s', () => save());`,
-      `// Cross-platform (Ctrl on Linux/Windows, Cmd on Mac)\nuseHotkeys(['ctrl+z', 'cmd+z'], () => undo());`,
-      `// Scoped hotkey (only fires when scope is 'modal')\nuseHotkeys('escape', () => closeModal(), { scope: 'modal' });`,
-      `// With description for help screen\nuseHotkeys('f1', () => showHelp(), { description: 'Show help' });`,
-      `// Multiple hotkeys in component\nfunction Editor() {\n  useHotkeys('ctrl+s', save, { description: 'Save' });\n  useHotkeys('ctrl+z', undo, { description: 'Undo' });\n  useHotkeys('ctrl+f', find, { description: 'Find' });\n}`,
+      `// Simple hotkey\nuseShortcut('ctrl+s', () => save());`,
+      `// Cross-platform (Ctrl on Linux/Windows, Cmd on Mac)\nuseShortcut(['ctrl+z', 'cmd+z'], () => undo());`,
+      `// Mode-target binding\nuseShortcut('escape', closeModal, { mode: 'overlay', target: modalId });`,
+      `// With description for help screen\nuseShortcut('f1', () => showHelp(), { description: 'Show help' });`,
+      `// Multiple hotkeys in component\nfunction Editor() {\n  useShortcut('ctrl+s', save, { description: 'Save' });\n  useShortcut('ctrl+z', undo, { description: 'Undo' });\n  useShortcut('ctrl+f', find, { description: 'Find' });\n}`,
     ],
   },
   {
@@ -135,7 +136,7 @@ export const hooks: HookDoc[] = [
 - reveal(options) - animate clip progress from one direction
 - clear() - remove active transforms`,
     examples: [
-      `function AnimatedPanel() {\n  const compositor = useCompositor();\n\n  useInput((_, key) => {\n    if (key.rightArrow) compositor.slide({ toX: 4, duration: 160 });\n  });\n\n  return Box(\n    compositor.bind({ width: 20, borderStyle: 'single' }),\n    Text({}, 'Slides without relayout')\n  );\n}`,
+      `function AnimatedPanel() {\n  const compositor = useCompositor();\n\n  useShortcut('right', () => compositor.slide({ toX: 4, duration: 160 }));\n\n  return Box(\n    compositor.bind({ width: 20, borderStyle: 'single' }),\n    Text({}, 'Slides without relayout')\n  );\n}`,
       `const compositor = useCompositor();\ncompositor.fade({ from: 0, to: 1, duration: 120 });\ncompositor.reveal({ direction: 'left', from: 0, to: 1, duration: 180 });`,
     ],
   },
@@ -203,28 +204,6 @@ export const hooks: HookDoc[] = [
     ],
   },
   {
-    name: 'useHotkeyScope',
-    description: 'Temporarily set a hotkey scope and automatically restore when component unmounts. Essential for modals that should only respond to their own hotkeys.',
-    signature: 'useHotkeyScope(scope: string): void',
-    params: [
-      { name: 'scope', type: 'string', required: true, description: 'Hotkey scope to activate' },
-    ],
-    returns: 'void',
-    examples: [
-      `function SettingsModal() {\n  useHotkeyScope('settings-modal'); // Pushes scope, pops on unmount\n  // Now only 'settings-modal' and 'global' hotkeys work\n  return Modal({}, Text({}, 'Settings...'));\n}`,
-    ],
-  },
-  {
-    name: 'useCurrentHotkeyScope',
-    description: 'Get the current hotkey scope as a reactive accessor.',
-    signature: 'useCurrentHotkeyScope(): Accessor<string>',
-    params: [],
-    returns: 'Reactive accessor returning current scope name',
-    examples: [
-      `function ScopeIndicator() {\n  const scope = useCurrentHotkeyScope();\n  return Text({}, \`Current scope: \${scope()}\`);\n}`,
-    ],
-  },
-  {
     name: 'useNavigation',
     description: 'Hook for linked list navigation (previous/next). Useful for wizards, carousels, and step-based UIs.',
     signature: 'useNavigation<T>(nodes: T[], options?: NavigationOptions): NavigationState<T>',
@@ -286,7 +265,7 @@ export const hooks: HookDoc[] = [
     params: [],
     returns: 'Object with copy(text) and a supported boolean.',
     examples: [
-      `const { copy, supported } = useClipboard();\nuseHotkeys('ctrl+y', () => copy(JSON.stringify(data())));\nreturn Text({}, supported ? 'Ctrl+Y copies' : 'Clipboard unavailable');`,
+      `const { copy, supported } = useClipboard();\nuseShortcut('ctrl+y', () => copy(JSON.stringify(data())));\nreturn Text({}, supported ? 'Ctrl+Y copies' : 'Clipboard unavailable');`,
     ],
   },
   {
@@ -394,7 +373,7 @@ export const hooks: HookDoc[] = [
     examples: [
       `const { data, loading, error } = useAsyncData(\n  (signal) => fetch('/api/data', { signal }).then(r => r.json())\n);\n\nif (loading()) return Spinner({});\nif (error()) return Text({}, 'Error: ' + error().message);\nreturn Text({}, JSON.stringify(data()));`,
       `// With auto-polling\nconst { data } = useAsyncData(\n  (signal) => fetch('/api/status', { signal }).then(r => r.json()),\n  { refreshInterval: 5000 }\n);`,
-      `// Manual refetch\nconst { data, refetch } = useAsyncData(fetchItems);\nuseHotkeys('r', () => refetch());`,
+      `// Manual refetch\nconst { data, refetch } = useAsyncData(fetchItems);\nuseShortcut('r', () => refetch());`,
     ],
   },
   {

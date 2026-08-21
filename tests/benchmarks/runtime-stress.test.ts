@@ -6,10 +6,10 @@ import {
   darkTheme,
   render,
   setTheme,
-  useInput,
-  useMouse,
   useState,
 } from '../../src/index.js';
+import { useInput } from '../../src/hooks/use-input.js';
+import { useMouse } from '../../src/hooks/use-mouse.js';
 import { generateSGRMouseSequence } from '../../src/dev-tools/mouse-simulator.js';
 import {
   benchmarkBurstScheduler,
@@ -157,8 +157,8 @@ async function benchmarkKeyboardStorm(burstSize = 400) {
     {
       stdin,
       stdout,
-      clearOnStart: false,
-      showCursor: false,
+      screen: 'inline',
+      showHardwareCursor: false,
       useDeltaRenderer: false,
       maxFps: 0,
     },
@@ -214,8 +214,8 @@ async function benchmarkMouseStorm(burstSize = 240) {
     {
       stdin,
       stdout,
-      clearOnStart: false,
-      showCursor: false,
+      screen: 'inline',
+      showHardwareCursor: false,
       useDeltaRenderer: false,
       maxFps: 0,
     },

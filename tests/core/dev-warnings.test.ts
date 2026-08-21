@@ -2,22 +2,27 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { render } from '../../src/app/render-loop.js';
 import {
-  __resetDevWarningsForTesting,
-  warnIfCreateSignalDuringComponentRender,
-} from '../../src/core/dev-warnings.js';
+  __resetDevWarningsForTesting, warnIfCreateSignalDuringComponentRender, } from '../../src/core/dev-warnings.js';
 import { clearCommittedFrameSnapshot } from '../../src/core/frame.js';
 import { resetTerminalFocusState } from '../../src/core/terminal-focus.js';
 import { darkTheme, lightTheme, setTheme } from '../../src/core/theme.js';
-import { beginRender, clearInputHandlers, endRender, resetHookState, setAppContext, __resetHookWarningsForTesting } from '../../src/hooks/context.js';
+import { beginRender, endRender, resetHookState, setAppContext, __resetHookWarningsForTesting } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { useState } from '../../src/hooks/use-state.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import { Accordion } from '../../src/molecules/collapsible.js';
-import { Tabs } from '../../src/molecules/tabs.js';
+import { Accordion as OwnedAccordion } from '../../src/molecules/collapsible.js';
+import { Tabs as OwnedTabs } from '../../src/molecules/tabs.js';
 import { Modal } from '../../src/organisms/modal.js';
-import { ScrollList } from '../../src/organisms/scroll-list.js';
-import { Box, Static, Text } from '../../src/primitives/nodes.js';
+import { ScrollList as OwnedScrollList } from '../../src/organisms/scroll-list.js';
+import { Box, Static as OwnedStatic, Text } from '../../src/primitives/nodes.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { AppShell, Page } from '../../src/templates/app.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Accordion = testComponent(OwnedAccordion);
+const Tabs = testComponent(OwnedTabs);
+const ScrollList = testComponent(OwnedScrollList);
+const Static = testComponent(OwnedStatic);
 
 function createMockStdin(): NodeJS.ReadStream {
   const emitter = new EventEmitter();
@@ -68,7 +73,7 @@ describe('developer warnings', () => {
     __resetDevWarningsForTesting();
     __resetHookWarningsForTesting();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     clearCommittedFrameSnapshot();
     cleanupApp();
@@ -82,7 +87,7 @@ describe('developer warnings', () => {
     __resetDevWarningsForTesting();
     __resetHookWarningsForTesting();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     clearCommittedFrameSnapshot();
     cleanupApp();
@@ -166,7 +171,7 @@ describe('developer warnings', () => {
       const instance = render(() => Text({}, 'hello'), {
         stdin: createMockStdin(),
         stdout: createMockStdout(),
-        clearOnStart: false,
+        screen: 'inline',
       });
 
       setTheme(lightTheme);

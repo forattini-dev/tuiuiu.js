@@ -4,8 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  ScrollList,
-  ChatList,
+  ScrollList as OwnedScrollList,
+  ChatList as OwnedChatList,
   useScrollList,
   createScrollList,
   clearScrollListCache,
@@ -13,6 +13,10 @@ import {
 } from '../../src/organisms/scroll-list.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ScrollList = testComponent(OwnedScrollList);
+const ChatList = testComponent(OwnedChatList);
 
 // Mock useInput to prevent actual input handling
 // Need to mock both the direct import and the index export

@@ -7,7 +7,7 @@
  *
  * ❌ NEVER use createSignal() inside a component - it will be recreated on every render!
  */
-import { render, Box, Text, useState, useHotkeys, useApp, setTheme, darkTheme } from '../src/index.js';
+import { render, Box, Text, useState, useShortcut, useApp, setTheme, darkTheme } from '../src/index.js';
 
 // Set theme BEFORE render (required)
 setTheme(darkTheme);
@@ -20,16 +20,16 @@ function App() {
   const [lastKey, setLastKey] = useState('none');
 
   // Number keys
-  useHotkeys('1', () => { setLastKey('1'); setCount(c => c + 1); });
-  useHotkeys('2', () => { setLastKey('2'); setCount(c => c - 1); });
+  useShortcut('1', () => { setLastKey('1'); setCount(c => c + 1); });
+  useShortcut('2', () => { setLastKey('2'); setCount(c => c - 1); });
 
   // Arrow keys
-  useHotkeys('up', () => { setLastKey('up'); setCount(c => c + 10); });
-  useHotkeys('down', () => { setLastKey('down'); setCount(c => c - 10); });
-  useHotkeys('left', () => { setLastKey('left'); setCount(c => c - 5); });
-  useHotkeys('right', () => { setLastKey('right'); setCount(c => c + 5); });
+  useShortcut('up', () => { setLastKey('up'); setCount(c => c + 10); });
+  useShortcut('down', () => { setLastKey('down'); setCount(c => c - 10); });
+  useShortcut('left', () => { setLastKey('left'); setCount(c => c - 5); });
+  useShortcut('right', () => { setLastKey('right'); setCount(c => c + 5); });
 
-  useHotkeys('q', () => exit());
+  useShortcut('q', () => exit());
 
   return Box(
     { flexDirection: 'column', padding: 1 },

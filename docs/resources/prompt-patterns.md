@@ -120,7 +120,7 @@ onSubmit((value) => {
 });
 ```
 
-`inspectPrompt()` is the canonical API. `parse()` is kept as a compatibility alias for older app code.
+`inspectPrompt()` is the single API used for both live mode feedback and submit-time routing.
 
 ## Task-Backed Completion Usage
 
@@ -246,8 +246,7 @@ const result = await handle.result;
 ```
 
 `createBackgroundExecutor` accepts worker options through `modulePath`, or
-inline handlers through `handlers`. `createTaskBridge` remains a deprecated
-1.x compatibility adapter.
+inline handlers through `handlers`.
 
 Call `executor.destroy()` when the screen/context is done.
 

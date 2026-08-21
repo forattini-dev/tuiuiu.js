@@ -5,9 +5,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   render,
-  renderAlternateScreen,
-  renderFullscreen,
-  renderInline,
   renderOnce,
 } from '../../src/app/render-loop.js';
 import {
@@ -22,7 +19,6 @@ import { Writable } from 'node:stream';
 import {
   resetHookState,
   setAppContext,
-  clearInputHandlers,
 } from '../../src/hooks/context.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
 import { clearCommittedFrameSnapshot, getCommittedFrameSnapshot } from '../../src/core/frame.js';
@@ -81,7 +77,6 @@ describe('render-loop', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetHookState();
-    clearInputHandlers();
     setAppContext(null);
     resetProgressive();
     configureProgressive({ overrides: { focusEvents: false } });
@@ -97,7 +92,6 @@ describe('render-loop', () => {
     mockExit.mockRestore();
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
     clearCommittedFrameSnapshot();
     resetMotionRuntime();
     resetProgressive();
@@ -117,8 +111,7 @@ describe('render-loop', () => {
       }, {
         stdin,
         stdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
       });
       const second = render(() => {
         useInput(secondInput);
@@ -126,8 +119,7 @@ describe('render-loop', () => {
       }, {
         stdin: secondStdin,
         stdout: secondStdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
       });
 
       stdin.emit('data', Buffer.from('a'));
@@ -152,8 +144,7 @@ describe('render-loop', () => {
         {
           stdin,
           stdout,
-          alternateScreen: false,
-          clearOnStart: false,
+          screen: 'inline',
         },
       )).toThrow('initial render failed');
 
@@ -162,8 +153,7 @@ describe('render-loop', () => {
       const replacement = render(Text({}, 'replacement'), {
         stdin,
         stdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
       });
       replacement.unmount();
     });
@@ -178,11 +168,11 @@ describe('render-loop', () => {
       ).toThrow(/maxPendingEscapeBytes/u);
     });
 
-    it('returns TuiInstance with expected methods', () => {
+    it('returns an AppHandle with app-owned services', () => {
       const node = Text({}, 'Hello');
       const instance = render(node, { stdin, stdout });
 
-      expect(instance).toHaveProperty('rerender');
+      expect(instance).toHaveProperty('invalidate');
       expect(instance).toHaveProperty('unmount');
       expect(instance).toHaveProperty('waitUntilExit');
       expect(instance).toHaveProperty('clear');
@@ -192,38 +182,24 @@ describe('render-loop', () => {
     });
 
     it('provides explicit inline, fullscreen, and alternate-screen presets', () => {
-      const inline = renderInline(Text({}, 'inline'), { stdin, stdout });
+      const inline = render(Text({}, 'inline'), { stdin, stdout, screen: 'inline' });
       expect(stdout.output).not.toContain('\x1b[?1049h');
       expect(stdout.output).not.toContain('\x1b[2J');
       inline.unmount();
 
       stdin = createMockStdin();
       stdout = createMockStdout();
-      const fullscreen = renderFullscreen(Text({}, 'fullscreen'), { stdin, stdout });
+      const fullscreen = render(Text({}, 'fullscreen'), { stdin, stdout, screen: 'fullscreen' });
       expect(stdout.output).not.toContain('\x1b[?1049h');
       expect(stdout.output).toContain('\x1b[2J');
       fullscreen.unmount();
 
       stdin = createMockStdin();
       stdout = createMockStdout();
-      const alternate = renderAlternateScreen(Text({}, 'alternate'), { stdin, stdout });
+      const alternate = render(Text({}, 'alternate'), { stdin, stdout, screen: 'alternate' });
       expect(stdout.output).toContain('\x1b[?1049h');
       expect(stdout.output).toContain('\x1b[2J');
       alternate.unmount();
-    });
-
-    it('lets explicit legacy booleans override a screen preset', () => {
-      const instance = render(Text({}, 'overridden'), {
-        stdin,
-        stdout,
-        screenMode: 'inline',
-        alternateScreen: true,
-        clearOnStart: true,
-      });
-
-      expect(stdout.output).toContain('\x1b[?1049h');
-      expect(stdout.output).toContain('\x1b[2J');
-      instance.unmount();
     });
 
     it('renders initial content to stdout', () => {
@@ -257,7 +233,7 @@ describe('render-loop', () => {
     it('skips clear on start when clearOnStart is false', () => {
       stdout.output = '';
       const node = Text({}, 'Test');
-      const instance = render(node, { stdin, stdout, clearOnStart: false });
+      const instance = render(node, { stdin, stdout, screen: 'inline' });
 
       // Should not have clear sequence
       expect(stdout.output).not.toContain('\x1b[2J');
@@ -274,14 +250,13 @@ describe('render-loop', () => {
       instance.unmount();
     });
 
-    it('rerender updates content', () => {
-      const node1 = Text({}, 'First');
-      const instance = render(node1, { stdin, stdout });
+    it('reactive invalidation updates content', () => {
+      const [value, setValue] = createSignal('First');
+      const instance = render(() => Text({}, value()), { stdin, stdout });
 
       expect(stdout.output).toContain('First');
 
-      const node2 = Text({}, 'Second');
-      instance.rerender(node2);
+      setValue('Second');
 
       // Need to advance timers to let throttled render happen
       vi.advanceTimersByTime(100);
@@ -291,20 +266,18 @@ describe('render-loop', () => {
       instance.unmount();
     });
 
-    it('keeps the rerendered root when an old signal invalidates', async () => {
-      const [oldValue, setOldValue] = createSignal('old root');
+    it('keeps one root function across explicit invalidation', async () => {
+      const [value, setValue] = createSignal('root');
       const instance = render(
-        () => Text({}, oldValue()),
-        { stdin, stdout, maxFps: 0, clearOnStart: false, useDeltaRenderer: false },
+        () => Text({}, value()),
+        { stdin, stdout, maxFps: 0, screen: 'inline', useDeltaRenderer: false },
       );
 
-      instance.rerender(Text({}, 'replacement root'));
-      await vi.runAllTimersAsync();
-      setOldValue('stale update');
+      setValue('updated root');
+      instance.invalidate('urgent');
       await vi.runAllTimersAsync();
 
-      expect(stdout.output).toContain('replacement root');
-      expect(stdout.output).not.toContain('stale update');
+      expect(stdout.output).toContain('updated root');
       instance.unmount();
     });
 
@@ -340,11 +313,12 @@ describe('render-loop', () => {
 
     it('writes sanitized lines above the live UI and resets their offset on clear', async () => {
       const node = Text({}, 'live ui');
-      const instance = renderInline(node, {
+      const instance = render(node, {
         stdin,
         stdout,
+        screen: 'inline',
         maxFps: 0,
-        showCursor: true,
+        showHardwareCursor: true,
         useDeltaRenderer: false,
       });
 
@@ -370,14 +344,15 @@ describe('render-loop', () => {
 
     it('exposes the safe line writer through useApp()', async () => {
       let app: ReturnType<typeof useApp> | undefined;
-      const instance = renderInline(() => {
+      const instance = render(() => {
         app = useApp();
         return Text({}, 'ready');
       }, {
         stdin,
         stdout,
+        screen: 'inline',
         maxFps: 0,
-        showCursor: true,
+        showHardwareCursor: true,
         useDeltaRenderer: false,
       });
 
@@ -482,8 +457,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 20,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
         }
       );
@@ -524,8 +499,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
         }
       );
@@ -538,6 +513,36 @@ describe('render-loop', () => {
 
       expect(app?.hasPendingExternalUpdates?.()).toBe(false);
       expect(stdout.output).toContain('Count: 9');
+
+      instance.unmount();
+    });
+
+    it('keeps reactive async updates connected after urgent input rendering', async () => {
+      const [status, setStatus] = createSignal('idle');
+      let app: ReturnType<typeof useApp> | undefined;
+
+      const instance = render(() => {
+        app = useApp();
+        useInput((input) => {
+          if (input === 'a') setStatus('input');
+        });
+        return Text({}, status());
+      }, {
+        stdin,
+        stdout,
+        maxFps: 0,
+        screen: 'inline',
+        useDeltaRenderer: false,
+      });
+
+      stdin.emit('data', Buffer.from('a'));
+      await Promise.resolve();
+      expect(stdout.output).toContain('input');
+
+      app!.enqueueExternalUpdate?.(() => setStatus('async'));
+      await vi.advanceTimersByTimeAsync(16);
+      await Promise.resolve();
+      expect(stdout.output).toContain('async');
 
       instance.unmount();
     });
@@ -581,16 +586,15 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
-          alternateScreen: false,
         }
       );
 
       expect(renderCount).toBe(1);
-      // 2 writes: enableBracketedPaste() during init + initial render paint
-      expect(stdout.write).toHaveBeenCalledTimes(2);
+      // 3 writes: bracketed paste, cursor ownership, and initial paint.
+      expect(stdout.write).toHaveBeenCalledTimes(3);
 
       setCount(1);
       setCount(2);
@@ -598,12 +602,12 @@ describe('render-loop', () => {
 
       // Evaluation and paint are deferred so a burst of sync updates can collapse to the latest state.
       expect(renderCount).toBe(1);
-      expect(stdout.write).toHaveBeenCalledTimes(2);
+      expect(stdout.write).toHaveBeenCalledTimes(3);
 
       await Promise.resolve();
 
       expect(renderCount).toBe(2);
-      expect(stdout.write).toHaveBeenCalledTimes(3);
+      expect(stdout.write).toHaveBeenCalledTimes(4);
       expect(stdout.output).toContain('Count: 3');
 
       instance.unmount();
@@ -622,8 +626,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
         }
       );
@@ -655,8 +659,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 30,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
         }
       );
@@ -685,8 +689,8 @@ describe('render-loop', () => {
       vi.mocked(stdout.write).mockImplementation((chunk: string | Uint8Array) => {
         writeCount++;
         stdout.output += chunk.toString();
-        // Trigger backpressure on 3rd write (init bracketedPaste + render1 + render2)
-        return writeCount !== 3;
+        // Trigger backpressure on the second paint after initialization.
+        return writeCount !== 4;
       });
 
       const instance = render(
@@ -698,35 +702,34 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
-          alternateScreen: false,
         }
       );
 
       expect(renderCount).toBe(1);
-      // 2 writes: enableBracketedPaste() during init + initial render paint
-      expect(writeCount).toBe(2);
+      // 3 writes: bracketed paste, cursor ownership, and initial paint.
+      expect(writeCount).toBe(3);
 
       setCount(1);
       await Promise.resolve();
 
       expect(renderCount).toBe(2);
-      // 3rd write triggers backpressure (returns false)
-      expect(writeCount).toBe(3);
+      // 4th write triggers backpressure (returns false)
+      expect(writeCount).toBe(4);
 
       setCount(2);
       setCount(3);
 
       expect(renderCount).toBe(2);
-      expect(writeCount).toBe(3);
+      expect(writeCount).toBe(4);
 
       stdout.emit('drain');
       await Promise.resolve();
 
       expect(renderCount).toBe(3);
-      expect(writeCount).toBe(4);
+      expect(writeCount).toBe(5);
       expect(stdout.output).toContain('Count: 3');
 
       instance.unmount();
@@ -747,8 +750,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 4,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
           fixedStep: {
             updateFps: 20,
@@ -784,8 +787,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
           fixedStep: {
             updateFps: 20,
@@ -825,8 +828,8 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
-          showCursor: true,
+          screen: 'inline',
+          showHardwareCursor: true,
           useDeltaRenderer: false,
           fixedStep: {
             updateFps: 20,
@@ -848,7 +851,7 @@ describe('render-loop', () => {
     it('commits the last rendered frame for runtime queries and clears it on unmount', () => {
       const instance = render(
         Box({ id: 'root', width: 20, height: 3 } as any, Text({}, 'Committed')),
-        { stdin, stdout, clearOnStart: false },
+        { stdin, stdout, screen: 'inline' },
       );
 
       const frame = getCommittedFrameSnapshot();
@@ -926,7 +929,7 @@ describe('render-loop', () => {
   describe('render with various options', () => {
     it('showCursor option', () => {
       const node = Text({}, 'Test');
-      const instance = render(node, { stdin, stdout, showCursor: true });
+      const instance = render(node, { stdin, stdout, showHardwareCursor: true });
 
       // With showCursor true, cursor should be visible
       instance.unmount();
@@ -973,8 +976,7 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          alternateScreen: false,
-          clearOnStart: false,
+          screen: 'inline',
         },
       );
       const exited = instance.waitUntilExit();
@@ -1022,8 +1024,7 @@ describe('render-loop', () => {
       const instance = render(Text({}, 'game'), {
         stdin,
         stdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
         fixedStep: {
           updateFps: 60,
           pauseWhenUnfocused: false,
@@ -1049,8 +1050,7 @@ describe('render-loop', () => {
       const instance = render(Text({}, 'backpressured'), {
         stdin,
         stdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
       });
 
       expect(stdout.listenerCount('drain')).toBe(1);
@@ -1079,7 +1079,7 @@ describe('render-loop', () => {
         stdin,
         stdout,
         maxFps: 0,
-        clearOnStart: false,
+        screen: 'inline',
         useDeltaRenderer: false,
       });
 
@@ -1106,7 +1106,7 @@ describe('render-loop', () => {
           stdin,
           stdout,
           maxFps: 0,
-          clearOnStart: false,
+          screen: 'inline',
           useDeltaRenderer: true,
         },
       );
@@ -1129,8 +1129,7 @@ describe('render-loop', () => {
       }, {
         stdin,
         stdout,
-        alternateScreen: false,
-        clearOnStart: false,
+        screen: 'inline',
       });
       const exited = instance.waitUntilExit();
 
@@ -1184,7 +1183,7 @@ describe('render-loop', () => {
       stdout.output = '';
 
       // Force a render attempt with same value
-      instance.rerender(Text({}, 'Same'));
+      instance.invalidate();
       vi.advanceTimersByTime(100);
 
       // Should skip duplicate render (output may be empty or same)

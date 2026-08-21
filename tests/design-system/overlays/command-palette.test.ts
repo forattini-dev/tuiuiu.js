@@ -11,14 +11,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  CommandPalette,
+  CommandPalette as OwnedCommandPalette,
   createCommandPalette,
+  createInteractionCommandPalette,
   GoToDialog,
   createGoToDialog,
   type CommandItem,
   type CommandPaletteProps,
   type CommandPaletteState,
 } from '../../../src/organisms/command-palette.js';
+import { createInteractionRuntime } from '../../../src/interaction/runtime.js';
 import {
   keys,
   createInputHarness,
@@ -28,6 +30,9 @@ import {
 } from '../../helpers/keyboard.js';
 import { renderToString } from '../../../src/core/renderer.js';
 import { stripAnsi } from '../../../src/utils/text-utils.js';
+import { testComponent } from '../../../src/testing/component.js';
+
+const CommandPalette = testComponent(OwnedCommandPalette);
 
 // =============================================================================
 // Test Data
@@ -761,6 +766,39 @@ describe('createCommandPalette', () => {
       harness.press(keys.escape());
       expect(onClose).toHaveBeenCalled();
     });
+  });
+});
+
+describe('createInteractionCommandPalette', () => {
+  it('follows the semantic runtime registry and executes through it', () => {
+    const run = vi.fn();
+    const runtime = createInteractionRuntime();
+    const palette = createInteractionCommandPalette({ runtime });
+    const registration = runtime.registerCommand({
+      id: 'workspace.open',
+      title: 'Open workspace',
+      category: 'Workspace',
+      run,
+    });
+    runtime.bind({ command: 'workspace.open', keys: 'ctrl+o' });
+
+    expect(palette.filteredItems()).toEqual([
+      expect.objectContaining({
+        id: 'workspace.open',
+        label: 'Open workspace',
+        category: 'Workspace',
+        shortcut: 'ctrl+o',
+      }),
+    ]);
+
+    palette.confirm();
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      event: { type: 'command', source: 'command-palette' },
+    }));
+
+    registration.dispose();
+    expect(palette.filteredItems()).toEqual([]);
+    palette.dispose();
   });
 });
 

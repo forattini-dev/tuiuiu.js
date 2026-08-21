@@ -15,7 +15,7 @@ import {
   getStateDescription,
   getSystemInfo,
   resetSystemDataSampling,
-} from '../../src/utils/system-data.js';
+} from '../../examples/_shared/system-data.js';
 
 const readFileSync = vi.mocked(fs.readFileSync);
 const readdirSync = vi.mocked(fs.readdirSync);

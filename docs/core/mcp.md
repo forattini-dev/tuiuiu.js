@@ -177,7 +177,7 @@ tuiuiu_get_component({ name: 'Button' })
 Get documentation for a hook.
 
 ```typescript
-tuiuiu_get_hook({ name: 'useInput' })
+tuiuiu_get_hook({ name: 'useShortcut' })
 // → Signature, parameters, return type, examples
 ```
 
@@ -790,7 +790,7 @@ All prompts gracefully handle non-TTY environments (CI/CD, pipes) by returning d
 
 - [Quick Start](/getting-started/quick-start.md) — Get started with Tuiuiu
 - [Components Overview](/components/overview.md) — Browse all components
-- [Hooks](/hooks/use-input.md) — Learn about hooks
+- [Shortcuts](/hooks/use-shortcut.md) — Learn about semantic keyboard actions
 - [Theming](/core/theming.md) — Customize themes
 - [Storybook](/core/storybook.md) — Interactive component explorer
 - [Prompts](/core/prompts.md) — Blocking CLI prompts API

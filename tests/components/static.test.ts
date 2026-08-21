@@ -5,12 +5,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Static } from '../../src/primitives/index.js';
+import { Static as OwnedStatic } from '../../src/primitives/index.js';
 import { Text } from '../../src/primitives/index.js';
 import { Box } from '../../src/primitives/index.js';
 import { Fragment } from '../../src/primitives/index.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Static = testComponent(OwnedStatic);
 
 describe('Static Component', () => {
   describe('Basic rendering', () => {
@@ -221,10 +224,12 @@ describe('Static Component', () => {
 
       const container = Box({ flexDirection: 'column' },
         Static({
+          key: 'completed',
           items: completed,
           children: (item, i) => Text({ key: `complete-${i}`, color: 'green' }, `✓ ${item}`),
         }),
         Static({
+          key: 'errors',
           items: errors,
           children: (item, i) => Text({ key: `error-${i}`, color: 'red' }, `✗ ${item}`),
         }),

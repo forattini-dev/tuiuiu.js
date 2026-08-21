@@ -297,8 +297,8 @@ interface DirtyRegions {
 export interface DeltaRenderOptions {
   /** Output stream (default: process.stdout) */
   stdout?: NodeJS.WriteStream;
-  /** Show cursor during rendering (default: false) */
-  showCursor?: boolean;
+  /** Show the hardware cursor at the active CursorAnchor (default: false). */
+  showHardwareCursor?: boolean;
   /** Use delta rendering (default: true) */
   useDelta?: boolean;
   /** Debug mode - print all changes */
@@ -347,7 +347,7 @@ export interface RenderStats {
 export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRenderer {
   const {
     stdout = process.stdout,
-    showCursor: showCursorOption = false,
+    showHardwareCursor = false,
     useDelta = true,
     debug = false,
   } = options;
@@ -412,7 +412,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
    * Cleanup and restore terminal
    */
   function cleanup(): void {
-    if (!showCursorOption && hasHiddenCursor) {
+    if (hasHiddenCursor) {
       showCursor(stdout);
       hasHiddenCursor = false;
     }
@@ -447,13 +447,36 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
    * Prepare terminal cursor and buffer dimensions before rendering.
    */
   function prepareRender(nextWidth: number, nextHeight: number): void {
-    if (!showCursorOption && !hasHiddenCursor) {
+    if (!hasHiddenCursor) {
       hideCursor(stdout);
       hasHiddenCursor = true;
     }
 
     if (nextWidth !== width || nextHeight !== height) {
       resize(nextWidth, nextHeight);
+    }
+  }
+
+  function positionHardwareCursor(
+    frame: FrameSnapshot,
+    writeChunk: (chunk: string | Uint8Array) => void,
+  ): void {
+    const anchor = frame.cursorAnchor;
+    if (!anchor) {
+      if (!hasHiddenCursor) {
+        writeChunk('\x1b[?25l');
+        hasHiddenCursor = true;
+      }
+      return;
+    }
+
+    writeChunk(`\x1b[${anchor.y + 1};${anchor.x + 1}H`);
+    if (showHardwareCursor) {
+      writeChunk('\x1b[?25h');
+      hasHiddenCursor = false;
+    } else if (!hasHiddenCursor) {
+      writeChunk('\x1b[?25l');
+      hasHiddenCursor = true;
     }
   }
 
@@ -500,6 +523,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
           writeChunk(graphicsOutput);
         }
         lastPatchCount = 0;
+        positionHardwareCursor(frame, writeChunk);
         recordFrameStructuralMetric(frame, 'patchCount', 0);
         recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
         recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
@@ -540,6 +564,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
           deltaRenders++;
         }
 
+        positionHardwareCursor(frame, writeChunk);
         if (esu) writeChunk(esu);
         recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
         recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
@@ -570,6 +595,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
       writeChunk(output);
       fullRenders++;
       isFirstRender = false;
+      positionHardwareCursor(frame, writeChunk);
       if (esu) writeChunk(esu);
       recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
       recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);
@@ -589,6 +615,7 @@ export function createDeltaRenderer(options: DeltaRenderOptions = {}): DeltaRend
     }
 
     isFirstRender = false;
+    positionHardwareCursor(frame, writeChunk);
     if (esu) writeChunk(esu);
     recordFrameStructuralMetric(frame, 'outputByteCount', outputByteCount);
     recordFramePhaseMetric(frame, 'outputWriteMs', outputWriteMs);

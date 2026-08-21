@@ -18,6 +18,7 @@ import { useFactoryState } from '../hooks/factory-state.js';
 import { getTheme } from '../core/theme.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { createTextInput, renderTextInput, type TextInputOptions } from '../atoms/text-input.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Icons (with ASCII fallbacks)
@@ -119,7 +120,7 @@ export function createSearchInput(options: SearchInputOptions = {}): SearchInput
   };
 }
 
-export interface SearchInputProps {
+export interface SearchInputProps extends ComponentKeyProps {
   /** State from createSearchInput() */
   state?: SearchInputState;
   /** Or use standalone with value */
@@ -163,7 +164,7 @@ export interface SearchInputProps {
  * });
  * ```
  */
-export function SearchInput(props: SearchInputProps): VNode {
+function renderSearchInput(props: SearchInputProps): VNode {
   const theme = getTheme();
   const icons = getIcons();
   const {
@@ -314,7 +315,7 @@ export function createPasswordInput(options: PasswordInputOptions = {}): Passwor
   };
 }
 
-export interface PasswordInputProps {
+export interface PasswordInputProps extends ComponentKeyProps {
   /** State from createPasswordInput() */
   state?: PasswordInputState;
   /** Or use standalone with value */
@@ -346,7 +347,7 @@ export interface PasswordInputProps {
  * PasswordInput({ state: password });
  * ```
  */
-export function PasswordInput(props: PasswordInputProps): VNode {
+function renderPasswordInput(props: PasswordInputProps): VNode {
   const theme = getTheme();
   const icons = getIcons();
   const {
@@ -484,7 +485,7 @@ export function createNumberInput(options: NumberInputOptions = {}): NumberInput
   };
 }
 
-export interface NumberInputProps {
+export interface NumberInputProps extends ComponentKeyProps {
   /** State from createNumberInput() */
   state?: NumberInputState;
   /** Or use standalone with value */
@@ -518,7 +519,7 @@ export interface NumberInputProps {
  * NumberInput({ state: qty });
  * ```
  */
-export function NumberInput(props: NumberInputProps): VNode {
+function renderNumberInput(props: NumberInputProps): VNode {
   const theme = getTheme();
   const icons = getIcons();
   const {
@@ -604,3 +605,7 @@ export function NumberInput(props: NumberInputProps): VNode {
     showButtons ? incrementButton : null
   );
 }
+
+export const SearchInput = component<SearchInputProps, VNode>('SearchInput', renderSearchInput);
+export const PasswordInput = component<PasswordInputProps, VNode>('PasswordInput', renderPasswordInput);
+export const NumberInput = component<NumberInputProps, VNode>('NumberInput', renderNumberInput);

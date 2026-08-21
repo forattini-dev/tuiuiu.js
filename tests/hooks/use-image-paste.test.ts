@@ -1,36 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const imagePasteMocks = vi.hoisted(() => ({
-  createTerminalImageSource: vi.fn(),
-  extractImagePaths: vi.fn(),
-  loadImageFile: vi.fn(),
-  loadTerminalImageSourceFromFile: vi.fn(),
-  readClipboardImage: vi.fn(),
-  scaleImage: vi.fn(),
-}));
+  createTerminalImageSource: vi.fn(), extractImagePaths: vi.fn(), loadImageFile: vi.fn(), loadTerminalImageSourceFromFile: vi.fn(), readClipboardImage: vi.fn(), scaleImage: vi.fn(), }));
 
 vi.mock('../../src/core/image-file.js', () => ({
-  extractImagePaths: imagePasteMocks.extractImagePaths,
-  loadImageFile: imagePasteMocks.loadImageFile,
-  loadTerminalImageSourceFromFile: imagePasteMocks.loadTerminalImageSourceFromFile,
-}));
+  extractImagePaths: imagePasteMocks.extractImagePaths, loadImageFile: imagePasteMocks.loadImageFile, loadTerminalImageSourceFromFile: imagePasteMocks.loadTerminalImageSourceFromFile, }));
 
 vi.mock('../../src/core/graphics.js', () => ({
-  createTerminalImageSource: imagePasteMocks.createTerminalImageSource,
-  scaleImage: imagePasteMocks.scaleImage,
-}));
+  createTerminalImageSource: imagePasteMocks.createTerminalImageSource, scaleImage: imagePasteMocks.scaleImage, }));
 
 vi.mock('../../src/core/clipboard-image.js', () => ({
-  readClipboardImage: imagePasteMocks.readClipboardImage,
-}));
+  readClipboardImage: imagePasteMocks.readClipboardImage, }));
 
 import {
-  beginRender,
-  clearPasteHandlers,
-  emitPaste,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestPaste } from '../../src/testing/interaction.js';
 import { useImagePaste } from '../../src/hooks/use-image-paste.js';
 
 function renderImagePaste(
@@ -45,7 +29,7 @@ function renderImagePaste(
 describe('useImagePaste', () => {
   beforeEach(() => {
     resetHookState();
-    clearPasteHandlers();
+    resetTestInteractions();
     imagePasteMocks.extractImagePaths.mockReturnValue([]);
     imagePasteMocks.readClipboardImage.mockResolvedValue(null);
     imagePasteMocks.createTerminalImageSource.mockImplementation((imageData) => ({
@@ -62,7 +46,7 @@ describe('useImagePaste', () => {
 
   afterEach(() => {
     resetHookState();
-    clearPasteHandlers();
+    resetTestInteractions();
     vi.clearAllMocks();
   });
 
@@ -76,7 +60,7 @@ describe('useImagePaste', () => {
     const handler = vi.fn();
     renderImagePaste(handler, { maxWidth: 4, maxHeight: 4 });
 
-    emitPaste('C:/tmp/photo.jpg', true);
+    dispatchTestPaste('C:/tmp/photo.jpg', true);
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
 
     expect(imagePasteMocks.scaleImage).toHaveBeenCalledWith(
@@ -96,7 +80,7 @@ describe('useImagePaste', () => {
     const handler = vi.fn();
     renderImagePaste(handler);
 
-    emitPaste('ordinary text', true);
+    dispatchTestPaste('ordinary text', true);
 
     expect(handler).not.toHaveBeenCalled();
     expect(imagePasteMocks.readClipboardImage).not.toHaveBeenCalled();
@@ -115,7 +99,7 @@ describe('useImagePaste', () => {
     const handler = vi.fn();
     renderImagePaste(handler);
 
-    emitPaste('', true);
+    dispatchTestPaste('', true);
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
 
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({
@@ -132,9 +116,9 @@ describe('useImagePaste', () => {
     const handler = vi.fn();
     renderImagePaste(handler);
 
-    emitPaste('/missing.webp', true);
+    dispatchTestPaste('/missing.webp', true);
     imagePasteMocks.extractImagePaths.mockReturnValue([]);
-    emitPaste('', true);
+    dispatchTestPaste('', true);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(handler).not.toHaveBeenCalled();
@@ -144,7 +128,7 @@ describe('useImagePaste', () => {
     const handler = vi.fn();
     renderImagePaste(handler, { isActive: false });
 
-    emitPaste('/tmp/image.png', true);
+    dispatchTestPaste('/tmp/image.png', true);
 
     expect(imagePasteMocks.extractImagePaths).not.toHaveBeenCalled();
     expect(handler).not.toHaveBeenCalled();

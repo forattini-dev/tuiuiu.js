@@ -3,11 +3,8 @@ import { EventEmitter } from 'node:events';
 
 import { render } from '../../src/app/render-loop.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import {
-  clearInputHandlers,
-  resetHookState,
-  setAppContext,
-} from '../../src/hooks/context.js';
+import { resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { ShellSessionWorkbench } from '../../examples/shell-session-workbench.ts';
 import { createShellSessionController } from '../../examples/_shared/shell-session-controller.ts';
 
@@ -96,14 +93,14 @@ async function typeText(stdin: NodeJS.ReadStream, text: string): Promise<void> {
 describe('shell-session-workbench example', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
   });
 
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('streams process output into the example transcript', async () => {
@@ -114,10 +111,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-stream');
@@ -161,10 +157,9 @@ describe('shell-session-workbench example', () => {
       stdin: createMockStdin(),
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await waitForOutput(stdout, 'restored-state');
@@ -184,10 +179,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-stream');
@@ -196,7 +190,7 @@ describe('shell-session-workbench example', () => {
 
     first.unmount();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
 
     const secondStdout = createMockStdout();
@@ -204,10 +198,9 @@ describe('shell-session-workbench example', () => {
       stdin: createMockStdin(),
       stdout: secondStdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await waitForOutput(secondStdout, 'demo:start');
@@ -225,10 +218,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!echo history-check');
@@ -250,10 +242,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!echo history-check');
@@ -298,10 +289,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, 'local note');
@@ -325,10 +315,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-stdin');
@@ -361,10 +350,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-status');
@@ -416,10 +404,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-stdin');
@@ -446,10 +433,9 @@ describe('shell-session-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!demo-hang');
@@ -481,10 +467,9 @@ describe('shell-session-workbench example', () => {
       stdin: createMockStdin(),
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     expect(controller.getSnapshot()).toMatchObject({

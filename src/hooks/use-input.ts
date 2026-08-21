@@ -1,10 +1,6 @@
-/**
- * useInput - Handle keyboard input with priority support
- */
+/** Internal owner-aware adapter from hook-based controls to InteractionRuntime. */
 
 import {
-  addInputHandler,
-  removeInputHandlerById,
   getHookState,
   getCurrentHookIndex,
   setHookState,
@@ -12,178 +8,90 @@ import {
   registerHookCleanup,
 } from './context.js';
 import { parseKeypress, type Key } from '../core/hotkeys.js';
+import { getInteractionRuntime, type Disposable } from '../interaction/runtime.js';
 import type { InputHandler, InputEvent, InputPriority, UseInputOptions } from './types.js';
+import { INPUT_PRIORITY_VALUES } from './types.js';
 
 export type { Key, InputHandler, InputEvent, InputPriority, UseInputOptions };
 export { parseKeypress };
 
+interface InputHookState {
+  handler: InputHandler;
+  registration: Disposable | null;
+  active: boolean;
+  priority: InputPriority;
+  stopPropagation: boolean;
+}
+
+function register(state: InputHookState): Disposable {
+  return getInteractionRuntime().registerHandler((event) => {
+    if (!state.active || event.type !== 'key') return false;
+    const handled = state.handler(event.key.text, event.key.native, {
+      input: event.key.text,
+      key: event.key.native,
+      isPasted: false,
+      raw: event.key.text,
+    });
+    return state.stopPropagation && Boolean(handled);
+  }, {
+    priority: INPUT_PRIORITY_VALUES[state.priority],
+  });
+}
+
 /**
- * useInput - Handle keyboard input with priority support
- *
- * Uses hook state persistence to avoid registering duplicate handlers
- * across re-renders.
- *
- * @param handler - Function called for each keypress. Return truthy to stop propagation (if stopPropagation is true)
- * @param options - Configuration options
- * @param options.isActive - Whether handler is active (default: true)
- * @param options.priority - Priority level: 'background' | 'normal' | 'modal' | 'critical' (default: 'normal')
- * @param options.stopPropagation - If true, returning truthy stops lower priority handlers (default: false)
- *
- * @example
- * // Basic usage
- * useInput((input, key) => {
- *   if (key.return) submit();
- *   if (key.escape) cancel();
- * });
- *
- * @example
- * // Modal that blocks background input
- * useInput((input, key) => {
- *   if (key.escape) {
- *     closeModal();
- *     return true; // Stop propagation
- *   }
- * }, { priority: 'modal', stopPropagation: true });
+ * Internal migration adapter. Built-in controls use the single Interaction
+ * Runtime even before each control has moved to semantic commands.
  */
 export function useInput(
   handler: InputHandler,
-  options: UseInputOptions = {}
+  options: UseInputOptions = {},
 ): void {
   const { isActive = true, priority = 'normal', stopPropagation = false } = options;
+  const { value, isNew } = getHookState<InputHookState | null>(null);
+  const hookIndex = getCurrentHookIndex();
 
-  // Get or create hook state for this useInput call
-  const { value: hookData, isNew } = getHookState<{
-    handler: InputHandler;
-    wrapper: InputHandler;
-    registered: boolean;
-    handlerId: number | null;
-    priority: InputPriority;
-    stopPropagation: boolean;
-  } | null>(null);
-
-  if (isNew || hookData === null) {
-    // First render - create wrapper and register
-    const wrapper: InputHandler = (input, key, event) => {
-      // Always call the latest handler (stored in hookData)
-      const data = getStoredHookData();
-      if (data && data.registered) {
-        return data.handler(input, key, event);
-      }
-    };
-
-    const data = {
+  if (isNew || value === null) {
+    const state: InputHookState = {
       handler,
-      wrapper,
-      registered: isActive,
-      handlerId: null as number | null,
+      registration: null,
+      active: isActive,
       priority,
       stopPropagation,
     };
-
-    // Store the data
-    const hookIndex = getCurrentHookIndex();
-    setHookState(hookIndex, data);
-
-    // Helper to get stored data (closure over hookIndex)
-    function getStoredHookData() {
-      return getHookStateByIndex(hookIndex) as typeof data | null;
-    }
-
-    if (isActive) {
-      data.handlerId = addInputHandler(wrapper, { priority, stopPropagation });
-    }
+    setHookState(hookIndex, state);
+    if (isActive) state.registration = register(state);
     registerHookCleanup(() => {
-      if (data.handlerId !== null) {
-        removeInputHandlerById(data.handlerId);
-        data.handlerId = null;
-      }
-      data.registered = false;
+      state.registration?.dispose();
+      state.registration = null;
+      state.active = false;
     }, hookIndex);
-  } else {
-    // Subsequent render - update handler reference and active state
-    const prevRegistered = hookData.registered;
-    hookData.handler = handler; // Update to latest handler
-    hookData.registered = isActive;
-
-    // Check if priority or stopPropagation changed
-    const priorityChanged = hookData.priority !== priority;
-    const stopPropChanged = hookData.stopPropagation !== stopPropagation;
-    const optionsChanged = priorityChanged || stopPropChanged;
-
-    // Handle activation/deactivation or options change
-    if (isActive && !prevRegistered) {
-      // Activating
-      hookData.priority = priority;
-      hookData.stopPropagation = stopPropagation;
-      hookData.handlerId = addInputHandler(hookData.wrapper, { priority, stopPropagation });
-    } else if (!isActive && prevRegistered) {
-      // Deactivating
-      if (hookData.handlerId !== null) {
-        removeInputHandlerById(hookData.handlerId);
-        hookData.handlerId = null;
-      }
-    } else if (isActive && optionsChanged) {
-      // Options changed while active - re-register with new options
-      if (hookData.handlerId !== null) {
-        removeInputHandlerById(hookData.handlerId);
-      }
-      hookData.priority = priority;
-      hookData.stopPropagation = stopPropagation;
-      hookData.handlerId = addInputHandler(hookData.wrapper, { priority, stopPropagation });
-    }
+    return;
   }
+
+  const state = getHookStateByIndex(hookIndex) as InputHookState | null;
+  if (!state) return;
+  const mustReregister = state.priority !== priority;
+  state.handler = handler;
+  state.active = isActive;
+  state.priority = priority;
+  state.stopPropagation = stopPropagation;
+  if (!isActive || mustReregister) {
+    state.registration?.dispose();
+    state.registration = null;
+  }
+  if (isActive && !state.registration) state.registration = register(state);
 }
 
-/**
- * useModalInput - Convenience hook for modal-like components
- *
- * Registers an input handler with modal priority that blocks background input
- * when the handler returns truthy.
- *
- * @example
- * useModalInput((input, key) => {
- *   if (key.escape) {
- *     closeModal();
- *     return true; // Block background components
- *   }
- *   if (key.return) {
- *     confirm();
- *     return true;
- *   }
- * });
- */
 export function useModalInput(
   handler: InputHandler,
-  options: Omit<UseInputOptions, 'priority' | 'stopPropagation'> = {}
+  options: Omit<UseInputOptions, 'priority' | 'stopPropagation'> = {},
 ): void {
-  useInput(handler, {
-    ...options,
-    priority: 'modal',
-    stopPropagation: true,
-  });
+  useInput(handler, { ...options, priority: 'modal', stopPropagation: true });
 }
 
-/**
- * useCriticalInput - Convenience hook for critical dialogs
- *
- * Registers an input handler with critical priority (highest)
- * that blocks all lower priority handlers.
- *
- * @example
- * useCriticalInput((input, key) => {
- *   if (key.return) {
- *     acknowledgeError();
- *     return true;
- *   }
- * });
- */
 export function useCriticalInput(
   handler: InputHandler,
-  options: Omit<UseInputOptions, 'priority' | 'stopPropagation'> = {}
+  options: Omit<UseInputOptions, 'priority' | 'stopPropagation'> = {},
 ): void {
-  useInput(handler, {
-    ...options,
-    priority: 'critical',
-    stopPropagation: true,
-  });
+  useInput(handler, { ...options, priority: 'critical', stopPropagation: true });
 }

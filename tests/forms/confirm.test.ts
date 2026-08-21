@@ -11,19 +11,20 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSelect, type SelectItem, type SelectOptions } from '../../src/molecules/select.js';
-import { emitInput, clearInputHandlers, addInputHandler } from '../../src/hooks/context.js';
+import { dispatchTestKey } from '../../src/testing/interaction.js';
+import { resetTestInteractions, registerTestKeyHandler } from '../../src/testing/interaction.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
-  emitInput(input, key);
+  dispatchTestKey(input, key);
 }
 
 // Helper to create select and register handler (since useInput moved to renderSelect)
 function createTestSelect<T = any>(options: SelectOptions<T>) {
   const sel = createSelect(options);
-  addInputHandler(sel.handleInput);
+  registerTestKeyHandler(sel.handleInput);
   return sel;
 }
 
@@ -35,11 +36,11 @@ const confirmItems: SelectItem<boolean>[] = [
 
 describe('Confirm Keyboard Interactions', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   // ============================================================================

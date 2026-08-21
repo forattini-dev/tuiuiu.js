@@ -17,7 +17,6 @@ import { pathToFileURL } from 'node:url';
 import {
   render,
   Badge,
-  BigText,
   Box,
   DataRow,
   Digits,
@@ -27,16 +26,17 @@ import {
   Sparkline,
   StatusIndicator,
   Text,
-  createCanvas,
   darkTheme,
   setTheme,
   useApp,
-  useFps,
-  useHotkeys,
+  useShortcut,
   useInterval,
   useState,
   useTerminalSize,
 } from '../../src/index.js';
+import { BigText } from '../../src/atoms/big-text.js';
+import { createCanvas } from '../../src/primitives/canvas.js';
+import { useFps } from '../../src/hooks/use-fps.js';
 import type { VNode } from '../../src/utils/types.js';
 
 setTheme(darkTheme);
@@ -1581,35 +1581,35 @@ function TuiuiuSideblaster(): VNode {
   const isHelpOpen = helpOpen();
   const boardLines = renderBoard(state, arena);
 
-  useHotkeys(['up', 'w', 'k'], () => {
+  useShortcut(['up', 'w', 'k'], () => {
     if (isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, 0, -1, arena));
   });
 
-  useHotkeys(['down', 's', 'j'], () => {
+  useShortcut(['down', 's', 'j'], () => {
     if (isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, 0, 1, arena));
   });
 
-  useHotkeys(['left', 'a', 'h'], () => {
+  useShortcut(['left', 'a', 'h'], () => {
     if (isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, -1, 0, arena));
   });
 
-  useHotkeys(['right', 'd', 'l'], () => {
+  useShortcut(['right', 'd', 'l'], () => {
     if (isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, 1, 0, arena));
   });
 
-  useHotkeys('space', () => {
+  useShortcut('space', () => {
     if (isHelpOpen) {
       return;
     }
@@ -1618,19 +1618,19 @@ function TuiuiuSideblaster(): VNode {
       : firePlayerShot(current));
   });
 
-  useHotkeys('p', () => {
+  useShortcut('p', () => {
     if (isHelpOpen || state.phase === 'game-over') {
       return;
     }
     setGame((current) => togglePause(current));
   });
 
-  useHotkeys('r', () => {
+  useShortcut('r', () => {
     setHelpOpen(false);
     setGame((current) => createNewGameState(arena, current.hiScore));
   });
 
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -1643,11 +1643,11 @@ function TuiuiuSideblaster(): VNode {
         : current);
   });
 
-  useHotkeys('f1', () => {
+  useShortcut('f1', () => {
     setHelpOpen((current) => !current);
   });
 
-  useHotkeys('escape', () => {
+  useShortcut('escape', () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -1659,7 +1659,7 @@ function TuiuiuSideblaster(): VNode {
     exit();
   });
 
-  useHotkeys(['q', 'ctrl+c'], () => {
+  useShortcut(['q', 'ctrl+c'], () => {
     exit();
   });
 
@@ -1736,7 +1736,7 @@ function isMainModule(): boolean {
 }
 
 export async function runTuiuiuSideblaster(): Promise<void> {
-  const { waitUntilExit } = render(TuiuiuSideblaster, { fullHeight: true, autoTabNavigation: false });
+  const { waitUntilExit } = render(TuiuiuSideblaster, { screen: 'fullscreen', autoTabNavigation: false });
   await waitUntilExit();
 }
 

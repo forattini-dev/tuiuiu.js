@@ -10,13 +10,16 @@ import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 import {
-  Menu,
+  Menu as OwnedMenu,
   createMenu,
   type MenuItem,
   type MenuSeparator,
   type MenuEntry,
   type MenuOptions,
 } from '../../src/molecules/menu.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Menu = testComponent(OwnedMenu);
 
 const platformCtrl = process.platform === 'darwin' ? '⌘' : 'Ctrl';
 
@@ -150,22 +153,22 @@ describe('createMenu', () => {
     expect(action).toHaveBeenCalledOnce();
   });
 
-  it('select does nothing on separator', () => {
+  it('setSelectedIndex ignores separators and preserves active identity', () => {
     const onSelect = vi.fn();
     const state = createMenu({ items: itemsWithSeparator, onSelect });
-    // Force index to the separator position
     state.setSelectedIndex(1);
+    expect(state.selectedIndex()).toBe(0);
     state.select();
-    // onSelect should NOT be called for separators
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'new' }));
   });
 
-  it('select does nothing on disabled item', () => {
+  it('setSelectedIndex ignores disabled items and preserves active identity', () => {
     const onSelect = vi.fn();
     const state = createMenu({ items: itemsWithDisabled, onSelect });
-    state.setSelectedIndex(0); // disabled item
+    state.setSelectedIndex(0);
+    expect(state.selectedIndex()).toBe(1);
     state.select();
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'open' }));
   });
 
   it('select opens submenu for items with children', () => {
@@ -223,6 +226,17 @@ describe('createMenu', () => {
     const selectable = state.getSelectableItems();
     expect(selectable.length).toBe(1);
     expect(selectable[0]!.id).toBe('x');
+  });
+
+  it('preserves the active item by id when options reorder', () => {
+    const state = createMenu({ items: basicItems });
+    state.selectNext();
+    const activeId = (basicItems[state.selectedIndex()] as MenuItem).id;
+    const reordered = [...basicItems].reverse();
+
+    state.updateOptions({ items: reordered });
+
+    expect((reordered[state.selectedIndex()] as MenuItem).id).toBe(activeId);
   });
 
   it('handles empty items array', () => {

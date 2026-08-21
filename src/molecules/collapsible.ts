@@ -21,6 +21,7 @@ import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfDataDrivenPatternMisused } from '../core/dev-warnings.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 /** Variant type for Collapsible component */
 export type CollapsibleVariant = 'primary' | 'secondary' | 'default';
@@ -121,7 +122,7 @@ export function createCollapsible(options: CollapsibleOptions = {}): Collapsible
 // Component
 // =============================================================================
 
-export interface CollapsibleProps extends CollapsibleOptions {
+export interface CollapsibleProps extends CollapsibleOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: CollapsibleState;
   /** Content when expanded */
@@ -146,7 +147,7 @@ export interface CollapsibleProps extends CollapsibleOptions {
  *   children: detailsContent
  * })
  */
-export function Collapsible(props: CollapsibleProps): VNode {
+function renderCollapsible(props: CollapsibleProps): VNode {
   const theme = getTheme();
   const {
     title,
@@ -408,7 +409,7 @@ export function createAccordion(options: AccordionOptions): AccordionState {
   };
 }
 
-export interface AccordionProps extends AccordionOptions {
+export interface AccordionProps extends AccordionOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: AccordionState;
 }
@@ -424,7 +425,7 @@ export interface AccordionProps extends AccordionOptions {
  *   ],
  * })
  */
-export function Accordion(props: AccordionProps): VNode {
+function renderAccordion(props: AccordionProps): VNode {
   const maybeMisusedProps = props as AccordionProps & Record<string, unknown>;
   warnIfDataDrivenPatternMisused(
     'Accordion',
@@ -521,7 +522,7 @@ export function Accordion(props: AccordionProps): VNode {
 // Details - Simple expandable details (HTML-like)
 // =============================================================================
 
-export interface DetailsProps {
+export interface DetailsProps extends ComponentKeyProps {
   /** Summary text (always visible) */
   summary: string;
   /** Content when expanded */
@@ -541,7 +542,7 @@ export interface DetailsProps {
  *   children: Text({}, 'Hidden details here')
  * })
  */
-export function Details(props: DetailsProps): VNode {
+function renderDetails(props: DetailsProps): VNode {
   const { summary, children, open = false, icon } = props;
 
   return Collapsible({
@@ -557,7 +558,7 @@ export function Details(props: DetailsProps): VNode {
 // ExpandableText - Text that expands when clicked
 // =============================================================================
 
-export interface ExpandableTextProps {
+export interface ExpandableTextProps extends ComponentKeyProps {
   /** Full text content */
   text: string;
   /** Max visible lines when collapsed */
@@ -573,7 +574,7 @@ export interface ExpandableTextProps {
 /**
  * ExpandableText - Long text with show more/less
  */
-export function ExpandableText(props: ExpandableTextProps): VNode {
+function renderExpandableText(props: ExpandableTextProps): VNode {
   const {
     text,
     maxLines = 3,
@@ -613,3 +614,8 @@ export function ExpandableText(props: ExpandableTextProps): VNode {
     Text({ color: 'primary', dim: !isExpanded }, `[${toggleLabel}]`)
   );
 }
+
+export const Collapsible = component<CollapsibleProps, VNode>('Collapsible', renderCollapsible);
+export const Accordion = component<AccordionProps, VNode>('Accordion', renderAccordion);
+export const Details = component<DetailsProps, VNode>('Details', renderDetails);
+export const ExpandableText = component<ExpandableTextProps, VNode>('ExpandableText', renderExpandableText);

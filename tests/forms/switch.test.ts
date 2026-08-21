@@ -3,15 +3,20 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createSwitch, Switch, ToggleGroup } from '../../src/atoms/switch.js';
+import { createSwitch, Switch as OwnedSwitch, ToggleGroup as OwnedToggleGroup } from '../../src/atoms/switch.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
-import { emitInput, clearInputHandlers } from '../../src/hooks/context.js';
+import { dispatchTestKey } from '../../src/testing/interaction.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import type { Key } from '../../src/hooks/types.js';
 import { keys, charKey } from '../helpers/keyboard.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Switch = testComponent(OwnedSwitch);
+const ToggleGroup = testComponent(OwnedToggleGroup);
 
 // Helper to simulate input via EventEmitter
 function simulateInput(input: string, key: Key): void {
-  emitInput(input, key);
+  dispatchTestKey(input, key);
 }
 
 describe('createSwitch', () => {
@@ -109,12 +114,12 @@ describe('createSwitch', () => {
 describe('Switch component VNode', () => {
   beforeEach(() => {
     setRenderMode('unicode');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     setRenderMode('auto');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('returns VNode with flexDirection row', () => {
@@ -205,12 +210,12 @@ describe('Switch component VNode', () => {
 describe('ToggleGroup', () => {
   beforeEach(() => {
     setRenderMode('unicode');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     setRenderMode('auto');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('returns VNode with children', () => {
@@ -309,12 +314,12 @@ describe('ToggleGroup', () => {
 describe('Switch keyboard interactions', () => {
   beforeEach(() => {
     setRenderMode('unicode');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     setRenderMode('auto');
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('toggles on space key', () => {

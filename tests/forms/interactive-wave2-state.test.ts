@@ -3,12 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ButtonGroup } from '../../src/atoms/button.js';
 import { renderToString } from '../../src/core/renderer.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import {
   Accordion,
   Calendar,
@@ -34,12 +30,12 @@ const fixedDate = new Date(2024, 5, 15);
 describe('Wave 2 interactive component state', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('keeps Calendar view state across parent re-renders and updates callbacks', () => {
@@ -56,10 +52,10 @@ describe('Wave 2 interactive component state', () => {
       );
 
     renderApp(firstOnMonthChange);
-    emitInput('L', charKey('L').key);
+    dispatchTestKey('L', charKey('L').key);
 
     renderApp(secondOnMonthChange);
-    emitInput('L', charKey('L').key);
+    dispatchTestKey('L', charKey('L').key);
 
     expect(firstOnMonthChange).toHaveBeenCalledWith(2024, 6);
     expect(secondOnMonthChange).toHaveBeenCalledWith(2024, 7);
@@ -89,8 +85,8 @@ describe('Wave 2 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.enter().key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -124,7 +120,7 @@ describe('Wave 2 interactive component state', () => {
       );
 
     renderApp();
-    emitInput(' ', charKey(' ').key);
+    dispatchTestKey(' ', charKey(' ').key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -145,7 +141,7 @@ describe('Wave 2 interactive component state', () => {
       );
 
     renderApp();
-    emitInput(' ', charKey(' ').key);
+    dispatchTestKey(' ', charKey(' ').key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 80);
@@ -169,10 +165,10 @@ describe('Wave 2 interactive component state', () => {
       );
 
     renderApp();
-    emitInput('', keys.right().key);
+    dispatchTestKey('', keys.right().key);
 
     renderApp();
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
 
     expect(primaryClick).not.toHaveBeenCalled();
     expect(secondaryClick).toHaveBeenCalledTimes(1);

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyInputAction,
-  createInputState,
-  parseInput,
-  parseKittyKeyEvent,
-  parseMouseEvent,
-} from '../../src/core/input.js';
+import { parseKittyKeyEvent } from '../../src/core/input.js';
 import { parseKeypress } from '../../src/core/hotkeys.js';
 import {
   clampToGraphemeBoundary,
@@ -23,7 +17,7 @@ function createRandom(seed: number): () => number {
 }
 
 describe('terminal input fuzz contracts', () => {
-  it('never throws for deterministic arbitrary UTF-16 and byte input', () => {
+  it('never throws for deterministic arbitrary UTF-16 input', () => {
     const random = createRandom(0x74756975);
 
     for (let sample = 0; sample < 1_000; sample++) {
@@ -32,16 +26,8 @@ describe('terminal input fuzz contracts', () => {
       for (let index = 0; index < length; index++) {
         input += String.fromCharCode(random() & 0xffff);
       }
-      const bytes = Buffer.from(
-        Array.from({ length: random() % 96 }, () => random() & 0xff),
-      );
-
-      expect(() => parseInput(input)).not.toThrow();
       expect(() => parseKeypress(input)).not.toThrow();
-      expect(() => parseMouseEvent(input)).not.toThrow();
       expect(() => parseKittyKeyEvent(input)).not.toThrow();
-      expect(() => parseInput(bytes)).not.toThrow();
-      expect(() => parseKeypress(bytes)).not.toThrow();
     }
   });
 
@@ -60,11 +46,6 @@ describe('terminal input fuzz contracts', () => {
     }
   });
 
-  it('bounds recursive parsing of adversarial batched focus events', () => {
-    const input = '\x1b[I'.repeat(10_000);
-    expect(() => parseInput(input)).not.toThrow();
-    expect(parseInput(input).focus).toEqual({ focused: true });
-  });
 });
 
 describe('Unicode editing property contracts', () => {
@@ -118,17 +99,6 @@ describe('Unicode editing property contracts', () => {
         ).toBe(true);
       }
 
-      let editState = createInputState(value);
-      for (let remaining = segments.length; remaining > 0; remaining--) {
-        editState = applyInputAction(editState, {
-          type: 'delete',
-          direction: 'backward',
-        });
-        expect(editState.buffer).toBe(
-          segments.slice(0, remaining - 1).map((segment) => segment.segment).join(''),
-        );
-        expect(editState.cursor).toBe(editState.buffer.length);
-      }
     }
   });
 });

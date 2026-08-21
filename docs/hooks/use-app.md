@@ -42,15 +42,13 @@ Returns an `AppContext` object with:
 ## Example
 
 ```typescript
-import { Box, Text, useApp, useInput, useTerminalFocus } from 'tuiuiu.js';
+import { Box, Text, useApp, useShortcut, useTerminalFocus } from 'tuiuiu.js';
 
 function AppStatus() {
   const app = useApp();
   const { focused } = useTerminalFocus();
 
-  useInput((_, key) => {
-    if (key.escape) app.exit();
-  });
+  useShortcut('escape', app.exit);
 
   return Box({ flexDirection: 'column' },
     Text({}, `Focused: ${focused}`),

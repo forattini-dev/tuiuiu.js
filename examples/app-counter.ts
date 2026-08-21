@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  * - useState for local state
- * - useInput for keyboard handling
+ * - useInteraction for keyboard handling
  * - Basic Box/Text components
  *
  * Run: pnpm tsx examples/01-basic-counter.ts
@@ -14,7 +14,7 @@ import {
   Box,
   Text,
   useState,
-  useInput,
+  useInteraction,
   useApp,
   type VNode,
 } from '../src/index.js';
@@ -25,7 +25,7 @@ function Counter(): VNode {
   const [count, setCount] = useState(0);
   const { exit } = useApp();
 
-  useInput(withKeyIndicator((char, key) => {
+  useInteraction(withKeyIndicator((char, key) => {
     clearOldKeyPresses();
     if (key.upArrow || char === 'k') {
       setCount(c => c + 1);

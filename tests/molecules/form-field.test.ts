@@ -20,8 +20,12 @@ import { describe, it, expect } from 'vitest';
 import { FormField, FormGroup } from '../../src/molecules/form-field.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { TextInput, createTextInput } from '../../src/atoms/text-input.js';
-import { Switch, createSwitch } from '../../src/atoms/switch.js';
+import { Switch as OwnedSwitch, createSwitch } from '../../src/atoms/switch.js';
 import type { VNode } from '../../src/utils/types.js';
+import { renderTestComponent } from '../../src/testing/component.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Switch = testComponent(OwnedSwitch);
 
 // =============================================================================
 // Test Helpers
@@ -366,7 +370,7 @@ describe('FormField', () => {
       const result = FormField({
         label: 'Name',
         required: true,
-        children: TextInput({ state: inputState }),
+        children: renderTestComponent(() => TextInput({ state: inputState })),
       });
 
       expect(result).toBeDefined();
@@ -724,12 +728,12 @@ describe('Real-world scenarios', () => {
           label: 'Email',
           required: true,
           helperText: 'Your work email address',
-          children: TextInput({ state: emailInput }),
+          children: renderTestComponent(() => TextInput({ state: emailInput })),
         }),
         FormField({
           label: 'Password',
           required: true,
-          children: TextInput({ state: passwordInput }),
+          children: renderTestComponent(() => TextInput({ state: passwordInput })),
         }),
       ],
     });
@@ -770,13 +774,13 @@ describe('Real-world scenarios', () => {
           label: 'First Name',
           direction: 'horizontal',
           labelWidth: 15,
-          children: TextInput({ state: createTextInput({}) }),
+          children: renderTestComponent(() => TextInput({ state: createTextInput({}) })),
         }),
         FormField({
           label: 'Last Name',
           direction: 'horizontal',
           labelWidth: 15,
-          children: TextInput({ state: createTextInput({}) }),
+          children: renderTestComponent(() => TextInput({ state: createTextInput({}) })),
         }),
       ],
     });

@@ -15,7 +15,7 @@ import {
   Box,
   Text,
   useState,
-  useInput,
+  useInteraction,
   useApp,
   createSignal,
   createEffect,
@@ -226,7 +226,10 @@ function ExternalTriggersDemo() {
     return cleanup;
   });
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.escape || input === 'q') {
       app.exit();
     }

@@ -192,7 +192,7 @@ regressions in representative interactive workloads.
 The private package in `benchmarks/framework-comparison` compares:
 
 - the default Tuiuiu root entrypoint;
-- `tuiuiu.js/minimal`;
+- the explicit `tuiuiu.js/app` lifecycle entrypoint;
 - Ink using React state and `React.createElement`;
 - a small handwritten ANSI reference.
 

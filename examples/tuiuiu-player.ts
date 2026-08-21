@@ -18,17 +18,16 @@ import {
   Text,
   Spacer,
   batch,
-  useInput,
+  useInteraction,
   useApp,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
   useState,
   useEffect,
   useConst,
-  Waveform,
 } from '../src/index.js';
+import { Waveform, getNextTheme } from '../src/ui/index.js';
 import { orangeTheme } from '../src/themes/index.js';
 
 // Set orange theme as default
@@ -689,7 +688,10 @@ function TuiuiuPlayer(): VNode {
   });
 
   // Input handling
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (mode() === 'playlist') {
       if (key.upArrow || input === 'k') {
         setSelectedIndex((i) => Math.max(0, i - 1));
@@ -897,7 +899,7 @@ function TuiuiuPlayer(): VNode {
 
 const { waitUntilExit } = render(TuiuiuPlayer, {
   autoTabNavigation: false,
-  fullHeight: true, // Use clear-and-redraw mode instead of incremental (fixes accumulation bug)
+  screen: 'fullscreen', // Use clear-and-redraw mode instead of incremental (fixes accumulation bug)
   maxFps: 60,
 });
 await waitUntilExit();

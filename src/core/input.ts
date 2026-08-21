@@ -1,79 +1,5 @@
-/**
- * Advanced Input Handling System
- *
- * Features:
- * - Kitty Keyboard Protocol support
- * - Mouse events (click, drag, wheel, move)
- * - Bracketed paste mode
- * - Enhanced modifier detection
- * - Input state machine for text editing
- *
- * 
- */
+/** Terminal protocol helpers shared by the app input boundary. */
 
-import { detectTerminalProfile } from './terminal-profile.js';
-import {
-  nextGraphemeBoundary,
-  nextWordBoundary,
-  nextWordEnd,
-  previousGraphemeBoundary,
-  previousWordBoundary,
-} from '../utils/grapheme.js';
-import {
-  getDefaultRuntimeResource,
-  getDefaultRuntimeScope,
-  getRuntimeResource,
-  getRuntimeScope,
-  type RuntimeScope,
-} from './runtime-scope.js';
-import { parseMouseProtocol, type MouseProtocolEvent } from './mouse-protocol.js';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-/** Keyboard protocol modes */
-export type KeyboardProtocol = 'legacy' | 'kitty' | 'xterm';
-
-/** Mouse button */
-export type MouseButton = 'left' | 'middle' | 'right' | 'none' | 'wheelUp' | 'wheelDown';
-
-/** Mouse event type */
-export type MouseEventType = 'down' | 'up' | 'move' | 'drag' | 'wheel';
-
-/** Mouse event data */
-export interface MouseEvent {
-  type: MouseEventType;
-  button: MouseButton;
-  x: number;
-  y: number;
-  /** Pixels for high-precision mode */
-  pixelX?: number;
-  pixelY?: number;
-  /** Modifiers */
-  ctrl: boolean;
-  alt: boolean;
-  shift: boolean;
-  meta: boolean;
-}
-
-/** Kitty key event with full modifier support */
-export interface KittyKeyEvent {
-  /** Key code (Unicode codepoint) */
-  keyCode: number;
-  /** Base layout key (for non-ASCII layouts) */
-  baseKey?: number;
-  /** Shifted key */
-  shiftedKey?: number;
-  /** Key text */
-  text: string;
-  /** Event type */
-  eventType: 'press' | 'repeat' | 'release';
-  /** Modifiers */
-  modifiers: KeyModifiers;
-}
-
-/** Key modifiers */
 export interface KeyModifiers {
   shift: boolean;
   alt: boolean;
@@ -85,187 +11,39 @@ export interface KeyModifiers {
   numLock: boolean;
 }
 
-/** Paste event data */
-export interface PasteEvent {
+export interface KittyKeyEvent {
+  keyCode: number;
+  baseKey?: number;
+  shiftedKey?: number;
   text: string;
-  isBracketed: boolean;
+  eventType: 'press' | 'repeat' | 'release';
+  modifiers: KeyModifiers;
 }
 
 export interface TerminalFocusEvent {
   focused: boolean;
 }
 
-/** Parsed input result */
-export interface ParsedInput {
-  /** Raw input string */
-  raw: string;
-  /** Key events (may be multiple for paste) */
-  keys: KittyKeyEvent[];
-  /** Mouse event if present */
-  mouse?: MouseEvent;
-  /** Paste event if bracketed paste */
-  paste?: PasteEvent;
-  /** Terminal focus in/out event */
-  focus?: TerminalFocusEvent;
-  /** Unknown sequence */
-  unknown?: string;
-}
-
-// =============================================================================
-// Protocol Detection
-// =============================================================================
-
-interface KeyboardProtocolRuntimeState {
-  detectedProtocol: KeyboardProtocol | null;
-  manualProtocol: KeyboardProtocol | null;
-}
-
-const KEYBOARD_PROTOCOL_RUNTIME_STATE =
-  Symbol('tuiuiu.keyboard-protocol-runtime-state');
-
-function createKeyboardProtocolRuntimeState(
-  scope: RuntimeScope,
-): KeyboardProtocolRuntimeState {
-  const defaults = scope.id === 0
-    ? null
-    : getDefaultRuntimeResource(
-        KEYBOARD_PROTOCOL_RUNTIME_STATE,
-        () => createKeyboardProtocolRuntimeState(getDefaultRuntimeScope()),
-      );
-  return {
-    detectedProtocol: null,
-    manualProtocol: defaults?.manualProtocol ?? null,
-  };
-}
-
-function getKeyboardProtocolRuntimeState(): KeyboardProtocolRuntimeState {
-  const scope = getRuntimeScope();
-  return getRuntimeResource(
-    KEYBOARD_PROTOCOL_RUNTIME_STATE,
-    () => createKeyboardProtocolRuntimeState(scope),
-    scope,
+/** Parse one complete Kitty keyboard protocol event. */
+export function parseKittyKeyEvent(sequence: string): KittyKeyEvent | null {
+  const match = sequence.match(
+    /^\x1b\[(?:(\d+)(?::(\d+))?(?::(\d+))?)?(?:;(\d+)(?::(\d+))?)?(?:;(.+))?u$/u,
   );
-}
-
-/**
- * Detect keyboard protocol support.
- * Uses terminal profile database first, then falls back to env var heuristics.
- */
-export function detectKeyboardProtocol(): KeyboardProtocol {
-  const state = getKeyboardProtocolRuntimeState();
-  if (state.manualProtocol) return state.manualProtocol;
-  if (state.detectedProtocol) return state.detectedProtocol;
-
-  // Try terminal profile first (most reliable)
-  const profile = detectTerminalProfile(process.env);
-  if (profile.knownCaps.kittyKeyboard) {
-    state.detectedProtocol = 'kitty';
-    return state.detectedProtocol;
-  }
-
-  // Legacy env var detection
-  const kittyWindow = process.env.KITTY_WINDOW_ID;
-  const termProgram = process.env.TERM_PROGRAM?.toLowerCase();
-  const term = process.env.TERM?.toLowerCase() || '';
-
-  if (kittyWindow || termProgram === 'kitty') {
-    state.detectedProtocol = 'kitty';
-    return state.detectedProtocol;
-  }
-
-  if (termProgram === 'wezterm') {
-    state.detectedProtocol = 'kitty';
-    return state.detectedProtocol;
-  }
-
-  if (term.includes('foot')) {
-    state.detectedProtocol = 'kitty';
-    return state.detectedProtocol;
-  }
-
-  state.detectedProtocol = 'legacy';
-  return state.detectedProtocol;
-}
-
-/**
- * Set keyboard protocol manually
- */
-export function setKeyboardProtocol(protocol: KeyboardProtocol | null): void {
-  getKeyboardProtocolRuntimeState().manualProtocol = protocol;
-}
-
-/**
- * Get current keyboard protocol
- */
-export function getKeyboardProtocol(): KeyboardProtocol {
-  const state = getKeyboardProtocolRuntimeState();
-  return (
-    state.manualProtocol ||
-    state.detectedProtocol ||
-    detectKeyboardProtocol()
-  );
-}
-
-/**
- * Reset protocol detection (for testing)
- */
-export function resetKeyboardProtocol(): void {
-  const state = getKeyboardProtocolRuntimeState();
-  state.detectedProtocol = null;
-  state.manualProtocol = null;
-}
-
-// =============================================================================
-// Kitty Keyboard Protocol
-// =============================================================================
-
-/**
- * Enable Kitty keyboard protocol
- * Returns the escape sequence to enable it
- */
-export function enableKittyProtocol(flags: number = 0b11111): string {
-  // Flags:
-  // 1 = Disambiguate escape codes
-  // 2 = Report event types (press, repeat, release)
-  // 4 = Report alternate keys
-  // 8 = Report all keys as escape codes
-  // 16 = Report associated text
-  return `\x1b[>${flags}u`;
-}
-
-/**
- * Disable Kitty keyboard protocol
- */
-export function disableKittyProtocol(): string {
-  return '\x1b[<u';
-}
-
-/**
- * Query Kitty keyboard protocol status
- */
-export function queryKittyProtocol(): string {
-  return '\x1b[?u';
-}
-
-/**
- * Parse Kitty protocol key event
- * Format: CSI unicode-key-code:shifted-key:base-layout-key ; modifiers:event-type ; text-as-codepoints u
- */
-export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
-  // Match CSI ... u format
-  const match = seq.match(/^\x1b\[(?:(\d+)(?::(\d+))?(?::(\d+))?)?(?:;(\d+)(?::(\d+))?)?(?:;(.+))?u$/);
   if (!match) return null;
 
-  const parseInteger = (value: string | undefined, fallback?: number): number | null => {
+  const parseInteger = (
+    value: string | undefined,
+    fallback?: number,
+  ): number | null => {
     if (value === undefined) return fallback ?? null;
     if (!/^\d+$/u.test(value)) return null;
     const parsed = Number(value);
     return Number.isSafeInteger(parsed) ? parsed : null;
   };
   const isCodePoint = (value: number): boolean =>
-    value >= 0 &&
-    value <= 0x10ffff &&
-    !(value >= 0xd800 && value <= 0xdfff);
+    value >= 0
+    && value <= 0x10ffff
+    && !(value >= 0xd800 && value <= 0xdfff);
 
   const keyCode = parseInteger(match[1], 0);
   const shiftedKey = parseInteger(match[2]);
@@ -274,18 +52,17 @@ export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
   const eventTypeBits = parseInteger(match[5], 1);
   const textCodes = match[6];
   if (
-    keyCode === null ||
-    encodedModifiers === null ||
-    encodedModifiers < 1 ||
-    eventTypeBits === null ||
-    (shiftedKey !== null && !isCodePoint(shiftedKey)) ||
-    (baseKey !== null && !isCodePoint(baseKey))
+    keyCode === null
+    || encodedModifiers === null
+    || encodedModifiers < 1
+    || eventTypeBits === null
+    || (shiftedKey !== null && !isCodePoint(shiftedKey))
+    || (baseKey !== null && !isCodePoint(baseKey))
   ) {
     return null;
   }
-  const modifierBits = encodedModifiers - 1;
 
-  // Parse modifiers
+  const modifierBits = encodedModifiers - 1;
   const modifiers: KeyModifiers = {
     shift: !!(modifierBits & 1),
     alt: !!(modifierBits & 2),
@@ -297,18 +74,16 @@ export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
     numLock: !!(modifierBits & 128),
   };
 
-  // Parse event type
-  let eventType: 'press' | 'repeat' | 'release' = 'press';
+  let eventType: KittyKeyEvent['eventType'] = 'press';
   if (eventTypeBits === 2) eventType = 'repeat';
   else if (eventTypeBits === 3) eventType = 'release';
 
-  // Parse text
   let text = '';
   if (textCodes) {
     const codePoints = textCodes.split(':').map((code) => parseInteger(code));
     if (
-      codePoints.length === 0 ||
-      codePoints.some((code): code is null => code === null || !isCodePoint(code))
+      codePoints.length === 0
+      || codePoints.some((code): code is null => code === null || !isCodePoint(code))
     ) {
       return null;
     }
@@ -327,647 +102,37 @@ export function parseKittyKeyEvent(seq: string): KittyKeyEvent | null {
   };
 }
 
-// =============================================================================
-// Mouse Input
-// =============================================================================
-
-/** Mouse tracking modes */
-export type MouseMode = 'none' | 'x10' | 'normal' | 'button' | 'any' | 'sgr' | 'urxvt' | 'pixel';
-
-/**
- * Enable mouse tracking
- */
-export function enableMouseTracking(mode: MouseMode = 'sgr'): string {
-  let seq = '';
-
-  switch (mode) {
-    case 'x10':
-      seq = '\x1b[?9h'; // X10 mouse reporting
-      break;
-    case 'normal':
-      seq = '\x1b[?1000h'; // Normal tracking mode
-      break;
-    case 'button':
-      seq = '\x1b[?1002h'; // Button event tracking
-      break;
-    case 'any':
-      seq = '\x1b[?1003h'; // Any event tracking (including motion)
-      break;
-    case 'sgr':
-      seq = '\x1b[?1006h'; // SGR extended mode
-      break;
-    case 'urxvt':
-      seq = '\x1b[?1015h'; // urxvt extended mode
-      break;
-    case 'pixel':
-      seq = '\x1b[?1016h'; // SGR pixel mode
-      break;
-  }
-
-  // Also enable button events for most modes
-  if (mode !== 'x10' && mode !== 'none') {
-    seq = '\x1b[?1002h' + seq;
-  }
-
-  return seq;
-}
-
-/**
- * Disable mouse tracking
- */
-export function disableMouseTracking(): string {
-  return '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?1016l';
-}
-
-/**
- * Parse mouse event
- * Supports X10, normal, SGR, and urxvt formats
- */
-export function parseMouseEvent(seq: string): MouseEvent | null {
-  const result = parseMouseProtocol(seq);
-  if (!result || result.length !== seq.length) return null;
-  return toLegacyMouseEvent(result.event);
-}
-
-function toLegacyMouseEvent(event: MouseProtocolEvent): MouseEvent {
-  const isWheel = event.button === 'scroll-up' || event.button === 'scroll-down';
-  const type: MouseEventType = isWheel
-    ? 'wheel'
-    : event.action === 'click'
-      ? 'down'
-      : event.action === 'release'
-        ? 'up'
-        : event.action;
-  const button: MouseButton = event.button === 'scroll-up'
-    ? 'wheelUp'
-    : event.button === 'scroll-down'
-      ? 'wheelDown'
-      : event.button;
-
-  return {
-    type,
-    button,
-    x: event.x,
-    y: event.y,
-    pixelX: event.pixelX,
-    pixelY: event.pixelY,
-    ctrl: event.modifiers.ctrl,
-    alt: event.modifiers.alt,
-    shift: event.modifiers.shift,
-    meta: false,
-  };
-}
-
-// =============================================================================
-// Bracketed Paste
-// =============================================================================
-
 export const PASTE_START = '\x1b[200~';
 export const PASTE_END = '\x1b[201~';
 const FOCUS_IN = '\x1b[I';
 const FOCUS_OUT = '\x1b[O';
 
-/**
- * Enable bracketed paste mode
- */
 export function enableBracketedPaste(): string {
   return '\x1b[?2004h';
 }
 
-/**
- * Disable bracketed paste mode
- */
 export function disableBracketedPaste(): string {
   return '\x1b[?2004l';
 }
 
-/**
- * Enable terminal focus events (CSI I / CSI O)
- */
 export function enableFocusEvents(): string {
   return '\x1b[?1004h';
 }
 
-/**
- * Disable terminal focus events
- */
 export function disableFocusEvents(): string {
   return '\x1b[?1004l';
 }
 
-/**
- * Check if input starts with a terminal focus event sequence.
- */
-export function isFocusEvent(input: string): boolean {
-  return input.startsWith(FOCUS_IN) || input.startsWith(FOCUS_OUT);
-}
-
-/**
- * Parse a terminal focus event sequence.
- */
 export function parseFocusEvent(input: string): TerminalFocusEvent | null {
-  if (input === FOCUS_IN) {
-    return { focused: true };
-  }
-
-  if (input === FOCUS_OUT) {
-    return { focused: false };
-  }
-
+  if (input === FOCUS_IN) return { focused: true };
+  if (input === FOCUS_OUT) return { focused: false };
   return null;
 }
 
-/**
- * Check if input contains bracketed paste
- */
-export function hasBracketedPaste(input: string): boolean {
-  return input.includes(PASTE_START);
-}
-
-/**
- * Extract bracketed paste content
- */
-export function extractBracketedPaste(input: string): { paste: string; remaining: string } | null {
-  const startIdx = input.indexOf(PASTE_START);
-  if (startIdx === -1) return null;
-
-  const endIdx = input.indexOf(PASTE_END, startIdx);
-  if (endIdx === -1) {
-    // Incomplete paste, return content so far
-    return {
-      paste: input.slice(startIdx + PASTE_START.length),
-      remaining: input.slice(0, startIdx),
-    };
-  }
-
-  return {
-    paste: input.slice(startIdx + PASTE_START.length, endIdx),
-    remaining: input.slice(0, startIdx) + input.slice(endIdx + PASTE_END.length),
-  };
-}
-
-// =============================================================================
-// Input State Machine
-// =============================================================================
-
-/** Input state machine state */
-export interface InputState {
-  /** Current buffer content */
-  buffer: string;
-  /** Cursor position (character index) */
-  cursor: number;
-  /** Selection start (if selecting) */
-  selectionStart: number | null;
-  /** Selection end (if selecting) */
-  selectionEnd: number | null;
-  /** Composition mode (for IME) */
-  composing: boolean;
-  /** History for undo/redo */
-  history: string[];
-  /** Current history index */
-  historyIndex: number;
-}
-
-/** Input action */
-export type InputAction =
-  | { type: 'insert'; text: string }
-  | { type: 'delete'; direction: 'backward' | 'forward'; count?: number }
-  | { type: 'deleteWord'; direction: 'backward' | 'forward' }
-  | { type: 'deleteLine'; direction: 'toStart' | 'toEnd' | 'all' }
-  | { type: 'move'; direction: 'left' | 'right' | 'home' | 'end' | 'wordLeft' | 'wordRight' }
-  | { type: 'select'; direction: 'left' | 'right' | 'all' | 'word' | 'line' }
-  | { type: 'undo' }
-  | { type: 'redo' }
-  | { type: 'clear' };
-
-/**
- * Create initial input state
- */
-export function createInputState(initialValue = ''): InputState {
-  return {
-    buffer: initialValue,
-    cursor: initialValue.length,
-    selectionStart: null,
-    selectionEnd: null,
-    composing: false,
-    history: [initialValue],
-    historyIndex: 0,
-  };
-}
-
-/**
- * Apply action to input state
- */
-export function applyInputAction(state: InputState, action: InputAction): InputState {
-  const newState = { ...state };
-
-  // Save to history before modification (for non-movement actions)
-  const saveHistory = () => {
-    if (newState.buffer !== state.history[state.historyIndex]) {
-      // Truncate future history
-      newState.history = state.history.slice(0, state.historyIndex + 1);
-      newState.history.push(newState.buffer);
-      newState.historyIndex = newState.history.length - 1;
-    }
-  };
-
-  switch (action.type) {
-    case 'insert': {
-      // Delete selection first if present
-      if (state.selectionStart !== null && state.selectionEnd !== null) {
-        const start = Math.min(state.selectionStart, state.selectionEnd);
-        const end = Math.max(state.selectionStart, state.selectionEnd);
-        newState.buffer = state.buffer.slice(0, start) + state.buffer.slice(end);
-        newState.cursor = start;
-        newState.selectionStart = null;
-        newState.selectionEnd = null;
-      }
-      // Insert text at cursor
-      newState.buffer =
-        newState.buffer.slice(0, newState.cursor) + action.text + newState.buffer.slice(newState.cursor);
-      newState.cursor += action.text.length;
-      saveHistory();
-      break;
-    }
-
-    case 'delete': {
-      if (state.selectionStart !== null && state.selectionEnd !== null) {
-        const start = Math.min(state.selectionStart, state.selectionEnd);
-        const end = Math.max(state.selectionStart, state.selectionEnd);
-        newState.buffer = state.buffer.slice(0, start) + state.buffer.slice(end);
-        newState.cursor = start;
-        newState.selectionStart = null;
-        newState.selectionEnd = null;
-      } else if (action.direction === 'backward') {
-        const count = action.count ?? 1;
-        if (state.cursor > 0) {
-          let deleteFrom = state.cursor;
-          for (let i = 0; i < count; i++) {
-            deleteFrom = previousGraphemeBoundary(state.buffer, deleteFrom);
-          }
-          newState.buffer = state.buffer.slice(0, deleteFrom) + state.buffer.slice(state.cursor);
-          newState.cursor = deleteFrom;
-        }
-      } else {
-        const count = action.count ?? 1;
-        if (state.cursor < state.buffer.length) {
-          let deleteTo = state.cursor;
-          for (let i = 0; i < count; i++) {
-            deleteTo = nextGraphemeBoundary(state.buffer, deleteTo);
-          }
-          newState.buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(deleteTo);
-        }
-      }
-      saveHistory();
-      break;
-    }
-
-    case 'deleteWord': {
-      if (action.direction === 'backward') {
-        const pos = previousWordBoundary(state.buffer, state.cursor);
-        newState.buffer = state.buffer.slice(0, pos) + state.buffer.slice(state.cursor);
-        newState.cursor = pos;
-      } else {
-        const pos = nextWordEnd(state.buffer, state.cursor);
-        newState.buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(pos);
-      }
-      saveHistory();
-      break;
-    }
-
-    case 'deleteLine': {
-      if (action.direction === 'toStart') {
-        newState.buffer = state.buffer.slice(state.cursor);
-        newState.cursor = 0;
-      } else if (action.direction === 'toEnd') {
-        newState.buffer = state.buffer.slice(0, state.cursor);
-      } else {
-        newState.buffer = '';
-        newState.cursor = 0;
-      }
-      saveHistory();
-      break;
-    }
-
-    case 'move': {
-      newState.selectionStart = null;
-      newState.selectionEnd = null;
-
-      switch (action.direction) {
-        case 'left':
-          newState.cursor = previousGraphemeBoundary(state.buffer, state.cursor);
-          break;
-        case 'right':
-          newState.cursor = nextGraphemeBoundary(state.buffer, state.cursor);
-          break;
-        case 'home':
-          newState.cursor = 0;
-          break;
-        case 'end':
-          newState.cursor = state.buffer.length;
-          break;
-        case 'wordLeft': {
-          newState.cursor = previousWordBoundary(state.buffer, state.cursor);
-          break;
-        }
-        case 'wordRight': {
-          newState.cursor = nextWordBoundary(state.buffer, state.cursor);
-          break;
-        }
-      }
-      break;
-    }
-
-    case 'select': {
-      if (state.selectionStart === null) {
-        newState.selectionStart = state.cursor;
-      }
-
-      switch (action.direction) {
-        case 'left':
-          newState.cursor = previousGraphemeBoundary(state.buffer, state.cursor);
-          newState.selectionEnd = newState.cursor;
-          break;
-        case 'right':
-          newState.cursor = nextGraphemeBoundary(state.buffer, state.cursor);
-          newState.selectionEnd = newState.cursor;
-          break;
-        case 'all':
-          newState.selectionStart = 0;
-          newState.selectionEnd = state.buffer.length;
-          newState.cursor = state.buffer.length;
-          break;
-        case 'word': {
-          // Select current word
-          const start = previousWordBoundary(state.buffer, state.cursor);
-          const end = nextWordEnd(state.buffer, state.cursor);
-          newState.selectionStart = start;
-          newState.selectionEnd = end;
-          newState.cursor = end;
-          break;
-        }
-        case 'line':
-          newState.selectionStart = 0;
-          newState.selectionEnd = state.buffer.length;
-          newState.cursor = state.buffer.length;
-          break;
-      }
-      break;
-    }
-
-    case 'undo': {
-      if (state.historyIndex > 0) {
-        newState.historyIndex = state.historyIndex - 1;
-        newState.buffer = state.history[newState.historyIndex]!;
-        newState.cursor = newState.buffer.length;
-        newState.selectionStart = null;
-        newState.selectionEnd = null;
-      }
-      break;
-    }
-
-    case 'redo': {
-      if (state.historyIndex < state.history.length - 1) {
-        newState.historyIndex = state.historyIndex + 1;
-        newState.buffer = state.history[newState.historyIndex]!;
-        newState.cursor = newState.buffer.length;
-        newState.selectionStart = null;
-        newState.selectionEnd = null;
-      }
-      break;
-    }
-
-    case 'clear': {
-      newState.buffer = '';
-      newState.cursor = 0;
-      newState.selectionStart = null;
-      newState.selectionEnd = null;
-      saveHistory();
-      break;
-    }
-  }
-
-  return newState;
-}
-
-/**
- * Get selected text from state
- */
-export function getSelectedText(state: InputState): string | null {
-  if (state.selectionStart === null || state.selectionEnd === null) {
-    return null;
-  }
-  const start = Math.min(state.selectionStart, state.selectionEnd);
-  const end = Math.max(state.selectionStart, state.selectionEnd);
-  return state.buffer.slice(start, end);
-}
-
-// =============================================================================
-// Unified Input Parser
-// =============================================================================
-
-/**
- * Parse raw terminal input into structured events
- */
-export function parseInput(input: string | Buffer): ParsedInput {
-  return parseInputAtDepth(input.toString(), 0);
-}
-
-const MAX_NESTED_INPUT_EVENTS = 256;
-
-function parseInputAtDepth(raw: string, depth: number): ParsedInput {
-  const result: ParsedInput = {
-    raw,
-    keys: [],
-  };
-  if (depth >= MAX_NESTED_INPUT_EVENTS) {
-    result.unknown = raw;
-    return result;
-  }
-
-  // Check for bracketed paste first
-  if (hasBracketedPaste(raw)) {
-    const extracted = extractBracketedPaste(raw);
-    if (extracted) {
-      result.paste = {
-        text: extracted.paste,
-        isBracketed: true,
-      };
-      // Process remaining input
-      if (extracted.remaining) {
-        const remainingResult = parseInputAtDepth(extracted.remaining, depth + 1);
-        result.keys = remainingResult.keys;
-        result.mouse = remainingResult.mouse;
-        result.focus = remainingResult.focus;
-      }
-      return result;
-    }
-  }
-
-  if (isFocusEvent(raw)) {
-    const focusEvent = parseFocusEvent(raw.slice(0, FOCUS_IN.length));
-    if (focusEvent) {
-      result.focus = focusEvent;
-      if (raw.length > FOCUS_IN.length) {
-        const remainingResult = parseInputAtDepth(
-          raw.slice(FOCUS_IN.length),
-          depth + 1,
-        );
-        result.keys = remainingResult.keys;
-        result.mouse = remainingResult.mouse;
-        result.paste = remainingResult.paste;
-        result.unknown = remainingResult.unknown;
-      }
-      return result;
-    }
-  }
-
-  // Check for mouse event
-  const mouseEvent = parseMouseEvent(raw);
-  if (mouseEvent) {
-    result.mouse = mouseEvent;
-    return result;
-  }
-
-  // Check for Kitty protocol key event
-  if (raw.includes('\x1b[') && raw.endsWith('u')) {
-    const kittyEvent = parseKittyKeyEvent(raw);
-    if (kittyEvent) {
-      result.keys.push(kittyEvent);
-      return result;
-    }
-  }
-
-  // Fall back to legacy parsing
-  // Convert to default key event format
-  const legacyKey = parseLegacyKey(raw);
-  if (legacyKey) {
-    result.keys.push(legacyKey);
-  }
-
-  return result;
-}
-
-/**
- * Parse legacy key format
- */
-function parseLegacyKey(input: string): KittyKeyEvent | null {
-  if (!input) return null;
-
-  const modifiers: KeyModifiers = {
-    shift: false,
-    alt: false,
-    ctrl: false,
-    super: false,
-    hyper: false,
-    meta: false,
-    capsLock: false,
-    numLock: false,
-  };
-
-  let keyCode = 0;
-  let text = '';
-
-  // Single character
-  if (input.length === 1) {
-    keyCode = input.charCodeAt(0);
-    text = input;
-
-    // Check for Ctrl+letter (0x01-0x1a)
-    if (keyCode >= 1 && keyCode <= 26) {
-      modifiers.ctrl = true;
-      keyCode = keyCode + 96; // Convert to lowercase letter
-      text = String.fromCharCode(keyCode);
-    }
-
-    // Check for uppercase (shift)
-    if (input >= 'A' && input <= 'Z') {
-      modifiers.shift = true;
-    }
-  }
-
-  // Meta+character
-  const metaMatch = input.match(/^\x1b(.)$/);
-  if (metaMatch) {
-    modifiers.alt = true;
-    keyCode = metaMatch[1]!.charCodeAt(0);
-    text = metaMatch[1]!;
-  }
-
-  // Special keys
-  if (input === '\r' || input === '\n') {
-    keyCode = 13;
-    text = '';
-  } else if (input === '\t') {
-    keyCode = 9;
-    text = '';
-  } else if (input === '\x7f' || input === '\b') {
-    keyCode = 127;
-    text = '';
-  } else if (input === '\x1b') {
-    keyCode = 27;
-    text = '';
-  }
-
-  if (keyCode === 0 && !text) {
-    return null;
-  }
-
-  return {
-    keyCode,
-    text,
-    eventType: 'press',
-    modifiers,
-  };
-}
-
-// =============================================================================
-// Terminal Mode Control
-// =============================================================================
-
-/**
- * Enable alternate screen buffer
- */
 export function enableAlternateScreen(): string {
   return '\x1b[?1049h';
 }
 
-/**
- * Disable alternate screen buffer
- */
 export function disableAlternateScreen(): string {
   return '\x1b[?1049l';
-}
-
-/**
- * Hide cursor
- */
-export function hideCursor(): string {
-  return '\x1b[?25l';
-}
-
-/**
- * Show cursor
- */
-export function showCursor(): string {
-  return '\x1b[?25h';
-}
-
-/**
- * Request cursor position report
- */
-export function requestCursorPosition(): string {
-  return '\x1b[6n';
-}
-
-/**
- * Parse cursor position report
- */
-export function parseCursorPosition(response: string): { row: number; col: number } | null {
-  const match = response.match(/^\x1b\[(\d+);(\d+)R$/);
-  if (!match) return null;
-  return {
-    row: parseInt(match[1]!, 10),
-    col: parseInt(match[2]!, 10),
-  };
 }

@@ -249,8 +249,6 @@ export interface BoxProps extends BoxStyle, MouseEventProps, AccessibilityProps 
   __fillChar?: string;
   /** Unique key for reconciliation */
   key?: string | number;
-  /** Child elements */
-  children?: TuiNode;
 }
 
 /** Text component props */
@@ -259,8 +257,8 @@ export interface TextProps extends TextStyle, MouseEventProps, AccessibilityProp
   id?: string;
   /** Unique key for reconciliation */
   key?: string | number;
-  /** Text content */
-  children?: string | number | (string | number)[];
+  /** Internal zero-width terminal cursor anchor for IME positioning. */
+  __cursorAnchor?: boolean;
 }
 
 /** Spacer props */

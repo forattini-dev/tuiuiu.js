@@ -5,7 +5,7 @@
  * Run with: pnpm tsx examples/prompts-demo.ts
  */
 
-import { prompt } from '../src/index.js';
+import { prompt } from '../src/interaction/index.js';
 
 async function main() {
   prompt.setTheme({

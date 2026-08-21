@@ -2,7 +2,7 @@
  * Thread Pool Demo
  *
  * Demonstrates:
- * - running many CPU tasks through createTaskBridgePool()
+ * - running many CPU tasks through createBackgroundExecutorPool()
  * - round-robin and least-pending scheduling
  * - reading per-task progress events
  *
@@ -13,13 +13,13 @@
 
 import { fileURLToPath } from 'node:url';
 
-import { createTaskBridgePool } from '../src/index.js';
+import { createBackgroundExecutorPool } from '../src/app/index.js';
 
 const workerPath = fileURLToPath(
   new URL('./_shared/thread-pool-worker.mjs', import.meta.url)
 );
 
-const pool = createTaskBridgePool({
+const pool = createBackgroundExecutorPool({
   modulePath: workerPath,
   poolSize: 4,
   scheduler: 'least-pending',

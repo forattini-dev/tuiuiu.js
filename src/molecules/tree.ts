@@ -19,6 +19,7 @@ import { useInput } from '../hooks/index.js';
 import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -344,7 +345,7 @@ export function useTreeState<T = unknown>(options: TreeOptions<T>) {
 // Component
 // =============================================================================
 
-export interface TreeProps<T = unknown> extends TreeOptions<T> {
+export interface TreeProps<T = unknown> extends TreeOptions<T>, ComponentKeyProps {
   /** Pre-created state */
   state?: TreeState<T>;
   /** Label/title */
@@ -388,7 +389,7 @@ export interface TreeProps<T = unknown> extends TreeOptions<T> {
  *   selectionMode: 'single',
  * })
  */
-export function Tree<T = unknown>(props: TreeProps<T>): VNode {
+function renderTree<T = unknown>(props: TreeProps<T>): VNode {
   const {
     showGuides = true,
     indentSize = 2,
@@ -542,7 +543,7 @@ export interface DirectoryNode extends TreeNode<{ type: 'file' | 'directory'; si
   children?: DirectoryNode[];
 }
 
-export interface DirectoryTreeOptions extends Omit<TreeOptions<{ type: 'file' | 'directory'; size?: number }>, 'nodes'> {
+export interface DirectoryTreeOptions extends Omit<TreeOptions<{ type: 'file' | 'directory'; size?: number }>, 'nodes'>, ComponentKeyProps {
   /** Directory nodes */
   nodes: DirectoryNode[];
   /** Show file sizes */
@@ -607,7 +608,7 @@ function formatSize(bytes: number): string {
  *   showSizes: true,
  * })
  */
-export function DirectoryTree(props: DirectoryTreeOptions): VNode {
+function renderDirectoryTree(props: DirectoryTreeOptions): VNode {
   const { nodes, showSizes = false, showHidden = false, ...rest } = props;
 
   // Add icons to nodes recursively
@@ -641,3 +642,6 @@ export function DirectoryTree(props: DirectoryTreeOptions): VNode {
     showGuides: true,
   });
 }
+
+export const Tree = component('Tree', renderTree);
+export const DirectoryTree = component<DirectoryTreeOptions, VNode>('DirectoryTree', renderDirectoryTree);

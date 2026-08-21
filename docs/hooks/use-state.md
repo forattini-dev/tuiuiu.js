@@ -15,7 +15,7 @@ Before diving in, understand when to use each:
 // ✅ RECOMMENDED - useState inside component
 function Counter() {
   const [count, setCount] = useState(0);  // Hook - persists!
-  useHotkeys('up', () => setCount(c => c + 1));
+  useShortcut('up', () => setCount(c => c + 1));
   return Text({}, `Count: ${count()}`);
 }
 
@@ -23,7 +23,7 @@ function Counter() {
 const [globalCount, setGlobalCount] = createSignal(0);
 
 function Counter() {
-  useHotkeys('up', () => setGlobalCount(c => c + 1));
+  useShortcut('up', () => setGlobalCount(c => c + 1));
   return Text({}, `Count: ${globalCount()}`);
 }
 

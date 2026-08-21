@@ -21,63 +21,32 @@ type PackageExports = Record<string, string | { types?: string; import?: string;
  * documented.
  */
 const PUBLIC_RUNTIME_EXPORT_BASELINE = {
-  '.': { count: 1024, sha256: '0b1a9a9227c3eee376cd4c2ca973d248cef720db7833c97f68991c04258a732a' },
-  './minimal': { count: 36, sha256: '9c653257273b130f722cf994390fc692802c13837006b47a4239efdecb7b3573' },
-  './core': { count: 561, sha256: 'e787e78d442e287ac884f28ee8f164735a1f855b12f50dc28f06de237306b601' },
-  './hooks': { count: 110, sha256: '2dbc170cc93a2694cc5c013dc25ab15ae003cb42864a9792ca2c30eb5d9af801' },
-  './utils': { count: 62, sha256: '3325c6fe176f78eed3407d091bc27b8acb3a7ae6aad94954d39431d2a3a6e8d2' },
-  './storybook': { count: 29, sha256: '179e7e8000ee02fb9bb37f1e8a2714067c6f6a63b5ece1153eea82cb97c30552' },
-  './mcp': { count: 18, sha256: 'e2a3f373802073dd340f9659b977a00d99cce62282cae80847f6aca1f30d02dc' },
-  './prompts': { count: 14, sha256: 'a6505e138bca2584255d7f8c5048dd04eb91520b3fd3fca3a0b0cf58985c03c8' },
-  './themes': { count: 23, sha256: '29e0118cc4d5dfe1cefe2d3fd1b4358911c01ee56736f661f4e33136a11d5a42' },
-  './dev-tools': { count: 49, sha256: 'b180c9d39546737c5929714eb5274d0e711456003d252a9e2cacdf4ad3736718' },
-  './app': { count: 10, sha256: '82221dd310c191d79a1024cf41dad4a0d14162f9ac033137ece71948fb06b6fb' },
-  './primitives': { count: 81, sha256: '79b8a343b269793239a49640cea3ed536e072ac92f08ca99f6f8a86f07ecb07c' },
-  './atoms': { count: 120, sha256: 'd00d9a29839eabb43729e692537fe7223f833bc799d5a63fce69e68f5be1df92' },
-  './molecules': { count: 136, sha256: 'f12ad0e874dffc9de2edd2717ff32f15e41e987ec5fc02836e8adc2d5493f886' },
-  './organisms': { count: 73, sha256: 'feb77c87797bb7aa59f1ca21ad4b263d5bb8b08ee61f0d307d5fe3d10396cb26' },
-  './experimental': { count: 4, sha256: 'c84bee0520dc69a459d9c7f334013f4512c8dd02809a05f9026f7616391d7026' },
-  './templates': { count: 21, sha256: '90605ff273d6a66e7e2ef92736408645c3731f40269f3aa5b3c4997f47b140c5' },
-  './design-system': { count: 367, sha256: '8fc83b8d7aaf6183b072acb34dd70b8624dc46671817607b2a7a705f2ec1accf' },
+  '.': { count: 75, sha256: 'cdf3f47b85db365e8057665f0cc55a447c29921f7b0c916142a1d9c24168ac0d' },
+  './app': { count: 32, sha256: 'd08b02c74c80ad1febacee383efc71802924d009978b1978b5020d8f8f61ee13' },
   './colors': { count: 72, sha256: 'c9ceb73af03412b2071453c24d5af717dbac1d290ca213dc111a9065313176b6' },
-  './styling': { count: 22, sha256: '693a33546d97d98e88362cb6344150853d460329e5b1fd2d0205d49e16b8a453' },
+  './core': { count: 54, sha256: '0db99838957036fa4e12ee1682f5c1bb0f4e6198c874953c7979b0c62131c6d1' },
+  './devtools': { count: 49, sha256: 'b180c9d39546737c5929714eb5274d0e711456003d252a9e2cacdf4ad3736718' },
+  './interaction': { count: 38, sha256: '52558859c57573434f6de20d7764963c0f1d1a776e92796da863ffcaa6a2e0a0' },
+  './mcp': { count: 18, sha256: 'e2a3f373802073dd340f9659b977a00d99cce62282cae80847f6aca1f30d02dc' },
+  './storybook': { count: 29, sha256: '179e7e8000ee02fb9bb37f1e8a2714067c6f6a63b5ece1153eea82cb97c30552' },
+  './testing': { count: 19, sha256: '6438cfb01cad7867eff8e9d34bf1dfd31d5b9c5e3477c28794ccd05fd0be6522' },
+  './ui': { count: 460, sha256: 'eb767c42fd1066a0d5f1d9f4f8c7faac3d44080670b269460b39748a3e995d89' },
 } as const;
 
 const PUBLIC_TYPE_EXPORT_BASELINE = {
-  '.': { count: 1765, sha256: 'dd560e22a9b1ab5336b71ea3d946acbfb549212e09e4226e6aa95d65559ca959' },
-  './minimal': { count: 73, sha256: '666fbb8e8100812e8417df6fa09688545a743fd80b03fe1c262c97aa9aef8486' },
-  './core': { count: 811, sha256: 'daab951ea348ef231789af1fa68603d78244337dbaa0efa2206eb3c3dd5b11b9' },
-  './hooks': { count: 178, sha256: 'b1a43689061b568fb0da078cc3f4b40086300b4e9031dcc038e6ef4d03d68243' },
-  './utils': { count: 118, sha256: '91f8c6f4f7e791dbc56c912d6d9d6af37530daf0c0c1e42e0db3e8e9931a095f' },
-  './storybook': { count: 53, sha256: '6bf91cdc208541dc2a38088ca8334b4cb9ab2d65751a932e1e1dfa970d63ac2a' },
-  './mcp': { count: 40, sha256: '47e4dc4b5bb46ce6efeec12f40d975a26e72f872de331920321c18911c746d5c' },
-  './prompts': { count: 24, sha256: '021f7d874a2d93cc386af85356b9265986d43fc327dc4defca81fbcb227e0082' },
-  './themes': { count: 37, sha256: '20b0bc6f23fa0ac09b03eb4b9832bf1018ee654ea5abbf7476164a7e514044a5' },
-  './dev-tools': { count: 77, sha256: '7e1ca88fb61615aa946095e57c7890c7fef45e70ce8f57b5b21991703fc6af3e' },
-  './app': { count: 17, sha256: '62574094a90a3d11b81a427f33b4ac3396084af0d863a3c8162a89c1acca1c4d' },
-  './primitives': { count: 125, sha256: 'b71780640655ff61320a4f15673e1da74daa8a6af0c56383ae623109a8a862c1' },
-  './atoms': { count: 250, sha256: '29cc9f60f2cfae63ab761d1f77e8692f7f792a53abd26126d8259e6c3a36b51d' },
-  './molecules': { count: 304, sha256: '96a6da5e3acf842a596688174d78b5b2b642602275b0bafe7b06f5b02834ceba' },
-  './organisms': { count: 146, sha256: '520706fe89f8ba0d326c505de358bb758ae9eb90d4fcb9c5bf734748aed08b06' },
-  './experimental': { count: 11, sha256: 'a38a43a1429be4150d0319a97769d3a216e688c51fcef32e461c015b65ce43d8' },
-  './templates': { count: 38, sha256: '8bb1962666074165c53b3e0c50b29bea80d6e1db0dd828bf5090bf69fb8307ed' },
-  './design-system': { count: 764, sha256: '860fea7966500866a346f770a94b2f100d4d3c27a4c407deba811ef857c29f4d' },
+  '.': { count: 108, sha256: 'e4a3d3c517e5860ac847e5e9f6a92fe97146066a22c9581e7b6bb022ee600813' },
+  './app': { count: 61, sha256: 'c8cabd7bfa5da5b75b063aa0868c208d9015460881337b252aa8c062314ff49b' },
   './colors': { count: 74, sha256: '37e4e8b8998c7086a67d16e4295315093a8b3708392cb9b5e9f987ed37d3159a' },
-  './styling': { count: 54, sha256: 'b665ba3ae64883b220eb1ddf7fe63b6cbb7709ea4de615a3b91f1ea31de3ce3c' },
+  './core': { count: 94, sha256: '5ee19ef951a1094294782127028c8edd72119069747c6152edb218b020ee7f0b' },
+  './devtools': { count: 77, sha256: '7e1ca88fb61615aa946095e57c7890c7fef45e70ce8f57b5b21991703fc6af3e' },
+  './interaction': { count: 132, sha256: '80017877669472113c3227698a793e48b3d53a7c1deee6cc24d6e711d6eb1416' },
+  './mcp': { count: 40, sha256: '47e4dc4b5bb46ce6efeec12f40d975a26e72f872de331920321c18911c746d5c' },
+  './storybook': { count: 53, sha256: '6bf91cdc208541dc2a38088ca8334b4cb9ab2d65751a932e1e1dfa970d63ac2a' },
+  './testing': { count: 33, sha256: '0f509db270b221b359ba31c052d41e6265d06828fd2631a6701b71bd4c700410' },
+  './ui': { count: 909, sha256: '70b1a50bd7117ffcbeff2f39e1d1bc3a876951cecff77d9b5830fe0e6bf46260' },
 } as const;
 
-const ALLOWED_ROOT_RUNTIME_ALIAS_GROUPS = [
-  ['ConstraintSolver', 'Solver'],
-  ['ansiBlue', 'ansiPrimary'],
-  ['ansiCyan', 'ansiInfo'],
-  ['ansiError', 'ansiRed'],
-  ['ansiGray', 'ansiGrey', 'ansiMuted'],
-  ['ansiGreen', 'ansiSuccess'],
-  ['ansiMagenta', 'ansiSecondary'],
-  ['ansiStrike', 'ansiStrikethrough'],
-  ['ansiWarning', 'ansiYellow'],
-  ['bgGray', 'bgGrey'],
-] as const;
+const ALLOWED_ROOT_RUNTIME_ALIAS_GROUPS = [] as const;
 
 function fail(message: string): never {
   console.error(`\n[verify:contracts] ${message}`);
@@ -325,33 +294,17 @@ function assertMcpPropsMatchPublicTypes(): void {
     },
   });
   const checker = program.getTypeChecker();
-  const rootSource = program.getSourceFile(path.join(distDir, 'index.d.ts'));
-  if (!rootSource) {
-    fail('Root declaration file is unavailable for MCP contract validation.');
+  const uiSource = program.getSourceFile(path.join(distDir, 'ui', 'index.d.ts'));
+  if (!uiSource) {
+    fail('UI declaration file is unavailable for MCP contract validation.');
   }
-  const rootSymbol = checker.getSymbolAtLocation(rootSource);
-  if (!rootSymbol) {
-    fail('Root declaration module has no symbol for MCP contract validation.');
+  const uiSymbol = checker.getSymbolAtLocation(uiSource);
+  if (!uiSymbol) {
+    fail('UI declaration module has no symbol for MCP contract validation.');
   }
   const publicSymbols = new Map(
-    checker.getExportsOfModule(rootSymbol).map((symbol) => [symbol.name, symbol]),
+    checker.getExportsOfModule(uiSymbol).map((symbol) => [symbol.name, symbol]),
   );
-  const experimentalSource = program.getSourceFile(
-    path.join(distDir, 'experimental', 'index.d.ts'),
-  );
-  const experimentalModule = experimentalSource
-    ? checker.getSymbolAtLocation(experimentalSource)
-    : undefined;
-  const experimentalSymbols = new Map(
-    experimentalModule
-      ? checker.getExportsOfModule(experimentalModule)
-        .map((symbol) => [symbol.name, symbol])
-      : [],
-  );
-  const documentedExperimentalComponents = new Set([
-    'EditableDataTable',
-    'VirtualDataTable',
-  ]);
   const missingProps: string[] = [];
   const requirednessMismatches: string[] = [];
   const missingComponents: string[] = [];
@@ -365,10 +318,7 @@ function assertMcpPropsMatchPublicTypes(): void {
 
   for (const component of allComponents) {
     if (!componentCategories.has(component.category)) continue;
-    const exported = publicSymbols.get(component.name)
-      ?? (documentedExperimentalComponents.has(component.name)
-        ? experimentalSymbols.get(component.name)
-        : undefined);
+    const exported = publicSymbols.get(component.name);
     if (!exported) {
       missingComponents.push(component.name);
       continue;
@@ -686,56 +636,6 @@ function assertStorybookCoverageIsCurrent(): void {
   }
 }
 
-async function assertExperimentalValuesStayIsolated(): Promise<void> {
-  const stable = await import(pathToFileURL(path.join(distDir, 'index.js')).href);
-  const experimental = await import(
-    pathToFileURL(path.join(distDir, 'experimental', 'index.js')).href
-  );
-  const leaked = Object.keys(experimental).filter((name) =>
-    Object.prototype.hasOwnProperty.call(stable, name)
-  );
-
-  if (leaked.length > 0) {
-    fail(
-      `Experimental runtime exports leaked into the stable root entry point: ${leaked.join(', ')}`
-    );
-  }
-}
-
-async function assertMinimalEntryPointIsFocused(): Promise<void> {
-  const minimal = await import(
-    pathToFileURL(path.join(distDir, 'minimal.js')).href
-  );
-  const required = [
-    'render',
-    'Box',
-    'Text',
-    'useState',
-    'useInput',
-    'useApp',
-    'setTheme',
-  ];
-  const missing = required.filter((name) =>
-    !Object.prototype.hasOwnProperty.call(minimal, name)
-  );
-  if (missing.length > 0) {
-    fail(`Minimal entry point is missing core APIs: ${missing.join(', ')}`);
-  }
-
-  const excluded = [
-    'createStyleSheet',
-    'VirtualDataTable',
-    'startMcpServer',
-    'createStorybook',
-  ];
-  const leaked = excluded.filter((name) =>
-    Object.prototype.hasOwnProperty.call(minimal, name)
-  );
-  if (leaked.length > 0) {
-    fail(`Minimal entry point includes optional or unstable APIs: ${leaked.join(', ')}`);
-  }
-}
-
 function compileExamples(): void {
   runCommand(process.execPath, [
     path.join(rootDir, 'node_modules', 'typescript', 'bin', 'tsc'),
@@ -753,8 +653,6 @@ assertExampleManifestAndScripts();
 assertDocsDoNotReferenceKnownBadPatterns();
 assertLocalMarkdownLinksResolve();
 assertStorybookCoverageIsCurrent();
-await assertExperimentalValuesStayIsolated();
-await assertMinimalEntryPointIsFocused();
 compileExamples();
 
 console.log('[verify:contracts] OK');

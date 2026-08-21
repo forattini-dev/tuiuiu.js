@@ -9,7 +9,7 @@ Creates a linked-list navigation controller for a set of items.
 ### Usage
 
 ```typescript
-import { useNavigation, useInput } from 'tuiuiu.js';
+import { useNavigation, useShortcut } from 'tuiuiu.js/app';
 
 function Wizard() {
   const nav = useNavigation([
@@ -18,10 +18,8 @@ function Wizard() {
     { id: 'step3', title: 'Finish' },
   ]);
 
-  useInput((_, key) => {
-    if (key.rightArrow) nav.next();
-    if (key.leftArrow) nav.prev();
-  });
+  useShortcut('right', nav.next);
+  useShortcut('left', nav.prev);
 
   const current = nav.current();
 

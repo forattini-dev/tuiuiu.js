@@ -19,7 +19,6 @@ import * as readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 import { StringDecoder } from 'node:string_decoder';
 import {
-  previousGraphemeBoundary,
   segmentGraphemes,
 } from '../utils/grapheme.js';
 import {
@@ -27,6 +26,24 @@ import {
   sanitizeTerminalText,
 } from '../utils/terminal-sanitize.js';
 import { colorize, stringWidth } from '../utils/text-utils.js';
+import {
+  getPromptHost,
+  PromptBusyError,
+  PromptCancelledError,
+  PromptNonInteractiveError,
+  type PromptRenderer,
+  type PromptRequest,
+  type PromptControls,
+} from '../interaction/prompt.js';
+import { createTextEditor } from '../interaction/text-editor.js';
+
+export {
+  PromptBusyError,
+  PromptCancelledError,
+  PromptHostAmbiguousError,
+  PromptHostUnavailableError,
+  PromptNonInteractiveError,
+} from '../interaction/prompt.js';
 
 // =============================================================================
 // Types
@@ -102,24 +119,6 @@ export interface AutocompleteOptions<T extends string = string> extends PromptAp
   maxSuggestions?: number;
   /** Custom filter function (default: fuzzy match) */
   filter?: (input: string, choice: T) => boolean;
-}
-
-export class PromptCancelledError extends Error {
-  readonly code = 'PROMPT_CANCELLED';
-
-  constructor(message = 'Prompt cancelled') {
-    super(message);
-    this.name = 'PromptCancelledError';
-  }
-}
-
-export class PromptBusyError extends Error {
-  readonly code = 'PROMPT_BUSY';
-
-  constructor() {
-    super('Another prompt is already using stdin');
-    this.name = 'PromptBusyError';
-  }
 }
 
 // =============================================================================
@@ -297,7 +296,14 @@ function createReadlineInterface(): readline.Interface {
  * const email = await prompt.input('Email:', { validate: (v) => v.includes('@') || 'Invalid email' });
  * ```
  */
-export async function promptInput(message: string, options: InputOptions = {}): Promise<string> {
+async function ansiPromptInput(message: string, options: InputOptions = {}): Promise<string> {
+  if (!input.isTTY) {
+    if (options.default === undefined) throw new PromptNonInteractiveError();
+    const value = options.transform ? options.transform(options.default) : options.default;
+    const result = options.validate?.(value) ?? true;
+    if (result !== true) throw new Error(typeof result === 'string' ? result : 'Invalid input');
+    return value;
+  }
   const { default: defaultValue, placeholder, validate, transform } = options;
   const painter = createPromptPainter(options.theme);
 
@@ -322,7 +328,7 @@ export async function promptInput(message: string, options: InputOptions = {}): 
         if (result !== true) {
           const errorMsg = typeof result === 'string' ? result : 'Invalid input';
           output.write(`${CLEAR_LINE}${painter.error()} ${safeInlineLabel(errorMsg)}\n`);
-          resolve(promptInput(message, options));
+          resolve(ansiPromptInput(message, options));
           return;
         }
       }
@@ -364,7 +370,11 @@ function buildPromptText(
  * const proceed = await prompt.confirm('Continue?', { default: true });
  * ```
  */
-export async function promptConfirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
+async function ansiPromptConfirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
+  if (!input.isTTY) {
+    if (options.default === undefined) throw new PromptNonInteractiveError();
+    return options.default;
+  }
   const { default: defaultValue = false } = options;
   const painter = createPromptPainter(options.theme);
 
@@ -412,7 +422,7 @@ export async function promptConfirm(message: string, options: ConfirmOptions = {
  * const color = await prompt.select('Pick a color:', ['red', 'green', 'blue'], { default: 'blue' });
  * ```
  */
-export async function promptSelect<T extends string>(
+async function ansiPromptSelect<T extends string>(
   message: string,
   choices: readonly T[],
   options: SelectOptions<T> = {}
@@ -424,9 +434,10 @@ export async function promptSelect<T extends string>(
     throw new Error('prompt.select requires at least one choice');
   }
 
-  // Non-TTY fallback: return default or first choice
+  // Non-TTY execution must be deterministic and explicitly authorized.
   if (!input.isTTY) {
-    const result = defaultValue ?? choices[0]!;
+    if (defaultValue === undefined) throw new PromptNonInteractiveError();
+    const result = defaultValue;
     output.write(`${painter.question()} ${bold(message)} ${painter.answer(result)} ${dim('(non-interactive)')}\n`);
     return result;
   }
@@ -528,7 +539,8 @@ function clearSelect(choicesCount: number): void {
  * const secret = await prompt.password('API Key:', { mask: '*' });
  * ```
  */
-export async function promptPassword(message: string, options: PasswordOptions = {}): Promise<string> {
+async function ansiPromptPassword(message: string, options: PasswordOptions = {}): Promise<string> {
+  if (!input.isTTY) throw new PromptNonInteractiveError();
   const { validate } = options;
   const mask = sanitizeInlineInput(options.mask ?? '*') || '*';
   const painter = createPromptPainter(options.theme);
@@ -537,7 +549,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
   return new Promise((resolve, reject) => {
     output.write(`${painter.question()} ${bold(message)} `);
 
-    let password = '';
+    const editor = createTextEditor();
     let maskedDisplay = '';
     const decoder = new StringDecoder('utf8');
 
@@ -550,23 +562,21 @@ export async function promptPassword(message: string, options: PasswordOptions =
         cleanup();
 
         if (validate) {
-          const result = validate(password);
+          const result = validate(editor.snapshot().value);
           if (result !== true) {
             const errorMsg = typeof result === 'string' ? result : 'Invalid input';
             output.write(`\n${painter.error()} ${safeInlineLabel(errorMsg)}\n`);
-            resolve(promptPassword(message, options));
+            resolve(ansiPromptPassword(message, options));
             return;
           }
         }
 
         output.write(`\n`);
-        resolve(password);
+        resolve(editor.snapshot().value);
       }
       // Backspace
       else if (char === '\x7f' || char === '\b') {
-        if (password.length > 0) {
-          const boundary = previousGraphemeBoundary(password, password.length);
-          password = password.slice(0, boundary);
+        if (editor.backspace()) {
           const displayBoundary = Math.max(0, maskedDisplay.length - mask.length);
           const removedMask = maskedDisplay.slice(displayBoundary);
           maskedDisplay = maskedDisplay.slice(0, displayBoundary);
@@ -586,7 +596,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
         if (cleanInput) {
           const graphemeCount = segmentGraphemes(cleanInput).length;
           const display = mask.repeat(graphemeCount);
-          password += cleanInput;
+          editor.insert(cleanInput);
           maskedDisplay += display;
           output.write(display);
         }
@@ -616,7 +626,7 @@ export async function promptPassword(message: string, options: PasswordOptions =
  * const colors = await prompt.checkbox('Pick colors:', ['red', 'green', 'blue'], { min: 1, max: 2 });
  * ```
  */
-export async function promptCheckbox<T extends string>(
+async function ansiPromptCheckbox<T extends string>(
   message: string,
   choices: readonly T[],
   options: CheckboxOptions<T> = {}
@@ -628,8 +638,9 @@ export async function promptCheckbox<T extends string>(
     throw new Error('prompt.checkbox requires at least one choice');
   }
 
-  // Non-TTY fallback: return defaults or empty array
+  // Non-TTY execution requires an explicit default selection.
   if (!input.isTTY) {
+    if (options.default === undefined) throw new PromptNonInteractiveError();
     output.write(`${painter.question()} ${bold(message)} ${dim('(non-interactive)')}\n`);
     return defaultValues;
   }
@@ -766,7 +777,7 @@ function clearCheckbox(choicesCount: number): void {
  * const file = await prompt.autocomplete('File:', files, { minInput: 2 });
  * ```
  */
-export async function promptAutocomplete<T extends string>(
+async function ansiPromptAutocomplete<T extends string>(
   message: string,
   choices: readonly T[],
   options: AutocompleteOptions<T> = {}
@@ -785,18 +796,20 @@ export async function promptAutocomplete<T extends string>(
 
   // Non-TTY fallback
   if (!input.isTTY) {
+    if (defaultValue === undefined) throw new PromptNonInteractiveError();
     output.write(`${painter.question()} ${bold(message)} ${dim('(non-interactive)')}\n`);
-    return defaultValue ?? choices[0]!;
+    return defaultValue;
   }
 
-  let query = defaultValue ?? '';
+  const editor = createTextEditor({ initialValue: defaultValue ?? '' });
+  const query = () => editor.snapshot().value;
   let selectedIndex = 0;
-  let filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
+  let filtered = filterChoices(query(), choices, filter, minInput, maxSuggestions);
   const decoder = new StringDecoder('utf8');
   const finishRawPrompt = beginRawPrompt(true);
 
   return new Promise((resolve, reject) => {
-    renderAutocomplete(message, query, filtered, selectedIndex, painter);
+    renderAutocomplete(message, query(), filtered, selectedIndex, painter);
 
     const handleKeypress = (chunk: Buffer) => {
       const key = decoder.write(chunk);
@@ -807,7 +820,7 @@ export async function promptAutocomplete<T extends string>(
         if (filtered.length > 0) {
           selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
           clearAutocomplete(filtered.length);
-          renderAutocomplete(message, query, filtered, selectedIndex, painter);
+          renderAutocomplete(message, query(), filtered, selectedIndex, painter);
         }
       }
       // Arrow down
@@ -815,16 +828,16 @@ export async function promptAutocomplete<T extends string>(
         if (filtered.length > 0) {
           selectedIndex = (selectedIndex + 1) % filtered.length;
           clearAutocomplete(filtered.length);
-          renderAutocomplete(message, query, filtered, selectedIndex, painter);
+          renderAutocomplete(message, query(), filtered, selectedIndex, painter);
         }
       }
       // Tab - complete with selected
       else if (key === '\t' && filtered.length > 0) {
-        query = filtered[selectedIndex]!;
-        filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
+        editor.setValue(filtered[selectedIndex]!);
+        filtered = filterChoices(query(), choices, filter, minInput, maxSuggestions);
         selectedIndex = 0;
         clearAutocomplete(filtered.length || 1);
-        renderAutocomplete(message, query, filtered, selectedIndex, painter);
+        renderAutocomplete(message, query(), filtered, selectedIndex, painter);
       }
       // Enter
       else if (key === '\r' || key === '\n') {
@@ -832,13 +845,13 @@ export async function promptAutocomplete<T extends string>(
         let result: T;
         if (filtered.length > 0) {
           result = filtered[selectedIndex]!;
-        } else if (choices.includes(query as T)) {
-          result = query as T;
+        } else if (choices.includes(query() as T)) {
+          result = query() as T;
         } else {
           // No match - re-prompt
           clearAutocomplete(filtered.length || 1);
           output.write(`${painter.error()} Please select a valid option\n`);
-          renderAutocomplete(message, query, filtered, selectedIndex, painter);
+          renderAutocomplete(message, query(), filtered, selectedIndex, painter);
           return;
         }
 
@@ -849,13 +862,13 @@ export async function promptAutocomplete<T extends string>(
       }
       // Backspace
       else if (key === '\x7f' || key === '\b') {
-        if (query.length > 0) {
+        if (query().length > 0) {
           const prevLength = filtered.length || 1;
-          query = query.slice(0, previousGraphemeBoundary(query, query.length));
-          filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
+          editor.backspace();
+          filtered = filterChoices(query(), choices, filter, minInput, maxSuggestions);
           selectedIndex = 0;
           clearAutocomplete(prevLength);
-          renderAutocomplete(message, query, filtered, selectedIndex, painter);
+          renderAutocomplete(message, query(), filtered, selectedIndex, painter);
         }
       }
       // Ctrl+C or Escape
@@ -870,11 +883,11 @@ export async function promptAutocomplete<T extends string>(
         const cleanInput = sanitizeInlineInput(key);
         if (!cleanInput) return;
         const prevLength = filtered.length || 1;
-        query += cleanInput;
-        filtered = filterChoices(query, choices, filter, minInput, maxSuggestions);
+        editor.insert(cleanInput);
+        filtered = filterChoices(query(), choices, filter, minInput, maxSuggestions);
         selectedIndex = 0;
         clearAutocomplete(prevLength);
-        renderAutocomplete(message, query, filtered, selectedIndex, painter);
+        renderAutocomplete(message, query(), filtered, selectedIndex, painter);
       }
     };
 
@@ -974,7 +987,8 @@ export interface NumberOptions extends PromptAppearanceOptions {
  * const price = await prompt.number('Price:', { min: 0 });
  * ```
  */
-export async function promptNumber(message: string, options: NumberOptions = {}): Promise<number> {
+async function ansiPromptNumber(message: string, options: NumberOptions = {}): Promise<number> {
+  if (!input.isTTY && options.default === undefined) throw new PromptNonInteractiveError();
   const { default: defaultValue, min, max, integer = false, validate } = options;
 
   const constraints: string[] = [];
@@ -983,7 +997,7 @@ export async function promptNumber(message: string, options: NumberOptions = {})
   if (integer) constraints.push('integer');
   const hint = constraints.length > 0 ? ` ${dim(`(${constraints.join(', ')})`)}` : '';
 
-  const result = await promptInput(message + hint, {
+  const result = await ansiPromptInput(message + hint, {
     default: defaultValue?.toString(),
     theme: options.theme,
     validate: (value) => {
@@ -1003,6 +1017,85 @@ export async function promptNumber(message: string, options: NumberOptions = {})
 // =============================================================================
 // Exported prompt object
 // =============================================================================
+
+const ANSI_PROMPT_RENDERER: PromptRenderer = {
+  present<TResult>(request: PromptRequest<any>, controls: PromptControls<TResult>): void {
+    let operation: Promise<unknown>;
+    switch (request.kind) {
+      case 'input':
+        operation = ansiPromptInput(request.message, request as InputOptions);
+        break;
+      case 'password':
+        operation = ansiPromptPassword(request.message, request as PasswordOptions);
+        break;
+      case 'confirm':
+        operation = ansiPromptConfirm(request.message, request as ConfirmOptions);
+        break;
+      case 'select':
+        operation = ansiPromptSelect(request.message, request.choices, request as SelectOptions);
+        break;
+      case 'checkbox':
+        operation = ansiPromptCheckbox(request.message, request.choices, request as CheckboxOptions);
+        break;
+      case 'autocomplete':
+        operation = ansiPromptAutocomplete(request.message, request.choices, request as AutocompleteOptions);
+        break;
+      case 'number':
+        operation = ansiPromptNumber(request.message, request as NumberOptions);
+        break;
+    }
+    void operation.then(
+      (value) => controls.resolve(value as TResult),
+      (error) => controls.reject(error),
+    );
+  },
+};
+
+function resolvePublicPromptHost() {
+  const host = getPromptHost();
+  if (!host.available) host.setRenderer(ANSI_PROMPT_RENDERER);
+  return host;
+}
+
+export function promptInput(message: string, options: InputOptions = {}): Promise<string> {
+  return resolvePublicPromptHost().input(message, options);
+}
+
+export function promptConfirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
+  return resolvePublicPromptHost().confirm(message, options);
+}
+
+export function promptSelect<T extends string>(
+  message: string,
+  choices: readonly T[],
+  options: SelectOptions<T> = {},
+): Promise<T> {
+  return resolvePublicPromptHost().select(message, choices, options);
+}
+
+export function promptPassword(message: string, options: PasswordOptions = {}): Promise<string> {
+  return resolvePublicPromptHost().password(message, options);
+}
+
+export function promptCheckbox<T extends string>(
+  message: string,
+  choices: readonly T[],
+  options: CheckboxOptions<T> = {},
+): Promise<T[]> {
+  return resolvePublicPromptHost().checkbox(message, choices, options);
+}
+
+export function promptAutocomplete<T extends string>(
+  message: string,
+  choices: readonly T[],
+  options: AutocompleteOptions<T> = {},
+): Promise<T> {
+  return resolvePublicPromptHost().autocomplete(message, choices, options);
+}
+
+export function promptNumber(message: string, options: NumberOptions = {}): Promise<number> {
+  return resolvePublicPromptHost().number(message, options);
+}
 
 export const prompt = {
   input: promptInput,

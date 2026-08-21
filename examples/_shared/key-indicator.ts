@@ -13,6 +13,7 @@ import {
 } from '../../src/index.js';
 import type { VNode } from '../../src/utils/types.js';
 import type { Key } from '../../src/hooks/types.js';
+import type { InteractionEvent } from '../../src/interaction/runtime.js';
 
 // =============================================================================
 // Types
@@ -169,15 +170,16 @@ export function KeyIndicator({ width }: KeyIndicatorProps = {}): VNode {
  * Creates an input handler that records key presses
  *
  * Usage:
- * useInput(withKeyIndicator((input, key) => {
+ * useInteraction(withKeyIndicator((input, key) => {
  *   // Your input handling logic
  * }));
  */
 export function withKeyIndicator(
   handler: (input: string, key: Key) => void
-): (input: string, key: Key) => void {
-  return (input: string, key: Key) => {
-    recordKeyPress(input, key);
-    handler(input, key);
+): (event: InteractionEvent) => void {
+  return (event) => {
+    if (event.type !== 'key') return;
+    recordKeyPress(event.key.text, event.key.native);
+    handler(event.key.text, event.key.native);
   };
 }

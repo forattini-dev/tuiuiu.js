@@ -7,7 +7,10 @@ import type { VNode } from '../../src/utils/types.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 import { resolveColor } from '../../src/core/theme.js';
 import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
-import { StatusIndicator } from '../../src/atoms/status-indicator.js';
+import { StatusIndicator as OwnedStatusIndicator } from '../../src/atoms/status-indicator.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const StatusIndicator = testComponent(OwnedStatusIndicator);
 
 describe('StatusIndicator', () => {
   beforeEach(() => {

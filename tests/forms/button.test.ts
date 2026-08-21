@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Button, IconButton, ButtonGroup, createButtonGroup } from '../../src/atoms/button.js';
+import { Button, IconButton, ButtonGroup as OwnedButtonGroup, createButtonGroup } from '../../src/atoms/button.js';
 import type { Key } from '../../src/hooks/index.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/core/layout.js';
@@ -18,6 +18,9 @@ import {
 import { simulateClick, MouseSimulator } from '../../src/dev-tools/mouse-simulator.js';
 import type { VNode } from '../../src/utils/types.js';
 import { createKey as createKeyboardKey } from '../helpers/keyboard.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ButtonGroup = testComponent(OwnedButtonGroup);
 
 describe('Button Component', () => {
   beforeEach(() => {

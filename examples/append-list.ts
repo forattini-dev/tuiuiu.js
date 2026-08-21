@@ -9,14 +9,13 @@ import {
   render,
   Box,
   Text,
-  AppendList,
   createSignal,
   useInterval,
-  useInput,
+  useInteraction,
   useApp,
-  Footer,
   Spacer,
 } from '../src/index.js';
+import { AppendList, Footer } from '../src/ui/index.js';
 
 const MAX_LINES = 200;
 
@@ -35,7 +34,10 @@ function AppendListDemo() {
     ].slice(-MAX_LINES));
   }, 250);
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input === 'q' || key.escape) {
       app.exit();
     }
@@ -56,5 +58,5 @@ function AppendListDemo() {
   );
 }
 
-const { waitUntilExit } = render(AppendListDemo, { fullHeight: true });
+const { waitUntilExit } = render(AppendListDemo, { screen: 'fullscreen' });
 await waitUntilExit();

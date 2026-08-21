@@ -11,13 +11,14 @@ signals on every frame or leak component lifecycle knowledge into UI layers.
 
 ## Decision
 
-Stateful components use `useFactoryState(externalState, options, factory)`.
-The helper preserves factory identity during component renders, refreshes
-options where supported, and creates standalone state outside the render
-lifecycle.
+Stateful components run through `component()` and use
+`useFactoryState(externalState, options, factory)`. The helper preserves factory
+identity inside that ComponentOwner and refreshes options where supported.
+Standalone consumers call the corresponding `createX()` controller factory;
+components do not synthesize an ownerless fallback state.
 
 ## Consequences
 
 UI layers do not import hook context internals. New stateful components must
-provide an external-state path and use the canonical helper.
-
+have an explicit ComponentOwner, provide an external-state path where useful,
+and use the canonical helper.

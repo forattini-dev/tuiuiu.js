@@ -23,7 +23,7 @@ import { getHookState, getCurrentHookIndex, setHookState } from './context.js';
  * @example
  * function Counter() {
  *   const [count, setCount] = useState(0);
- *   useHotkeys('up', () => setCount(c => c + 1));
+ *   useShortcut('up', () => setCount(c => c + 1));
  *   return Text({}, `Count: ${count()}`);
  * }
  *

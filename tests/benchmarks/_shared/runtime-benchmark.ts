@@ -93,7 +93,7 @@ export function benchmarkRuntime(
   const delta = createDeltaRenderer({
     stdout,
     useDelta: true,
-    showCursor: true,
+    showHardwareCursor: true,
   });
 
   const frameTimes: number[] = [];
@@ -150,7 +150,7 @@ export function benchmarkLocalizedRuntime(
   const delta = createDeltaRenderer({
     stdout,
     useDelta: true,
-    showCursor: true,
+    showHardwareCursor: true,
   });
 
   const frameTimes: number[] = [];
@@ -219,8 +219,8 @@ export async function benchmarkBurstScheduler(
     {
       stdin,
       stdout,
-      clearOnStart: false,
-      showCursor: true,
+      screen: 'inline',
+      showHardwareCursor: true,
       useDeltaRenderer: false,
       maxFps: 0,
     },

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage, createTerminalImage } from '../../src/atoms/terminal-image.js';
 import {
   __collectDirtyRegionsForTesting,
   createDeltaRenderer,
@@ -26,6 +26,9 @@ import { stringWidth } from '../../src/utils/text-utils.js';
 import type { VNode } from '../../src/utils/types.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { refreshCapabilities } from '../../src/core/capabilities.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
 
 function normalizeAnsiSgrOrder(output: string): string {
   let normalized = output;
@@ -119,7 +122,7 @@ describe('Delta Renderer', () => {
     it('should render a simple VNode', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, 'Hello World');
@@ -131,7 +134,7 @@ describe('Delta Renderer', () => {
     it('should render a committed frame snapshot', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const frame = createFrameSnapshot(Text({}, 'Committed'), {
@@ -149,7 +152,7 @@ describe('Delta Renderer', () => {
     it('should short-circuit identical committed frames without emitting terminal writes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -176,7 +179,7 @@ describe('Delta Renderer', () => {
     it('should short-circuit identical protocol-image frames without re-emitting graphics payloads', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -210,7 +213,7 @@ describe('Delta Renderer', () => {
     it('should emit kitty cleanup when a protocol image is removed', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
       const imageState = createTerminalImage({
@@ -255,7 +258,7 @@ describe('Delta Renderer', () => {
     it('should re-emit kitty placement when a protocol image moves', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
       const imageState = createTerminalImage({
@@ -297,7 +300,7 @@ describe('Delta Renderer', () => {
     it('should keep full delta output aligned with canonical ANSI output', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -323,7 +326,7 @@ describe('Delta Renderer', () => {
     it('should keep wide-character output aligned with canonical ANSI output', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -401,7 +404,7 @@ describe('Delta Renderer', () => {
     it('should track render statistics', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, 'Test');
@@ -415,7 +418,7 @@ describe('Delta Renderer', () => {
     it('should do full render on first render', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, 'First');
@@ -429,7 +432,7 @@ describe('Delta Renderer', () => {
     it('should do delta render on subsequent renders with small changes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -448,7 +451,7 @@ describe('Delta Renderer', () => {
     it('should handle resize', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       renderer.resize(80, 24);
@@ -459,7 +462,7 @@ describe('Delta Renderer', () => {
     it('should clear the screen', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       renderer.clear();
@@ -475,7 +478,7 @@ describe('Delta Renderer', () => {
     it('should render Box with children', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -491,7 +494,7 @@ describe('Delta Renderer', () => {
     it('should render Box with border', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -506,7 +509,7 @@ describe('Delta Renderer', () => {
     it('should render with colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ color: 'red', bold: true }, 'Colored');
@@ -518,7 +521,7 @@ describe('Delta Renderer', () => {
     it('should render with background colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -535,7 +538,7 @@ describe('Delta Renderer', () => {
     it('should report low update percentage for small changes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -553,7 +556,7 @@ describe('Delta Renderer', () => {
     it('should fall back to full render when many cells change', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -573,7 +576,7 @@ describe('Delta Renderer', () => {
     it('should render primary color', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ color: 'primary' }, 'Primary Text');
@@ -584,7 +587,7 @@ describe('Delta Renderer', () => {
     it('should render success, warning, error colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -601,7 +604,7 @@ describe('Delta Renderer', () => {
     it('should render muted and foreground colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -619,7 +622,7 @@ describe('Delta Renderer', () => {
     it('should render bold text', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ bold: true }, 'Bold Text');
@@ -630,7 +633,7 @@ describe('Delta Renderer', () => {
     it('should render italic and underline text', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -647,7 +650,7 @@ describe('Delta Renderer', () => {
     it('should render combined text attributes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text(
@@ -664,7 +667,7 @@ describe('Delta Renderer', () => {
     it('should render Box with padding', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -679,7 +682,7 @@ describe('Delta Renderer', () => {
     it('should render Box with asymmetric padding', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -694,7 +697,7 @@ describe('Delta Renderer', () => {
     it('should render nested boxes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -721,7 +724,7 @@ describe('Delta Renderer', () => {
       it(`should render ${style} border`, () => {
         const renderer = createDeltaRenderer({
           stdout: mockStdout as unknown as NodeJS.WriteStream,
-          showCursor: true,
+          showHardwareCursor: true,
         });
 
         const node: VNode = Box(
@@ -737,7 +740,7 @@ describe('Delta Renderer', () => {
     it('should render border with color', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -754,7 +757,7 @@ describe('Delta Renderer', () => {
     it('should handle long text within width', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -769,7 +772,7 @@ describe('Delta Renderer', () => {
     it('should handle truncate mode', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -784,7 +787,7 @@ describe('Delta Renderer', () => {
     it('should handle truncate-start mode', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -799,7 +802,7 @@ describe('Delta Renderer', () => {
     it('should handle truncate-middle mode', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -816,7 +819,7 @@ describe('Delta Renderer', () => {
     it('should handle many sequential renders without errors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -835,7 +838,7 @@ describe('Delta Renderer', () => {
     it('should handle style-only changes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -852,7 +855,7 @@ describe('Delta Renderer', () => {
     it('should handle layout changes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -884,7 +887,7 @@ describe('Delta Renderer', () => {
     it('should render hex colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ color: '#ff6600' }, 'Orange Text');
@@ -895,7 +898,7 @@ describe('Delta Renderer', () => {
     it('should render short hex colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ color: '#f60' }, 'Short Hex');
@@ -906,7 +909,7 @@ describe('Delta Renderer', () => {
     it('should render rgb colors', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({ color: 'rgb(255, 100, 50)' }, 'RGB Color');
@@ -919,7 +922,7 @@ describe('Delta Renderer', () => {
     it('should render a dashboard-like layout', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box(
@@ -948,7 +951,7 @@ describe('Delta Renderer', () => {
     it('should render a menu-like structure', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const items = ['Home', 'Settings', 'About', 'Exit'];
@@ -974,7 +977,7 @@ describe('Delta Renderer', () => {
     it('should handle selection changes efficiently', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
         useDelta: true,
       });
 
@@ -1006,7 +1009,7 @@ describe('Delta Renderer', () => {
     it('should render text with embedded ANSI color codes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       // Text with embedded ANSI codes (like from canvas.render())
@@ -1019,7 +1022,7 @@ describe('Delta Renderer', () => {
     it('should handle 256-color ANSI codes', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const ansiText = '\x1b[38;5;196mColor 196\x1b[0m';
@@ -1031,7 +1034,7 @@ describe('Delta Renderer', () => {
     it('should handle background colors in ANSI', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const ansiText = '\x1b[48;2;0;0;255mBlue BG\x1b[0m';
@@ -1043,7 +1046,7 @@ describe('Delta Renderer', () => {
     it('should handle mixed ANSI and plain text', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const ansiText = 'Start \x1b[31mRed\x1b[0m Middle \x1b[34mBlue\x1b[0m End';
@@ -1055,7 +1058,7 @@ describe('Delta Renderer', () => {
     it('should not double-escape ANSI codes when rendering', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       // Render with ANSI
@@ -1075,7 +1078,7 @@ describe('Delta Renderer', () => {
     it('should handle empty text', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, '');
@@ -1086,7 +1089,7 @@ describe('Delta Renderer', () => {
     it('should handle empty box', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box({ borderStyle: 'single', width: 5, height: 3 });
@@ -1097,7 +1100,7 @@ describe('Delta Renderer', () => {
     it('should handle zero dimensions gracefully', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Box({ width: 0, height: 0 }, Text({}, 'Hidden'));
@@ -1109,7 +1112,7 @@ describe('Delta Renderer', () => {
     it('should handle special characters', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, '┌─┐│└┘█▓▒░');
@@ -1120,7 +1123,7 @@ describe('Delta Renderer', () => {
     it('should handle multiline text', () => {
       const renderer = createDeltaRenderer({
         stdout: mockStdout as unknown as NodeJS.WriteStream,
-        showCursor: true,
+        showHardwareCursor: true,
       });
 
       const node: VNode = Text({}, 'Line 1\nLine 2\nLine 3');

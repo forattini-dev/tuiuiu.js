@@ -22,12 +22,6 @@ export type ContextChild =
   | (() => ContextRenderResult);
 
 export interface Context<T> {
-  /** Current synchronous value; public for backwards-compatible inspection. */
-  _currentValue: T;
-  /** Default value used outside every Provider. */
-  _defaultValue: T;
-  /** Active provider values, primarily exposed for diagnostics. */
-  _stack: T[];
   /** Display name for debugging. */
   displayName?: string;
   /**
@@ -45,7 +39,19 @@ export interface Context<T> {
 
 export interface ContextProviderProps<T> {
   value: T;
-  children?: ContextChild | ContextChild[];
+}
+
+interface ContextState<T> {
+  currentValue: T;
+  stack: T[];
+}
+
+const contextStates = new WeakMap<object, ContextState<unknown>>();
+
+function getContextState<T>(context: Context<T>): ContextState<T> {
+  const state = contextStates.get(context) as ContextState<T> | undefined;
+  if (!state) throw new TypeError('Context must be created with createContext()');
+  return state;
 }
 
 function appendContextResult(
@@ -68,38 +74,28 @@ export function withContext<T, R>(
   value: T,
   render: () => R,
 ): R {
-  const previous = context._currentValue;
-  context._stack.push(value);
-  context._currentValue = value;
+  const state = getContextState(context);
+  const previous = state.currentValue;
+  state.stack.push(value);
+  state.currentValue = value;
 
   try {
     return render();
   } finally {
-    context._stack.pop();
-    context._currentValue = previous;
+    state.stack.pop();
+    state.currentValue = previous;
   }
 }
 
 export function createContext<T>(defaultValue: T): Context<T> {
   const context: Context<T> = {
-    _currentValue: defaultValue,
-    _defaultValue: defaultValue,
-    _stack: [],
-
     Provider: (
       props: ContextProviderProps<T>,
       ...restChildren: ContextChild[]
     ): VNode => {
-      const requestedChildren = props.children === undefined
-        ? []
-        : Array.isArray(props.children)
-          ? props.children
-          : [props.children];
-      const allChildren = [...requestedChildren, ...restChildren];
-
       const renderedChildren = withContext(context, props.value, () => {
         const results: VNode[] = [];
-        for (const child of allChildren) {
+        for (const child of restChildren) {
           appendContextResult(
             results,
             typeof child === 'function' ? child() : child,
@@ -120,13 +116,18 @@ export function createContext<T>(defaultValue: T): Context<T> {
     },
   };
 
+  contextStates.set(context, {
+    currentValue: defaultValue,
+    stack: [],
+  });
+
   return context;
 }
 
 export function useContext<T>(context: Context<T>): T {
-  return context._currentValue;
+  return getContextState(context).currentValue;
 }
 
 export function hasContext<T>(context: Context<T>): boolean {
-  return context._stack.length > 0;
+  return getContextState(context).stack.length > 0;
 }

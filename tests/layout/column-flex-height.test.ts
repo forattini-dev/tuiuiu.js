@@ -5,7 +5,10 @@
 import { describe, it, expect } from 'vitest';
 import { calculateLayout } from '../../src/core/layout.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
-import { ScrollArea } from '../../src/organisms/scroll-area.js';
+import { ScrollArea as OwnedScrollArea } from '../../src/organisms/scroll-area.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ScrollArea = testComponent(OwnedScrollArea);
 
 describe('column flex height', () => {
   it('should distribute remaining height to flex children', () => {

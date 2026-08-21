@@ -14,7 +14,7 @@ import {
   render,
   Box,
   Text,
-  useInput,
+  useInteraction,
   useApp,
   createSignal,
   createEffect,
@@ -215,7 +215,10 @@ function ExternalStateDemo() {
     return cleanup;
   });
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.escape || input === 'q') {
       app.exit();
     }

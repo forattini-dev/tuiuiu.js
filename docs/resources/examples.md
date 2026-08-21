@@ -31,6 +31,7 @@ pnpm example app-dashboard
 | `app-forms` | Advanced | Canonical interactive inputs with `useTextInputState()` / `useSelectState()` |
 | `rich-prompt-workbench` | Advanced | Structured prompt composition with semantic tokens, slash commands, async completions, and background status feedback |
 | `shell-session-workbench` | Advanced | App-owned subprocess transcript routing, streamed output, persisted replay restoration, live status, and line-based stdin bridging |
+| `interaction-workbench` | Advanced | Semantic commands, collection identity, overlay sessions, and app-hosted prompts |
 | `app-dashboard` | Advanced | Heavy composition, metrics, and animation-like updates |
 | `app-ai-assistant` | Advanced | Assistant-style composition, overlays, streaming, code, and settings |
 
@@ -123,7 +124,7 @@ These show lower-level control flows and are better after you understand the can
 | `programmatic-state-management` | Medium | External state changes |
 | `programmatic-scroll-control` | Medium | Scroll control APIs |
 | `programmatic-external-triggers` | Medium | Out-of-band updates |
-| `thread-pool-demo` | Advanced | `createTaskBridgePool` with multiple workers + parallel jobs |
+| `thread-pool-demo` | Advanced | `createBackgroundExecutorPool` with multiple workers + parallel jobs |
 | `performance-demo` | Advanced | Rendering and update performance instrumentation |
 | `programmatic-runtime-contracts` | Medium | Committed-frame queries, scroll-by-ID, and inspector usage |
 

@@ -19,16 +19,16 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/use-input.js';
 import { useFactoryState } from '../hooks/factory-state.js';
-import { getHotkeyScope, matchesHotkey, parseHotkey } from '../hooks/use-hotkeys.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
 import { renderToString, measureHeight } from '../core/renderer.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface ScrollListProps<T> {
+export interface ScrollListProps<T> extends ComponentKeyProps {
   /** Items to display */
   items: T[] | (() => T[]);
 
@@ -88,23 +88,6 @@ export interface ScrollListProps<T> {
    */
   autoScrollThreshold?: number;
 
-  /**
-   * Hotkey scope for keyboard navigation (default: 'global')
-   *
-   * Use scopes to prevent conflicts when multiple scroll lists exist,
-   * or when scroll list is inside a modal/overlay.
-   *
-   * @example
-   * ```typescript
-   * // Only responds when 'chat' scope is active
-   * ScrollList({ ..., hotkeyScope: 'chat' })
-   *
-   * // In parent component
-   * pushHotkeyScope('chat')  // Enable chat hotkeys
-   * popHotkeyScope()         // Disable chat hotkeys
-   * ```
-   */
-  hotkeyScope?: string;
 }
 
 export interface ScrollListState {
@@ -382,7 +365,7 @@ export function useScrollList(options: UseScrollListOptions = {}): UseScrollList
  *   height: 20,
  * })
  */
-export function ScrollList<T>(props: ScrollListProps<T>): VNode {
+function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   warnIfRenderFunctionPatternMisused(
     'ScrollList',
     'children',
@@ -405,7 +388,6 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
     state: externalState,
     autoScroll = false,
     autoScrollThreshold = 0,
-    hotkeyScope = 'global',
   } = props;
 
   // Use external state or create internal
@@ -509,68 +491,41 @@ export function ScrollList<T>(props: ScrollListProps<T>): VNode {
 
   const scrollTop = state.scrollTop();
 
-  // Keyboard handling via single useInput with scope checking
-  // This is more efficient than 8 separate useHotkeys calls
-  //
-  // Hotkeys only fire when:
-  // 1. keysEnabled is true
-  // 2. isActive is true
-  // 3. The current scope matches hotkeyScope (or scope is 'global')
-  //
-  // Pre-parse hotkey bindings for efficiency
-  const bindings = {
-    pageup: parseHotkey('pageup'),
-    pagedown: parseHotkey('pagedown'),
-    home: parseHotkey('home'),
-    end: parseHotkey('end'),
-    up: parseHotkey('up'),
-    down: parseHotkey('down'),
-    k: parseHotkey('k'),
-    j: parseHotkey('j'),
-  };
-
   useInput((input, key) => {
-    // Check if keys are enabled and component is active
     if (!keysEnabled || !isActive) return;
-
-    // Check scope - only respond if scope matches or is 'global'
-    const currentScope = getHotkeyScope();
-    if (hotkeyScope !== 'global' && hotkeyScope !== currentScope) return;
-
-    // Check each hotkey binding
-    if (matchesHotkey(input, key, bindings.pageup)) {
+    if (key.pageUp) {
       state.pageUp();
       return;
     }
-    if (matchesHotkey(input, key, bindings.pagedown)) {
+    if (key.pageDown) {
       state.pageDown();
       return;
     }
-    if (matchesHotkey(input, key, bindings.home)) {
+    if (key.home) {
       state.scrollToTop();
       return;
     }
-    if (matchesHotkey(input, key, bindings.end)) {
+    if (key.end) {
       state.scrollToBottom();
       return;
     }
 
     // Arrow keys - direction depends on inverted mode
-    if (matchesHotkey(input, key, bindings.up)) {
+    if (key.upArrow) {
       state.scrollBy(inverted ? 1 : -1);
       return;
     }
-    if (matchesHotkey(input, key, bindings.down)) {
+    if (key.downArrow) {
       state.scrollBy(inverted ? -1 : 1);
       return;
     }
 
     // Vim keys - same direction logic
-    if (matchesHotkey(input, key, bindings.k)) {
+    if (input === 'k' && !key.ctrl && !key.meta && !key.option) {
       state.scrollBy(inverted ? 1 : -1);
       return;
     }
-    if (matchesHotkey(input, key, bindings.j)) {
+    if (input === 'j' && !key.ctrl && !key.meta && !key.option) {
       state.scrollBy(inverted ? -1 : 1);
       return;
     }
@@ -791,13 +746,16 @@ export interface ChatListProps<T> extends Omit<ScrollListProps<T>, 'inverted'> {
  *   height: 20,
  * })
  */
-export function ChatList<T>(props: ChatListProps<T>): VNode {
+function renderChatList<T>(props: ChatListProps<T>): VNode {
   return ScrollList({
     autoScroll: true, // Can be overridden by props
     ...props,
     inverted: true,
   });
 }
+
+export const ScrollList = component('ScrollList', renderScrollList);
+export const ChatList = component('ChatList', renderChatList);
 
 // =============================================================================
 // Utility: Clear height cache

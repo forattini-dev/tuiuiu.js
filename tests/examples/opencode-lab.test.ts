@@ -6,12 +6,9 @@ import {
   colors,
   type ConversationMessage,
 } from '../../examples/opencode-lab.js';
-import {
-  Text,
-  renderToString,
-  stringWidth,
-  stripAnsi,
-} from '../../src/index.js';
+import { Text } from '../../src/index.js';
+import { renderToString } from '../../src/core/renderer.js';
+import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
 
 interface Viewport {
   width: number;

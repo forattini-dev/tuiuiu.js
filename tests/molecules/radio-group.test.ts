@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createRadioGroup, RadioGroup } from '../../src/molecules/radio-group.js';
+import { createRadioGroup, RadioGroup as OwnedRadioGroup } from '../../src/molecules/radio-group.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const RadioGroup = testComponent(OwnedRadioGroup);
 
 const basicOptions = [
   { value: 'a', label: 'Option A' },

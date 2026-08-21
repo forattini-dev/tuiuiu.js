@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   Modal,
+  openModal,
   ConfirmDialog,
   AlertBox,
   Toast,
   Window,
-  createModal,
   createConfirmDialog,
   type ModalProps,
   type ConfirmDialogProps,
@@ -13,7 +13,10 @@ import {
   type ToastProps,
   type WindowProps,
 } from '../../src/organisms/modal.js';
+import { createOverlayHost } from '../../src/interaction/overlay.js';
+import { createInteractionRuntime } from '../../src/interaction/runtime.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
+import type { VNode } from '../../src/utils/types.js';
 import { createEffect } from '../../src/primitives/signal.js';
 import { renderOnce } from '../../src/app/render-loop.js';
 import { stringWidth, stripAnsi } from '../../src/utils/text-utils.js';
@@ -250,53 +253,28 @@ describe('Modal', () => {
     });
   });
 
-  // ==========================================================================
-  // createModal Factory
-  // ==========================================================================
-  describe('createModal', () => {
-    it('should create modal state', () => {
-      const state = createModal();
-      expect(state.open).toBeDefined();
-      expect(state.close).toBeDefined();
-      expect(state.toggle).toBeDefined();
-    });
+  describe('openModal', () => {
+    it('adapts Modal presentation to an OverlayHost session', async () => {
+      const runtime = createInteractionRuntime();
+      const host = createOverlayHost<VNode | null>({ runtime });
+      const onClose = vi.fn();
+      const session = openModal({
+        id: 'settings',
+        host,
+        title: 'Settings',
+        content: Text({}, 'Preferences'),
+        onClose,
+      });
 
-    it('should start closed', () => {
-      const state = createModal();
-      expect(state.isOpen).toBe(false);
-    });
+      expect(host.snapshot()).toMatchObject({
+        activeId: 'settings',
+        backdropId: 'settings',
+      });
+      expect(runtime.inspect()).toMatchObject({ mode: 'overlay', target: 'settings' });
 
-    it('should open modal', () => {
-      const state = createModal();
-      state.open();
-      expect(state.isOpen).toBe(true);
-    });
-
-    it('should close modal', () => {
-      const state = createModal();
-      state.open();
-      state.close();
-      expect(state.isOpen).toBe(false);
-    });
-
-    it('should toggle modal', () => {
-      const state = createModal();
-      state.toggle();
-      expect(state.isOpen).toBe(true);
-      state.toggle();
-      expect(state.isOpen).toBe(false);
-    });
-
-    it('should accept focusTrap option', () => {
-      const state = createModal({ focusTrap: true });
-      expect(state.zoneId).toBeDefined();
-    });
-
-    it('should accept hotkeyScope option', () => {
-      const state = createModal({ hotkeyScope: 'modal' });
-      state.open();
-      state.close();
-      expect(state.isOpen).toBe(false);
+      await session.close();
+      expect(host.snapshot().entries).toEqual([]);
+      expect(onClose).toHaveBeenCalledOnce();
     });
   });
 
@@ -351,7 +329,7 @@ describe('Modal', () => {
       });
       expect(state.props).toBeDefined();
       expect(state.toggle).toBeDefined();
-      expect(state.confirm).toBeDefined();
+      expect(state.activateSelected).toBeDefined();
       expect(state.activateSelected).toBeDefined();
       expect(state.cancel).toBeDefined();
     });
@@ -412,7 +390,7 @@ describe('Modal', () => {
         onConfirm,
       });
       state.selectConfirm(); // Select confirm button first
-      state.confirm();
+      state.activateSelected();
       expect(onConfirm).toHaveBeenCalled();
     });
 

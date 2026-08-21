@@ -11,6 +11,7 @@ import type {
 import { createTerminalImageProtocolState } from '../core/graphics.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import type { BoxProps, VNode } from '../utils/types.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 type TerminalImageInput = ImageData | TerminalImageSource;
 type TerminalImageFit = NonNullable<ImageOptions['fit']>;
@@ -38,7 +39,7 @@ export interface TerminalImageState {
   updateOptions: (nextOptions: TerminalImageOptions) => void;
 }
 
-export interface TerminalImageProps extends Omit<BoxProps, 'children'> {
+export interface TerminalImageProps extends Omit<BoxProps, 'children' | 'key'>, ComponentKeyProps {
   source?: MaybeReactive<TerminalImageInput>;
   fit?: MaybeReactive<TerminalImageFit | undefined>;
   protocol?: MaybeReactive<GraphicsProtocol | undefined>;
@@ -109,7 +110,7 @@ export function createTerminalImage(options: TerminalImageOptions): TerminalImag
   };
 }
 
-export function TerminalImage(props: TerminalImageProps): VNode {
+export const TerminalImage = component<TerminalImageProps, VNode>('TerminalImage', (props) => {
   const {
     state: externalState,
     source: _source,
@@ -151,4 +152,4 @@ export function TerminalImage(props: TerminalImageProps): VNode {
   };
 
   return Box(nodeProps);
-}
+});

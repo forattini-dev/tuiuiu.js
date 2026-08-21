@@ -48,7 +48,7 @@ function normalizeInputEvents(
 
 describe('TerminalInputStream', () => {
   it('decodes UTF-8 identically at every byte boundary', () => {
-    const value = 'A🙂e\u0301👨‍👩‍👧‍👦Z';
+    const value = 'A你中文かなカナ한글🙂e\u0301👨‍👩‍👧‍👦Z';
     const bytes = Buffer.from(value);
     const expected = [{ type: 'input', input: value }];
 
@@ -178,7 +178,7 @@ describe('TerminalInputStream', () => {
       '\x1b[97;5u' +
       '\x1b[27;5;97~' +
       PASTE_START +
-      'line 1\n🙂 line 2' +
+      'line 1\n中文 日本語 한국어 🙂 line 2' +
       PASTE_END +
       '\x1b[O' +
       'done';

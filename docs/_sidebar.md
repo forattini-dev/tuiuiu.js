@@ -98,8 +98,7 @@
 - **Hooks**
   - [useState](/hooks/use-state.md)
   - [useEffect](/hooks/use-effect.md)
-  - [useInput](/hooks/use-input.md)
-  - [useHotkeys](/hooks/use-hotkeys.md)
+  - [useShortcut](/hooks/use-shortcut.md)
   - [useTerminalSize](/hooks/use-terminal-size.md)
   - [useTerminalFocus](/hooks/use-terminal-focus.md)
   - [useCompositor](/hooks/use-compositor.md)

@@ -8,8 +8,8 @@
 import {
   Box,
   Text,
-  Panel,
 } from '../../../index.js';
+import { Panel } from '../../../templates/layout.js';
 import { PreText } from '../../../primitives/computed-node.js';
 import { story, defaultControls } from '../../core/registry.js';
 import type { Story } from '../../types.js';
@@ -25,7 +25,7 @@ const signalStories: Story[] = [
     .source(`const [count, setCount] = createSignal(0);
 
 function App() {
-  useHotkeys('up', () => setCount(c => c + 1));
+  useShortcut('up', () => setCount(c => c + 1));
   return Text({}, \`Count: \${count()}\`);
 }`)
     .controls({

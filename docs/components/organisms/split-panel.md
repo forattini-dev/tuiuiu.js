@@ -251,10 +251,8 @@ SplitPanel({
 function FileBrowser() {
   const split = createSplitPanel({ initialRatio: 0.25 })
 
-  useInput((input, key) => {
-    if (input === '[') split.toggleLeft()
-    if (input === ']') split.toggleRight()
-  })
+  useShortcut('[', split.toggleLeft)
+  useShortcut(']', split.toggleRight)
 
   return SplitPanel({
     left: split.leftCollapsed
@@ -349,4 +347,3 @@ Box({ flexDirection: 'column' },
 - [Modal](/components/organisms/modal.md) - Modal dialogs
 - [Tabs](/components/molecules/tabs.md) - Tabbed content
 - [Scroll](/components/scroll.md) - Scrollable containers (ScrollList, ChatList, Scroll)
-

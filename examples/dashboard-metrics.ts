@@ -3,15 +3,17 @@ import {
   Box,
   Text,
   StatusIndicator,
-  MetricDisplay,
-  createMetric,
   DataRow,
   ListItem,
-  HttpStatus,
-  SplitView,
-  createSplitView,
   useInterval,
 } from '../src/index.js';
+import {
+  HttpStatus,
+  MetricDisplay,
+  SplitView,
+  createMetric,
+  createSplitView,
+} from '../src/ui/index.js';
 
 interface RequestLog {
   id: string;

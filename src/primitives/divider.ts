@@ -26,7 +26,7 @@ export interface DividerProps {
   char?: string;
   /** Width/length of the divider (default: fills available space) */
   width?: number | string;
-  /** Vertical divider length. `width` remains a compatibility fallback. */
+  /** Vertical divider length (defaults to one row). */
   height?: number | string;
   /** Color of the divider */
   color?: string;
@@ -52,7 +52,7 @@ export interface DividerProps {
  * Divider({ title: 'Section', titleColor: 'cyan' })
  *
  * // Vertical divider
- * Divider({ direction: 'vertical', width: 10 })
+ * Divider({ direction: 'vertical', height: 10 })
  *
  * // Custom style
  * Divider({ char: '═', color: 'yellow' })
@@ -126,9 +126,8 @@ export function Divider(props: DividerProps = {}): VNode {
       }],
     };
   } else {
-    const compatibilityLength = width === '100%' ? 1 : width;
     const resolvedHeight = validateLength(
-      height ?? compatibilityLength,
+      height ?? 1,
       'Divider height'
     );
     return {

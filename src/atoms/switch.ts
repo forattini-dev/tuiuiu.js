@@ -18,6 +18,8 @@ import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { getTheme } from '../core/theme.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
+import { useConst } from '../hooks/use-const.js';
 
 // =============================================================================
 // Types
@@ -115,7 +117,7 @@ export function createSwitch(options: SwitchOptions = {}): SwitchState {
 // Component
 // =============================================================================
 
-export interface SwitchProps extends SwitchOptions {
+export interface SwitchProps extends SwitchOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: SwitchState;
   /** Label before switch */
@@ -142,7 +144,7 @@ export interface SwitchProps extends SwitchOptions {
  *   colorOn: 'green',
  * })
  */
-export function Switch(props: SwitchProps): VNode {
+export const Switch = component<SwitchProps, VNode>('Switch', (props) => {
   const theme = getTheme();
   const {
     onLabel = 'ON',
@@ -255,7 +257,7 @@ export function Switch(props: SwitchProps): VNode {
     },
     ...parts
   );
-}
+});
 
 // =============================================================================
 // Toggle Group (multiple switches)
@@ -272,7 +274,7 @@ export interface ToggleOption {
   disabled?: boolean;
 }
 
-export interface ToggleGroupOptions {
+export interface ToggleGroupOptions extends ComponentKeyProps {
   /** Toggle options */
   options: ToggleOption[];
   /** Direction */
@@ -288,7 +290,7 @@ export interface ToggleGroupOptions {
 /**
  * ToggleGroup - Multiple toggles
  */
-export function ToggleGroup(props: ToggleGroupOptions): VNode {
+function renderToggleGroup(props: ToggleGroupOptions): VNode {
   const {
     options,
     direction = 'vertical',
@@ -297,27 +299,33 @@ export function ToggleGroup(props: ToggleGroupOptions): VNode {
     isActive = true,
   } = props;
 
-  // Create states for each toggle
-  const states = options.map((opt) =>
-    createSwitch({
-      initialValue: opt.initialValue,
-      onChange: () => {
-        if (onChange) {
-          const values: Record<string, boolean> = {};
-          options.forEach((o, i) => {
-            values[o.key] = states[i]!.value();
-          });
-          onChange(values);
-        }
-      },
-    })
-  );
+  const states = useConst(() => new Map<string, SwitchState>());
+  const activeKeys = new Set(options.map((option) => option.key));
+  for (const key of states.keys()) {
+    if (!activeKeys.has(key)) states.delete(key);
+  }
+  for (const option of options) {
+    let state = states.get(option.key);
+    const emitChange = () => {
+      if (!onChange) return;
+      onChange(Object.fromEntries(
+        options.map((current) => [current.key, states.get(current.key)?.value() ?? false]),
+      ));
+    };
+    if (!state) {
+      state = createSwitch({ initialValue: option.initialValue, onChange: emitChange });
+      states.set(option.key, state);
+    } else {
+      state.updateOptions?.({ initialValue: option.initialValue, onChange: emitChange });
+    }
+  }
 
-  const toggleNodes = options.map((opt, i) =>
+  const toggleNodes = options.map((opt) =>
     Switch({
+      key: opt.key,
       label: opt.label,
       disabled: opt.disabled,
-      state: states[i],
+      state: states.get(opt.key),
       isActive,
       size: 'compact',
     })
@@ -331,3 +339,5 @@ export function ToggleGroup(props: ToggleGroupOptions): VNode {
     ...toggleNodes
   );
 }
+
+export const ToggleGroup = component<ToggleGroupOptions, VNode>('ToggleGroup', renderToggleGroup);

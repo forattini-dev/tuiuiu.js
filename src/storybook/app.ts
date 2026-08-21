@@ -7,7 +7,8 @@
 import { Box, Text } from '../primitives/nodes.js';
 import { Divider } from '../primitives/divider.js';
 import { render } from '../app/render-loop.js';
-import { useState, useInput, useApp, useEffect, useMouse, useFps } from '../hooks/index.js';
+import { useState, useApp, useEffect, useMouse, useFps } from '../hooks/index.js';
+import { useInteraction } from '../hooks/use-command.js';
 import { startTick, stopTick, getTick, isTickRunning, setTickRate } from '../core/tick.js';
 import { setTheme, useTheme, getNextTheme, getTheme } from '../core/theme.js';
 import type { VNode } from '../utils/types.js';
@@ -778,7 +779,10 @@ function StorybookApp(): VNode {
     : [];
 
   // Input handling
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     setKeystrokeCount((c) => c + 1);
     // Record key press for indicator
     recordKeyPress(input, key);
@@ -1240,7 +1244,7 @@ export async function runStorybook(): Promise<void> {
 
   const { waitUntilExit } = render(() => StorybookApp(), {
     // Enable fullHeight for proper flexGrow layout
-    fullHeight: true,
+    screen: 'alternate',
   });
   await waitUntilExit();
 

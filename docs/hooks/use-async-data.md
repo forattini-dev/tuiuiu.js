@@ -70,7 +70,7 @@ function RefreshableView() {
     (signal) => fetch('/api/items', { signal }).then(r => r.json())
   );
 
-  useHotkeys('r', () => refetch());
+  useShortcut('r', () => refetch());
 
   return Box({ flexDirection: 'column' },
     Text({ dim: true }, loading() ? 'Refreshing...' : 'Press R to refresh'),
@@ -113,7 +113,7 @@ function CancellableFetch() {
   });
 
   // Refetch aborts the previous request automatically
-  useHotkeys('r', () => refetch());
+  useShortcut('r', () => refetch());
 
   return Text({}, loading() ? 'Loading...' : JSON.stringify(data()));
 }

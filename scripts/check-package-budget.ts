@@ -7,8 +7,11 @@ const distDir = path.join(rootDir, 'dist');
 
 // Keep declaration maps and JavaScript source maps for editor/debugger quality,
 // but prevent accidental package growth from silently reaching users.
-const MAX_DIST_BYTES = 8_500_000;
-const MAX_DIST_FILES = 1_150;
+// Keep declarations and source maps while preventing accidental package growth.
+const MAX_DIST_BYTES = 8_550_000;
+// V2 publishes a small set of owned entry points; internal modules still emit
+// JavaScript, declarations, and maps for debugger quality.
+const MAX_DIST_FILES = 1_200;
 
 function measureDirectory(directory: string): { bytes: number; files: number } {
   let bytes = 0;

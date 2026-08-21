@@ -10,11 +10,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const resultsDirectory = path.join(here, 'results');
 const quick = process.argv.includes('--quick');
 const profile = quick ? 'quick' : 'full';
-const frameworks = ['tuiuiu-root', 'tuiuiu-minimal', 'ink', 'ansi'];
+const frameworks = ['tuiuiu-root', 'ink', 'ansi'];
 const scenarios = ['localized', 'full'];
 const frameworkLabels = {
   'tuiuiu-root': 'Tuiuiu (root)',
-  'tuiuiu-minimal': 'Tuiuiu (minimal)',
   ink: 'Ink',
   ansi: 'Direct ANSI (reference)',
 };
@@ -236,7 +235,6 @@ function buildReport(metadata, aggregates) {
     }
 
     const tuiuiuRoot = scenarioResults['tuiuiu-root'];
-    const tuiuiuMinimal = scenarioResults['tuiuiu-minimal'];
     const ink = scenarioResults.ink;
     lines.push(
       '',
@@ -263,33 +261,6 @@ function buildReport(metadata, aggregates) {
       describeDifference(
         'average output',
         tuiuiuRoot.avgUpdateBytes,
-        ink.avgUpdateBytes,
-        formatBytes,
-      ),
-      '',
-      'Tuiuiu minimal relative to Ink:',
-      '',
-      describeDifference(
-        'module load',
-        tuiuiuMinimal.moduleLoadMs,
-        ink.moduleLoadMs,
-        (value) => `${formatMs(value)} ms`,
-      ),
-      describeDifference(
-        'process to first paint',
-        tuiuiuMinimal.processToFirstPaintMs,
-        ink.processToFirstPaintMs,
-        (value) => `${formatMs(value)} ms`,
-      ),
-      describeDifference(
-        'update p50',
-        tuiuiuMinimal.updateLatencyMs.p50,
-        ink.updateLatencyMs.p50,
-        (value) => `${formatMs(value)} ms`,
-      ),
-      describeDifference(
-        'average output',
-        tuiuiuMinimal.avgUpdateBytes,
         ink.avgUpdateBytes,
         formatBytes,
       ),

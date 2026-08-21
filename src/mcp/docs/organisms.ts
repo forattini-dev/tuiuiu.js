@@ -12,7 +12,7 @@ export const organisms: ComponentDoc[] = [
   // =============================================================================
   {
     name: 'Modal',
-    category: 'organisms',
+    category: 'utils',
     description: 'Modal dialog with customizable size, position, borders, backdrop, and close button. Renders centered content with optional title, footer, and close hint.',
     props: [
       { name: 'title', type: 'string', required: false, description: 'Modal title displayed in title bar' },
@@ -82,12 +82,9 @@ const dialog = createConfirmDialog({
 
 ConfirmDialog(dialog.props)
 
-// Handle input
-useInput((_, key) => {
-  if (key.leftArrow || key.rightArrow || key.tab) dialog.toggle()
-  if (key.return) dialog.confirm()
-  if (key.escape) dialog.cancel()
-})`,
+useShortcut(['left', 'right', 'tab'], dialog.toggle)
+useShortcut('enter', dialog.activateSelected)
+useShortcut('escape', dialog.cancel)`,
     ],
   },
   {
@@ -152,113 +149,6 @@ useInput((_, key) => {
   },
 
   // =============================================================================
-  // Overlay Stack
-  // =============================================================================
-  {
-    name: 'OverlayConfig',
-    category: 'utils',
-    description: 'Entry accepted by createOverlayStack().push() for modal, dialog, and toast z-ordering and lifecycle.',
-    props: [
-      { name: 'id', type: 'string', required: true, description: 'Unique overlay identifier' },
-      { name: 'component', type: '() => VNode | null', required: true, description: 'Component to render' },
-      { name: 'priority', type: "'low' | 'normal' | 'high' | 'critical'", required: false, default: "'normal'", description: 'Priority level (higher = above lower)' },
-      { name: 'closeOnEscape', type: 'boolean', required: false, default: 'true', description: 'Close when escape is pressed' },
-      { name: 'closeOnClickOutside', type: 'boolean', required: false, default: 'false', description: 'Close when clicking outside' },
-      { name: 'showBackdrop', type: 'boolean', required: false, default: 'true', description: 'Show backdrop/dim behind' },
-      { name: 'backdropChar', type: 'string', required: false, default: "' '", description: 'Backdrop character' },
-      { name: 'backdropColor', type: 'ColorValue', required: false, description: 'Backdrop color' },
-      { name: 'onOpen', type: '() => void', required: false, description: 'Callback when overlay is opened' },
-      { name: 'onClose', type: '() => void', required: false, description: 'Callback when overlay is closed' },
-      { name: 'beforeClose', type: '() => boolean', required: false, description: 'Callback before close (return false to cancel)' },
-      { name: 'data', type: 'unknown', required: false, description: 'Custom data attached to overlay' },
-    ],
-    examples: [
-      `// Create overlay stack
-const overlays = createOverlayStack()
-
-// Stack API
-overlays.push({ id, component, priority? })  // Add overlay
-overlays.pop()                               // Remove top overlay
-overlays.close(id)                           // Close specific overlay
-overlays.closeAll()                          // Close all overlays
-overlays.current()                           // Get top overlay
-overlays.hasOverlay()                        // Check if any open
-overlays.isOpen(id)                          // Check if specific is open
-overlays.get(id)                             // Get overlay by ID
-overlays.bringToTop(id)                      // Move to top
-overlays.size()                              // Number of overlays`,
-      `// Helper functions
-import { createModalOverlay, createToastOverlay, createCriticalOverlay,
-         shouldBlockInput, handleOverlayEscape } from 'tuiuiu.js'
-
-// Quick modal creation
-overlays.push(createModalOverlay({
-  id: 'settings',
-  component: () => SettingsModal(),
-  onClose: () => console.log('closed'),
-}))
-
-// Low-priority toast (no backdrop)
-const toast = createToastOverlay({
-  id: 'notification',
-  component: () => Toast({ message: 'Saved!' }),
-  duration: 3000,
-})
-overlays.push(toast)
-
-// Critical overlay (highest priority, no escape close)
-overlays.push(createCriticalOverlay({
-  id: 'error',
-  component: () => ErrorDialog(),
-}))
-
-// Input handling
-useInput((_, key) => {
-  if (key.escape && handleOverlayEscape(overlays)) return true
-  if (shouldBlockInput(overlays)) return true
-  // Normal input handling
-}, { priority: 'modal', stopPropagation: true })`,
-    ],
-  },
-  {
-    name: 'OverlayContainer',
-    category: 'organisms',
-    description: 'Full-screen absolute container that centers and layers overlays from createOverlayStack(). Render it last inside a full-size, position: relative root.',
-    props: [
-      { name: 'stack', type: 'OverlayStackState', required: true, description: 'Overlay stack from createOverlayStack()' },
-      { name: 'renderBackdrop', type: '(entry: OverlayEntry) => VNode | null', required: false, description: 'Custom backdrop renderer' },
-    ],
-    examples: [
-      `// Create overlay stack
-const overlays = createOverlayStack()
-
-// Push an overlay
-overlays.push({
-  id: 'confirm',
-  component: () => ConfirmDialog({ ... }),
-  priority: 'normal',
-  closeOnEscape: true,
-})
-
-// Render last in your app
-Box({ position: 'relative', width: 'fill', height: 'fill' },
-  MainContent(),
-  OverlayContainer({ stack: overlays })
-)
-
-// Handle input
-useInput((_, key) => {
-  if (key.escape && overlays.hasOverlay()) {
-    if (overlays.current()?.closeOnEscape) {
-      overlays.pop()
-    }
-    return true
-  }
-}, { priority: 'modal', stopPropagation: true })`,
-    ],
-  },
-
-  // =============================================================================
   // Command Palette
   // =============================================================================
   {
@@ -302,13 +192,8 @@ When(showPalette(),
   })
 )
 
-useInput((input, key) => {
-  if (key.upArrow) palette.selectPrev()
-  if (key.downArrow) palette.selectNext()
-  if (key.return) palette.confirm()
-  if (key.escape) palette.close()
-  if (input && !key.ctrl) palette.type(input)
-})`,
+// CommandPalette binds navigation, confirmation, dismissal, and text editing
+// through the active InteractionRuntime when it is mounted.`,
     ],
   },
   {
@@ -390,7 +275,7 @@ DataTable({
   {
     name: 'VirtualDataTable',
     category: 'organisms',
-    description: 'Experimental windowed DataTable for large datasets. It renders only visible rows while preserving global cursor and selection indices. Import from tuiuiu.js/experimental.',
+    description: 'Windowed DataTable for large datasets. It renders only visible rows while preserving global cursor and selection indices. Import from tuiuiu.js/ui.',
     props: [
       { name: 'columns', type: 'DataTableColumn[]', required: true, description: 'Column definitions' },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Row data' },
@@ -402,7 +287,7 @@ DataTable({
       { name: 'onScroll', type: '(offset: number) => void', required: false, description: 'Called when the logical offset changes' },
     ],
     examples: [
-      `import { createVirtualDataTable, VirtualDataTable } from 'tuiuiu.js/experimental'
+      `import { createVirtualDataTable, VirtualDataTable } from 'tuiuiu.js/ui'
 
 const state = createVirtualDataTable({
   columns: columns,
@@ -518,7 +403,6 @@ Features:
       { name: 'keysEnabled', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation' },
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Is component focused (disables keys when false)' },
       { name: 'state', type: 'ScrollListState', required: false, description: 'External state from useScrollList() for programmatic control' },
-      { name: 'hotkeyScope', type: 'string', required: false, default: "'global'", description: 'Hotkey scope for conflict prevention' },
     ],
     examples: [
       `// ✅ Basic usage - children is a FUNCTION
@@ -783,7 +667,6 @@ VirtualList({
       { name: 'rowSpan', type: 'number', required: false, description: 'Row span' },
       { name: 'justifySelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Horizontal alignment inside cell' },
       { name: 'alignSelf', type: "'start' | 'end' | 'center' | 'stretch'", required: false, description: 'Vertical alignment inside cell' },
-      { name: 'children', type: 'VNode | VNode[]', required: false, description: 'Compatibility content prop; variadic children are canonical' },
     ],
     examples: [
       `GridItem({ area: 'sidebar' }, Sidebar())`,
@@ -800,7 +683,6 @@ VirtualList({
       { name: 'width', type: 'number', required: false, description: 'Row width' },
       { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border' },
       { name: 'padding', type: 'number', required: false, description: 'Inner padding' },
-      { name: 'children', type: 'VNode[]', required: false, description: 'Row items' },
     ],
     examples: [
       `GridRow({ gap: 1 }, CardA(), CardB(), CardC())`,
@@ -817,7 +699,6 @@ VirtualList({
       { name: 'height', type: 'number', required: false, description: 'Column height' },
       { name: 'border', type: 'boolean', required: false, default: 'false', description: 'Show border' },
       { name: 'padding', type: 'number', required: false, description: 'Inner padding' },
-      { name: 'children', type: 'VNode[]', required: false, description: 'Column items' },
     ],
     examples: [
       `GridColumn({ gap: 1 }, RowA(), RowB(), RowC())`,
@@ -833,7 +714,6 @@ VirtualList({
       { name: 'gap', type: 'number | [number, number]', required: false, default: '0', description: 'Gap between items' },
       { name: 'width', type: 'number', required: false, description: 'Grid width' },
       { name: 'height', type: 'number', required: false, description: 'Grid height' },
-      { name: 'children', type: 'VNode[]', required: false, description: 'Grid items' },
     ],
     examples: [
       `AutoGrid({ minColumnWidth: 25, gap: 1 },
@@ -880,7 +760,6 @@ VirtualList({
       { name: 'columns', type: 'number', required: true, description: 'Number of columns' },
       { name: 'gap', type: 'number', required: false, default: '0', description: 'Gap between columns' },
       { name: 'width', type: 'number', required: false, default: '80', description: 'Grid width' },
-      { name: 'children', type: 'VNode[]', required: false, description: 'Grid items' },
     ],
     examples: [
       `MasonryGrid({ columns: 3, gap: 1 },
@@ -890,33 +769,25 @@ VirtualList({
   },
 
   // =============================================================================
-  // Legacy Scroll Components (prefer ScrollList/Scroll instead)
+  // Specialized scroll presets
   // =============================================================================
   {
     name: 'ScrollableText',
     category: 'organisms',
-    description: `**PREFER: Scroll from primitives**
-
-Legacy component. Use Scroll({ height }, Text({}, content)) instead for better performance and consistency.`,
+    description: 'Scrollable preset for one text buffer. Use Scroll for arbitrary VNode composition.',
     props: [
       { name: 'text', type: 'string', required: true, description: 'Text content' },
       { name: 'height', type: 'number', required: true, description: 'Visible height' },
     ],
     examples: [
-      `// ❌ Legacy
-ScrollableText({ text: longContent, height: 10 })
-
-// ✅ Preferred
-Scroll({ height: 10 }, Text({}, longContent))`,
+      `ScrollableText({ text: longContent, height: 10 })`,
     ],
     relatedComponents: ['Scroll'],
   },
   {
     name: 'LogViewer',
     category: 'organisms',
-    description: `**PREFER: ScrollList with autoScroll**
-
-Legacy component with line numbers and highlighting. Use ScrollList for more flexibility.`,
+    description: 'Log-oriented scroll preset with line numbers, highlighting, and tail following.',
     props: [
       { name: 'lines', type: 'string[]', required: true, description: 'Log lines' },
       { name: 'height', type: 'number', required: true, description: 'Visible height' },
@@ -925,19 +796,12 @@ Legacy component with line numbers and highlighting. Use ScrollList for more fle
       { name: 'highlightPattern', type: 'RegExp', required: false, description: 'Highlight pattern' },
     ],
     examples: [
-      `// ❌ Legacy
-LogViewer({ lines: logs(), height: 15, autoScroll: true })
-
-// ✅ Preferred - more flexible
-ScrollList({
-  items: logs(),
-  children: (log, i) => Box({ flexDirection: 'row' },
-    Text({ color: 'gray' }, String(i + 1).padStart(4) + ' '),
-    Text({ color: log.includes('ERROR') ? 'red' : 'foreground' }, log),
-  ),
+      `LogViewer({
+  lines: logs(),
   height: 15,
-  itemHeight: 1,
   autoScroll: true,
+  showLineNumbers: true,
+  highlightPattern: /ERROR|WARN/,
 })`,
     ],
     relatedComponents: ['ScrollList'],
@@ -945,7 +809,7 @@ ScrollList({
   {
     name: 'EditableDataTable',
     category: 'organisms',
-    description: 'Experimental controlled table with inline text, number, and select editors, validation, and keyboard commit/cancel behavior. Import from tuiuiu.js/experimental.',
+    description: 'Controlled table with inline text, number, and select editors, validation, and keyboard commit/cancel behavior. Import from tuiuiu.js/ui.',
     props: [
       { name: 'data', type: 'T[]', required: true, description: 'Array of row data objects' },
       { name: 'columns', type: 'EditableColumn<T>[]', required: true, description: 'Column definitions with edit configuration' },
@@ -954,7 +818,7 @@ ScrollList({
       { name: 'isActive', type: 'boolean', required: false, default: 'true', description: 'Enable keyboard navigation and editing' },
     ],
     examples: [
-      `import { EditableDataTable } from 'tuiuiu.js/experimental'
+      `import { EditableDataTable } from 'tuiuiu.js/ui'
 
 EditableDataTable({
   data: users(),

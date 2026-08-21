@@ -18,7 +18,7 @@
  * by any preferred CLI parser without changing the tuiuiu.js prompt code.
  */
 import { createCLI, type Formatter } from './_shared/cli-args-parser.js'
-import { prompt } from '../src/index.js'
+import { prompt } from '../src/interaction/index.js'
 import { c } from '../src/colors/index.js'
 
 // =============================================================================

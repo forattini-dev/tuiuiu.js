@@ -1,5 +1,5 @@
 export interface CommonMistakeEntry {
-  code: 'signals-inside-component-render' | 'api-pattern-mismatch' | 'arrow-key-empty-input' | 'hooks-called-conditionally' | 'hooks-outside-component' | 'missing-effect-cleanup' | 'nested-hooks-in-computed';
+  code: 'signals-inside-component-render' | 'api-pattern-mismatch' | 'raw-key-name-assumption' | 'hooks-called-conditionally' | 'hooks-outside-component' | 'missing-effect-cleanup' | 'nested-hooks-in-computed';
   title: string;
   anchor: string;
   summary: string;
@@ -19,8 +19,8 @@ export const commonMistakes: CommonMistakeEntry[] = [
       'Input handlers and effects often keep references to the old signal instance.',
       'The UI reads a fresh signal while callbacks mutate an older one, so state appears stuck or resets.',
     ],
-    wrongExample: `function App() {\n  const [count, setCount] = createSignal(0);\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
-    rightExample: `function App() {\n  const [count, setCount] = useState(0);\n  useHotkeys('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}\n\n// Or keep createSignal() at module scope.\nconst [sharedCount, setSharedCount] = createSignal(0);`,
+    wrongExample: `function App() {\n  const [count, setCount] = createSignal(0);\n  useShortcut('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}`,
+    rightExample: `function App() {\n  const [count, setCount] = useState(0);\n  useShortcut('up', () => setCount(c => c + 1));\n  return Text({}, \`Count: \${count()}\`);\n}\n\n// Or keep createSignal() at module scope.\nconst [sharedCount, setSharedCount] = createSignal(0);`,
   },
   {
     code: 'api-pattern-mismatch',
@@ -36,17 +36,17 @@ export const commonMistakes: CommonMistakeEntry[] = [
     rightExample: `Page({ title: 'Home', children: Content() })\nScrollList({ items, children: (item) => Row({ item }) })\nTabs({ tabs: [{ key: 'home', label: 'Home', content: Content() }] })`,
   },
   {
-    code: 'arrow-key-empty-input',
-    title: 'Arrow Keys Have Empty input String',
-    anchor: 'arrow-key-empty-input',
-    summary: 'Arrow keys pass an empty string as `input` in useInput. Use the `key` object or prefer useHotkeys.',
+    code: 'raw-key-name-assumption',
+    title: 'Treating Text as a Key Name',
+    anchor: 'raw-key-name-assumption',
+    summary: 'Bind actions with useShortcut and inspect normalized InteractionEvent fields only in text controls.',
     whyItBreaks: [
-      'useInput(input, key) receives input="" for arrow keys, so string checks like input === "ArrowUp" never match.',
-      'Checking input length or treating input as the key name silently does nothing on arrow presses.',
-      'useHotkeys("up", fn) is the simpler and correct alternative for arrow key handling.',
+      'Text and key identity are different: arrow keys do not produce text.',
+      'Terminal parser payloads are intentionally not the application command contract.',
+      'Canonical shortcut names such as "arrowup" work across supported input protocols.',
     ],
-    wrongExample: `useInput((input, key) => {\n  if (input === 'ArrowUp') moveUp();   // never fires\n  if (input === 'ArrowDown') moveDown(); // never fires\n});`,
-    rightExample: `// Option 1: useInput with key object\nuseInput((input, key) => {\n  if (key.upArrow) moveUp();\n  if (key.downArrow) moveDown();\n});\n\n// Option 2: useHotkeys (preferred)\nuseHotkeys('up', () => moveUp());\nuseHotkeys('down', () => moveDown());`,
+    wrongExample: `useInteraction((event) => {\n  if (event.type === 'key' && event.key.text === 'ArrowUp') moveUp();\n});`,
+    rightExample: `useShortcut('arrowup', () => moveUp());\nuseShortcut('arrowdown', () => moveDown());`,
   },
   {
     code: 'hooks-called-conditionally',
@@ -54,12 +54,12 @@ export const commonMistakes: CommonMistakeEntry[] = [
     anchor: 'hooks-called-conditionally',
     summary: 'Hooks must always be called in the same order on every render. Do not put hooks inside if/else, loops, or after early returns.',
     whyItBreaks: [
-      'Hooks use a global index counter to persist state between renders.',
+      'Hooks use positional slots inside the nearest component owner.',
       'If a hook is skipped (inside an if branch), all subsequent hooks read the wrong slot.',
       'This causes state corruption: useState returns the wrong value, useEffect runs the wrong callback.',
     ],
-    wrongExample: `function App() {\n  const [show, setShow] = useState(true);\n  if (show()) {\n    const [name, setName] = useState('Alice'); // WRONG: conditional hook!\n  }\n  useHotkeys('q', () => exit());\n}`,
-    rightExample: `function App() {\n  const [show, setShow] = useState(true);\n  const [name, setName] = useState('Alice'); // Always called\n  useHotkeys('q', () => exit());\n  // Use the value conditionally, not the hook:\n  return show() ? Text({}, name()) : Text({}, 'Hidden');\n}`,
+    wrongExample: `function App() {\n  const [show, setShow] = useState(true);\n  if (show()) {\n    const [name, setName] = useState('Alice'); // WRONG: conditional hook!\n  }\n  useShortcut('q', () => exit());\n}`,
+    rightExample: `function App() {\n  const [show, setShow] = useState(true);\n  const [name, setName] = useState('Alice'); // Always called\n  useShortcut('q', () => exit());\n  // Use the value conditionally, not the hook:\n  return show() ? Text({}, name()) : Text({}, 'Hidden');\n}`,
   },
   {
     code: 'hooks-outside-component',

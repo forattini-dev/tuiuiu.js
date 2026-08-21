@@ -1316,8 +1316,7 @@ export class Canvas {
   }
 
   /**
-   * Render canvas to a single string (lines joined with newlines)
-   * For backwards compatibility and simple output
+   * Render canvas to a single string (lines joined with newlines).
    */
   renderToString(): string {
     return this.render().join('\n');

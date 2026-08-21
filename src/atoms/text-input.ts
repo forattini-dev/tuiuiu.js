@@ -16,6 +16,7 @@
  */
 
 import { Box, Text } from '../primitives/nodes.js';
+import { component } from '../app/component.js';
 import type { VNode, MouseEventData, TextStyle } from '../utils/types.js';
 import { batch, createSignal, createEffect } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
@@ -55,6 +56,7 @@ import {
   writePersistedCompletionRankingEntries,
   writePersistedHistoryEntries,
 } from './text-input-persistence.js';
+import { createCollectionController } from '../interaction/collection.js';
 
 export interface TextInputState {
   value: string;
@@ -414,7 +416,26 @@ export function createTextInput(options: TextInputOptions = {}) {
   const [segments, setSegments] = createSignal(
     clampSegmentsToValue(options.initialSegments ?? [], initialValue.length)
   );
-  const [completionState, setCompletionState] = createSignal<TextInputCompletionState | null>(null);
+  const [completionState, setCompletionStateSignal] = createSignal<TextInputCompletionState | null>(null);
+  const completionCollection = createCollectionController<TextInputCompletionItem, string>({
+    items: [],
+    getKey: (item) => item.id,
+    loop: true,
+  });
+  const setCompletionState = (next: TextInputCompletionState | null) => {
+    if (!next) {
+      completionCollection.reconcile([]);
+      setCompletionStateSignal(null);
+      return;
+    }
+    completionCollection.reconcile(next.items);
+    const requested = next.items[Math.max(0, Math.min(next.selectedIndex, next.items.length - 1))];
+    if (requested) completionCollection.setActive(requested.id);
+    setCompletionStateSignal({
+      ...next,
+      selectedIndex: Math.max(0, completionCollection.snapshot().activeIndex),
+    });
+  };
   let nextSegmentId = segments().length;
   let completionRequestId = 0;
   let suppressedCompletionKey: string | null = null;
@@ -779,9 +800,14 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (!current || current.items.length === 0) {
       return;
     }
+    const item = current.items[
+      ((nextIndex % current.items.length) + current.items.length) % current.items.length
+    ];
+    if (!item) return;
+    completionCollection.setActive(item.id, 'keyboard');
     setCompletionState({
       ...current,
-      selectedIndex: ((nextIndex % current.items.length) + current.items.length) % current.items.length,
+      selectedIndex: completionCollection.snapshot().activeIndex,
     });
   };
 
@@ -969,7 +995,10 @@ export function createTextInput(options: TextInputOptions = {}) {
       return false;
     }
 
-    const item = current.items[Math.max(0, Math.min(index, current.items.length - 1))];
+    const requested = current.items[Math.max(0, Math.min(index, current.items.length - 1))];
+    if (requested) completionCollection.setActive(requested.id);
+    const item = completionCollection.activate();
+    if (!item) return false;
     recordAcceptedCompletion(item, {
       value: value(),
       cursorPosition: cursorPosition(),
@@ -1549,7 +1578,7 @@ export function renderTextInput(
         break;
     }
 
-    return Text(style, text);
+    return Text({ ...style, __cursorAnchor: true }, text);
   };
 
   // Box style based on borderStyle
@@ -1804,8 +1833,8 @@ export function useTextInputState(options: TextInputOptions = {}) {
 /**
  * Simple standalone TextInput component
  */
-export function TextInput({ state, ...options }: TextInputProps): VNode {
+export const TextInput = component<TextInputProps, VNode>('TextInput', ({ state, ...options }) => {
   const internalState = useFactoryState(state, options, createTextInput);
 
   return renderTextInput(internalState, options);
-}
+});

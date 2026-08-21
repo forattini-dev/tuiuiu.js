@@ -1,617 +1,70 @@
-/**
- * Tests for the Advanced Input Handling System
- */
-
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  detectKeyboardProtocol,
-  setKeyboardProtocol,
-  getKeyboardProtocol,
-  resetKeyboardProtocol,
-  enableKittyProtocol,
-  disableKittyProtocol,
-  queryKittyProtocol,
-  parseKittyKeyEvent,
-  enableMouseTracking,
-  disableMouseTracking,
-  parseMouseEvent,
-  enableBracketedPaste,
-  disableBracketedPaste,
-  enableFocusEvents,
-  disableFocusEvents,
-  isFocusEvent,
-  parseFocusEvent,
-  hasBracketedPaste,
-  extractBracketedPaste,
-  createInputState,
-  applyInputAction,
-  getSelectedText,
-  parseInput,
-  enableAlternateScreen,
   disableAlternateScreen,
-  hideCursor,
-  showCursor,
-  requestCursorPosition,
-  parseCursorPosition,
+  disableBracketedPaste,
+  disableFocusEvents,
+  enableAlternateScreen,
+  enableBracketedPaste,
+  enableFocusEvents,
+  parseFocusEvent,
+  parseKittyKeyEvent,
 } from '../../src/core/input.js';
 
-describe('Keyboard Protocol Detection', () => {
-  const originalEnv = { ...process.env };
-  const terminalEnvVars = [
-    'KITTY_WINDOW_ID',
-    'TERM_PROGRAM',
-    'TERM',
-    'WEZTERM_PANE',
-    'GHOSTTY_RESOURCES_DIR',
-    'CONTOUR_TERMINAL_ID',
-    'ALACRITTY_WINDOW_ID',
-    'ALACRITTY_LOG',
-    'WARP_IS_LOCAL_SHELL_SESSION',
-    'WT_SESSION',
-    'KONSOLE_VERSION',
-    'VTE_VERSION',
-    'TILIX_ID',
-    'TERMINOLOGY',
-    'VSCODE_PID',
-  ];
+describe('Kitty keyboard protocol', () => {
+  it('parses text, alternate keys, modifiers, and event types', () => {
+    expect(parseKittyKeyEvent('\x1b[97u')).toMatchObject({
+      keyCode: 97,
+      text: 'a',
+      eventType: 'press',
+    });
+    expect(parseKittyKeyEvent('\x1b[97:65;5:2u')).toMatchObject({
+      keyCode: 97,
+      shiftedKey: 65,
+      eventType: 'repeat',
+      modifiers: { ctrl: true, shift: false },
+    });
+    expect(parseKittyKeyEvent('\x1b[97;1:3u')?.eventType).toBe('release');
+  });
 
-  beforeEach(() => {
-    process.env = { ...originalEnv };
-    resetKeyboardProtocol();
-    for (const key of terminalEnvVars) {
-      delete process.env[key];
+  it('parses associated Unicode text code points', () => {
+    expect(parseKittyKeyEvent('\x1b[0;1;20320:22909u')?.text).toBe('你好');
+  });
+
+  it('rejects other terminal sequences and unsafe values', () => {
+    const malformed = [
+      '\x1b[A',
+      'a',
+      '\x1b[97;1;1114112u',
+      '\x1b[97;1;55296u',
+      '\x1b[999999999999999999999999999999u',
+      '\x1b[97;0u',
+    ];
+    for (const sequence of malformed) {
+      expect(parseKittyKeyEvent(sequence)).toBeNull();
     }
   });
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-    resetKeyboardProtocol();
-  });
-
-  it('should detect Kitty terminal', () => {
-    process.env.KITTY_WINDOW_ID = '1';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should detect WezTerm as Kitty-compatible', () => {
-    process.env.TERM_PROGRAM = 'WezTerm';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should detect foot terminal as Kitty-compatible', () => {
-    process.env.TERM = 'foot';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should detect Ghostty via terminal profile database', () => {
-    process.env.GHOSTTY_RESOURCES_DIR = '/usr/share/ghostty';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should detect Rio via terminal profile database', () => {
-    process.env.TERM_PROGRAM = 'rio';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should detect Contour via terminal profile database', () => {
-    process.env.CONTOUR_TERMINAL_ID = '1234';
-    expect(detectKeyboardProtocol()).toBe('kitty');
-  });
-
-  it('should default to legacy protocol', () => {
-    expect(detectKeyboardProtocol()).toBe('legacy');
-  });
-
-  it('should allow manual override', () => {
-    setKeyboardProtocol('kitty');
-    expect(getKeyboardProtocol()).toBe('kitty');
-    setKeyboardProtocol(null);
-    expect(getKeyboardProtocol()).toBe('legacy');
-  });
 });
 
-describe('Kitty Keyboard Protocol', () => {
-  it('should generate enable sequence with flags', () => {
-    expect(enableKittyProtocol(0b11111)).toBe('\x1b[>31u');
-    expect(enableKittyProtocol(1)).toBe('\x1b[>1u');
-  });
-
-  it('should generate disable sequence', () => {
-    expect(disableKittyProtocol()).toBe('\x1b[<u');
-  });
-
-  it('should generate query sequence', () => {
-    expect(queryKittyProtocol()).toBe('\x1b[?u');
-  });
-
-  describe('parseKittyKeyEvent', () => {
-    it('should parse simple key', () => {
-      // CSI 97 u = 'a'
-      const event = parseKittyKeyEvent('\x1b[97u');
-      expect(event).not.toBeNull();
-      expect(event!.keyCode).toBe(97);
-      expect(event!.text).toBe('a');
-      expect(event!.eventType).toBe('press');
-    });
-
-    it('should parse key with modifiers', () => {
-      // CSI 97;5u = Ctrl+a (modifier 5 = 4+1, bit 2 = ctrl)
-      const event = parseKittyKeyEvent('\x1b[97;5u');
-      expect(event).not.toBeNull();
-      expect(event!.keyCode).toBe(97);
-      expect(event!.modifiers.ctrl).toBe(true);
-      expect(event!.modifiers.shift).toBe(false);
-    });
-
-    it('should parse key with event type', () => {
-      // CSI 97;1:2u = 'a' repeat (event type 2)
-      const event = parseKittyKeyEvent('\x1b[97;1:2u');
-      expect(event).not.toBeNull();
-      expect(event!.eventType).toBe('repeat');
-
-      // CSI 97;1:3u = 'a' release (event type 3)
-      const release = parseKittyKeyEvent('\x1b[97;1:3u');
-      expect(release).not.toBeNull();
-      expect(release!.eventType).toBe('release');
-    });
-
-    it('should parse shifted key', () => {
-      // CSI 97:65 u = 'a' with shifted 'A'
-      const event = parseKittyKeyEvent('\x1b[97:65u');
-      expect(event).not.toBeNull();
-      expect(event!.keyCode).toBe(97);
-      expect(event!.shiftedKey).toBe(65);
-    });
-
-    it('should return null for non-Kitty sequences', () => {
-      expect(parseKittyKeyEvent('\x1b[A')).toBeNull();
-      expect(parseKittyKeyEvent('a')).toBeNull();
-    });
-  });
-});
-
-describe('Mouse Input', () => {
-  describe('enableMouseTracking', () => {
-    it('should generate SGR mode sequence', () => {
-      const seq = enableMouseTracking('sgr');
-      expect(seq).toContain('\x1b[?1006h');
-    });
-
-    it('should generate any-event mode sequence', () => {
-      const seq = enableMouseTracking('any');
-      expect(seq).toContain('\x1b[?1003h');
-    });
-  });
-
-  it('should generate disable sequence', () => {
-    const seq = disableMouseTracking();
-    expect(seq).toContain('\x1b[?1000l');
-    expect(seq).toContain('\x1b[?1006l');
-  });
-
-  describe('parseMouseEvent', () => {
-    it('should parse SGR left click', () => {
-      // CSI < 0 ; 10 ; 20 M = left button down at (10, 20)
-      const event = parseMouseEvent('\x1b[<0;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe('down');
-      expect(event!.button).toBe('left');
-      expect(event!.x).toBe(9);
-      expect(event!.y).toBe(19);
-    });
-
-    it('should parse SGR left release', () => {
-      // CSI < 0 ; 10 ; 20 m = left button up
-      const event = parseMouseEvent('\x1b[<0;10;20m');
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe('up');
-      expect(event!.button).toBe('left');
-    });
-
-    it('should parse SGR right click', () => {
-      // CSI < 2 ; 10 ; 20 M = right button down
-      const event = parseMouseEvent('\x1b[<2;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.button).toBe('right');
-    });
-
-    it('should parse SGR wheel up', () => {
-      // CSI < 64 ; 10 ; 20 M = wheel up
-      const event = parseMouseEvent('\x1b[<64;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe('wheel');
-      expect(event!.button).toBe('wheelUp');
-    });
-
-    it('should parse SGR wheel down', () => {
-      // CSI < 65 ; 10 ; 20 M = wheel down
-      const event = parseMouseEvent('\x1b[<65;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe('wheel');
-      expect(event!.button).toBe('wheelDown');
-    });
-
-    it('should parse SGR drag', () => {
-      // CSI < 32 ; 10 ; 20 M = left button drag (motion flag set)
-      const event = parseMouseEvent('\x1b[<32;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe('drag');
-      expect(event!.button).toBe('left');
-    });
-
-    it('should parse SGR with modifiers', () => {
-      // CSI < 4 ; 10 ; 20 M = left with shift (bit 2)
-      const event = parseMouseEvent('\x1b[<4;10;20M');
-      expect(event).not.toBeNull();
-      expect(event!.shift).toBe(true);
-
-      // CSI < 8 ; 10 ; 20 M = left with alt (bit 3)
-      const altEvent = parseMouseEvent('\x1b[<8;10;20M');
-      expect(altEvent).not.toBeNull();
-      expect(altEvent!.alt).toBe(true);
-
-      // CSI < 16 ; 10 ; 20 M = left with ctrl (bit 4)
-      const ctrlEvent = parseMouseEvent('\x1b[<16;10;20M');
-      expect(ctrlEvent).not.toBeNull();
-      expect(ctrlEvent!.ctrl).toBe(true);
-    });
-
-    it('should parse X10 format', () => {
-      // CSI M <button+32> <x+33> <y+33>
-      const event = parseMouseEvent('\x1b[M !%'); // Button 0, x=1, y=5
-      expect(event).not.toBeNull();
-      expect(event!.button).toBe('left');
-      expect(event!.x).toBe(0);
-      expect(event!.y).toBe(4);
-    });
-
-    it('should parse pixel and urxvt formats through the canonical decoder', () => {
-      expect(parseMouseEvent('\x1b[<0;120;240;10;20M')).toMatchObject({
-        type: 'down',
-        button: 'left',
-        x: 9,
-        y: 19,
-        pixelX: 120,
-        pixelY: 240,
-      });
-      expect(parseMouseEvent('\x1b[32;10;20M')).toMatchObject({
-        type: 'down',
-        button: 'left',
-        x: 9,
-        y: 19,
-      });
-    });
-
-    it('rejects invalid coordinates, unsafe values, and trailing input', () => {
-      expect(parseMouseEvent('\x1b[<0;0;1M')).toBeNull();
-      expect(parseMouseEvent('\x1b[<0;1;1Msuffix')).toBeNull();
-      expect(parseMouseEvent(`\x1b[<${'9'.repeat(400)};1;1M`)).toBeNull();
-    });
-
-    it('should return null for non-mouse sequences', () => {
-      expect(parseMouseEvent('\x1b[A')).toBeNull();
-      expect(parseMouseEvent('hello')).toBeNull();
-    });
-  });
-});
-
-describe('Bracketed Paste', () => {
-  it('should generate enable sequence', () => {
+describe('terminal input modes', () => {
+  it('provides symmetric bracketed-paste ownership sequences', () => {
     expect(enableBracketedPaste()).toBe('\x1b[?2004h');
-  });
-
-  it('should generate disable sequence', () => {
     expect(disableBracketedPaste()).toBe('\x1b[?2004l');
   });
 
-  it('should detect bracketed paste', () => {
-    expect(hasBracketedPaste('\x1b[200~pasted text\x1b[201~')).toBe(true);
-    expect(hasBracketedPaste('normal text')).toBe(false);
-  });
-
-  it('should extract paste content', () => {
-    const result = extractBracketedPaste('\x1b[200~hello world\x1b[201~');
-    expect(result).not.toBeNull();
-    expect(result!.paste).toBe('hello world');
-    expect(result!.remaining).toBe('');
-  });
-
-  it('should handle paste with surrounding content', () => {
-    const result = extractBracketedPaste('before\x1b[200~pasted\x1b[201~after');
-    expect(result).not.toBeNull();
-    expect(result!.paste).toBe('pasted');
-    expect(result!.remaining).toBe('beforeafter');
-  });
-
-  it('should handle incomplete paste', () => {
-    const result = extractBracketedPaste('\x1b[200~partial paste');
-    expect(result).not.toBeNull();
-    expect(result!.paste).toBe('partial paste');
-  });
-});
-
-describe('Terminal Focus Events', () => {
-  it('should generate enable sequence', () => {
+  it('provides symmetric focus-reporting ownership sequences', () => {
     expect(enableFocusEvents()).toBe('\x1b[?1004h');
-  });
-
-  it('should generate disable sequence', () => {
     expect(disableFocusEvents()).toBe('\x1b[?1004l');
   });
 
-  it('should identify focus event prefixes', () => {
-    expect(isFocusEvent('\x1b[I')).toBe(true);
-    expect(isFocusEvent('\x1b[Orest')).toBe(true);
-    expect(isFocusEvent('plain')).toBe(false);
-  });
-
-  it('should parse focus in and out sequences', () => {
+  it('parses complete focus events only', () => {
     expect(parseFocusEvent('\x1b[I')).toEqual({ focused: true });
     expect(parseFocusEvent('\x1b[O')).toEqual({ focused: false });
+    expect(parseFocusEvent('\x1b[Orest')).toBeNull();
     expect(parseFocusEvent('\x1b[A')).toBeNull();
   });
-});
 
-describe('Input State Machine', () => {
-  describe('createInputState', () => {
-    it('should create empty state', () => {
-      const state = createInputState();
-      expect(state.buffer).toBe('');
-      expect(state.cursor).toBe(0);
-      expect(state.selectionStart).toBeNull();
-    });
-
-    it('should create state with initial value', () => {
-      const state = createInputState('hello');
-      expect(state.buffer).toBe('hello');
-      expect(state.cursor).toBe(5);
-    });
-  });
-
-  describe('applyInputAction', () => {
-    it('should insert text', () => {
-      const state = createInputState('');
-      const newState = applyInputAction(state, { type: 'insert', text: 'hello' });
-      expect(newState.buffer).toBe('hello');
-      expect(newState.cursor).toBe(5);
-    });
-
-    it('should insert text at cursor', () => {
-      const state = { ...createInputState('ac'), cursor: 1 };
-      const newState = applyInputAction(state, { type: 'insert', text: 'b' });
-      expect(newState.buffer).toBe('abc');
-      expect(newState.cursor).toBe(2);
-    });
-
-    it('should delete backward', () => {
-      const state = createInputState('hello');
-      const newState = applyInputAction(state, { type: 'delete', direction: 'backward' });
-      expect(newState.buffer).toBe('hell');
-      expect(newState.cursor).toBe(4);
-    });
-
-    it('should delete forward', () => {
-      const state = { ...createInputState('hello'), cursor: 0 };
-      const newState = applyInputAction(state, { type: 'delete', direction: 'forward' });
-      expect(newState.buffer).toBe('ello');
-      expect(newState.cursor).toBe(0);
-    });
-
-    it('should delete selection on insert', () => {
-      const state = { ...createInputState('hello'), selectionStart: 1, selectionEnd: 4 };
-      const newState = applyInputAction(state, { type: 'insert', text: 'X' });
-      expect(newState.buffer).toBe('hXo');
-      expect(newState.selectionStart).toBeNull();
-    });
-
-    it('should delete word backward', () => {
-      const state = createInputState('hello world');
-      const newState = applyInputAction(state, { type: 'deleteWord', direction: 'backward' });
-      expect(newState.buffer).toBe('hello ');
-    });
-
-    it('should delete word forward', () => {
-      const state = { ...createInputState('hello world'), cursor: 0 };
-      const newState = applyInputAction(state, { type: 'deleteWord', direction: 'forward' });
-      expect(newState.buffer).toBe(' world');
-    });
-
-    it('should move and delete by Unicode grapheme boundaries', () => {
-      const emoji = '\u{1F44D}\u{1F3FD}';
-      const initial = createInputState(`a${emoji}`);
-      const moved = applyInputAction(initial, { type: 'move', direction: 'left' });
-      expect(moved.cursor).toBe(1);
-
-      const deleted = applyInputAction(initial, { type: 'delete', direction: 'backward' });
-      expect(deleted.buffer).toBe('a');
-      expect(deleted.cursor).toBe(1);
-      expect(() => encodeURIComponent(deleted.buffer)).not.toThrow();
-    });
-
-    it('should delete line to start', () => {
-      const state = { ...createInputState('hello world'), cursor: 6 };
-      const newState = applyInputAction(state, { type: 'deleteLine', direction: 'toStart' });
-      expect(newState.buffer).toBe('world');
-      expect(newState.cursor).toBe(0);
-    });
-
-    it('should delete line to end', () => {
-      const state = { ...createInputState('hello world'), cursor: 5 };
-      const newState = applyInputAction(state, { type: 'deleteLine', direction: 'toEnd' });
-      expect(newState.buffer).toBe('hello');
-    });
-
-    it('should move cursor left', () => {
-      const state = createInputState('hello');
-      const newState = applyInputAction(state, { type: 'move', direction: 'left' });
-      expect(newState.cursor).toBe(4);
-    });
-
-    it('should move cursor right', () => {
-      const state = { ...createInputState('hello'), cursor: 0 };
-      const newState = applyInputAction(state, { type: 'move', direction: 'right' });
-      expect(newState.cursor).toBe(1);
-    });
-
-    it('should move cursor home', () => {
-      const state = createInputState('hello');
-      const newState = applyInputAction(state, { type: 'move', direction: 'home' });
-      expect(newState.cursor).toBe(0);
-    });
-
-    it('should move cursor end', () => {
-      const state = { ...createInputState('hello'), cursor: 0 };
-      const newState = applyInputAction(state, { type: 'move', direction: 'end' });
-      expect(newState.cursor).toBe(5);
-    });
-
-    it('should move by word left', () => {
-      const state = createInputState('hello world');
-      const newState = applyInputAction(state, { type: 'move', direction: 'wordLeft' });
-      expect(newState.cursor).toBe(6);
-    });
-
-    it('should move by word right', () => {
-      const state = { ...createInputState('hello world'), cursor: 0 };
-      const newState = applyInputAction(state, { type: 'move', direction: 'wordRight' });
-      expect(newState.cursor).toBe(6);
-    });
-
-    it('should select left', () => {
-      const state = createInputState('hello');
-      const newState = applyInputAction(state, { type: 'select', direction: 'left' });
-      expect(newState.selectionStart).toBe(5);
-      expect(newState.selectionEnd).toBe(4);
-      expect(newState.cursor).toBe(4);
-    });
-
-    it('should select all', () => {
-      const state = createInputState('hello');
-      const newState = applyInputAction(state, { type: 'select', direction: 'all' });
-      expect(newState.selectionStart).toBe(0);
-      expect(newState.selectionEnd).toBe(5);
-    });
-
-    it('should select word', () => {
-      const state = { ...createInputState('hello world'), cursor: 7 };
-      const newState = applyInputAction(state, { type: 'select', direction: 'word' });
-      expect(newState.selectionStart).toBe(6);
-      expect(newState.selectionEnd).toBe(11);
-    });
-
-    it('should undo', () => {
-      let state = createInputState('hello');
-      state = applyInputAction(state, { type: 'insert', text: ' world' });
-      expect(state.buffer).toBe('hello world');
-      state = applyInputAction(state, { type: 'undo' });
-      expect(state.buffer).toBe('hello');
-    });
-
-    it('should redo', () => {
-      let state = createInputState('hello');
-      state = applyInputAction(state, { type: 'insert', text: ' world' });
-      state = applyInputAction(state, { type: 'undo' });
-      state = applyInputAction(state, { type: 'redo' });
-      expect(state.buffer).toBe('hello world');
-    });
-
-    it('should clear', () => {
-      const state = createInputState('hello world');
-      const newState = applyInputAction(state, { type: 'clear' });
-      expect(newState.buffer).toBe('');
-      expect(newState.cursor).toBe(0);
-    });
-  });
-
-  describe('getSelectedText', () => {
-    it('should return null when no selection', () => {
-      const state = createInputState('hello');
-      expect(getSelectedText(state)).toBeNull();
-    });
-
-    it('should return selected text', () => {
-      const state = { ...createInputState('hello world'), selectionStart: 0, selectionEnd: 5 };
-      expect(getSelectedText(state)).toBe('hello');
-    });
-
-    it('should handle reversed selection', () => {
-      const state = { ...createInputState('hello world'), selectionStart: 5, selectionEnd: 0 };
-      expect(getSelectedText(state)).toBe('hello');
-    });
-  });
-});
-
-describe('Unified Input Parser', () => {
-  it('should parse bracketed paste', () => {
-    const result = parseInput('\x1b[200~pasted text\x1b[201~');
-    expect(result.paste).not.toBeUndefined();
-    expect(result.paste!.text).toBe('pasted text');
-    expect(result.paste!.isBracketed).toBe(true);
-  });
-
-  it('should parse mouse event', () => {
-    const result = parseInput('\x1b[<0;10;20M');
-    expect(result.mouse).not.toBeUndefined();
-    expect(result.mouse!.button).toBe('left');
-  });
-
-  it('should parse terminal focus events', () => {
-    const result = parseInput('\x1b[O');
-    expect(result.focus).toEqual({ focused: false });
-    expect(result.keys).toEqual([]);
-  });
-
-  it('should parse focus event followed by key input', () => {
-    const result = parseInput('\x1b[Ia');
-    expect(result.focus).toEqual({ focused: true });
-    expect(result.keys.length).toBe(1);
-    expect(result.keys[0]!.text).toBe('a');
-  });
-
-  it('should parse simple character', () => {
-    const result = parseInput('a');
-    expect(result.keys.length).toBe(1);
-    expect(result.keys[0]!.keyCode).toBe(97);
-    expect(result.keys[0]!.text).toBe('a');
-  });
-
-  it('should parse ctrl+letter', () => {
-    const result = parseInput('\x01'); // Ctrl+A
-    expect(result.keys.length).toBe(1);
-    expect(result.keys[0]!.modifiers.ctrl).toBe(true);
-  });
-
-  it('should parse escape', () => {
-    const result = parseInput('\x1b');
-    expect(result.keys.length).toBe(1);
-    expect(result.keys[0]!.keyCode).toBe(27);
-  });
-});
-
-describe('Terminal Control Sequences', () => {
-  it('should generate alternate screen sequences', () => {
+  it('provides symmetric alternate-screen ownership sequences', () => {
     expect(enableAlternateScreen()).toBe('\x1b[?1049h');
     expect(disableAlternateScreen()).toBe('\x1b[?1049l');
-  });
-
-  it('should generate cursor visibility sequences', () => {
-    expect(hideCursor()).toBe('\x1b[?25l');
-    expect(showCursor()).toBe('\x1b[?25h');
-  });
-
-  it('should generate cursor position request', () => {
-    expect(requestCursorPosition()).toBe('\x1b[6n');
-  });
-
-  it('should parse cursor position response', () => {
-    const pos = parseCursorPosition('\x1b[24;80R');
-    expect(pos).not.toBeNull();
-    expect(pos!.row).toBe(24);
-    expect(pos!.col).toBe(80);
-  });
-
-  it('should return null for invalid cursor response', () => {
-    expect(parseCursorPosition('invalid')).toBeNull();
-    expect(parseCursorPosition('\x1b[A')).toBeNull();
   });
 });

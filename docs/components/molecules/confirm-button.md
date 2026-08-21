@@ -19,9 +19,7 @@ const btn = createConfirmButton({ onConfirm: handleDelete })
 ConfirmButton({ state: btn, label: 'Delete' })
 
 // Cancel with Escape
-useInput((_, key) => {
-  if (key.escape) btn.cancel()
-})
+useShortcut('escape', btn.cancel)
 ```
 
 ## Props

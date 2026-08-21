@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 import {
-  Heatmap,
+  Heatmap as OwnedHeatmap,
   ContributionGraph,
   calculatePercentiles,
   COLOR_SCALES,
@@ -19,6 +19,9 @@ import type {
   NormalizationMode,
   Percentiles,
 } from '../../src/molecules/data-viz/heatmap.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Heatmap = testComponent(OwnedHeatmap);
 
 describe('Heatmap Normalization', () => {
   beforeEach(() => {

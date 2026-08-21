@@ -317,11 +317,9 @@ function MyComponent() {
   const state = controller.state();
 
   // Optional: keyboard shortcuts that call controller methods
-  useInput((input, key) => {
-    if (key.upArrow) controller.selectPrev();
-    if (key.downArrow) controller.selectNext();
-    if (input === 'r') controller.reset();
-  });
+  useShortcut('up', controller.selectPrev);
+  useShortcut('down', controller.selectNext);
+  useShortcut('r', controller.reset);
 
   // Render based on external state
   return Box({}, ...renderItems(state));
@@ -357,9 +355,7 @@ function AutoScrollList() {
     return () => clearInterval(interval);
   });
 
-  useInput((input) => {
-    if (input === 'a') setAutoScroll(v => !v);
-  });
+  useShortcut('a', () => setAutoScroll(v => !v));
 
   const state = scroll.state();
   const visible = state.items.slice(

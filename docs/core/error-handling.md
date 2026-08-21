@@ -7,11 +7,11 @@ Tuiuiu provides error boundaries and utilities to prevent crashes from breaking 
 Wraps a component so that errors show a formatted error screen instead of crashing the process.
 
 ```typescript
-import { render, withErrorBoundary, Box, Text, useState, useHotkeys } from 'tuiuiu.js';
+import { render, withErrorBoundary, Box, Text, useState, useShortcut } from 'tuiuiu.js';
 
 function App() {
   const [count, setCount] = useState(0);
-  useHotkeys('up', () => setCount(c => c + 1));
+  useShortcut('up', () => setCount(c => c + 1));
 
   // This will crash when count > 5
   if (count() > 5) {
@@ -126,5 +126,5 @@ function removePanicHooks(): void;
 1. **Always wrap your root component** with `withErrorBoundary` in production apps
 2. Use `tryCatch` for operations that might fail (parsing, file I/O, network)
 3. Use `onCleanup` in effects to prevent resource leaks that cause errors later
-4. Errors in event handlers (useInput, useHotkeys) are caught and logged — they don't crash the app
+4. Errors in interaction handlers and shortcuts are isolated and reported through the app error boundary
 5. Use `onTerminalPanic` to register cleanup for external resources (database connections, temp files) that should be cleaned up on crash

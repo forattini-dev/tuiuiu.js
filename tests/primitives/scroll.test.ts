@@ -4,13 +4,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  Scroll,
+  Scroll as OwnedScroll,
   createScroll,
   useScroll,
 } from '../../src/primitives/scroll.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Scroll = testComponent(OwnedScroll);
 
 // Capture the useInput callback
 let capturedInputHandler: ((input: string, key: any) => void) | null = null;

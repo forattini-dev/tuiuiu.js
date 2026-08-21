@@ -160,7 +160,7 @@ Use `createAccordion` for programmatic control and custom hotkeys:
 
 ```typescript
 import { Accordion, createAccordion } from 'tuiuiu.js'
-import { useHotkeys } from 'tuiuiu.js'
+import { useShortcut } from 'tuiuiu.js'
 
 function SettingsApp() {
   const sections = [
@@ -172,11 +172,11 @@ function SettingsApp() {
   const accordion = createAccordion({ sections, multiple: true })
 
   // Custom hotkeys for quick access
-  useHotkeys('1', () => accordion.toggle('general'), { description: 'Toggle General' })
-  useHotkeys('2', () => accordion.toggle('network'), { description: 'Toggle Network' })
-  useHotkeys('3', () => accordion.toggle('security'), { description: 'Toggle Security' })
-  useHotkeys('ctrl+e', () => accordion.expandAll(), { description: 'Expand all' })
-  useHotkeys('ctrl+w', () => accordion.collapseAll(), { description: 'Collapse all' })
+  useShortcut('1', () => accordion.toggle('general'), { description: 'Toggle General' })
+  useShortcut('2', () => accordion.toggle('network'), { description: 'Toggle Network' })
+  useShortcut('3', () => accordion.toggle('security'), { description: 'Toggle Security' })
+  useShortcut('ctrl+e', () => accordion.expandAll(), { description: 'Expand all' })
+  useShortcut('ctrl+w', () => accordion.collapseAll(), { description: 'Collapse all' })
 
   return Accordion({ state: accordion, sections })
 }

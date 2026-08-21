@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  Calendar,
-  MiniCalendar,
-  DatePicker,
+  Calendar as OwnedCalendar,
+  MiniCalendar as OwnedMiniCalendar,
+  DatePicker as OwnedDatePicker,
   createCalendar,
   createDatePicker,
   type CalendarOptions,
@@ -11,6 +11,11 @@ import {
   type DatePickerState,
 } from '../../src/molecules/calendar.js';
 import { renderOnce } from '../../src/app/render-loop.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Calendar = testComponent(OwnedCalendar);
+const MiniCalendar = testComponent(OwnedMiniCalendar);
+const DatePicker = testComponent(OwnedDatePicker);
 
 describe('Calendar', () => {
   // ==========================================================================

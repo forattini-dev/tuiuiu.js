@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/index.js';
-import { Modal, Toast, AlertBox, ConfirmDialog, createModal, createConfirmDialog } from '../../src/organisms/modal.js';
+import { Modal, Toast, AlertBox, ConfirmDialog, createConfirmDialog } from '../../src/organisms/modal.js';
 
 describe('Overlay Components', () => {
   describe('Modal', () => {
@@ -259,34 +259,6 @@ describe('Overlay Components', () => {
       });
       const output = renderToString(node, 80);
       expect(output).toContain('OK');
-    });
-  });
-
-  describe('createModal', () => {
-    it('should create modal state', () => {
-      const state = createModal();
-      expect(state.isOpen).toBe(false);
-    });
-
-    it('should open modal', () => {
-      const state = createModal();
-      state.open();
-      expect(state.isOpen).toBe(true);
-    });
-
-    it('should close modal', () => {
-      const state = createModal();
-      state.open();
-      state.close();
-      expect(state.isOpen).toBe(false);
-    });
-
-    it('should toggle modal', () => {
-      const state = createModal();
-      state.toggle();
-      expect(state.isOpen).toBe(true);
-      state.toggle();
-      expect(state.isOpen).toBe(false);
     });
   });
 

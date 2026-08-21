@@ -9,19 +9,25 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderToString } from '../../src/core/renderer.js';
-import { beginRender, clearInputHandlers, emitInput, endRender, resetHookState } from '../../src/hooks/context.js';
+import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import {
   createSearchInput,
-  SearchInput,
+  SearchInput as OwnedSearchInput,
   createPasswordInput,
-  PasswordInput,
+  PasswordInput as OwnedPasswordInput,
   createNumberInput,
-  NumberInput,
+  NumberInput as OwnedNumberInput,
   type SearchInputState,
   type PasswordInputState,
   type NumberInputState,
 } from '../../src/molecules/devx-inputs.js';
 import { charKey, keys } from '../helpers/keyboard.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const SearchInput = testComponent(OwnedSearchInput);
+const PasswordInput = testComponent(OwnedPasswordInput);
+const NumberInput = testComponent(OwnedNumberInput);
 
 function renderWithHooks<T>(factory: () => T): T {
   beginRender();
@@ -32,7 +38,7 @@ function renderWithHooks<T>(factory: () => T): T {
 
 beforeEach(() => {
   resetHookState();
-  clearInputHandlers();
+  resetTestInteractions();
 });
 
 // =============================================================================
@@ -181,7 +187,7 @@ describe('SearchInput', () => {
         renderWithHooks(() => SearchInput({ isActive: true }));
 
       renderApp();
-      emitInput('r', charKey('r').key);
+      dispatchTestKey('r', charKey('r').key);
 
       const rerendered = renderApp();
       const output = renderToString(rerendered, 40);
@@ -338,7 +344,7 @@ describe('PasswordInput', () => {
         renderWithHooks(() => PasswordInput({ isActive: true, showToggle: false }));
 
       renderApp();
-      emitInput('s', charKey('s').key);
+      dispatchTestKey('s', charKey('s').key);
 
       const rerendered = renderApp();
       const output = renderToString(rerendered, 40);
@@ -548,7 +554,7 @@ describe('NumberInput', () => {
         renderWithHooks(() => NumberInput({ isActive: true }));
 
       renderApp();
-      emitInput('', keys.up().key);
+      dispatchTestKey('', keys.up().key);
 
       const rerendered = renderApp();
       const output = renderToString(rerendered, 40);

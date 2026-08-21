@@ -25,19 +25,16 @@ import {
   When,
   Each,
   useState,
-  useInput,
+  useInteraction,
   useApp,
   useInterval,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
-  measureHeight,
-  ChatList,
-  useScrollList,
-  usePaste,
   type VNode,
 } from '../src/index.js';
+import { measureHeight } from '../src/core/index.js';
+import { ChatList, getNextTheme, useScrollList } from '../src/ui/index.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { createTextInput, renderTextInput } from '../src/atoms/text-input.js';
 import { ShimmerText, resetShimmerStartTime } from '../src/atoms/shimmer-text.js';
@@ -465,7 +462,8 @@ function AiAssistantApp(): VNode {
   }));
 
   // Paste
-  usePaste((event) => {
+  useInteraction((event) => {
+    if (event.type !== 'paste') return;
     if (event.text.trim() && overlay() === 'none') {
       textInputState().paste(event.text);
     }
@@ -661,7 +659,10 @@ function AiAssistantApp(): VNode {
   }
 
   // Single input handler for everything — stable hook count, no isActive toggling
-  useInput((char, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const char = event.key.text;
+    const key = event.key.native;
     if (key.ctrl && char === 'c') { exit(); return true; }
 
     // When overlay is open: only Escape works
@@ -684,7 +685,7 @@ function AiAssistantApp(): VNode {
     }
 
     return false;
-  }, { priority: 'modal', stopPropagation: true });
+  }, { priority: 200 });
 
   // Render
   const textInput = textInputState();

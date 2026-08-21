@@ -7,7 +7,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   // Core
-  renderToString,
   Box,
   Text,
   createSignal,
@@ -19,36 +18,35 @@ import {
   lightTheme,
   getTheme,
   // Capabilities
-  setRenderMode,
-  getRenderMode,
   // Data Viz
-  Sparkline,
-  BarChart,
-  LineChart,
-  Gauge,
-  Heatmap,
   // Forms
-  MultiSelect,
-  RadioGroup,
-  Switch,
-  Slider,
   // Layout
-  Tabs,
-  Accordion,
-  ScrollArea,
-  Grid,
-  Tree,
   // Visual
-  BigText,
-  Digits,
-  Badge,
-  Tooltip,
   // Data Display
-  DataTable,
-  Calendar,
-  // Gauge utilities
-  DEFAULT_ZONES,
 } from '../../src/index.js';
+import { renderToString } from '../../src/core/renderer.js';
+import { setRenderMode, getRenderMode } from '../../src/core/capabilities.js';
+import {
+  Sparkline, BarChart, LineChart, Gauge, Heatmap as OwnedHeatmap,
+  MultiSelect as OwnedMultiSelect, RadioGroup as OwnedRadioGroup, Switch as OwnedSwitch, Slider as OwnedSlider,
+  Tabs as OwnedTabs, Accordion as OwnedAccordion, ScrollArea as OwnedScrollArea, Grid, Tree as OwnedTree,
+  BigText, Digits, Badge, Tooltip,
+  DataTable as OwnedDataTable, Calendar as OwnedCalendar,
+} from '../../src/ui/index.js';
+import { DEFAULT_ZONES } from '../../src/molecules/data-viz/gauge.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Heatmap = testComponent(OwnedHeatmap);
+const MultiSelect = testComponent(OwnedMultiSelect);
+const RadioGroup = testComponent(OwnedRadioGroup);
+const Switch = testComponent(OwnedSwitch);
+const Slider = testComponent(OwnedSlider);
+const Tabs = testComponent(OwnedTabs);
+const Accordion = testComponent(OwnedAccordion);
+const ScrollArea = testComponent(OwnedScrollArea);
+const Tree = testComponent(OwnedTree);
+const DataTable = testComponent(OwnedDataTable);
+const Calendar = testComponent(OwnedCalendar);
 
 describe('Integration: Component Combinations', () => {
   beforeEach(() => {

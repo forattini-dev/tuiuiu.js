@@ -10,12 +10,17 @@ import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { createTextInput, renderTextInput } from '../../src/atoms/text-input.js';
-import { Select } from '../../src/molecules/select.js';
+import { Select as OwnedSelect } from '../../src/molecules/select.js';
 import { Toast, AlertBox } from '../../src/organisms/modal.js';
-import { Autocomplete } from '../../src/molecules/autocomplete.js';
-import { RadioGroup } from '../../src/molecules/radio-group.js';
+import { Autocomplete as OwnedAutocomplete } from '../../src/molecules/autocomplete.js';
+import { RadioGroup as OwnedRadioGroup } from '../../src/molecules/radio-group.js';
 import { HStack, VStack } from '../../src/templates/stack.js';
 import { SplitPanel } from '../../src/organisms/split-panel.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Select = testComponent(OwnedSelect);
+const Autocomplete = testComponent(OwnedAutocomplete);
+const RadioGroup = testComponent(OwnedRadioGroup);
 
 describe('Width Inheritance', () => {
   describe('flexGrow in row layout', () => {
@@ -286,13 +291,11 @@ describe('Width Inheritance', () => {
     it('should respect HStack column widths', () => {
       const ti = createTextInput({ initialValue: '' });
 
-      const node = HStack({
-        gap: 0,
-        children: [
+      const node = HStack(
+        { gap: 0 },
           Box({ width: 20 }, Text({}, 'Label')),
           renderTextInput(ti, { fullWidth: true }),
-        ],
-      });
+      );
 
       const output = renderToString(node, 80);
       expect(output).toContain('Label');
@@ -305,14 +308,12 @@ describe('Width Inheritance', () => {
         fullWidth: true,
       });
 
-      const node = VStack({
-        width: 60,
-        children: [
+      const node = VStack(
+        { width: 60 },
           Text({}, 'Header'),
           toast,
           Text({}, 'Footer'),
-        ],
-      });
+      );
 
       const layout = calculateLayout(node, 80);
 

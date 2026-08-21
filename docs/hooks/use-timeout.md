@@ -92,9 +92,10 @@ function SessionManager() {
   );
 
   // Reset timeout on any activity
-  useInput(() => {
+  useInteraction(() => {
     cancel();
     start();
+    return false;
   });
 
   useMouse(() => {

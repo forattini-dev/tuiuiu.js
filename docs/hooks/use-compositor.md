@@ -16,10 +16,8 @@ import { useCompositor } from 'tuiuiu.js';
 function AnimatedPanel() {
   const compositor = useCompositor();
 
-  useInput((_, key) => {
-    if (key.rightArrow) compositor.slide({ toX: 4, duration: 160 });
-    if (key.leftArrow) compositor.slide({ toX: 0, duration: 160 });
-  });
+  useShortcut('right', () => compositor.slide({ toX: 4, duration: 160 }));
+  useShortcut('left', () => compositor.slide({ toX: 0, duration: 160 }));
 
   return Box(
     compositor.bind({ width: 20, borderStyle: 'single', padding: 1 }),

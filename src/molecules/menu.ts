@@ -20,8 +20,10 @@ import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/use-input.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getTheme } from '../core/theme.js';
-import { formatHotkeyPlatform } from '../hooks/use-hotkeys.js';
+import { formatKeyChord } from '../interaction/key-sequence.js';
 import { getRenderMode } from '../core/capabilities.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { component } from '../app/component.js';
 import {
   padTextToWidth,
   stringWidth,
@@ -101,25 +103,38 @@ function isSeparator(entry: MenuEntry): entry is MenuSeparator {
   return 'type' in entry && entry.type === 'separator';
 }
 
-function getSelectableIndices(items: MenuEntry[]): number[] {
-  const indices: number[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const entry = items[i]!;
-    if (!isSeparator(entry) && !entry.disabled) {
-      indices.push(i);
-    }
-  }
-  return indices;
-}
-
 // =============================================================================
 // State Factory
 // =============================================================================
 
 export function createMenu(options: MenuOptions): MenuState {
   let currentOptions = options;
-  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const menuItems = () => currentOptions.items.filter(
+    (entry): entry is MenuItem => !isSeparator(entry),
+  );
+  const collection = createCollectionController<MenuItem, string>({
+    items: menuItems(),
+    getKey: (item) => item.id,
+    isDisabled: (item) => item.disabled === true,
+    loop: true,
+  });
+  const [selectedIndex, setSelectedIndexSignal] = createSignal(0);
   const [openSubmenuId, setOpenSubmenuId] = createSignal<string | null>(null);
+
+  const syncSelection = () => {
+    const activeKey = collection.snapshot().activeKey;
+    if (activeKey === null) {
+      setSelectedIndexSignal(0);
+      return;
+    }
+    const sourceIndex = currentOptions.items.findIndex(
+      (entry) => !isSeparator(entry) && entry.id === activeKey,
+    );
+    if (sourceIndex >= 0) setSelectedIndexSignal(sourceIndex);
+  };
+
+  collection.subscribe(syncSelection);
+  syncSelection();
 
   const getSelectableItems = (): MenuItem[] => {
     return currentOptions.items.filter(
@@ -127,24 +142,12 @@ export function createMenu(options: MenuOptions): MenuState {
     );
   };
 
-  const selectableIndices = () => getSelectableIndices(currentOptions.items);
-
   const selectNext = () => {
-    const indices = selectableIndices();
-    if (indices.length === 0) return;
-    const current = selectedIndex();
-    const currentPos = indices.indexOf(current);
-    const nextPos = currentPos < indices.length - 1 ? currentPos + 1 : 0;
-    setSelectedIndex(indices[nextPos]!);
+    collection.move(1);
   };
 
   const selectPrevious = () => {
-    const indices = selectableIndices();
-    if (indices.length === 0) return;
-    const current = selectedIndex();
-    const currentPos = indices.indexOf(current);
-    const prevPos = currentPos > 0 ? currentPos - 1 : indices.length - 1;
-    setSelectedIndex(indices[prevPos]!);
+    collection.move(-1);
   };
 
   const select = () => {
@@ -170,11 +173,13 @@ export function createMenu(options: MenuOptions): MenuState {
     setOpenSubmenuId(null);
   };
 
-  // Initialize to first selectable index
-  const indices = selectableIndices();
-  if (indices.length > 0 && indices[0] !== undefined) {
-    setSelectedIndex(indices[0]);
-  }
+  const setSelectedIndex = (index: number) => {
+    const entry = currentOptions.items[index];
+    if (entry && !isSeparator(entry) && !entry.disabled) {
+      collection.setActive(entry.id);
+      return;
+    }
+  };
 
   return {
     selectedIndex,
@@ -186,7 +191,14 @@ export function createMenu(options: MenuOptions): MenuState {
     closeSubmenu,
     setSelectedIndex,
     getSelectableItems,
-    updateOptions: (opts) => { currentOptions = opts; },
+    updateOptions: (opts) => {
+      currentOptions = opts;
+      collection.reconcile(menuItems());
+      const openId = openSubmenuId();
+      if (openId !== null && !menuItems().some((item) => item.id === openId)) {
+        setOpenSubmenuId(null);
+      }
+    },
   };
 }
 
@@ -216,7 +228,7 @@ export function createMenu(options: MenuOptions): MenuState {
  *   onClose: () => setMenuOpen(false),
  * })
  */
-export function Menu(props: MenuProps): VNode {
+export const Menu = component<MenuProps, VNode>('Menu', (props) => {
   const {
     items,
     isActive = true,
@@ -305,7 +317,7 @@ export function Menu(props: MenuProps): VNode {
     if (hasSubmenu) {
       rightText = ` ${submenuIndicator}`;
     } else if (entry.shortcut) {
-      rightText = ` ${formatHotkeyPlatform(entry.shortcut)}`;
+      rightText = ` ${formatKeyChord(entry.shortcut)}`;
     }
 
     // Pad label to fill width
@@ -339,4 +351,4 @@ export function Menu(props: MenuProps): VNode {
     },
     ...rows,
   );
-}
+});

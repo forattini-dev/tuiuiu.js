@@ -15,13 +15,15 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode, ColorValue } from '../utils/types.js';
-import { createSignal, createMemo } from '../primitives/signal.js';
+import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/index.js';
 import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars } from '../core/capabilities.js';
 import { previousGraphemeBoundary } from '../utils/grapheme.js';
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -160,69 +162,57 @@ export function createMultiSelect<T = string>(
   const [searchQuery, setSearchQuery] = createSignal('');
   const [isSearching, setIsSearching] = createSignal(false);
   const [scrollOffset, setScrollOffset] = createSignal(0);
+  const collection = createCollectionController<MultiSelectItem<T>, T>({
+    items: getItems(),
+    getKey: (item) => item.value,
+    isDisabled: (item) => item.disabled === true,
+    selection: 'multiple',
+    selectedKeys: initialValue,
+    viewportSize: getMaxVisible(),
+    filter: (item, query) => {
+      if (!isSearchable()) return true;
+      const score = Math.max(
+        fuzzyMatch(query, item.label),
+        fuzzyMatch(query, item.description || ''),
+      );
+      return score > 0 ? score : -1;
+    },
+  });
 
-  // Filtered items based on search
-  const filteredItems = createMemo(() => {
+  const syncCollection = () => {
+    const snapshot = collection.snapshot();
+    setCursorIndex(Math.max(0, snapshot.activeIndex));
+    setScrollOffset(snapshot.viewportStart);
+    setSelected([...snapshot.selectedKeys]);
+  };
+  collection.subscribe(syncCollection);
+  syncCollection();
+
+  const filteredItems = () => {
     optionsVersion();
-    const query = searchQuery();
-    if (!query || !isSearchable()) return getItems();
+    searchQuery();
+    cursorIndex();
+    return [...collection.snapshot().items];
+  };
 
-    return getItems()
-      .map((item) => ({
-        item,
-        score: Math.max(
-          fuzzyMatch(query, item.label),
-          fuzzyMatch(query, item.description || '')
-        ),
-      }))
-      .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((r) => r.item);
-  });
-
-  // Visible items with scroll
-  const visibleItems = createMemo(() => {
-    const filtered = filteredItems();
-    const offset = scrollOffset();
-    const visible = filtered.slice(offset, offset + getMaxVisible());
-    return { items: visible, startIndex: offset };
-  });
+  const visibleItems = () => {
+    optionsVersion();
+    cursorIndex();
+    const snapshot = collection.snapshot();
+    return { items: [...snapshot.visibleItems], startIndex: snapshot.viewportStart };
+  };
 
   // Navigation
   const moveUp = () => {
-    const filtered = filteredItems();
-    setCursorIndex((i) => {
-      let newIndex = i - 1;
-      while (newIndex >= 0 && filtered[newIndex]?.disabled) {
-        newIndex--;
-      }
-      if (newIndex < 0) return i;
-
-      if (newIndex < scrollOffset()) {
-        setScrollOffset(newIndex);
-      }
-      return newIndex;
-    });
+    collection.move(-1);
   };
 
   const moveDown = () => {
-    const filtered = filteredItems();
-    setCursorIndex((i) => {
-      let newIndex = i + 1;
-      while (newIndex < filtered.length && filtered[newIndex]?.disabled) {
-        newIndex++;
-      }
-      if (newIndex >= filtered.length) return i;
-
-      if (newIndex >= scrollOffset() + getMaxVisible()) {
-        setScrollOffset(newIndex - getMaxVisible() + 1);
-      }
-      return newIndex;
-    });
+    collection.move(1);
   };
 
   const isSelected = (value: T): boolean => {
-    return selected().includes(value);
+    return collection.snapshot().selectedKeys.has(value);
   };
 
   const toggleCurrent = () => {
@@ -233,28 +223,16 @@ export function createMultiSelect<T = string>(
     const filtered = filteredItems();
     if (index < 0 || index >= filtered.length) return;
     const item = filtered[index];
-    if (item.disabled) return;
+    if (!item || item.disabled) return;
 
     // Update cursor if different
-    if (index !== cursorIndex()) {
-      setCursorIndex(index);
-    }
-
-    setSelected((prev) => {
-      if (prev.includes(item.value)) {
-        // Deselect
-        if (prev.length <= getMinSelections()) return prev;
-        const newSelected = prev.filter((v) => v !== item.value);
-        runtimeOptions.onChange?.(newSelected);
-        return newSelected;
-      } else {
-        // Select
-        if (prev.length >= getMaxSelections()) return prev;
-        const newSelected = [...prev, item.value];
-        runtimeOptions.onChange?.(newSelected);
-        return newSelected;
-      }
-    });
+    collection.setActive(item.value, 'programmatic');
+    const snapshot = collection.snapshot();
+    const isAlreadySelected = snapshot.selectedKeys.has(item.value);
+    if (isAlreadySelected && snapshot.selectedKeys.size <= getMinSelections()) return;
+    if (!isAlreadySelected && snapshot.selectedKeys.size >= getMaxSelections()) return;
+    collection.toggle(item.value);
+    runtimeOptions.onChange?.(selected());
   };
 
   const selectAll = () => {
@@ -263,25 +241,25 @@ export function createMultiSelect<T = string>(
       .filter((item) => !item.disabled)
       .map((item) => item.value)
       .slice(0, getMaxSelections());
-    setSelected(selectable);
-    runtimeOptions.onChange?.(selectable);
+    collection.setSelected(selectable);
+    runtimeOptions.onChange?.(selected());
   };
 
   const deselectAll = () => {
     if (getMinSelections() > 0) {
       const keep = selected().slice(0, getMinSelections());
-      setSelected(keep);
-      runtimeOptions.onChange?.(keep);
+      collection.setSelected(keep);
+      runtimeOptions.onChange?.(selected());
     } else {
-      setSelected([]);
-      runtimeOptions.onChange?.([]);
+      collection.clearSelection();
+      runtimeOptions.onChange?.(selected());
     }
   };
 
   const setSearch = (query: string) => {
     setSearchQuery(query);
-    setCursorIndex(0);
-    setScrollOffset(0);
+    collection.setQuery(query);
+    collection.first();
   };
 
   const startSearch = () => {
@@ -327,13 +305,10 @@ export function createMultiSelect<T = string>(
     isSelected,
     updateOptions: (nextOptions: MultiSelectOptions<T>) => {
       runtimeOptions = nextOptions;
+      collection.setViewportSize(getMaxVisible());
+      collection.reconcile(getItems());
+      collection.setQuery(searchQuery());
       setOptionsVersion((version) => version + 1);
-      const filtered = filteredItems();
-      const maxIndex = Math.max(0, filtered.length - 1);
-      setCursorIndex((index) => Math.min(index, maxIndex));
-      setScrollOffset((offset) =>
-        Math.min(offset, Math.max(0, filtered.length - getMaxVisible()))
-      );
     },
   };
 }
@@ -348,7 +323,7 @@ export function useMultiSelectState<T = string>(options: MultiSelectOptions<T>) 
 // Component
 // =============================================================================
 
-export interface MultiSelectProps<T = string> extends MultiSelectOptions<T> {
+export interface MultiSelectProps<T = string> extends MultiSelectOptions<T>, ComponentKeyProps {
   /** Pre-created state (for controlled mode) */
   state?: MultiSelectState<T>;
 }
@@ -368,7 +343,9 @@ export interface MultiSelectProps<T = string> extends MultiSelectOptions<T> {
  *   onChange: (values) => console.log(values),
  * })
  */
-export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
+export const MultiSelect = component('MultiSelect', function MultiSelect<T = string>(
+  props: MultiSelectProps<T>,
+): VNode {
   const {
     items,
     maxVisible = 10,
@@ -551,4 +528,4 @@ export function MultiSelect<T = string>(props: MultiSelectProps<T>): VNode {
     scrollBottom ? Text({ color: 'mutedForeground', dim: true }, '  ▼ more below') : null,
     footerNode
   );
-}
+});

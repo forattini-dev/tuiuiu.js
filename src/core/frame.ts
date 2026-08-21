@@ -176,6 +176,8 @@ export interface DrawTextCommand extends DrawCommandBase {
   inheritedBackgroundColor?: string;
   /** When true, text contains pre-built SGR and ignores component style encoding */
   prebuiltAnsi?: boolean;
+  /** Position the terminal cursor at this command's origin after commit. */
+  cursorAnchor?: boolean;
 }
 
 export interface DrawTerminalImageCommand extends DrawCommandBase {
@@ -260,6 +262,8 @@ export interface FrameSnapshot {
   layout: LayoutNode;
   drawCommands: DrawCommand[];
   reservedRegions: ReservedRegion[];
+  /** Physical cursor position for IME candidate-window anchoring. */
+  cursorAnchor: { x: number; y: number } | null;
   hitTargets: ElementBounds[];
   queries: FrameQueries;
   warnings: RuntimeWarning[];
@@ -319,6 +323,7 @@ const TEXT_DRAW_KEYS = new Set([
   'strikethrough',
   'inverse',
   'wrap',
+  '__cursorAnchor',
 ]);
 
 const DEFAULT_FRAME_SNAPSHOT_OPTIONS: Required<FrameSnapshotOptions> = {
@@ -1111,6 +1116,7 @@ function buildCachedDrawCommands(
     __splitDivider?: { top: string; bottom: string };
     __scrollOffsetY?: number;
     __fillChar?: string;
+    __cursorAnchor?: boolean;
   };
   const compositor = getCompositorNodeMetadata(node);
   const compositorKeys = compositor
@@ -1304,6 +1310,7 @@ function buildCachedDrawCommands(
         wrap: props.wrap,
       },
       inheritedBackgroundColor: parentBackgroundColor,
+      cursorAnchor: props.__cursorAnchor === true,
       clip: activeClip,
       ...(props.__prebuiltAnsi ? { prebuiltAnsi: true } : undefined),
     });
@@ -1433,6 +1440,20 @@ export function createFrameSnapshot(
 
   const drawCommandStart = now();
   const drawCommands = buildDrawCommands(layout);
+  const cursorCommand = [...drawCommands].reverse().find((command) =>
+    command.type === 'text'
+    && command.cursorAnchor === true
+    && command.x >= 0
+    && command.y >= 0
+    && command.x < committedInput.width
+    && command.y < committedInput.height
+    && (!command.clip || (
+      command.x >= command.clip.x
+      && command.y >= command.clip.y
+      && command.x < command.clip.x + command.clip.width
+      && command.y < command.clip.y + command.clip.height
+    )),
+  );
   const reservedRegions = buildReservedRegions(drawCommands);
   const drawCommandMs = now() - drawCommandStart;
 
@@ -1546,6 +1567,9 @@ export function createFrameSnapshot(
     layout,
     drawCommands,
     reservedRegions,
+    cursorAnchor: cursorCommand
+      ? { x: cursorCommand.x, y: cursorCommand.y }
+      : null,
     queries,
     metrics,
     get hitTargets() {

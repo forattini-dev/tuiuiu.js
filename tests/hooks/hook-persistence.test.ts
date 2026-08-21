@@ -7,13 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  beginRender,
-  endRender,
-  resetHookState,
-  getInputHandlerCount,
-  emitInput,
-  clearInputHandlers,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { getTestInteractionHandlerCount, dispatchTestKey, resetTestInteractions } from '../../src/testing/interaction.js';
 import { useState } from '../../src/hooks/use-state.js';
 import { useInput, parseKeypress } from '../../src/hooks/use-input.js';
 import { useEffect } from '../../src/hooks/use-effect.js';
@@ -22,12 +17,12 @@ import { batch } from '../../src/primitives/signal.js';
 describe('Hook Persistence', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('useState', () => {
@@ -104,21 +99,21 @@ describe('Hook Persistence', () => {
       useInput(handler);
       endRender();
 
-      expect(getInputHandlerCount()).toBe(1);
+      expect(getTestInteractionHandlerCount()).toBe(1);
 
       // Second render
       beginRender();
       useInput(handler);
       endRender();
 
-      expect(getInputHandlerCount()).toBe(1); // Still 1, not 2
+      expect(getTestInteractionHandlerCount()).toBe(1); // Still 1, not 2
 
       // Third render
       beginRender();
       useInput(handler);
       endRender();
 
-      expect(getInputHandlerCount()).toBe(1); // Still 1
+      expect(getTestInteractionHandlerCount()).toBe(1); // Still 1
     });
 
     it('calls the latest handler version', () => {
@@ -133,7 +128,7 @@ describe('Hook Persistence', () => {
       // Simulate keypress via EventEmitter
       const { input, key } = parseKeypress(Buffer.from('a'));
       batch(() => {
-        emitInput(input, key);
+        dispatchTestKey(input, key);
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);
@@ -148,7 +143,7 @@ describe('Hook Persistence', () => {
 
       // Simulate another keypress - should call handler2 now
       batch(() => {
-        emitInput(input, key);
+        dispatchTestKey(input, key);
       });
 
       expect(handler1).toHaveBeenCalledTimes(0); // Old handler not called
@@ -165,7 +160,7 @@ describe('Hook Persistence', () => {
       useInput(handler2);
       endRender();
 
-      expect(getInputHandlerCount()).toBe(2);
+      expect(getTestInteractionHandlerCount()).toBe(2);
 
       // Second render
       beginRender();
@@ -173,12 +168,12 @@ describe('Hook Persistence', () => {
       useInput(handler2);
       endRender();
 
-      expect(getInputHandlerCount()).toBe(2); // Still 2
+      expect(getTestInteractionHandlerCount()).toBe(2); // Still 2
 
       // Simulate keypress via EventEmitter - both should be called
       const { input, key } = parseKeypress(Buffer.from('x'));
       batch(() => {
-        emitInput(input, key);
+        dispatchTestKey(input, key);
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);
@@ -193,21 +188,21 @@ describe('Hook Persistence', () => {
       useInput(handler, { isActive: true });
       endRender();
 
-      expect(getInputHandlerCount()).toBe(1);
+      expect(getTestInteractionHandlerCount()).toBe(1);
 
       // Second render - inactive
       beginRender();
       useInput(handler, { isActive: false });
       endRender();
 
-      expect(getInputHandlerCount()).toBe(0); // Handler removed
+      expect(getTestInteractionHandlerCount()).toBe(0); // Handler removed
 
       // Third render - active again
       beginRender();
       useInput(handler, { isActive: true });
       endRender();
 
-      expect(getInputHandlerCount()).toBe(1); // Handler re-added
+      expect(getTestInteractionHandlerCount()).toBe(1); // Handler re-added
     });
   });
 
@@ -311,7 +306,7 @@ describe('Hook Persistence', () => {
 
       expect(c1()).toBe(10); // Persisted, not 999
       expect(c2()).toBe(20); // Persisted, not 888
-      expect(getInputHandlerCount()).toBe(1);
+      expect(getTestInteractionHandlerCount()).toBe(1);
     });
   });
 

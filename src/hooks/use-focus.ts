@@ -4,28 +4,15 @@
 
 import { createEffect } from '../primitives/signal.js';
 import { getFocusManager } from './context.js';
-import { hasContext } from '../primitives/context.js';
-import { FocusContext } from './focus-context.js';
 import { useState } from './use-state.js';
 import type { FocusOptions, FocusResult, FocusManager } from './types.js';
 
 export {
-  createFocusAdapter,
   FocusZoneManagerAdapter,
 } from './focus-adapter.js';
 
-/**
- * Get FocusManager from Context or global fallback
- *
- * Prefers FocusContext if available, otherwise uses global module state.
- * This allows gradual migration to Context-based focus management.
- */
+/** Resolve the app-scoped focus manager. */
 function getActiveFocusManager(): FocusManager | null {
-  // Check Context first
-  if (hasContext(FocusContext) && FocusContext._currentValue !== null) {
-    return FocusContext._currentValue;
-  }
-  // Fall back to global
   return getFocusManager();
 }
 

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  ScrollArea,
-  VirtualList,
-  ScrollableText,
-  LogViewer,
+  ScrollArea as OwnedScrollArea,
+  VirtualList as OwnedVirtualList,
+  ScrollableText as OwnedScrollableText,
+  LogViewer as OwnedLogViewer,
   createScrollArea,
   createVirtualList,
   type ScrollAreaOptions,
@@ -15,6 +15,12 @@ import {
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
 import { beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ScrollArea = testComponent(OwnedScrollArea);
+const VirtualList = testComponent(OwnedVirtualList);
+const ScrollableText = testComponent(OwnedScrollableText);
+const LogViewer = testComponent(OwnedLogViewer);
 
 describe('ScrollArea', () => {
   // ==========================================================================

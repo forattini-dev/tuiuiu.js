@@ -152,7 +152,6 @@ Notes:
 | Window | [x] | [x] |  |
 | CommandPalette | [x] | [x] |  |
 | GoToDialog | [x] | [x] |  |
-| OverlayContainer | [x] | [x] | Overlay stack entries are not controllable. |
 | SplitPanel | [x] | [x] |  |
 | ThreePanel | [x] | [x] |  |
 | ScrollArea | [x] | [x] |  |

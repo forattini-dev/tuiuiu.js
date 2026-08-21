@@ -2,12 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderToString } from '../../src/core/renderer.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import { Heatmap, Legend, VerticalTabs } from '../../src/molecules/index.js';
 import { Scroll, useScroll } from '../../src/primitives/index.js';
 import { Text } from '../../src/primitives/nodes.js';
@@ -26,12 +22,12 @@ const scrollLines = Array.from({ length: 8 }, (_, index) => Text({}, `Line ${ind
 describe('Residual interactive DEVX', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('keeps Scroll position across parent rerenders', () => {
@@ -39,8 +35,8 @@ describe('Residual interactive DEVX', () => {
       renderWithHooks(() => Scroll({ height: 3, width: 20, isActive: true }, ...scrollLines));
 
     renderApp();
-    emitInput('', keys.down().key);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const rerendered = renderApp();
     const output = renderToString(rerendered, 20);
@@ -58,8 +54,8 @@ describe('Residual interactive DEVX', () => {
       });
 
     const first = renderController();
-    emitInput('', keys.down().key);
-    emitInput('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey('', keys.down().key);
 
     const second = renderController();
 
@@ -84,11 +80,11 @@ describe('Residual interactive DEVX', () => {
       );
 
     renderApp(firstOnChange);
-    emitInput('', keys.down().key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.down().key);
+    dispatchTestKey('', keys.enter().key);
 
     const rerendered = renderApp(secondOnChange);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
 
     const output = renderToString(rerendered, 80);
     expect(output).toContain('Advanced panel');
@@ -141,11 +137,11 @@ describe('Residual interactive DEVX', () => {
       );
 
     renderApp(firstOnSelect);
-    emitInput('', keys.right().key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.right().key);
+    dispatchTestKey('', keys.enter().key);
 
     renderApp(secondOnSelect);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
 
     expect(firstOnSelect).toHaveBeenCalledWith(0, 1, 2);
     expect(secondOnSelect).toHaveBeenCalledWith(0, 1, 2);

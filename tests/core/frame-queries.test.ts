@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Box, Text } from '../../src/primitives/nodes.js';
-import { Scroll, createScroll } from '../../src/primitives/scroll.js';
+import { Scroll as OwnedScroll, createScroll } from '../../src/primitives/scroll.js';
 import {
   createFrameSnapshot,
   resetFrameSequenceForTesting,
@@ -11,6 +11,9 @@ import {
   registerHitTestFromLayout,
   resetHitTestRegistry,
 } from '../../src/core/hit-test.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Scroll = testComponent(OwnedScroll);
 
 describe('Frame queries', () => {
   beforeEach(() => {

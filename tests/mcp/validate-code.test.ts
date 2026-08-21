@@ -41,7 +41,7 @@ describe('MCP code validation', () => {
 
       function App() {
         const [count, setCount] = useState(0);
-        useHotkeys('up', () => setCount(c => c + 1));
+        useShortcut('up', () => setCount(c => c + 1));
         return Page({ title: 'Home', children: Text({}, String(count())) });
       }
 

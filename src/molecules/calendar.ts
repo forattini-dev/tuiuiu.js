@@ -20,6 +20,7 @@ import { useConst } from '../hooks/use-const.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getRenderMode } from '../core/capabilities.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -432,7 +433,7 @@ export function useCalendarState(options: CalendarOptions = {}) {
 // Component
 // =============================================================================
 
-export interface CalendarProps extends CalendarOptions {
+export interface CalendarProps extends CalendarOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: CalendarState;
 }
@@ -456,7 +457,7 @@ export interface CalendarProps extends CalendarOptions {
  *   selectionMode: 'range',
  * })
  */
-export function Calendar(props: CalendarProps): VNode {
+function renderCalendar(props: CalendarProps): VNode {
   const {
     firstDayOfWeek = 0,
     showWeekNumbers = false,
@@ -649,7 +650,7 @@ export function Calendar(props: CalendarProps): VNode {
 // MiniCalendar (compact version)
 // =============================================================================
 
-export interface MiniCalendarOptions extends Omit<CalendarOptions, 'showWeekNumbers'> {
+export interface MiniCalendarOptions extends Omit<CalendarOptions, 'showWeekNumbers'>, ComponentKeyProps {
   /** Show navigation arrows */
   showNavigation?: boolean;
 }
@@ -657,7 +658,7 @@ export interface MiniCalendarOptions extends Omit<CalendarOptions, 'showWeekNumb
 /**
  * MiniCalendar - Compact calendar widget
  */
-export function MiniCalendar(props: MiniCalendarOptions): VNode {
+function renderMiniCalendar(props: MiniCalendarOptions): VNode {
   const { showNavigation = true, ...rest } = props;
 
   return Calendar({
@@ -734,7 +735,7 @@ export function createDatePicker(options: DatePickerOptions = {}): DatePickerSta
   };
 }
 
-export interface DatePickerProps extends DatePickerOptions {
+export interface DatePickerProps extends DatePickerOptions, ComponentKeyProps {
   /** Pre-created state */
   state?: DatePickerState;
 }
@@ -748,7 +749,7 @@ export function useDatePickerState(options: DatePickerOptions = {}) {
 /**
  * DatePicker - Calendar with input field
  */
-export function DatePicker(props: DatePickerProps): VNode {
+function renderDatePicker(props: DatePickerProps): VNode {
   const {
     placeholder = 'Select date...',
     inputWidth = 20,
@@ -809,3 +810,7 @@ export function DatePicker(props: DatePickerProps): VNode {
     calendarNode
   );
 }
+
+export const Calendar = component<CalendarProps, VNode>('Calendar', renderCalendar);
+export const MiniCalendar = component<MiniCalendarOptions, VNode>('MiniCalendar', renderMiniCalendar);
+export const DatePicker = component<DatePickerProps, VNode>('DatePicker', renderDatePicker);

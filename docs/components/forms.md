@@ -228,7 +228,7 @@ In short:
 
 ### Prompt Mode Routing
 
-When one prompt needs multiple submit routes, `createPromptModeRegistry()` classifies prompt mode by prefix without pushing those semantics into `TextInput`. `inspectPrompt()` is the canonical API; `parse()` remains as a compatibility alias. See [prompt-patterns.md](../resources/prompt-patterns.md) for the full example.
+When one prompt needs multiple submit routes, `createPromptModeRegistry()` classifies prompt mode by prefix without pushing those semantics into `TextInput`. `inspectPrompt()` is the single inspection API. See [prompt-patterns.md](../resources/prompt-patterns.md) for the full example.
 
 ### Task-Backed Completion Usage
 

@@ -8,7 +8,7 @@ import {
   render,
   Box,
   Text,
-  useHotkeys,
+  useShortcut,
   useApp,
   useState,
   setTheme,
@@ -24,9 +24,9 @@ function TestApp() {
   // useState persists across re-renders (it's a hook!)
   const [count, setCount] = useState(0);
 
-  useHotkeys('q', () => exit());
-  useHotkeys('up', () => setCount(c => c + 1));
-  useHotkeys('down', () => setCount(c => c - 1));
+  useShortcut('q', () => exit());
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('down', () => setCount(c => c - 1));
 
   return Box(
     { flexDirection: 'column', padding: 1 },

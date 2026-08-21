@@ -25,7 +25,7 @@ export interface UseNotificationResult {
  * ```typescript
  * function App() {
  *   const { notify, supported } = useNotification();
- *   useHotkeys('n', () => notify('Build Complete', 'All tests passed'));
+ *   useShortcut('n', () => notify('Build Complete', 'All tests passed'));
  *   return Text({}, supported ? 'Press N to notify' : 'Notifications not supported');
  * }
  * ```

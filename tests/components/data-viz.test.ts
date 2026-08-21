@@ -61,11 +61,11 @@ import {
 
 // Heatmap
 import {
-  Heatmap,
+  Heatmap as OwnedHeatmap,
   createHeatmap,
   ContributionGraph,
   CalendarHeatmap,
-  CorrelationMatrix,
+  CorrelationMatrix as OwnedCorrelationMatrix,
   COLOR_SCALES,
 } from '../../src/molecules/data-viz/heatmap.js';
 import { ScatterPlot } from '../../src/molecules/data-viz/scatter-plot.js';
@@ -73,6 +73,10 @@ import { RadarChart } from '../../src/molecules/data-viz/radar-chart.js';
 import { TimeHeatmap } from '../../src/molecules/data-viz/time-heatmap.js';
 import { Waveform } from '../../src/molecules/data-viz/waveform.js';
 import { GanttChart } from '../../src/molecules/data-viz/gantt-chart.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Heatmap = testComponent(OwnedHeatmap);
+const CorrelationMatrix = testComponent(OwnedCorrelationMatrix);
 
 describe('Data Visualization Components', () => {
   beforeEach(() => {

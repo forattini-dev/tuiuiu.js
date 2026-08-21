@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createMultiSelect, MultiSelect } from '../../src/molecules/multi-select.js';
+import { createMultiSelect, MultiSelect as OwnedMultiSelect } from '../../src/molecules/multi-select.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const MultiSelect = testComponent(OwnedMultiSelect);
 
 const basicItems = [
   { value: 'a', label: 'Apple' },
@@ -194,6 +197,17 @@ describe('createMultiSelect', () => {
 
       expect(state.scrollOffset()).toBe(0);
     });
+  });
+
+  it('preserves cursor and selection identities across option reorders', () => {
+    const state = createMultiSelect({ items: basicItems, initialValue: ['a'] });
+    state.moveDown();
+    const reordered = [...basicItems].reverse();
+
+    state.updateOptions({ items: reordered });
+
+    expect(state.filteredItems()[state.cursorIndex()]?.value).toBe('b');
+    expect(state.selected()).toEqual(['a']);
   });
 });
 

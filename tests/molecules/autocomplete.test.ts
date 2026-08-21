@@ -7,12 +7,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   createAutocomplete,
-  Autocomplete,
-  Combobox,
+  Autocomplete as OwnedAutocomplete,
+  Combobox as OwnedCombobox,
   createTagInput,
-  TagInput,
+  TagInput as OwnedTagInput,
   type AutocompleteItem,
 } from '../../src/molecules/autocomplete.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Autocomplete = testComponent(OwnedAutocomplete);
+const Combobox = testComponent(OwnedCombobox);
+const TagInput = testComponent(OwnedTagInput);
 
 // Sample items for testing
 const sampleItems: AutocompleteItem[] = [

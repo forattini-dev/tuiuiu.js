@@ -41,7 +41,7 @@ interface SubscriptionHookData<T> {
   subscribeFn: (callback: (value: T) => void) => () => void;
   unsubscribe: (() => void) | null;
   enabled: boolean;
-  hookIndex: number;
+  hookIndex: import('./context.js').HookSlotToken;
 }
 
 function startSubscription<T>(data: SubscriptionHookData<T>): void {

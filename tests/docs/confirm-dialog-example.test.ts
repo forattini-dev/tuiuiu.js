@@ -35,15 +35,15 @@ describe('ConfirmDialog overlay documentation', () => {
     expect(docs).toContain('PowerShell');
   });
 
-  it('wires callbacks, input ownership, and the overlay container', () => {
+  it('wires callbacks and canonical overlay ownership', () => {
     const example = readFileSync(examplePath, 'utf8');
 
-    expect(example).toContain('component: () => ConfirmDialog(dialog.props)');
-    expect(example).toContain('if (overlays.hasOverlay())');
-    expect(example).toContain('dialog.confirm()');
-    expect(example).toContain('dialog.cancel()');
-    expect(example).toContain("priority: 'modal'");
-    expect(example).toContain('stopPropagation: true');
-    expect(example).toContain('OverlayContainer({ stack: overlays })');
+    expect(example).toContain('content: () => ConfirmDialog(dialog.props)');
+    expect(example).toContain("mode: 'overlay'");
+    expect(example).toContain('dialog.activateSelected()');
+    expect(example).toContain('captureFocus: true');
+    expect(example).toContain('closeOnEscape: true');
+    expect(example).toContain('priority: 200');
+    expect(example).not.toContain('OverlayContainer');
   });
 });

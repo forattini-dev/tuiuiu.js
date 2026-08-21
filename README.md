@@ -1,638 +1,100 @@
-<div align="center">
+# tuiuiu.js
 
-# 🐦 Tuiuiu
+A zero-dependency TypeScript framework for fast, composable terminal user
+interfaces. Tuiuiu combines keyed function components, fine-grained signals, a
+deterministic cell renderer, semantic interaction, and runtime-owned overlays
+and prompts.
 
-### Terminal UI Framework for the Modern Era
-
-Build beautiful, reactive terminal apps with a Modern Component API.
-<br>
-**Zero dependencies** • **Signals-based** • **Flexbox layout** • **Full mouse support** • **MCP Ready**
-<br>
-50+ components. Pure Node.js. No C++ bindings. AI-powered development.
-
-[![npm version](https://img.shields.io/npm/v/tuiuiu.js.svg?style=flat-square&color=F5A623)](https://www.npmjs.com/package/tuiuiu.js)
-[![npm downloads](https://img.shields.io/npm/dm/tuiuiu.js.svg?style=flat-square&color=34C759)](https://www.npmjs.com/package/tuiuiu.js)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22.12+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License](https://img.shields.io/npm/l/tuiuiu.js.svg?style=flat-square&color=007AFF)](https://github.com/forattini-dev/tuiuiu.js/blob/main/LICENSE)
-[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success?style=flat-square)](https://www.npmjs.com/package/tuiuiu.js)
-
-[📖 Documentation](https://forattini-dev.github.io/tuiuiu.js) · [🚀 Quick Start](#quick-start) · [🎨 Storybook](#storybook) · [🤖 MCP Server](#mcp-server)
-
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-hero.gif" alt="Tuiuiu Demo" width="600">
-
-</div>
-
----
-
-## Quick Start
+## Install
 
 ```bash
-npx tuiuiu.js@latest init my-tui
-cd my-tui
-pnpm install
-pnpm dev
+pnpm add tuiuiu.js
 ```
 
-Tuiuiu is ESM-only and requires Node.js 22.12 or newer.
-Its public component model uses typed function composition. The scaffolder
-never overwrites a non-empty target.
+Node.js 22.12 or newer is required.
 
-```typescript
-import { render, Box, Text, useState, useInput, useApp } from 'tuiuiu.js/minimal';
+## Quick start
 
-function Counter() {
-  // useState persists across re-renders (it's a hook!)
+```ts
+import {
+  Box,
+  Text,
+  component,
+  render,
+  useApp,
+  useShortcut,
+  useState,
+} from 'tuiuiu.js';
+
+const Counter = component('Counter', () => {
   const [count, setCount] = useState(0);
   const { exit } = useApp();
 
-  useInput((char, key) => {
-    if (key.upArrow) setCount(c => c + 1);
-    if (key.downArrow) setCount(c => c - 1);
-    if (key.escape) exit();
-  });
+  useShortcut(['up', 'k'], () => setCount((value) => value + 1));
+  useShortcut(['down', 'j'], () => setCount((value) => value - 1));
+  useShortcut('q', exit);
 
-  return Box({ flexDirection: 'column', padding: 1, borderStyle: 'round' },
-    Text({ color: 'cyan', bold: true }, '🐦 Tuiuiu Counter'),
-    Text({ color: 'yellow', marginTop: 1 }, `Count: ${count()}`),
-    Text({ color: 'gray', dim: true }, '↑/↓: change • Esc: exit')
+  return Box({ flexDirection: 'column', padding: 1 },
+    Text({ bold: true, color: 'cyan' }, 'Tuiuiu'),
+    Text({}, `Count: ${count()}`),
+    Text({ dim: true }, '↑/k up · ↓/j down · q quit'),
   );
-}
+});
 
-const { waitUntilExit } = render(Counter);
-await waitUntilExit();
+const app = render(() => Counter({ key: 'counter' }), { screen: 'inline' });
+await app.waitUntilExit();
 ```
 
-Tuiuiu includes a default theme. `setTheme()` is reactive: call it before the
-first render for a different initial theme or later for live switching. Theming
-does not affect input handling.
+`component()` gives every stateful instance its own hook and cleanup owner.
+Signals automatically schedule the latest tree; applications do not manually
+rerender.
 
-## Terminal Images
+## Architecture
 
-`tuiuiu.js` can render raster images directly inside compatible terminals such as Kitty, WezTerm, iTerm2, and Sixel terminals. The `TerminalImage` component negotiates the best backend available and falls back to colored half-blocks when protocol graphics are unavailable.
+- `AppHandle` owns one render runtime, terminal screen, focus tree, command
+  runtime, overlays, prompts, contributions, and cleanup.
+- `InteractionRuntime` maps normalized key sequences to semantic commands with
+  token-owned modes and targets.
+- `CollectionController` preserves cursor and selection by stable identity.
+- `OverlayHost` and `PromptHost` own complete sessions from open through
+  exactly-once settlement.
+- The cell renderer coalesces invalidations, caps presentation at 60 FPS by
+  default, drops stale frames under backpressure, and supports fixed-step logic.
 
-```typescript
-import { Panel, TerminalImage, loadImageFile, render } from 'tuiuiu.js';
+## Public modules
 
-const image = await loadImageFile('./tests/tuiuiu.png');
+| Import | Purpose |
+|---|---|
+| `tuiuiu.js` | Compact everyday application surface |
+| `tuiuiu.js/app` | Lifecycle, ownership, hooks, contributions, background work |
+| `tuiuiu.js/ui` | Complete component, layout, styling, and theme catalog |
+| `tuiuiu.js/interaction` | Commands, events, collections, completion, overlays, prompts |
+| `tuiuiu.js/core` | Low-level renderer, frames, layout, input stream, graphics |
+| `tuiuiu.js/testing` | Render helpers, snapshots, probes, interaction drivers |
+| `tuiuiu.js/devtools` | Inspection and diagnostics |
+| `tuiuiu.js/storybook` | Interactive component catalog tooling |
+| `tuiuiu.js/mcp` | MCP documentation server |
+| `tuiuiu.js/colors` | Standalone ANSI colors |
 
-render(() =>
-  Panel({ title: 'Preview', width: 40, height: 14 },
-    TerminalImage({
-      source: image,
-      width: 'fill',
-      height: 'fill',
-      fit: 'contain',
-    })
-  )
-);
-```
+Version 2 has no v1 compatibility, minimal, experimental, or layer-specific
+entrypoints. See the [import map](docs/core/imports.md) and
+[migration guide](docs/migration/2.0.md).
 
-`loadImageFile()` uses `ffprobe` and `ffmpeg` when available, so the core package stays zero-deps while still giving you a practical path from `PNG/JPEG/WebP` into RGBA.
-
-## What's Inside
-
-| Category | Features |
-|:---------|:---------|
-| **Core** | Signal-based reactivity, Flexbox layout engine, Focus management, Event system |
-| **Primitives** | Box, Text, Spacer, Newline, Fragment, Divider, Canvas |
-| **Atoms** | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer, Tooltip |
-| **Molecules** | Select, MultiSelect, RadioGroup, Autocomplete, Table, Tabs, Tree, Calendar, CodeBlock, Markdown |
-| **Organisms** | Modal, CommandPalette, DataTable, FileManager, SplitPanel, ScrollArea, Grid, OverlayStack |
-| **Experimental** | Windowed and inline-editable DataTable variants |
-| **Templates** | AppShell, Page, Header, StatusBar, VStack, HStack, Center, FullScreen |
-| **Data Viz** | BarChart, LineChart, Sparkline, Heatmap, Gauge, BigText, Digits |
-| **DevTools** | Layout Inspector, Event Logger, Performance Metrics, Component Storybook |
-
-## Real-World Examples
-
-Build terminal apps that feel native. These examples recreate familiar CLI tools entirely in Tuiuiu:
-
-<table>
-<tr>
-<td align="center" width="33%">
-<strong>📊 htop</strong><br>
-<em>Process Monitor</em><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-htop.gif" alt="htop clone" width="100%">
-</td>
-<td align="center" width="33%">
-<strong>🌐 mtr</strong><br>
-<em>Network Diagnostics</em><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-mtr.gif" alt="mtr clone" width="100%">
-</td>
-<td align="center" width="33%">
-<strong>📡 ping</strong><br>
-<em>Network Latency</em><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-ping.gif" alt="ping clone" width="100%">
-</td>
-</tr>
-</table>
+## Development
 
 ```bash
-# Try them yourself
-pnpm tsx examples/app-htop.ts   # Process monitor with live updates
-pnpm tsx examples/app-mtr.ts    # Network route tracer
-pnpm tsx examples/app-ping.ts   # Network latency monitor
-pnpm example opencode-lab       # OpenCode-inspired responsive agent shell
-pnpm example tuiuiu-invaders    # Literal ASCII Space Invaders
-pnpm example tuiuiu-meteor      # Asteroids-style meteor splitter
-pnpm example tuiuiu-sideblaster # Horizontal shoot'em up
-pnpm example tuiuiu-tetris      # Falling-block puzzle showcase
-pnpm example tuiuiu-snake       # Grid-chase snake showcase
+pnpm typecheck
+pnpm typecheck:tests
+pnpm typecheck:examples
+pnpm lint
+pnpm test:run
+pnpm build
+pnpm verify:contracts
+pnpm check:cycles
+pnpm test:performance
 ```
 
-## Gallery
+Examples are available through `pnpm example:list`; launch the component
+catalog with `pnpm storybook`.
 
-<table>
-<tr>
-<td align="center" width="50%">
-<strong>📊 Real-time Dashboard</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-dashboard.gif" alt="Dashboard" width="100%">
-</td>
-<td align="center" width="50%">
-<strong>💬 Chat Application</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-chat.gif" alt="Chat" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center">
-<strong>🎨 Component Storybook</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-storybook.gif" alt="Storybook" width="100%">
-</td>
-<td align="center">
-<strong>📝 Interactive Forms</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-forms.gif" alt="Forms" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center">
-<strong>💚 WhatsApp Clone</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/examples/whatsapp-clone.gif" alt="WhatsApp Clone" width="100%">
-</td>
-<td align="center">
-<strong>🖌️ Drawing Canvas</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/examples/tuiuiu-brush.gif" alt="Tuiuiu Brush" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center">
-<strong>🎵 Music Player</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-player.gif" alt="Music Player" width="100%">
-</td>
-<td align="center">
-<strong>📊 Data Visualization</strong><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/components/charts.gif" alt="Charts" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<strong>🏰 Tuiuiu Defence</strong><br>
-<em>Tower Defense Game</em><br>
-<img src="https://raw.githubusercontent.com/forattini-dev/tuiuiu.js/main/docs/recordings/examples/demo-tuiuiu-defence.gif" alt="Tuiuiu Defence" width="100%">
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<strong>👾 Tuiuiu Invaders</strong><br>
-<em>Literal Space Invaders Clone</em><br>
-<code>pnpm example tuiuiu-invaders</code>
-</td>
-<td align="center" width="50%">
-<strong>☄️ Tuiuiu Meteor</strong><br>
-<em>Asteroids-style Meteor Splitter</em><br>
-<code>pnpm example tuiuiu-meteor</code>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<strong>🚀 Tuiuiu Sideblaster</strong><br>
-<em>Horizontal Shoot'em Up Showcase</em><br>
-<code>pnpm example tuiuiu-sideblaster</code>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<strong>🧱 Tuiuiu Tetris</strong><br>
-<em>Falling-block Puzzle Showcase</em><br>
-<code>pnpm example tuiuiu-tetris</code>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<strong>🐍 Tuiuiu Snake</strong><br>
-<em>Grid-chase Arcade Showcase</em><br>
-<code>pnpm example tuiuiu-snake</code>
-</td>
-</tr>
-</table>
-
-## Highlights
-
-### ⚡ Signal-based Reactivity
-
-Fine-grained reactivity without Virtual DOM overhead. Only what changes gets updated.
-
-```typescript
-import { createSignal, createEffect } from 'tuiuiu.js';
-
-// createSignal at module level = shared/global state
-const [count, setCount] = createSignal(0);
-const doubled = () => count() * 2;
-
-createEffect(() => console.log(`Count: ${count()}, Doubled: ${doubled()}`));
-
-setCount(5); // → "Count: 5, Doubled: 10"
-```
-
-> **Note:** Use `useState()` for component-local state, `createSignal()` at module level for shared state. Never use `createSignal()` inside components — it will be recreated on every render!
-
-### 📦 Flexbox Layout
-
-Build complex terminal layouts with typed, flexbox-inspired `Box` props. No
-browser CSS, DOM, or stylesheet is involved.
-
-```typescript
-Box({
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 2,
-  padding: 1
-},
-  Text({ color: 'blue' }, 'Left'),
-  Box({ flexGrow: 1 }),
-  Text({ color: 'red' }, 'Right')
-)
-```
-
-### 🎨 50+ Ready-to-Use Components
-
-From simple buttons to complex data tables, everything is included.
-
-```typescript
-import { Select, Modal, DataTable, CommandPalette } from 'tuiuiu.js';
-
-// Dropdown select
-Select({
-  items: [
-    { label: 'Option A', value: 'a' },
-    { label: 'Option B', value: 'b' },
-  ],
-  onSelect: (item) => console.log(item)
-});
-
-// Command palette (⌘K style)
-CommandPalette({
-  commands: [
-    { id: 'new', label: 'New File', shortcut: 'Ctrl+N' },
-    { id: 'open', label: 'Open File', shortcut: 'Ctrl+O' },
-  ],
-  onSelect: (cmd) => handleCommand(cmd)
-});
-```
-
-### 🖱️ Full Mouse Support
-
-Click, hover, scroll, drag — all mouse events work out of the box.
-
-```typescript
-Box({
-  borderStyle: 'round',
-  onClick: () => console.log('Clicked!'),
-  onMouseEnter: () => setHover(true),
-  onMouseLeave: () => setHover(false),
-  onScroll: (delta) => scrollBy(delta),
-},
-  Text({}, hover() ? '🔥 Hovering!' : 'Hover me')
-)
-```
-
-### 📊 Data Visualization
-
-Render charts and graphs directly in the terminal.
-
-```typescript
-import { BarChart, Sparkline, Gauge } from 'tuiuiu.js';
-
-BarChart({
-  data: [
-    { label: 'Mon', value: 10 },
-    { label: 'Tue', value: 25 },
-    { label: 'Wed', value: 15 },
-  ],
-  color: 'cyan',
-  showValues: true
-});
-
-Sparkline({ data: [1, 5, 2, 8, 3, 9], width: 20, style: 'braille' });
-
-Gauge({ value: 75, max: 100, label: 'CPU', color: 'green' });
-```
-
-### 🎨 Terminal Colors API (Standalone)
-
-Zero-dependency ANSI colors for CLI tools. Use it without the full UI framework.
-
-```typescript
-import { red, bold, compose, c, tpl } from 'tuiuiu.js/colors';
-
-// Simple functions
-console.log(red('Error!'));
-console.log(bold('Important'));
-
-// Composition
-const errorStyle = compose(red, bold);
-console.log(errorStyle('Critical failure!'));
-
-// Chainable API
-console.log(c.red.bold('Critical!'));
-console.log(c.bgBlue.white('Info'));
-console.log(c.hex('#ff6600')('Orange'));
-
-// Template literal
-console.log(tpl`{red Error:} Something went wrong`);
-
-// Theme-aware colors
-import { theme, tw } from 'tuiuiu.js/colors';
-console.log(theme.primary('Action'));
-console.log(tw.blue[500]('Tailwind Blue'));
-```
-
-### 🏗️ Atomic Design + Tree Shaking
-
-Components organized in a clear hierarchy. Import only what you need — unused code is automatically removed from your bundle.
-
-```typescript
-// Import everything (convenient for development)
-import { Box, Button, Modal } from 'tuiuiu.js';
-
-// Import by layer (optimized bundles)
-import { Box, Text } from 'tuiuiu.js/primitives';
-import { Button, Spinner } from 'tuiuiu.js/atoms';
-import { Select, Table } from 'tuiuiu.js/molecules';
-import { Modal, DataTable } from 'tuiuiu.js/organisms';
-import { VirtualDataTable } from 'tuiuiu.js/experimental';
-import { AppShell, Page } from 'tuiuiu.js/templates';
-
-// Core systems
-import { createSignal, createEffect } from 'tuiuiu.js/core';
-import { useState, useInput, useMouse } from 'tuiuiu.js/hooks';
-import { render, renderOnce } from 'tuiuiu.js/app';
-
-// Utilities & extras
-import { measureText, getVisibleWidth } from 'tuiuiu.js/utils';
-import { BarChart, Gauge } from 'tuiuiu.js/design-system';
-```
-
-<details>
-<summary>All subpath imports</summary>
-
-| Import | Contents |
-|:-------|:---------|
-| `tuiuiu.js` | Everything (main entry) |
-| `tuiuiu.js/primitives` | Box, Text, Spacer, Fragment, Divider, Canvas |
-| `tuiuiu.js/atoms` | Button, TextInput, Switch, Slider, Spinner, ProgressBar, Timer |
-| `tuiuiu.js/molecules` | Select, MultiSelect, Table, Tabs, Tree, Calendar, CodeBlock |
-| `tuiuiu.js/organisms` | Modal, CommandPalette, DataTable, FileManager, SplitPanel |
-| `tuiuiu.js/experimental` | Unstable VirtualDataTable and EditableDataTable APIs |
-| `tuiuiu.js/templates` | AppShell, Page, VStack, HStack, StatusBar |
-| `tuiuiu.js/core` | createSignal, createEffect, batch, calculateLayout |
-| `tuiuiu.js/hooks` | useState, useEffect, useInput, useMouse, useFocus |
-| `tuiuiu.js/app` | render, renderOnce, useApp |
-| `tuiuiu.js/utils` | Text measurement, ANSI utilities |
-| `tuiuiu.js/colors` | Terminal ANSI colors (standalone, zero dependencies) |
-| `tuiuiu.js/design-system` | Full design system (charts, forms, navigation) |
-| `tuiuiu.js/storybook` | Component explorer utilities |
-
-</details>
-
-### 🔄 Centralized Store
-
-Built-in state management for complex applications.
-
-```typescript
-import { createStore } from 'tuiuiu.js';
-
-const reducer = (state = { count: 0 }, action) => {
-  switch (action.type) {
-    case 'INCREMENT': return { count: state.count + 1 };
-    case 'DECREMENT': return { count: state.count - 1 };
-    default: return state;
-  }
-};
-
-const store = createStore(reducer, { count: 0 });
-
-store.subscribe(() => console.log(store.state()));
-store.dispatch({ type: 'INCREMENT' });
-```
-
-## Background Workers (DX-first)
-
-`createWorkerExecutor()` runs tasks in `worker_threads` so long or CPU-heavy work doesn't block key handling or rendering.
-
-```typescript
-import {
-  createWorkerExecutor,
-  useApp,
-} from 'tuiuiu.js';
-
-const workerExecutor = createWorkerExecutor('./workers/task-runner.mjs', {
-  workerName: 'app-task-runner',
-});
-```
-
-```typescript
-const task = workerExecutor.submit({
-  type: 'analyze',
-  payload: { text: promptValue() },
-});
-
-const app = useApp();
-task.subscribe((event) => {
-  if (event.kind === 'progress') {
-    app.enqueueExternalUpdate?.(() => {
-      setStatus(String((event.payload as { status?: string }).status ?? 'working'));
-    });
-  }
-});
-
-const result = await task.result;
-if (result.status === 'resolved') {
-  setOutput(result.value);
-} else if (result.status === 'rejected') {
-  showError(result.error.message);
-} else {
-  showStatus(result.reason ?? 'cancelled');
-}
-
-task.cancel('superseded');
-await workerExecutor.destroy();
-```
-
-Use inline execution for lightweight, ultra-low-latency handlers and worker execution for analysis/indexing/IO orchestration.
-
-For multi-thread orchestration and cross-thread messaging, use:
-
-```typescript
-import {
-  createBackgroundExecutor,
-  createThreadBus,
-} from 'tuiuiu.js';
-
-const executors = {
-  analyzer: createBackgroundExecutor({ modulePath: './workers/analyzer.mjs' }),
-  indexer: createBackgroundExecutor({ modulePath: './workers/indexer.mjs' }),
-};
-
-const bus = createThreadBus({ threads: executors });
-```
-
-Then use `bus.subscribe`, `bus.post({ to, ... })` and `bus.broadcast(...)` to move work/results between workers and main.
-
-If you need raw parallelism, use `createTaskBridgePool`:
-
-```typescript
-import { createTaskBridgePool } from 'tuiuiu.js';
-
-const analyzerPool = createTaskBridgePool({
-  modulePath: './workers/analyzer.mjs',
-  poolSize: 4,
-  scheduler: 'least-pending',
-});
-
-const handle = analyzerPool.submit({
-  type: 'analyze',
-  payload: { text: '...' },
-});
-```
-
-You can combine the pool with `createThreadBus` and still keep the same message flow:
-
-```typescript
-import {
-  createBackgroundExecutor,
-  createThreadBus,
-} from 'tuiuiu.js';
-
-const indexerExecutor = createBackgroundExecutor({
-  modulePath: './workers/indexer.mjs',
-});
-const bus = createThreadBus({
-  threads: {
-    analyzer: analyzerPool,
-    indexer: indexerExecutor,
-  },
-});
-
-bus.subscribe((event) => {
-  if (event.to === 'main') {
-    console.log('main got:', event.type, event.payload);
-  }
-});
-
-await analyzerPool.destroy();
-await indexerBridge.destroy();
-await bus.destroy();
-```
-
-Run the dedicated walkthrough:
-
-```bash
-pnpm example thread-pool-demo
-# or
-pnpm tsx examples/thread-pool-demo.ts
-```
-
-See also: [/guides/thread-pool.md](/guides/thread-pool.md)
-
-## MCP Server
-
-> **Build terminal UIs with AI.** Tuiuiu includes a native [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude and other AI assistants help you build terminal applications.
-
-```bash
-# Start the MCP server
-npx tuiuiu.js@latest mcp
-```
-
-Network transports listen on `127.0.0.1` by default. A remote bind requires a
-bearer token; browser origins and request size must be explicitly configured.
-See the full MCP documentation before exposing a network transport.
-
-Add to your `.mcp.json` for Claude Code integration:
-
-```json
-{
-  "mcpServers": {
-    "tuiuiu": {
-      "command": "npx",
-      "args": ["tuiuiu", "mcp"]
-    }
-  }
-}
-```
-
-Now Claude has full access to Tuiuiu's 50+ components, hooks, themes, and examples. Ask it to build dashboards, forms, file browsers, or any terminal UI — it knows the API.
-
-**Available tools:** `tuiuiu_list_components`, `tuiuiu_get_component`, `tuiuiu_get_hook`, `tuiuiu_search`, `tuiuiu_list_themes`, `tuiuiu_create_theme`, `tuiuiu_getting_started`, `tuiuiu_quickstart`, `tuiuiu_version`, `tuiuiu_api_patterns`
-
-### Debug with MCP Inspector
-
-Test and explore the MCP server interactively using the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
-
-```bash
-npx @modelcontextprotocol/inspector npx tuiuiu.js@latest mcp
-```
-
-This opens a web UI where you can browse tools, test resources, and inspect the full MCP capabilities.
-
-[→ Full MCP Documentation](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp)
-
-## Storybook
-
-Tuiuiu includes a built-in component storybook for exploring all components:
-
-```bash
-# Run the storybook
-npx tuiuiu storybook
-```
-
-Navigate through categories, see live previews, and copy code examples.
-
-## Examples
-
-```bash
-# Clone and explore
-git clone https://github.com/forattini-dev/tuiuiu.js
-cd tuiuiu.js
-pnpm install
-
-# Real-world apps (featured)
-pnpm tsx examples/app-htop.ts      # Process monitor (htop clone)
-pnpm tsx examples/app-mtr.ts       # Network tracer (mtr clone)
-pnpm tsx examples/app-ping.ts      # Latency monitor (ping clone)
-pnpm tsx examples/app-dashboard.ts # Real-time dashboard
-pnpm tsx examples/app-chat.ts      # Chat application
-pnpm tsx examples/tuiuiu-player.ts # Music player with waveform
-```
-
-## Documentation
-
-| Topic | Link |
-|:------|:-----|
-| Quick Start | [→ Getting Started](https://forattini-dev.github.io/tuiuiu.js/#/getting-started/quick-start) |
-| Components | [→ Component Reference](https://forattini-dev.github.io/tuiuiu.js/#/components/overview) |
-| Hooks | [→ Hooks API](https://forattini-dev.github.io/tuiuiu.js/#/hooks/use-input) |
-| Signals | [→ Reactive State](https://forattini-dev.github.io/tuiuiu.js/#/core/signals) |
-| Layout | [→ Flexbox Guide](https://forattini-dev.github.io/tuiuiu.js/#/core/layout) |
-| Theming | [→ Theme System](https://forattini-dev.github.io/tuiuiu.js/#/core/theming) |
-| Storybook | [→ Component Explorer](https://forattini-dev.github.io/tuiuiu.js/#/core/storybook) |
-| MCP Server | [→ AI Integration](https://forattini-dev.github.io/tuiuiu.js/#/core/mcp) |
-
-## Why "Tuiuiu"?
-
-The [Tuiuiu](https://en.wikipedia.org/wiki/Jabiru) (Jabiru mycteria) is a majestic Brazilian bird — the tallest flying bird in South America. Just like this bird stands out in its environment, Tuiuiu stands out in the terminal UI landscape: elegant, powerful, and distinctly Brazilian.
-
-## License
-
-MIT © [Forattini](https://forattini.dev)
+MIT License.

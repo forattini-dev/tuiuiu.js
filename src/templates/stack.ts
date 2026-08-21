@@ -10,7 +10,7 @@
  */
 
 import { Box, normalizeChildren } from '../primitives/nodes.js';
-import type { TuiChild, TuiNode, VNode } from '../utils/types.js';
+import type { TuiChild, VNode } from '../utils/types.js';
 export { Spacer } from '../primitives/nodes.js';
 export type { SpacerProps } from '../utils/types.js';
 
@@ -39,8 +39,6 @@ export interface VStackProps {
   borderStyle?: 'single' | 'double' | 'round' | 'bold';
   /** Border color */
   borderColor?: string;
-  /** Children nodes */
-  children?: TuiNode;
 }
 
 /**
@@ -62,21 +60,8 @@ export interface VStackProps {
  * )
  * ```
  */
-export function VStack(props?: VStackProps, ...children: TuiChild[]): VNode;
-export function VStack(children: TuiChild[]): VNode;
-export function VStack(
-  propsOrChildren: VStackProps | TuiChild[] = {},
-  ...variadicChildren: TuiChild[]
-): VNode {
-  const isArray = Array.isArray(propsOrChildren);
-  const props: VStackProps = isArray ? {} : propsOrChildren;
-  const children = normalizeChildren(
-    variadicChildren.length > 0
-      ? variadicChildren
-      : isArray
-        ? propsOrChildren
-        : props.children,
-  );
+export function VStack(props: VStackProps = {}, ...content: TuiChild[]): VNode {
+  const children = normalizeChildren(content);
 
   const {
     gap = 0,
@@ -149,8 +134,6 @@ export interface HStackProps {
   borderStyle?: 'single' | 'double' | 'round' | 'bold';
   /** Border color */
   borderColor?: string;
-  /** Children nodes */
-  children?: TuiNode;
 }
 
 /**
@@ -171,21 +154,8 @@ export interface HStackProps {
  * )
  * ```
  */
-export function HStack(props?: HStackProps, ...children: TuiChild[]): VNode;
-export function HStack(children: TuiChild[]): VNode;
-export function HStack(
-  propsOrChildren: HStackProps | TuiChild[] = {},
-  ...variadicChildren: TuiChild[]
-): VNode {
-  const isArray = Array.isArray(propsOrChildren);
-  const props: HStackProps = isArray ? {} : propsOrChildren;
-  const children = normalizeChildren(
-    variadicChildren.length > 0
-      ? variadicChildren
-      : isArray
-        ? propsOrChildren
-        : props.children,
-  );
+export function HStack(props: HStackProps = {}, ...content: TuiChild[]): VNode {
+  const children = normalizeChildren(content);
 
   const {
     gap = 0,
@@ -254,8 +224,6 @@ export interface CenterProps {
   width?: number;
   /** Fixed height (defaults to terminal height) */
   height?: number;
-  /** Child node */
-  children?: TuiNode;
 }
 
 /**
@@ -279,11 +247,8 @@ export function Center(props: CenterProps = {}, ...children: TuiChild[]): VNode 
     vertical = true,
     width,
     height,
-    children: propsChildren,
   } = props;
-  const resolvedChildren = normalizeChildren(
-    children.length > 0 ? children : propsChildren,
-  );
+  const resolvedChildren = normalizeChildren(children);
 
   return Box(
     {
@@ -308,8 +273,6 @@ export interface FullScreenProps {
   backgroundColor?: string;
   /** Padding from edges */
   padding?: number;
-  /** Child node */
-  children: VNode;
 }
 
 /**
@@ -317,23 +280,16 @@ export interface FullScreenProps {
  *
  * @example
  * ```typescript
- * FullScreen({
- *   padding: 1,
- *   children: AppContent()
- * })
+ * FullScreen({ padding: 1 }, AppContent())
  *
  * // With background
- * FullScreen({
- *   backgroundColor: 'blue',
- *   children: MainView()
- * })
+ * FullScreen({ backgroundColor: 'blue' }, MainView())
  * ```
  */
-export function FullScreen(props: FullScreenProps): VNode {
+export function FullScreen(props: FullScreenProps = {}, ...children: TuiChild[]): VNode {
   const {
     backgroundColor,
     padding = 0,
-    children,
   } = props;
 
   return Box(
@@ -344,7 +300,7 @@ export function FullScreen(props: FullScreenProps): VNode {
       backgroundColor,
       flexDirection: 'column',
     },
-    children
+    ...children
   );
 }
 

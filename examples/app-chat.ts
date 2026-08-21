@@ -20,18 +20,15 @@ import {
   Newline,
   When,
   useState,
-  useInput,
+  useInteraction,
   useApp,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
   type VNode,
-  measureHeight,
-  // New simplified scroll API!
-  ChatList,
-  useScrollList,
 } from '../src/index.js';
+import { measureHeight } from '../src/core/index.js';
+import { ChatList, getNextTheme, useScrollList } from '../src/ui/index.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { KeyIndicator, withKeyIndicator, clearOldKeyPresses } from './_shared/key-indicator.js';
 import { TuiuiuHeader } from './_shared/tuiuiu-header.js';
@@ -303,7 +300,7 @@ function EnhancedChatApp(): VNode {
 
 
   // Global key handler
-  useInput(withKeyIndicator((char, key) => {
+  useInteraction(withKeyIndicator((char, key) => {
     clearOldKeyPresses();
     if (key.ctrl && char === 'c') {
       exit();

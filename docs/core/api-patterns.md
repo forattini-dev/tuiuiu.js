@@ -37,9 +37,9 @@ Grid({ columns: '1fr 2fr', gap: 1 },
 )
 ```
 
-For migration compatibility, composition primitives normalize nested arrays and
-accept `props.children` where the public type declares it. Variadic children are
-canonical and take precedence when both forms are supplied.
+Composition primitives accept content only through variadic arguments. Nested
+arrays can be expanded by the caller, making content ownership and ordering
+explicit at every call site.
 
 ```typescript
 const rows = [

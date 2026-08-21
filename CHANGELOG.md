@@ -4,6 +4,18 @@ Notable changes to Tuiuiu are documented here.
 
 ## Unreleased
 
+### Added
+
+- Add the `tuiuiu.js/interaction` entry point with semantic commands,
+  token-owned modes, identity-based collections, OverlayHost sessions, and
+  renderer-independent PromptHost orchestration.
+- Add automatic VNode overlay and prompt adapters to the app render loop.
+- Add a breaking 2.0 migration guide and ownership-oriented package entrypoints.
+- Add a runtime-backed CommandPalette adapter, `openModal()`, and a shared
+  grapheme-safe scalar TextEditor.
+- Add keyed ComponentOwners for every stateful visual component and physical
+  cursor anchors for CJK IME positioning.
+
 ### Security
 
 - Treat terminal text as untrusted and allow only validated SGR styling.
@@ -48,7 +60,20 @@ Notable changes to Tuiuiu are documented here.
 
 ### Changed
 
-- Move unfinished data-table facades to `tuiuiu.js/experimental`.
+- Route application input through the single InteractionRuntime.
+- Make free-form composition uniformly variadic and remove ownerless component
+  state, `props.children` precedence, and other v1 lifecycle fallbacks.
+- Move Tabs, Select, MultiSelect, Menu, Autocomplete, TextInput completion,
+  and CommandPalette navigation onto stable collection identity; Tabs now use
+  automatic activation unless configured as manual.
+- Replace overlay stacks, independent modal lifecycle, and the old command
+  registry with runtime-owned OverlayHost sessions and semantic commands.
+- Require explicit prompt defaults in non-interactive terminals.
+- Promote supported data-table variants to the `tuiuiu.js/ui` catalog.
+- Replace TuiInstance with AppHandle and one `screen` option; remove manual
+  rerender and mode-specific render helpers.
+- Remove v1 compatibility aliases, obsolete entrypoints, deprecated
+  TaskBridge, and unreachable ANSI-buffer and string-chart implementations.
 - Require Node.js 22.12 or newer.
 - Separate functional tests from performance benchmarks.
 - Make prerelease publication an explicit manual action.

@@ -10,10 +10,11 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import { truncateEnd } from '../utils/formatters.js';
 import { StatusIndicator, type StatusType } from './status-indicator.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 type DataRowValue = string | number | VNode;
 
-export interface DataRowProps {
+export interface DataRowProps extends ComponentKeyProps {
   /** Label text shown on the left */
   label: MaybeReactive<string>;
   /** Value shown on the right */
@@ -57,7 +58,7 @@ function renderValueNode(
  *   status: () => connection.ok() ? 'success' : 'error',
  * })
  */
-export function DataRow(props: DataRowProps): VNode {
+function renderDataRow(props: DataRowProps): VNode {
   const label = resolve(props.label);
   const value = resolve(props.value);
   const labelWidth = props.labelWidth !== undefined ? resolve(props.labelWidth) : undefined;
@@ -82,3 +83,5 @@ export function DataRow(props: DataRowProps): VNode {
     renderValueNode(value, valueColor, truncate)
   );
 }
+
+export const DataRow = component<DataRowProps, VNode>('DataRow', renderDataRow);

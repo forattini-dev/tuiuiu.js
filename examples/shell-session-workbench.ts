@@ -6,18 +6,20 @@ import {
   Divider,
   Text,
   TextInput,
-  getVisualLines,
-  createNodeFsSyncStorage,
-  createPromptModeRegistry,
   useConst,
   useEffect,
-  useInput,
   useState,
   useTerminalSize,
-  useTextInputState,
-  type PromptModeResolved,
   type VNode,
 } from '../src/index.js';
+import { getVisualLines, useTextInputState } from '../src/atoms/text-input.js';
+import { createNodeFsSyncStorage } from '../src/app/index.js';
+import {
+  createPromptModeResolver,
+  type PromptModeResolved,
+} from '../src/interaction/index.js';
+import { useInteraction } from '../src/app/index.js';
+import { useShortcut } from '../src/index.js';
 import {
   createShellSessionController,
   type ShellSessionController,
@@ -50,7 +52,7 @@ function destroyDefaultController(): void {
   controller?.destroy();
 }
 
-const promptModes = createPromptModeRegistry({
+const promptModes = createPromptModeResolver({
   defaultMode: {
     id: 'text',
     label: 'Text',
@@ -279,14 +281,19 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
     setSnapshot(next);
   }));
 
-  useInput((input, key) => {
-    if (key.escape || (key.ctrl && input === 'x')) {
-      if (snapshot().running) {
-        controller.interrupt();
-        return true;
-      }
-    }
+  useShortcut(['escape', 'ctrl+x'], () => {
+    controller.interrupt();
+  }, {
+    id: 'shell-session.interrupt',
+    title: 'Interrupt active command',
+    priority: 1_000,
+    isActive: snapshot().running,
+  });
 
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.upArrow) {
       const history = snapshot().commandHistory;
       if (history.length === 0) {
@@ -344,7 +351,7 @@ export function ShellSessionWorkbench(props: ShellSessionWorkbenchProps = {}): V
       return true;
     }
     return false;
-  }, { priority: 'critical', stopPropagation: true });
+  }, { priority: 1_000 });
 
   const mode = promptModes.inspectPrompt(prompt.value());
   const previewAction = resolveShellSubmitAction(prompt.value(), mode, snapshot());
@@ -441,7 +448,7 @@ function isMainModule(): boolean {
 
 if (isMainModule()) {
   const { waitUntilExit } = render(() => ShellSessionWorkbench(), {
-    fullHeight: true,
+    screen: 'fullscreen',
     maxFps: 30,
   });
   await waitUntilExit();

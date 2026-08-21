@@ -18,6 +18,7 @@ import {
 import { enableAlternateScreen, disableAlternateScreen } from '../core/input.js';
 import {
   beginRender,
+  abortRender,
   endRender,
   getRuntimeScopeForApp,
   resetHookState,
@@ -31,6 +32,7 @@ import {
   getCommittedFrameSnapshot,
   recordFramePhaseMetric,
   recordFrameStructuralMetric,
+  type FrameSnapshot,
 } from '../core/frame.js';
 import { cleanLayoutTree, clearChanges } from '../core/dirty.js';
 import { onTerminalFocusChange, readTerminalFocus } from '../core/terminal-focus.js';
@@ -43,7 +45,6 @@ import {
 import { configureMotionRuntime } from '../core/motion-runtime.js';
 import { installPanicHooks, onTerminalPanic } from '../core/terminal-panic.js';
 import { refreshCapabilities } from '../core/capabilities.js';
-import { setOverlayTerminalSize } from '../core/overlay.js';
 import {
   bindRuntimeScope,
   destroyRuntimeScope,
@@ -54,7 +55,30 @@ import {
   disposeReactiveVNodes,
   refreshReactiveVNodes,
 } from '../primitives/computed-node.js';
-import { fingerprintValue } from '../core/structural-fingerprint.js';
+import { Box } from '../primitives/nodes.js';
+import { getOverlayHost } from '../interaction/overlay.js';
+import { OverlayHostView } from '../organisms/overlay-host.js';
+import { createVNodePromptRenderer } from '../organisms/prompt-host.js';
+import { getPromptHost } from '../interaction/prompt.js';
+import { getInteractionRuntime } from '../interaction/runtime.js';
+import type { InteractionRuntime } from '../interaction/runtime.js';
+import type { OverlayHost } from '../interaction/overlay.js';
+import type { PromptHost } from '../interaction/prompt.js';
+import {
+  createContributionHost,
+  type ContributionHost,
+  type SlotDefinition,
+  type SlotMap,
+} from './contributions.js';
+import {
+  focusElement,
+  focusNext,
+  focusPrevious,
+  blurFocus,
+  getActiveId,
+  onFocusChange,
+  type FocusZoneEventData,
+} from '../core/focus.js';
 
 /**
  * Check if a VNode is marked as static
@@ -69,10 +93,12 @@ function isStaticNode(node: VNode): boolean {
  */
 function getStaticNodeId(node: VNode, index: number): string {
   const props = node.props as any;
-  if (props.__staticId) return props.__staticId;
-  // Compatibility for manually-authored __static nodes. Never truncate the
-  // content fingerprint: two long log entries may share an arbitrary prefix.
-  return `static-${index}-${fingerprintValue(node.children ?? [])}`;
+  if (typeof props.__staticId !== 'string' || props.__staticId.length === 0) {
+    throw new Error(
+      `[tuiuiu] Static node ${index} is missing renderer-owned identity. Use Static() or AppendList().`,
+    );
+  }
+  return props.__staticId;
 }
 
 /**
@@ -118,7 +144,7 @@ const ansi = {
   clearTerminal: '\x1b[2J\x1b[3J\x1b[H',
 };
 
-export interface RenderOptions {
+export interface RenderOptions<TSlots extends SlotMap = SlotMap> {
   /** Output stream (default: process.stdout) */
   stdout?: NodeJS.WriteStream;
   /** Input stream (default: process.stdin) */
@@ -137,29 +163,22 @@ export interface RenderOptions {
   escapeSequenceTimeoutMs?: number;
   /** Time to wait for a bracketed paste terminator (default: 30s) */
   pasteTimeoutMs?: number;
-  /** Maximum FPS for render throttling (default: 30) */
+  /** Maximum FPS for background render throttling (default: 60). Input bypasses this cap. */
   maxFps?: number;
-  /** Clear screen on start (default: true) */
-  clearOnStart?: boolean;
-  /** Show cursor (default: false during render) */
-  showCursor?: boolean;
+  /** Show the hardware cursor at the active CursorAnchor (default: false). */
+  showHardwareCursor?: boolean;
   /** Enable automatic Tab/Shift+Tab navigation (default: true) */
   autoTabNavigation?: boolean;
-  /** Fill entire terminal height (default: false). Use for full-screen apps. */
-  fullHeight?: boolean;
   /** Use delta renderer for optimized cell-level updates (default: true).
    *  When enabled, only changed cells are redrawn instead of the entire screen.
    *  Set to false if you need Static component support or encounter rendering issues. */
   useDeltaRenderer?: boolean;
-  /** Use alternate screen buffer (default: true).
-   *  When enabled, the terminal switches to a separate screen on startup and
-   *  restores the original screen on exit, preserving your scrollback history. */
-  alternateScreen?: boolean;
-  /**
-   * Explicit terminal-screen preset. Legacy booleans override preset values
-   * when both are provided. Omit to preserve the 1.x defaults.
-   */
-  screenMode?: ScreenMode;
+  /** Terminal ownership mode (default: alternate). */
+  screen?: ScreenMode;
+  /** Type declaration for application contribution slots. */
+  slots?: SlotDefinition<TSlots>;
+  /** Receives isolated host and contribution failures. */
+  onError?: (error: unknown) => void;
   /** Optional fixed-step update loop for game-like workloads.
    *  Updates run at a fixed cadence while presentation remains capped by `maxFps`. */
   fixedStep?: FixedStepOptions;
@@ -174,7 +193,11 @@ export interface RenderOptions {
  */
 export type ScreenMode = 'inline' | 'fullscreen' | 'alternate';
 
-type ScreenPreset = Pick<Required<RenderOptions>, 'clearOnStart' | 'fullHeight' | 'alternateScreen'>;
+interface ScreenPreset {
+  clearOnStart: boolean;
+  fullHeight: boolean;
+  alternateScreen: boolean;
+}
 
 const SCREEN_PRESETS: Record<ScreenMode, ScreenPreset> = {
   inline: {
@@ -214,9 +237,16 @@ export interface FixedStepOptions {
   onUpdate: (update: FixedStepUpdate) => void;
 }
 
-export interface TuiInstance {
-  /** Re-render with a new component */
-  rerender: (node: VNode) => void;
+export interface FocusHost {
+  focus(id: string): boolean;
+  next(): boolean;
+  previous(): boolean;
+  blur(): void;
+  activeId(): string | null;
+  subscribe(listener: (event: FocusZoneEventData) => void): () => void;
+}
+
+export interface AppHandle<TSlots extends SlotMap = SlotMap> {
   /** Unmount the app */
   unmount: () => void;
   /** Wait for the app to exit */
@@ -228,6 +258,13 @@ export interface TuiInstance {
    * protocols are stripped while SGR color sequences are preserved.
    */
   writeLine: (text: string) => void;
+  /** Explicitly invalidate the application. Urgent invalidation bypasses the FPS cap. */
+  invalidate: (priority?: 'normal' | 'urgent') => void;
+  readonly commands: InteractionRuntime;
+  readonly focus: FocusHost;
+  readonly overlays: OverlayHost<VNode | null>;
+  readonly prompts: PromptHost;
+  readonly contributions: ContributionHost<TSlots>;
 }
 
 /**
@@ -237,10 +274,11 @@ export interface TuiInstance {
  * const { waitUntilExit } = render(() => App());
  * await waitUntilExit();
  */
-export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions = {}): TuiInstance {
-  const screenPreset = options.screenMode
-    ? SCREEN_PRESETS[options.screenMode]
-    : undefined;
+export function render<TSlots extends SlotMap = SlotMap>(
+  nodeOrFn: VNode | (() => VNode),
+  options: RenderOptions<TSlots> = {},
+): AppHandle<TSlots> {
+  const screenPreset = SCREEN_PRESETS[options.screen ?? 'alternate'];
   const {
     stdout = process.stdout,
     stdin = process.stdin,
@@ -251,15 +289,13 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     maxPendingEscapeBytes,
     escapeSequenceTimeoutMs,
     pasteTimeoutMs,
-    maxFps = 30,
-    showCursor = false,
+    maxFps = 60,
+    showHardwareCursor = false,
     autoTabNavigation = true,
     useDeltaRenderer = true,
     fixedStep,
   } = options;
-  const clearOnStart = options.clearOnStart ?? screenPreset?.clearOnStart ?? true;
-  const fullHeight = options.fullHeight ?? screenPreset?.fullHeight ?? false;
-  const alternateScreen = options.alternateScreen ?? screenPreset?.alternateScreen ?? true;
+  const { clearOnStart, fullHeight, alternateScreen } = screenPreset;
 
   if (!Number.isFinite(maxFps) || maxFps < 0) {
     throw new Error('[tuiuiu] maxFps must be a finite non-negative number');
@@ -287,6 +323,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     maxPendingEscapeBytes,
     escapeSequenceTimeoutMs,
     pasteTimeoutMs,
+    onInteraction: () => requestUrgentRender(),
   });
   const resolvedRuntimeScope = getRuntimeScopeForApp(appContext);
   if (!resolvedRuntimeScope) {
@@ -294,6 +331,19 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     throw new Error('[tuiuiu] Failed to create the app runtime scope');
   }
   const runtimeScope = resolvedRuntimeScope;
+  const interactionRuntime = runInRuntimeScope(runtimeScope, getInteractionRuntime);
+  const promptHost = runInRuntimeScope(runtimeScope, getPromptHost);
+  const contributionHost = createContributionHost<TSlots>({
+    onError: (error) => options.onError?.(error),
+  });
+  const focusHost: FocusHost = {
+    focus: (id) => runInRuntimeScope(runtimeScope, () => focusElement(id)),
+    next: () => runInRuntimeScope(runtimeScope, focusNext),
+    previous: () => runInRuntimeScope(runtimeScope, focusPrevious),
+    blur: () => runInRuntimeScope(runtimeScope, blurFocus),
+    activeId: () => runInRuntimeScope(runtimeScope, getActiveId),
+    subscribe: (listener) => runInRuntimeScope(runtimeScope, () => onFocusChange(listener)),
+  };
   // Install centralized panic hooks to restore terminal on crash
   let releasePanicHooks: () => void = () => {};
   const unregisterPanicCleanups: Array<() => void> = [];
@@ -417,7 +467,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // Create log updater for efficient incremental rendering
   // Uses fullScreen mode when fullHeight is enabled for reliable clearing
   let logUpdate: LogUpdate = createLogUpdate(outputStream, {
-    showCursor,
+    showCursor: false,
     incremental: false,
     fullScreen: fullHeight, // Use simple clear-and-redraw for fullHeight mode
     topOffset: 0,
@@ -427,6 +477,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   // State
   let currentNode: VNode | null = null;
   let lastOutput = '';
+  let ansiHardwareCursorVisible = false;
   let isUnmounted = false;
   let pendingOutputLines: string[] = [];
 
@@ -441,7 +492,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   const recreateLogUpdate = (): void => {
     logUpdateTopOffset = staticLineCount;
     logUpdate = createLogUpdate(outputStream, {
-      showCursor,
+      showCursor: false,
       incremental: false,
       fullScreen: fullHeight,
       topOffset: logUpdateTopOffset,
@@ -496,10 +547,10 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       reducedFps: maxFps > 0 ? Math.max(1, Math.floor(maxFps / 2)) : 30,
       frameBudgetMs: minRenderInterval > 0 ? minRenderInterval : 16.67,
     });
-    setOverlayTerminalSize(stdout.columns || 80, stdout.rows || 24);
   });
   let lastRenderTime = 0;
   let scheduledRender = false;
+  let scheduledRenderUrgent = false;
   let renderTimer: ReturnType<typeof setTimeout> | null = null;
   let scheduledRenderCallback: (() => void) | null = null;
   let fixedStepTimer: ReturnType<typeof setTimeout> | null = null;
@@ -509,6 +560,20 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   let fixedStepElapsedMs = 0;
   let cleanupFixedStepFocus: (() => void) | null = null;
   let externalUpdateQueue: Array<() => void> = [];
+  const overlayHost = runInRuntimeScope(
+    runtimeScope,
+    () => getOverlayHost<VNode | null>(),
+  );
+  overlayHost.setViewport(stdout.columns || 80, stdout.rows || 24);
+  const unsubscribeOverlayHost = overlayHost.subscribe(() => {
+    scheduleRenderCallback(evaluateAndRender);
+  });
+  const unsubscribeContributions = contributionHost.subscribe(() => {
+    scheduleRenderCallback(evaluateAndRender);
+  });
+  const promptRendererRegistration = runInRuntimeScope(runtimeScope, () => (
+    promptHost.setRenderer(createVNodePromptRenderer(overlayHost, interactionRuntime))
+  ));
 
   // Mouse tracking state
   let mouseTrackingEnabled = false;
@@ -518,7 +583,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   if (useDeltaRenderer) {
     deltaRenderer = createDeltaRenderer({
       stdout: outputStream,
-      showCursor,
+      showHardwareCursor,
       useDelta: true,
     });
   }
@@ -568,11 +633,21 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const evalStart = performance.now();
     pendingRuntimeStartAt = Date.now();
     beginRender('component');
+    let committed = false;
     try {
-      currentNode = componentFn();
+      const appNode = componentFn();
+      currentNode = overlayHost.snapshot().entries.length === 0
+        ? appNode
+        : Box(
+            { position: 'relative', width: 'fill', height: 'fill' },
+            appNode,
+            OverlayHostView({ host: overlayHost }),
+          );
       refreshReactiveVNodes(currentNode);
+      committed = true;
     } finally {
-      endRender();
+      if (committed) endRender();
+      else abortRender();
       pendingVNodeEvalMs = performance.now() - evalStart;
     }
   };
@@ -585,15 +660,46 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   /**
    * Schedule a render callback (with throttling and latest-state wins semantics)
    */
-  function scheduleRenderCallback(callback: () => void): void {
+  function scheduleRenderCallback(
+    callback: () => void,
+    priority: 'normal' | 'urgent' = 'normal',
+  ): void {
     if (isUnmounted) return;
 
     scheduledRenderCallback = callback;
+    if (priority === 'urgent') {
+      scheduledRenderUrgent = true;
+      if (renderTimer) {
+        clearTimeout(renderTimer);
+        renderTimer = null;
+        scheduledRender = false;
+      }
+    }
 
     if (outputBackpressured) {
       return;
     }
 
+    schedulePendingRenderCallback();
+  }
+
+  /**
+   * Input promotes an already scheduled reactive flush instead of replacing it.
+   * Replacing an Effect flush would leave the effect marked as scheduled and
+   * permanently disconnect later asynchronous state updates from rendering.
+   */
+  function requestUrgentRender(): void {
+    if (!scheduledRenderCallback) {
+      scheduleRenderCallback(evaluateAndRender, 'urgent');
+      return;
+    }
+
+    scheduledRenderUrgent = true;
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+      scheduledRender = false;
+    }
     schedulePendingRenderCallback();
   }
 
@@ -605,7 +711,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     const now = Date.now();
     const elapsed = now - lastRenderTime;
     const delay =
-      lastRenderTime === 0 || elapsed >= minRenderInterval
+      scheduledRenderUrgent || lastRenderTime === 0 || elapsed >= minRenderInterval
         ? 0
         : minRenderInterval - elapsed;
 
@@ -613,6 +719,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
       const flush = scheduledRenderCallback;
       scheduledRenderCallback = null;
       scheduledRender = false;
+      scheduledRenderUrgent = false;
       renderTimer = null;
 
       if (!isUnmounted) {
@@ -722,7 +829,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   const handleResize = bindRuntimeScope(runtimeScope, () => {
     if (!isUnmounted) {
       refreshCapabilities();
-      setOverlayTerminalSize(stdout.columns || 80, stdout.rows || 24);
+      overlayHost.setViewport(stdout.columns || 80, stdout.rows || 24);
       invalidateCellSize();
       scheduleRenderCallback(evaluateAndRender);
     }
@@ -786,6 +893,21 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
 
     const height = Math.max(1, terminalHeight - staticLineCount);
+    const positionAnsiHardwareCursor = (frame: FrameSnapshot): void => {
+      const anchor = frame.cursorAnchor;
+      if (!anchor) {
+        if (ansiHardwareCursorVisible) {
+          writeOutput('\x1b[?25l');
+          ansiHardwareCursorVisible = false;
+        }
+        return;
+      }
+      writeOutput(
+        `\x1b[${anchor.y + staticLineCount + 1};${anchor.x + 1}H`
+        + (showHardwareCursor ? '\x1b[?25h' : '\x1b[?25l'),
+      );
+      ansiHardwareCursorVisible = showHardwareCursor;
+    };
 
     // Delta renderer path: optimized cell-level updates
     if (deltaRenderer && !debug) {
@@ -875,6 +997,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     });
 
     if (output === lastOutput && !debug) {
+      positionAnsiHardwareCursor(frame);
       const outputCapture = endOutputCapture();
       recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
       recordFrameStructuralMetric(frame, 'outputByteCount', outputCapture.bytes);
@@ -892,6 +1015,7 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     } else {
       // Use incremental log updater for efficient rendering
       logUpdate(output);
+      positionAnsiHardwareCursor(frame);
     }
     const outputCapture = endOutputCapture();
     recordFramePhaseMetric(frame, 'outputWriteMs', outputCapture.writeMs);
@@ -933,10 +1057,15 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }
     cleanupFixedStepFocus?.();
     cleanupFixedStepFocus = null;
+    attempt(unsubscribeOverlayHost);
+    attempt(unsubscribeContributions);
+    attempt(() => promptRendererRegistration.dispose());
+    attempt(() => contributionHost.dispose());
     outputBackpressured = false;
     attempt(() => stdout.off('drain', handleOutputDrain));
     scheduledRenderCallback = null;
     scheduledRender = false;
+    scheduledRenderUrgent = false;
     externalUpdateBatcher.cancel();
     externalUpdateQueue = [];
     setExternalUpdateIngress(null);
@@ -1036,11 +1165,6 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
   }
 
   return {
-    rerender: (newNode: VNode) => runInRuntimeScope(runtimeScope, () => {
-      componentFn = () => newNode;
-      scheduleRenderCallback(evaluateAndRender);
-    }),
-
     unmount: () => runInRuntimeScope(runtimeScope, () => {
       cleanup();
       disposeRender();
@@ -1075,31 +1199,15 @@ export function render(nodeOrFn: VNode | (() => VNode), options: RenderOptions =
     }),
 
     writeLine,
+    invalidate: (priority = 'normal') => runInRuntimeScope(runtimeScope, () => {
+      scheduleRenderCallback(evaluateAndRender, priority);
+    }),
+    commands: interactionRuntime,
+    focus: focusHost,
+    overlays: overlayHost,
+    prompts: promptHost,
+    contributions: contributionHost,
   };
-}
-
-/** Render in the primary screen without clearing scrollback. */
-export function renderInline(
-  nodeOrFn: VNode | (() => VNode),
-  options: Omit<RenderOptions, 'screenMode'> = {},
-): TuiInstance {
-  return render(nodeOrFn, { ...options, screenMode: 'inline' });
-}
-
-/** Render full-height in the primary screen buffer. */
-export function renderFullscreen(
-  nodeOrFn: VNode | (() => VNode),
-  options: Omit<RenderOptions, 'screenMode'> = {},
-): TuiInstance {
-  return render(nodeOrFn, { ...options, screenMode: 'fullscreen' });
-}
-
-/** Render full-height in an alternate buffer that restores scrollback on exit. */
-export function renderAlternateScreen(
-  nodeOrFn: VNode | (() => VNode),
-  options: Omit<RenderOptions, 'screenMode'> = {},
-): TuiInstance {
-  return render(nodeOrFn, { ...options, screenMode: 'alternate' });
 }
 
 /**

@@ -7,13 +7,19 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   createCollapsible,
-  Collapsible,
+  Collapsible as OwnedCollapsible,
   createAccordion,
-  Accordion,
-  Details,
-  ExpandableText,
+  Accordion as OwnedAccordion,
+  Details as OwnedDetails,
+  ExpandableText as OwnedExpandableText,
 } from '../../src/molecules/collapsible.js';
 import { Text, Box } from '../../src/primitives/nodes.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Collapsible = testComponent(OwnedCollapsible);
+const Accordion = testComponent(OwnedAccordion);
+const Details = testComponent(OwnedDetails);
+const ExpandableText = testComponent(OwnedExpandableText);
 
 describe('createCollapsible', () => {
   describe('Initialization', () => {

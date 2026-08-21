@@ -25,13 +25,13 @@ pnpm test:performance
 ## Pull requests
 
 Keep changes focused and include regression tests for bug fixes. Document
-public API changes and update examples that use the affected API. New unstable
-components should be exported from `tuiuiu.js/experimental` until their
-behavior, accessibility, and lifecycle contracts are tested.
+public API changes and update examples that use the affected API. New visual
+components belong in `tuiuiu.js/ui` only after behavior, accessibility, and
+lifecycle contracts are tested; unfinished APIs remain private.
 
-The root `tuiuiu.js` entry point is compatibility-frozen during the 1.x line.
-Add focused APIs to the most specific existing subpath instead of re-exporting
-them from the root or introducing another alias. `pnpm verify:contracts`
+The root `tuiuiu.js` entry point is intentionally capped. Add focused APIs to
+their owning v2 subpath instead of re-exporting them from the root or
+introducing another alias. `pnpm verify:contracts`
 fingerprints the runtime and TypeScript surface of every entry point and fails
 when an export is added, removed, renamed, or moved without an explicit
 baseline update. Treat a baseline change as a semver decision and explain it

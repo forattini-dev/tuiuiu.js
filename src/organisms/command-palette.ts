@@ -49,13 +49,20 @@ import type { VNode } from '../utils/types.js';
 import { stringWidth, truncateText } from '../utils/text-utils.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { createFocusTrap, getFocusZoneManager } from '../core/focus.js';
-import { pushHotkeyScope, popHotkeyScope } from '../hooks/use-hotkeys.js';
 import { createSignal } from '../primitives/signal.js';
 import {
   previousGraphemeBoundary,
   segmentGraphemes,
 } from '../utils/grapheme.js';
 import { sanitizeInlineInput } from '../utils/terminal-sanitize.js';
+import { createCollectionController } from '../interaction/collection.js';
+import { component } from '../app/component.js';
+import {
+  getInteractionRuntime,
+  type InteractionRuntime,
+  type InteractionSnapshot,
+  type InteractionLease,
+} from '../interaction/runtime.js';
 
 // =============================================================================
 // Types
@@ -309,7 +316,7 @@ const BORDER_CHARS = {
  *
  * Renders a searchable command palette overlay.
  */
-export function CommandPalette(props: CommandPaletteProps): VNode {
+export const CommandPalette = component<CommandPaletteProps, VNode>('CommandPalette', (props) => {
   const theme = getTheme();
   const tokens = theme.components.commandPalette;
 
@@ -549,7 +556,7 @@ export function CommandPalette(props: CommandPaletteProps): VNode {
   }
 
   return Box({ flexDirection: 'column' }, ...rows);
-}
+});
 
 // =============================================================================
 // State Manager
@@ -572,8 +579,53 @@ export interface CreateCommandPaletteOptions {
   restoreFocus?: boolean;
   /** Auto-focus first item when palette opens */
   autoFocus?: boolean;
-  /** Hotkey scope to activate when palette opens (auto-restored on close) */
-  hotkeyScope?: string;
+  /** Semantic interaction mode owned while the palette is active. */
+  mode?: string;
+  /** Runtime used to acquire the palette mode. */
+  runtime?: InteractionRuntime;
+}
+
+export interface CreateInteractionCommandPaletteOptions
+  extends Omit<CreateCommandPaletteOptions, 'items'> {
+  /** Runtime whose semantic command registry supplies the palette items. */
+  runtime?: InteractionRuntime;
+}
+
+export interface InteractionCommandPaletteState extends CommandPaletteState {
+  /** Re-read commands and bindings from the runtime immediately. */
+  refresh: () => void;
+  /** Stop following runtime registry changes. */
+  dispose: () => void;
+}
+
+function commandItemsFromSnapshot(
+  snapshot: InteractionSnapshot,
+  runtime: InteractionRuntime,
+): CommandItem[] {
+  return snapshot.commands.map((command) => {
+    const binding = snapshot.bindings.find((candidate) => candidate.command === command.id);
+    const keys = binding
+      ? (Array.isArray(binding.keys) ? binding.keys : [binding.keys])
+      : [];
+    return {
+      id: command.id,
+      label: command.title,
+      description: command.description,
+      category: command.category,
+      shortcut: keys[0],
+      disabled: command.enabled?.() === false,
+      action: () => {
+        runtime.execute(command.id, { type: 'command', source: 'command-palette' });
+      },
+    };
+  });
+}
+
+/** Convert the canonical semantic command registry into visual palette items. */
+export function commandItemsFromInteractionRuntime(
+  runtime: InteractionRuntime = getInteractionRuntime(),
+): CommandItem[] {
+  return commandItemsFromSnapshot(runtime.inspect(), runtime);
 }
 
 /**
@@ -606,17 +658,40 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     focusTrap = false,
     restoreFocus = true,
     autoFocus = true,
-    hotkeyScope,
+    mode = 'command-palette',
+    runtime = getInteractionRuntime(),
   } = options;
 
   let items = [...options.items];
   const [querySignal, setQuery] = createSignal('');
   const [selectedIndexSignal, setSelectedIndex] = createSignal(0);
-  const [filteredItemsSignal, setFilteredItems] = createSignal<CommandItem[]>(items.filter(i => !i.disabled));
+  const [filteredItemsSignal, setFilteredItems] = createSignal<CommandItem[]>([]);
+  const enabledItems = () => items.filter((item) => !item.disabled);
+  const collection = createCollectionController<CommandItem, string>({
+    items: enabledItems(),
+    getKey: (item) => item.id,
+    loop: true,
+    viewportSize: options.props?.maxVisible ?? Number.MAX_SAFE_INTEGER,
+    filter: (item, query) => Math.max(
+      filter(item, query),
+      item.description ? filter({ ...item, label: item.description }, query) * 0.5 : -1,
+      item.category ? filter({ ...item, label: item.category }, query) * 0.3 : -1,
+    ),
+  });
+
+  const syncCollection = () => {
+    const snapshot = collection.snapshot();
+    setFilteredItems([...snapshot.items]);
+    setSelectedIndex(Math.max(0, snapshot.activeIndex));
+  };
+
+  collection.subscribe(syncCollection);
+  syncCollection();
 
   // Focus trap zone
   let focusZone: ReturnType<typeof createFocusTrap> | null = null;
   let zoneId: string | null = null;
+  let interactionLease: InteractionLease | null = null;
 
   if (focusTrap) {
     focusZone = createFocusTrap({ restoreFocus, autoFocus });
@@ -624,32 +699,7 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
   }
 
   const updateFiltered = () => {
-    const q = querySignal();
-    let result: CommandItem[];
-    if (!q) {
-      result = items.filter(i => !i.disabled);
-    } else {
-      result = items
-        .filter(i => !i.disabled)
-        .map(item => ({
-          item,
-          score: Math.max(
-            filter(item, q),
-            item.description ? filter({ ...item, label: item.description }, q) * 0.5 : -1,
-            item.category ? filter({ ...item, label: item.category }, q) * 0.3 : -1
-          ),
-        }))
-        .filter(({ score }) => score >= 0)
-        .sort((a, b) => b.score - a.score)
-        .map(({ item }) => item);
-    }
-
-    setFilteredItems(result);
-
-    // Reset selection if out of bounds
-    if (selectedIndexSignal() >= result.length) {
-      setSelectedIndex(Math.max(0, result.length - 1));
-    }
+    collection.setQuery(querySignal());
   };
 
   return {
@@ -694,27 +744,20 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
     },
 
     selectPrev: () => {
-      const fi = filteredItemsSignal();
-      if (fi.length > 0) {
-        setSelectedIndex(i => i > 0 ? i - 1 : fi.length - 1);
-      }
+      collection.move(-1);
     },
 
     selectNext: () => {
-      const fi = filteredItemsSignal();
-      if (fi.length > 0) {
-        setSelectedIndex(i => i < fi.length - 1 ? i + 1 : 0);
-      }
+      collection.move(1);
     },
 
     selectIndex: (index: number) => {
-      if (index >= 0 && index < filteredItemsSignal().length) {
-        setSelectedIndex(index);
-      }
+      const item = filteredItemsSignal()[index];
+      if (item) collection.setActive(item.id, 'programmatic');
     },
 
     confirm: () => {
-      const selected = filteredItemsSignal()[selectedIndexSignal()];
+      const selected = collection.activate();
       if (selected) {
         selected.action?.();
         onSelect?.(selected);
@@ -725,9 +768,8 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
       if (focusZone) {
         focusZone.deactivate();
       }
-      if (hotkeyScope) {
-        popHotkeyScope();
-      }
+      interactionLease?.dispose();
+      interactionLease = null;
       onClose?.();
     },
 
@@ -735,13 +777,12 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
 
     setItems: (newItems: CommandItem[]) => {
       items = [...newItems];
-      updateFiltered();
+      collection.reconcile(enabledItems());
     },
 
     activate: () => {
-      if (hotkeyScope) {
-        pushHotkeyScope(hotkeyScope);
-      }
+      interactionLease?.dispose();
+      interactionLease = runtime.enter({ mode, exclusive: true });
       if (focusZone) {
         focusZone.activate();
       }
@@ -751,9 +792,8 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
       if (focusZone) {
         focusZone.deactivate();
       }
-      if (hotkeyScope) {
-        popHotkeyScope();
-      }
+      interactionLease?.dispose();
+      interactionLease = null;
     },
 
     registerFocusable: (elementId: string, onFocus?: (focused: boolean) => void) => {
@@ -765,6 +805,27 @@ export function createCommandPalette(options: CreateCommandPaletteOptions): Comm
       return () => manager.unregisterElement(elementId, zoneId!);
     },
   };
+}
+
+/**
+ * Create a command palette backed directly by the InteractionRuntime registry.
+ * Registrations, updates, bindings, enabled state, and removals stay in sync.
+ */
+export function createInteractionCommandPalette(
+  options: CreateInteractionCommandPaletteOptions = {},
+): InteractionCommandPaletteState {
+  const { runtime = getInteractionRuntime(), ...paletteOptions } = options;
+  const palette = createCommandPalette({
+    ...paletteOptions,
+    items: commandItemsFromInteractionRuntime(runtime),
+  });
+  const refresh = () => palette.setItems(commandItemsFromInteractionRuntime(runtime));
+  const unsubscribe = runtime.subscribe(refresh);
+
+  return Object.assign(palette, {
+    refresh,
+    dispose: unsubscribe,
+  });
 }
 
 // =============================================================================

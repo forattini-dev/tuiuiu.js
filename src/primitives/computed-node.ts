@@ -13,7 +13,7 @@
  *   const [count, setCount] = useState(0);
  *   const [name, setName] = useState('Alice');
  *
- *   useHotkeys('up', () => setCount(c => c + 1));
+ *   useShortcut('up', () => setCount(c => c + 1));
  *
  *   return Box({ flexDirection: 'column' },
  *     // This Text only re-evaluates when count changes
@@ -27,9 +27,6 @@
  */
 
 import type { BoxStyle, VNode, TextProps } from '../utils/types.js';
-import { useComputed } from '../hooks/use-computed.js';
-import { useMemo } from '../hooks/use-memo.js';
-import { isRenderingHooks } from '../hooks/context.js';
 import { createMemo } from '../primitives/signal.js';
 import { fingerprintValue } from '../core/structural-fingerprint.js';
 
@@ -72,14 +69,7 @@ export interface ReactiveVNode extends VNode {
  * })
  */
 export function Computed(fn: () => VNode | null): VNode {
-  // Inside a component render: use hook-based caching (persists between re-renders)
-  if (isRenderingHooks()) {
-    const result = useComputed(fn);
-    if (!result) return { type: 'box', props: {}, children: [] };
-    return result;
-  }
-
-  // Outside render context: wrap in createMemo for signal-level memoization
+  // Reactive nodes own their memo directly and are disposed with the VNode tree.
   const memo = createMemo(fn);
   const initialResult = memo();
   const node: ReactiveVNode = {
@@ -161,17 +151,7 @@ export function ComputedText(
   fn: () => string,
   props: Record<string, any> = {},
 ): VNode {
-  // Use useComputed directly (one hook) instead of nesting via Computed
-  if (isRenderingHooks()) {
-    const result = useComputed(() => ({
-      type: 'text' as const,
-      props: { ...props, children: fn() },
-      children: [],
-    }));
-    return result ?? { type: 'text', props: { children: '' }, children: [] };
-  }
-
-  // Outside render context: wrap in createMemo for signal-level memoization
+  // Reactive text uses the same owned-memo lifecycle as Computed.
   const textFn = () => ({
     type: 'text' as const,
     props: { ...props, children: fn() },
@@ -228,14 +208,7 @@ export function ComputedText(
  * )
  */
 export function Memo(deps: unknown[], fn: () => VNode | null): VNode {
-  // Inside a component render: use hook-based caching (persists between re-renders)
-  if (isRenderingHooks()) {
-    const result = useMemo<VNode | null>(deps, fn);
-    if (!result) return { type: 'box', props: {}, children: [] };
-    return result;
-  }
-
-  // Outside render context: evaluate eagerly (tests, standalone usage)
+  // Memo nodes are explicit VNodes and follow one lifecycle in every context.
   const result = fn();
   const node: MemoVNode = {
     type: 'box',

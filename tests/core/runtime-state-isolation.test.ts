@@ -22,18 +22,6 @@ import {
   setGraphicsProtocol,
 } from '../../src/core/graphics.js';
 import {
-  getKeyboardProtocol,
-  setKeyboardProtocol,
-} from '../../src/core/input.js';
-import {
-  getLayerCount,
-  getOverlayTerminalSize,
-  setOverlayTerminalSize,
-  showModal,
-  showToast,
-  showTooltip,
-} from '../../src/core/overlay.js';
-import {
   configureProgressive,
   getProgressiveOverrides,
   resetProgressive,
@@ -99,8 +87,6 @@ describe('per-runtime UI state', () => {
     setPrefersReducedMotion(true);
     setTickValue(7);
     setTickRate(250);
-    setOverlayTerminalSize(100, 40);
-    setKeyboardProtocol('xterm');
     setGraphicsProtocol('braille');
     configurePerfInspector({ maxFrames: 25 });
 
@@ -116,8 +102,6 @@ describe('per-runtime UI state', () => {
         expect(getPrefersReducedMotion()).toBe(true);
         expect(getTick()).toBe(7);
         expect(getTickRate()).toBe(250);
-        expect(getOverlayTerminalSize()).toEqual({ width: 100, height: 40 });
-        expect(getKeyboardProtocol()).toBe('xterm');
         expect(getGraphicsProtocol()).toBe('braille');
         expect(getPerfInspectorConfig().maxFrames).toBe(25);
       });
@@ -130,9 +114,6 @@ describe('per-runtime UI state', () => {
       reportMotionFrameCost(100);
       setPrefersReducedMotion(false);
       setTickValue(99);
-      setOverlayTerminalSize(60, 20);
-      showModal({ content: ['first only'] });
-      setKeyboardProtocol('kitty');
       setGraphicsProtocol('halfblock');
       configurePerfInspector({ maxFrames: 5 });
     });
@@ -144,9 +125,6 @@ describe('per-runtime UI state', () => {
       expect(getMotionRuntimeState().qualityTier).toBe('full');
       expect(getPrefersReducedMotion()).toBe(true);
       expect(getTick()).toBe(7);
-      expect(getOverlayTerminalSize()).toEqual({ width: 100, height: 40 });
-      expect(getLayerCount()).toBe(0);
-      expect(getKeyboardProtocol()).toBe('xterm');
       expect(getGraphicsProtocol()).toBe('braille');
       expect(getPerfInspectorConfig().maxFrames).toBe(25);
     });
@@ -195,22 +173,11 @@ describe('per-runtime UI state', () => {
     const scope = createScope();
     const tickListener = vi.fn();
     const frame = vi.fn();
-    const toastDismiss = vi.fn();
 
     runInRuntimeScope(scope, () => {
       onTick(tickListener);
       startTick(100);
       requestMotionFrame(frame);
-      showToast({
-        message: 'ephemeral',
-        duration: 500,
-        onDismiss: toastDismiss,
-      });
-      showTooltip({
-        text: 'delayed',
-        target: { x: 1, y: 1 },
-        delay: 250,
-      });
     });
 
     destroyRuntimeScope(scope);
@@ -218,7 +185,6 @@ describe('per-runtime UI state', () => {
 
     expect(tickListener).not.toHaveBeenCalled();
     expect(frame).not.toHaveBeenCalled();
-    expect(toastDismiss).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -10,10 +10,11 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { getTheme } from '../core/theme.js';
 import { resolve, type MaybeReactive } from '../utils/resolve.js';
 import { StatusIndicator, type StatusType } from './status-indicator.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 type ListItemContent = string | number | VNode;
 
-export interface ListItemProps {
+export interface ListItemProps extends ComponentKeyProps {
   /** Main content */
   primary: MaybeReactive<ListItemContent>;
   /** Secondary description */
@@ -32,7 +33,7 @@ export interface ListItemProps {
   indent?: MaybeReactive<number>;
 }
 
-function renderInline(
+function renderListItemContent(
   value: ListItemContent,
   options: {
     color?: ColorValue;
@@ -58,7 +59,7 @@ function renderInline(
 /**
  * ListItem - composable row for file browsers, menus and activity feeds.
  */
-export function ListItem(props: ListItemProps): VNode {
+function renderListItem(props: ListItemProps): VNode {
   const theme = getTheme();
 
   const primary = resolve(props.primary);
@@ -90,17 +91,19 @@ export function ListItem(props: ListItemProps): VNode {
       paddingLeft: indent * 2,
       backgroundColor,
     },
-    icon ? renderInline(icon, { color: primaryColor, dim: disabled }) : null,
+    icon ? renderListItemContent(icon, { color: primaryColor, dim: disabled }) : null,
     Box(
       {
         flexDirection: 'column',
         flexGrow: 1,
       },
-      renderInline(primary, { color: primaryColor, dim: disabled, bold: selected && !disabled }),
-      secondary ? renderInline(secondary, { color: secondaryColor, dim: true }) : null
+      renderListItemContent(primary, { color: primaryColor, dim: disabled, bold: selected && !disabled }),
+      secondary ? renderListItemContent(secondary, { color: secondaryColor, dim: true }) : null
     ),
     Spacer(),
-    trailing ? renderInline(trailing, { color: primaryColor, dim: disabled }) : null,
+    trailing ? renderListItemContent(trailing, { color: primaryColor, dim: disabled }) : null,
     status ? StatusIndicator({ status, showDot: true, showIcon: false, size: 'sm' }) : null
   );
 }
+
+export const ListItem = component<ListItemProps, VNode>('ListItem', renderListItem);

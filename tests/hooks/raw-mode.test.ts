@@ -6,7 +6,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initializeApp, cleanupApp } from '../../src/hooks/use-app.js';
-import { resetHookState, clearInputHandlers, setFocusManager } from '../../src/hooks/context.js';
+import { resetHookState, setFocusManager } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 
 describe('Raw Mode Reference Counting', () => {
   let mockStdin: any;
@@ -14,7 +15,7 @@ describe('Raw Mode Reference Counting', () => {
 
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setFocusManager(null);
 
     // Create mock stdin with setRawMode spy
@@ -36,7 +37,7 @@ describe('Raw Mode Reference Counting', () => {
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setFocusManager(null);
   });
 

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  CommandPalette,
+  CommandPalette as OwnedCommandPalette,
   createCommandPalette,
   type CommandItem,
 } from '../../src/organisms/command-palette.js';
@@ -19,7 +19,10 @@ import {
   registerHitTestFromLayout,
 } from '../../src/core/hit-test.js';
 import { MouseSimulator } from '../../src/dev-tools/mouse-simulator.js';
-import { clearInputHandlers } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const CommandPalette = testComponent(OwnedCommandPalette);
 
 // Test items
 const basicItems: CommandItem[] = [
@@ -45,12 +48,12 @@ const categorizedItems: CommandItem[] = [
 describe('CommandPalette Mouse Events', () => {
   beforeEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('Item Click Selection', () => {

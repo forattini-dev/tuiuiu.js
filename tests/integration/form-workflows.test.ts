@@ -8,11 +8,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FormField, FormGroup } from '../../src/molecules/form-field.js';
 import { TextInput, createTextInput } from '../../src/atoms/text-input.js';
-import { Switch, createSwitch } from '../../src/atoms/switch.js';
+import { Switch as OwnedSwitch, createSwitch } from '../../src/atoms/switch.js';
 import { Button } from '../../src/atoms/button.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
 import { renderToString } from '../../src/core/renderer.js';
 import type { VNode } from '../../src/utils/types.js';
+import { renderTestComponent } from '../../src/testing/component.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Switch = testComponent(OwnedSwitch);
 
 // =============================================================================
 // Test Helpers
@@ -150,7 +154,7 @@ describe('Form Validation Flow', () => {
       label: 'Email',
       required: true,
       error: formState.errors['email'],
-      children: TextInput({ state: createTextInput() }),
+      children: renderTestComponent(() => TextInput({ state: createTextInput() })),
     });
 
     expect(findTextContent(result, 'Email is required')).toBe(true);
@@ -169,7 +173,7 @@ describe('Form Validation Flow', () => {
       label: 'Email',
       required: true,
       error: formState.errors['email'],
-      children: TextInput({ state: createTextInput({ initialValue: 'invalid' }) }),
+      children: renderTestComponent(() => TextInput({ state: createTextInput({ initialValue: 'invalid' }) })),
     });
 
     expect(findTextContent(result, 'Invalid email format')).toBe(true);
@@ -188,7 +192,7 @@ describe('Form Validation Flow', () => {
       label: 'Email',
       required: true,
       error: formState.errors['email'],
-      children: TextInput({ state: createTextInput({ initialValue: 'valid@example.com' }) }),
+      children: renderTestComponent(() => TextInput({ state: createTextInput({ initialValue: 'valid@example.com' }) })),
     });
 
     // Should not have error
@@ -222,7 +226,7 @@ describe('Form Validation Flow', () => {
       label: 'Password',
       helperText: 'Must be at least 8 characters',
       error: formState.errors['password'],
-      children: TextInput({ state: createTextInput({ initialValue: 'validPassword123' }) }),
+      children: renderTestComponent(() => TextInput({ state: createTextInput({ initialValue: 'validPassword123' }) })),
     });
 
     expect(findTextContent(result, 'Must be at least 8 characters')).toBe(true);
@@ -378,12 +382,12 @@ describe('Form Group Rendering', () => {
         FormField({
           label: 'Username',
           required: true,
-          children: TextInput({ state: username }),
+          children: renderTestComponent(() => TextInput({ state: username })),
         }),
         FormField({
           label: 'Password',
           required: true,
-          children: TextInput({ state: password }),
+          children: renderTestComponent(() => TextInput({ state: password })),
         }),
       ],
     });
@@ -437,12 +441,12 @@ describe('Form Group Rendering', () => {
         FormField({
           label: 'Name',
           required: true,
-          children: TextInput({ state: name }),
+          children: renderTestComponent(() => TextInput({ state: name })),
         }),
         FormField({
           label: 'Email',
           required: true,
-          children: TextInput({ state: email }),
+          children: renderTestComponent(() => TextInput({ state: email })),
         }),
         FormField({
           label: 'Subscribe to updates',

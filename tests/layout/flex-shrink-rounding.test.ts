@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ListItem } from '../../src/atoms/list-item.js';
+import { ListItem as OwnedListItem } from '../../src/atoms/list-item.js';
 import { calculateLayout } from '../../src/core/layout.js';
-import { LogViewer } from '../../src/organisms/scroll-area.js';
+import { LogViewer as OwnedLogViewer } from '../../src/organisms/scroll-area.js';
 import { Box, Text } from '../../src/primitives/nodes.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const LogViewer = testComponent(OwnedLogViewer);
+const ListItem = testComponent(OwnedListItem);
 
 describe('row flexShrink rounding', () => {
   it('assigns a one-column overflow to the wider sibling', () => {

@@ -41,16 +41,12 @@ function Settings() {
 ## Basic Usage
 
 ```typescript
-import { useFocus, useInput, Box, Text } from 'tuiuiu.js';
+import { useFocus, useShortcut, Box, Text } from 'tuiuiu.js';
 
 function Button({ label }: { label: string }) {
   const { isFocused } = useFocus();
 
-  useInput((_, key) => {
-    if (key.return && isFocused) {
-      console.log(`${label} clicked!`);
-    }
-  });
+  useShortcut('enter', () => console.log(`${label} clicked!`), { isActive: isFocused });
 
   return Box(
     {
@@ -132,43 +128,16 @@ interface FocusManagerControls {
 **Example:**
 
 ```typescript
-import { useFocusManager, useInput } from 'tuiuiu.js';
+import { useFocusManager, useShortcut } from 'tuiuiu.js/app';
 
 function CustomNavigation() {
   const { focusNext, focusPrevious, blur, getActiveId } = useFocusManager();
 
-  useInput((input, key) => {
-    // Arrow key navigation instead of Tab
-    if (key.downArrow) focusNext();
-    if (key.upArrow) focusPrevious();
-    if (input === 'q') blur();
-  });
+  useShortcut('down', focusNext);
+  useShortcut('up', focusPrevious);
+  useShortcut('q', blur);
 
   return Text({}, `Focused: ${getActiveId() ?? 'none'}`);
-}
-```
-
-## FocusContext
-
-For advanced use cases, you can access the FocusManager via Context:
-
-```typescript
-import {
-  FocusContext,
-  useFocusContext,
-  useFocusContextRequired,
-  hasFocusContext
-} from 'tuiuiu.js';
-
-// Returns FocusManager or null
-const fm = useFocusContext();
-
-// Throws if not in a Tuiuiu app
-const fm = useFocusContextRequired();
-
-// Check if context exists
-if (hasFocusContext()) {
-  // Safe to use focus features
 }
 ```
 
@@ -221,6 +190,6 @@ return Box({
 
 ## See Also
 
-- [useInput](/hooks/use-input.md) - Keyboard input handling
-- [Context API](/hooks/context.md) - FocusContext details
+- [useShortcut](/hooks/use-shortcut.md) - Semantic keyboard actions
+- [Context API](/hooks/context.md) - Tree-scoped application values
 - [useApp](/hooks/use-app.md) - App-level settings including autoTabNavigation

@@ -6,11 +6,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
-  Slider,
+  Slider as OwnedSlider,
   createSlider,
-  RangeSlider,
+  RangeSlider as OwnedRangeSlider,
   createRangeSlider,
 } from '../../src/atoms/slider.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Slider = testComponent(OwnedSlider);
+const RangeSlider = testComponent(OwnedRangeSlider);
 
 describe('createSlider', () => {
   describe('Initialization', () => {

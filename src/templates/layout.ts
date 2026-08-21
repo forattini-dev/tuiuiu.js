@@ -2,18 +2,13 @@
  * Layout Primitives - Terminal-first layout helpers
  */
 
-import { Box, Text, normalizeChildren } from '../primitives/nodes.js';
-import type { BoxStyle, ColorValue, TuiChild, TuiNode, VNode } from '../utils/types.js';
+import { Box, Text } from '../primitives/nodes.js';
+import type { BoxStyle, ColorValue, TuiChild, VNode } from '../utils/types.js';
 
-export interface ScreenProps extends BoxStyle {
-  children?: TuiNode;
-}
+export interface ScreenProps extends BoxStyle {}
 
 export function Screen(props: ScreenProps = {}, ...children: TuiChild[]): VNode {
-  const { width, height, children: propsChildren, ...rest } = props;
-
-  // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
+  const { width, height, ...rest } = props;
 
   return Box(
     {
@@ -23,19 +18,14 @@ export function Screen(props: ScreenProps = {}, ...children: TuiChild[]): VNode 
       height: height ?? 'fill',
       ...rest,
     },
-    ...resolvedChildren
+    ...children
   );
 }
 
-export interface MainProps extends BoxStyle {
-  children?: TuiNode;
-}
+export interface MainProps extends BoxStyle {}
 
 export function Main(props: MainProps = {}, ...children: TuiChild[]): VNode {
-  const { height, children: propsChildren, ...rest } = props;
-
-  // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
+  const { height, ...rest } = props;
 
   return Box(
     {
@@ -44,19 +34,14 @@ export function Main(props: MainProps = {}, ...children: TuiChild[]): VNode {
       height: height ?? 'fill',
       ...rest,
     },
-    ...resolvedChildren
+    ...children
   );
 }
 
-export interface FooterProps extends BoxStyle {
-  children?: TuiNode;
-}
+export interface FooterProps extends BoxStyle {}
 
 export function Footer(props: FooterProps = {}, ...children: TuiChild[]): VNode {
-  const { height, children: propsChildren, ...rest } = props;
-
-  // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
+  const { height, ...rest } = props;
 
   return Box(
     {
@@ -65,19 +50,14 @@ export function Footer(props: FooterProps = {}, ...children: TuiChild[]): VNode 
       height: height ?? 'auto',
       ...rest,
     },
-    ...resolvedChildren
+    ...children
   );
 }
 
-export interface SidebarProps extends BoxStyle {
-  children?: TuiNode;
-}
+export interface SidebarProps extends BoxStyle {}
 
 export function Sidebar(props: SidebarProps = {}, ...children: TuiChild[]): VNode {
-  const { width, height, children: propsChildren, ...rest } = props;
-
-  // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
+  const { width, height, ...rest } = props;
 
   return Box(
     {
@@ -87,14 +67,13 @@ export function Sidebar(props: SidebarProps = {}, ...children: TuiChild[]): VNod
       height: height ?? 'fill',
       ...rest,
     },
-    ...resolvedChildren
+    ...children
   );
 }
 
 export interface PanelProps extends BoxStyle {
   title?: string;
   titleColor?: ColorValue;
-  children?: TuiNode;
 }
 
 export function Panel(props: PanelProps = {}, ...children: TuiChild[]): VNode {
@@ -104,12 +83,8 @@ export function Panel(props: PanelProps = {}, ...children: TuiChild[]): VNode {
     borderStyle = 'round',
     borderColor = 'muted',
     padding = 1,
-    children: propsChildren,
     ...rest
   } = props;
-
-  // Fallback to props.children if variadic children empty
-  const resolvedChildren = children.length > 0 ? children : normalizeChildren(propsChildren);
 
   return Box(
     {
@@ -126,7 +101,7 @@ export function Panel(props: PanelProps = {}, ...children: TuiChild[]): VNode {
           Text({ color: titleColor, dim: true }, title)
         )
       : null,
-    ...resolvedChildren
+    ...children
   );
 }
 

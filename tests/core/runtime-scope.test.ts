@@ -1,20 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  bindRuntimeScope,
-  createRuntimeScope,
-  destroyRuntimeScope,
-  getRuntimeResource,
-  RUNTIME_RESOURCE_DISPOSE,
-  runInRuntimeScope,
-  type RuntimeScope,
-} from '../../src/core/runtime-scope.js';
+  bindRuntimeScope, createRuntimeScope, destroyRuntimeScope, getRuntimeResource, RUNTIME_RESOURCE_DISPOSE, runInRuntimeScope, type RuntimeScope, } from '../../src/core/runtime-scope.js';
 import {
-  beginRender,
-  emitInput,
-  endRender,
-  getInputHandlerCount,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { dispatchTestKey, getTestInteractionHandlerCount } from '../../src/testing/interaction.js';
 import { useInput } from '../../src/hooks/use-input.js';
 import { useState } from '../../src/hooks/use-state.js';
 import { createEmptyKey } from '../helpers/keyboard.js';
@@ -103,7 +92,7 @@ describe('RuntimeScope', () => {
       useInput(firstHandler);
       endRender();
       expect(value()).toBe('first');
-      expect(getInputHandlerCount()).toBe(1);
+      expect(getTestInteractionHandlerCount()).toBe(1);
     });
 
     runInRuntimeScope(second, () => {
@@ -112,11 +101,11 @@ describe('RuntimeScope', () => {
       useInput(secondHandler);
       endRender();
       expect(value()).toBe('second');
-      expect(getInputHandlerCount()).toBe(1);
+      expect(getTestInteractionHandlerCount()).toBe(1);
     });
 
     runInRuntimeScope(first, () => {
-      emitInput('a', createEmptyKey());
+      dispatchTestKey('a', createEmptyKey());
     });
 
     expect(firstHandler).toHaveBeenCalledTimes(1);

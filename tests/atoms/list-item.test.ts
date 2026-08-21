@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
 import type { VNode } from '../../src/utils/types.js';
 import { createSignal } from '../../src/primitives/signal.js';
 import { getTheme } from '../../src/core/theme.js';
-import { ListItem } from '../../src/atoms/list-item.js';
+import { ListItem as OwnedListItem } from '../../src/atoms/list-item.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ListItem = testComponent(OwnedListItem);
 
 function collectText(node: VNode): string[] {
   if (node.type === 'text') {

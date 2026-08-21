@@ -23,16 +23,16 @@ import {
   Modal,
   Panel,
   Text,
-  createCanvas,
   darkTheme,
   setTheme,
   useApp,
-  useFps,
-  useHotkeys,
+  useShortcut,
   useInterval,
   useState,
   useTerminalSize,
 } from '../../src/index.js';
+import { createCanvas } from '../../src/primitives/canvas.js';
+import { useFps } from '../../src/hooks/use-fps.js';
 import type { VNode } from '../../src/utils/types.js';
 
 setTheme(darkTheme);
@@ -647,26 +647,26 @@ function TuiuiuSnake(): VNode {
     setGame((current) => queueDirection(current, direction));
   };
 
-  useHotkeys(['up', 'w', 'k'], () => onDirection('up'));
-  useHotkeys(['down', 's', 'j'], () => onDirection('down'));
-  useHotkeys(['left', 'a', 'h'], () => onDirection('left'));
-  useHotkeys(['right', 'd', 'l'], () => onDirection('right'));
+  useShortcut(['up', 'w', 'k'], () => onDirection('up'));
+  useShortcut(['down', 's', 'j'], () => onDirection('down'));
+  useShortcut(['left', 'a', 'h'], () => onDirection('left'));
+  useShortcut(['right', 'd', 'l'], () => onDirection('right'));
 
-  useHotkeys('p', () => {
+  useShortcut('p', () => {
     if (isHelpOpen || state.phase === 'game-over') return;
     setGame((current) => togglePause(current));
   });
 
-  useHotkeys('r', () => {
+  useShortcut('r', () => {
     setHelpOpen(false);
     setGame((current) => createNewGameState(arena, current.hiScore));
   });
 
-  useHotkeys('f1', () => {
+  useShortcut('f1', () => {
     setHelpOpen((open) => !open);
   });
 
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -679,7 +679,7 @@ function TuiuiuSnake(): VNode {
         : current);
   });
 
-  useHotkeys(['escape', 'q'], () => {
+  useShortcut(['escape', 'q'], () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -739,7 +739,7 @@ function isMainModule(): boolean {
 
 export async function runTuiuiuSnake(): Promise<void> {
   const { waitUntilExit } = render(TuiuiuSnake, {
-    fullHeight: true,
+    screen: 'fullscreen',
     autoTabNavigation: false,
     maxFps: 30,
   });

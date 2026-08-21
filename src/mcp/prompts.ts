@@ -619,7 +619,7 @@ Box({ flexDirection: 'column' },
 |-----|--------|
 | useState | useState (same) |
 | useEffect | useEffect (same) |
-| useInput | useInput (similar) |
+| useInput | useShortcut / useInteraction |
 | useApp | useApp (same) |
 | useFocus | useFocus (same) |
 | useStdin | Not needed |
@@ -666,23 +666,15 @@ These are the most common causes of issues. Check ALL of these before looking fu
 
 ### 1. ⚠️ Are signals at MODULE LEVEL?
 
-**This is the #1 cause of "input works but UI doesn't update" bugs!**
+Stateful components need an explicit owner.
 
 \`\`\`typescript
-// ❌ WRONG - Signals inside component (WILL BREAK!)
-function App() {
-  const [count, setCount] = createSignal(0);  // Recreated every render!
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
-  return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
-}
-
-// ✅ CORRECT - Signals at module level
-const [count, setCount] = createSignal(0);  // Created once!
-
-function App() {
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
-  return Text({}, \`Count: \${count()}\`);  // Shows THE signal
-}
+// ✅ Each keyed component instance owns its state and cleanup.
+const App = component('App', () => {
+  const [count, setCount] = useState(0);
+  useShortcut('up', () => setCount(c => c + 1));
+  return Text({}, \`Count: \${count()}\`);
+});
 \`\`\`
 
 ### 2. Is \`setTheme()\` called BEFORE \`render()\`?
@@ -699,25 +691,11 @@ render(App);
 setTheme(darkTheme);  // Too late! Input handling may not work
 \`\`\`
 
-### 3. For arrow keys, are you checking \`key.upArrow\` (not \`input\`)?
-
-Arrow keys have an EMPTY \`input\` string!
+### 3. Are actions expressed as semantic shortcuts or commands?
 
 \`\`\`typescript
-useInput((input, key) => {
-  // For arrow keys:
-  // input = "" (empty string!)
-  // key.upArrow = true
-
-  // ❌ WRONG
-  if (input === 'up') { }  // Never matches!
-
-  // ✅ CORRECT
-  if (key.upArrow) { }
-});
-
-// Or use useHotkeys (easier):
-useHotkeys('up', () => moveUp());
+useShortcut('up', moveUp);
+useShortcut('ctrl+s', save, { id: 'document.save', title: 'Save document' });
 \`\`\`
 
 ### 4. Are you running the latest version of your file?
@@ -738,7 +716,7 @@ import {
   Box,
   Text,
   createSignal,
-  useHotkeys,
+  useShortcut,
   useApp,
   setTheme,
   darkTheme,
@@ -756,9 +734,9 @@ function App() {
   const { exit } = useApp();
 
   // Hotkeys inside component (they use hook state correctly)
-  useHotkeys('q', () => exit());
-  useHotkeys('up', () => setCount(c => c + 1));
-  useHotkeys('down', () => setCount(c => c - 1));
+  useShortcut('q', () => exit());
+  useShortcut('up', () => setCount(c => c + 1));
+  useShortcut('down', () => setCount(c => c - 1));
 
   return Box(
     { flexDirection: 'column', padding: 1 },
@@ -780,21 +758,21 @@ Based on "${issue}":
 ${issue.toLowerCase().includes('keyboard') || issue.toLowerCase().includes('input') || issue.toLowerCase().includes('key') ?
 `### Keyboard Input Issues
 1. Check \`setTheme(darkTheme)\` is called BEFORE \`render()\`
-2. Check signals are at module level
-3. For arrow keys, use \`key.upArrow\` not \`input\`
-4. Check \`useHotkeys\` is inside the component function` :
+2. Check the component is wrapped with \`component()\`
+3. Use canonical key names such as \`up\`, \`enter\`, and \`escape\`
+4. Check \`useShortcut\` is inside the component function` :
 issue.toLowerCase().includes('update') || issue.toLowerCase().includes('render') || issue.toLowerCase().includes('state') ?
 `### State/Update Issues
-1. **FIRST:** Check if signals are at module level (not inside component!)
+1. **FIRST:** Check if the state belongs to a \`component()\` owner
 2. Check you're calling the signal getter: \`count()\` not \`count\`
 3. Check you're using the setter correctly: \`setCount(c => c + 1)\`
 4. Use \`batch()\` for multiple updates to avoid multiple renders` :
 issue.toLowerCase().includes('reset') || issue.toLowerCase().includes('zero') || issue.toLowerCase().includes('0') ?
 `### State Resetting Issues
-This is almost certainly because signals are inside the component!
-1. Move ALL \`createSignal()\` calls to module level
-2. Keep hooks (\`useHotkeys\`, \`useInput\`, etc.) inside the component
-3. The component function should only READ signals, not create them` :
+This usually means the state has no stable component owner.
+1. Wrap hook-owning functions with \`component()\`
+2. Give reorderable sibling components stable keys
+3. Keep hooks (\`useState\`, \`useShortcut\`, etc.) inside the component` :
 `### General Debugging
 1. Add \`process.stderr.write()\` for debug output (bypasses the UI)
 2. Check the terminal for any error messages
@@ -972,7 +950,7 @@ ${code}
 // ❌ WRONG - Signals inside component (WILL BREAK!)
 function App() {
   const [count, setCount] = createSignal(0);  // Recreated every render!
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates OLD signal
+  useShortcut('up', () => setCount(c => c + 1));  // Updates OLD signal
   return Text({}, \`Count: \${count()}\`);  // Shows NEW signal (always 0)
 }
 
@@ -980,7 +958,7 @@ function App() {
 const [count, setCount] = createSignal(0);  // Created once!
 
 function App() {
-  useHotkeys('up', () => setCount(c => c + 1));  // Updates THE signal
+  useShortcut('up', () => setCount(c => c + 1));  // Updates THE signal
   return Text({}, \`Count: \${count()}\`);  // Shows THE signal
 }
 \`\`\`
@@ -1342,19 +1320,22 @@ ${gameRequirements[type] || gameRequirements.custom}
 
 ### Game Loop
 \`\`\`typescript
-import { render, Box, Text, useState, useEffect, useInput, useTick } from 'tuiuiu.js';
+import { Box, Text } from 'tuiuiu.js';
+import { render, useState, useInteraction, useInterval } from 'tuiuiu.js/app';
 
 function Game() {
   const [gameState, setGameState] = useState<GameState>(initialState);
 
   // Game tick (60 FPS)
-  useTick((delta) => {
-    setGameState(state => updateGame(state, delta));
-  });
+  useInterval(() => {
+    setGameState(state => updateGame(state, 1000 / 60));
+  }, 1000 / 60);
 
-  // Input handling
-  useInput((input, key) => {
-    setGameState(state => handleInput(state, key));
+  // Normalized low-level game input
+  useInteraction((event) => {
+    if (event.type !== 'key') return false;
+    setGameState(state => handleInput(state, event.key));
+    return true;
   });
 
   return Box({ flexDirection: 'column' },

@@ -18,7 +18,7 @@ export const apiPatterns: ApiPatternDoc[] = [
   {
     name: 'Variadic Children',
     description:
-      'Free-form layout content follows the props object. Variadic children are canonical and take precedence over a supported props.children fallback.',
+      'Free-form layout content follows the props object as variadic children.',
     components: [
       'Box',
       'Text',
@@ -243,8 +243,7 @@ Tuiuiu uses TypeScript function calls and VNodes, never JSX.
 | Deferred rows | \`ScrollList({ items, children: item => Row(item) })\` |
 | Stateful renderer | \`const state = useXState(options); X({ state })\` |
 
-Variadic children take precedence when a component also supports a
-\`props.children\` compatibility fallback.
+Layout components accept free-form content only as variadic children.
 `;
 
 export const componentPatternMap: Record<string, string> = {

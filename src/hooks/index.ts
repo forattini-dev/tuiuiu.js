@@ -12,7 +12,6 @@ export type {
   FocusManager,
   InputPriority,
   UseInputOptions,
-  InputHandlerEntry,
 } from './types.js';
 
 export { INPUT_PRIORITY_VALUES } from './types.js';
@@ -32,25 +31,18 @@ export { useEffect } from './use-effect.js';
 export { useInput, useModalInput, useCriticalInput, parseKeypress } from './use-input.js';
 export type { InputEvent } from './use-input.js';
 
+// Semantic commands and token-owned interaction modes
+export {
+  useCommand,
+  useCommandBinding,
+  useInteractionMode,
+  useInteraction,
+  useShortcut,
+} from './use-command.js';
+
 // Paste hook
 export { usePaste } from './use-paste.js';
 export type { PasteHandler, PasteEvent } from './use-paste.js';
-
-// Input handler management (for advanced use cases)
-export {
-  addInputHandler,
-  removeInputHandlerById,
-  emitInput,
-  clearInputHandlers,
-  getInputHandlerCount,
-  getInputHandlers,
-  // Paste handler management
-  addPasteHandler,
-  removePasteHandlerById,
-  emitPaste,
-  clearPasteHandlers,
-  getPasteHandlerCount,
-} from './context.js';
 
 // Mouse hook
 export {
@@ -79,7 +71,6 @@ export {
 export {
   useFocus,
   useFocusManager,
-  createFocusAdapter,
   FocusZoneManagerAdapter,
 } from './use-focus.js';
 
@@ -94,15 +85,6 @@ export {
   type InitAppOptions,
   type ExternalUpdateIngress,
 } from './use-app.js';
-
-// Focus context (Context API-based focus management)
-export {
-  FocusContext,
-  useFocusContext,
-  useFocusContextRequired,
-  hasFocusContext,
-  createFocusManagerInstance,
-} from './focus-context.js';
 
 // Navigation (linked list navigation)
 export {
@@ -140,37 +122,9 @@ export type {
 // Layout measurement hook
 export { createLayoutRef, useLayoutRef } from './use-layout-ref.js';
 
-// Hotkeys
-export {
-  useHotkeys,
-  parseHotkey,
-  parseHotkeys,
-  matchesHotkey,
-  formatHotkey,
-  formatHotkeyPlatform,
-  registerHotkey,
-  triggerHotkey,
-  getRegisteredHotkeys,
-  getHotkeyScope,
-  setHotkeyScope,
-  pushHotkeyScope,
-  popHotkeyScope,
-  getHotkeyScopeDepth,
-  resetHotkeyScope,
-  isMac,
-} from './use-hotkeys.js';
-
-export type {
-  HotkeyBinding,
-  HotkeyOptions,
-  HotkeyHandler,
-} from './use-hotkeys.js';
-
 // State Cleanup Hooks
 export {
   useThemeOverride,
-  useHotkeyScope,
-  useCurrentHotkeyScope,
 } from './use-state-cleanup.js';
 
 // FPS tracking hook

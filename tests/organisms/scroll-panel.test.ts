@@ -3,12 +3,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage } from '../../src/atoms/terminal-image.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
 import type { VNode } from '../../src/utils/types.js';
-import { ScrollPanel } from '../../src/organisms/scroll-panel.js';
+import { ScrollPanel as OwnedScrollPanel } from '../../src/organisms/scroll-panel.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
+const ScrollPanel = testComponent(OwnedScrollPanel);
 
 describe('ScrollPanel', () => {
   it('uses auto height to apply flexGrow', () => {

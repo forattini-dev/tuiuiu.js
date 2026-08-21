@@ -1,19 +1,16 @@
 import {
   Text,
-  renderAlternateScreen,
+  render,
   useApp,
-  useInput,
-} from '../../dist/minimal.js';
+  useShortcut,
+} from '../../dist/index.js';
 
-const instance = renderAlternateScreen(() => {
+const instance = render(() => {
   const app = useApp();
-  useInput((input) => {
-    if (input === 'q') {
-      app.exit();
-    }
-  });
+  useShortcut('q', app.exit);
   return Text({}, 'PTY_READY');
 }, {
+  screen: 'alternate',
   exitProcess: false,
   maxFps: 0,
   showCursor: false,

@@ -1,5 +1,5 @@
 /**
- * ConfirmDialog + OverlayContainer
+ * ConfirmDialog + OverlayHost
  *
  * A complete quit-confirmation flow that works with keyboard and mouse input.
  *
@@ -10,25 +10,22 @@
 import {
   Box,
   Button,
-  ConfirmDialog,
-  OverlayContainer,
   Text,
-  createConfirmDialog,
-  createModalOverlay,
-  createOverlayStack,
   render,
   useApp,
   useConst,
-  useInput,
+  useInteraction,
   useState,
   type VNode,
 } from '../src/index.js';
+import { getOverlayHost } from '../src/interaction/index.js';
+import { ConfirmDialog, createConfirmDialog } from '../src/ui/index.js';
 
 const QUIT_DIALOG_ID = 'confirm-quit';
 
 export function ConfirmDialogOverlayExample(): VNode {
   const app = useApp();
-  const overlays = useConst(createOverlayStack);
+  const overlays = getOverlayHost<VNode | null>();
   const [status, setStatus] = useState('Ready. Press Q, Enter, or click the button.');
 
   const dialog = useConst(() => createConfirmDialog({
@@ -38,39 +35,54 @@ export function ConfirmDialogOverlayExample(): VNode {
     cancelText: 'Keep working',
     type: 'danger',
     onConfirm: () => {
-      overlays.close(QUIT_DIALOG_ID);
+      void overlays.close(QUIT_DIALOG_ID, true);
       app.exit();
     },
     onCancel: () => {
-      overlays.close(QUIT_DIALOG_ID);
+      void overlays.close(QUIT_DIALOG_ID, false);
       setStatus('Quit cancelled. The application is still running.');
     },
   }));
 
   const openQuitDialog = () => {
-    if (overlays.isOpen(QUIT_DIALOG_ID)) return;
+    if (overlays.snapshot().entries.some((entry) => entry.id === QUIT_DIALOG_ID)) return;
 
     dialog.selectCancel();
     setStatus('Choose an action in the confirmation dialog.');
-    overlays.push(createModalOverlay({
+    overlays.open({
       id: QUIT_DIALOG_ID,
-      closeOnEscape: false,
-      component: () => ConfirmDialog(dialog.props),
-    }));
+      blocking: true,
+      captureFocus: true,
+      backdrop: true,
+      closeOnEscape: true,
+      closeOnBackdrop: false,
+      content: () => ConfirmDialog(dialog.props),
+      onClose: ({ reason }) => {
+        if (reason === 'escape') {
+          setStatus('Quit cancelled. The application is still running.');
+        }
+      },
+    });
   };
 
-  useInput((input, key) => {
-    if (overlays.hasOverlay()) {
-      if (key.leftArrow || key.rightArrow || key.tab) {
-        dialog.toggle();
-      } else if (key.return) {
-        dialog.confirm();
-      } else if (key.escape) {
-        dialog.cancel();
-      }
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const key = event.key.native;
+    if (key.leftArrow || key.rightArrow || key.tab) {
+      dialog.toggle();
       return true;
     }
+    if (key.return) {
+      dialog.activateSelected();
+      return true;
+    }
+    return false;
+  }, { mode: 'overlay', target: QUIT_DIALOG_ID, priority: 200 });
 
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input.toLowerCase() === 'q' || key.return) {
       openQuitDialog();
     } else if (key.ctrl && input.toLowerCase() === 'c') {
@@ -78,7 +90,7 @@ export function ConfirmDialogOverlayExample(): VNode {
     }
 
     return false;
-  }, { priority: 'modal', stopPropagation: true });
+  });
 
   return Box(
     {
@@ -88,7 +100,7 @@ export function ConfirmDialogOverlayExample(): VNode {
       flexDirection: 'column',
       padding: 1,
     },
-    Text({ color: 'cyan', bold: true }, 'ConfirmDialog + OverlayContainer'),
+    Text({ color: 'cyan', bold: true }, 'ConfirmDialog + OverlayHost'),
     Text({}, 'The main application remains mounted while the dialog owns input.'),
     Box({ marginTop: 1 },
       Button({
@@ -104,12 +116,11 @@ export function ConfirmDialogOverlayExample(): VNode {
       { color: 'gray', dim: true },
       'Dialog: ←/→ or Tab selects • Enter confirms • Esc cancels',
     ),
-    OverlayContainer({ stack: overlays }),
   );
 }
 
 const { waitUntilExit } = render(ConfirmDialogOverlayExample, {
-  fullHeight: true,
+  screen: 'fullscreen',
   autoTabNavigation: false,
 });
 await waitUntilExit();

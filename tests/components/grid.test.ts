@@ -552,11 +552,12 @@ describe('calculateGridLayout', () => {
 // =============================================================================
 
 describe('Grid', () => {
-  it('accepts props.children as a compatibility fallback', () => {
-    const grid = Grid({
-      columns: '1fr 1fr',
-      children: [Text({}, 'A'), Text({}, 'B')],
-    });
+  it('renders variadic children', () => {
+    const grid = Grid(
+      { columns: '1fr 1fr' },
+      Text({}, 'A'),
+      Text({}, 'B'),
+    );
 
     const output = renderToString(grid, { width: 20 });
     expect(output).toContain('A');

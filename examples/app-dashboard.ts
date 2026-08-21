@@ -21,18 +21,14 @@ import {
   Spacer,
   createSignal,
   createEffect,
-  useInput,
+  useInteraction,
   useApp,
   setTheme,
   useTheme,
-  getNextTheme,
   resolveColor,
-  Screen,
-  Main,
-  Header,
-  Footer,
   Panel,
 } from '../src/index.js';
+import { Footer, Header, Main, Screen, getNextTheme } from '../src/ui/index.js';
 import { Divider } from '../src/primitives/divider.js';
 import { useTerminalSize } from '../src/hooks/index.js';
 import { createSpinner, renderSpinner, getSpinnerConfig, type SpinnerStyle, type SpinnerState } from '../src/atoms/spinner.js';
@@ -872,7 +868,10 @@ function Dashboard(): VNode {
     trackFrame();
   });
 
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (input === 'q' || key.escape) {
       m.stop();
       app.exit();

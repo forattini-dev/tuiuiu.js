@@ -98,7 +98,7 @@ function ConditionalFeed() {
     { enabled: active(), initialValue: 'idle' }
   );
 
-  useHotkeys('space', () => setActive(a => !a));
+  useShortcut('space', () => setActive(a => !a));
 
   return Box({ flexDirection: 'column' },
     Text({}, `Status: ${active() ? 'listening' : 'paused'}`),

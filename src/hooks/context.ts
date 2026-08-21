@@ -2,23 +2,13 @@
  * Internal hooks context - Runtime-scoped mutable state
  *
  * Every rendered app owns a RuntimeScope. Standalone hook utilities use the
- * compatibility scope supplied by runtime-scope.ts.
+ * explicit default scope supplied by runtime-scope.ts.
  */
 
 import type {
-  Key,
-  InputHandler,
-  InputEvent,
   AppContext,
   FocusManager,
-  InputHandlerEntry,
-  InputPriority,
-  PasteHandler,
-  PasteHandlerEntry,
-  PasteEvent,
 } from './types.js';
-import { INPUT_PRIORITY_VALUES } from './types.js';
-import type { Effect } from '../primitives/signal.js';
 import {
   getRuntimeResource,
   getRuntimeScope,
@@ -43,9 +33,38 @@ export function __resetHookWarningsForTesting(): void {
 // =============================================================================
 // Hook index system for persisting state across renders
 
-interface HookState {
-  state: any[];        // useState values
-  effects: Effect[];   // useEffect effects
+type ComponentKey = string | number;
+
+const HOOK_SLOT_TOKEN = Symbol('tuiuiu.hook-slot-token');
+
+/** Opaque owner/scope reference captured by hook callbacks. */
+export interface HookSlotToken {
+  readonly [HOOK_SLOT_TOKEN]: true;
+  readonly scope: RuntimeScope;
+  readonly id: number;
+}
+
+type HookSlotReference = HookSlotToken | number;
+
+interface HookSlotRef {
+  owner: ComponentOwner;
+  index: number;
+}
+
+interface ComponentOwner {
+  name: string;
+  parent: ComponentOwner | null;
+  definition: object | null;
+  identity: string;
+  state: any[];
+  slotIds: number[];
+  hookIndex: number;
+  lastMaxHookIndex: number;
+  hookCleanups: Map<number, Set<() => void>>;
+  children: Map<object, Map<string, ComponentOwner>>;
+  unkeyedCounts: Map<object, number>;
+  lastRenderedGeneration: number;
+  disposed: boolean;
 }
 
 type MouseEventType = import('./use-mouse.js').MouseEvent;
@@ -59,14 +78,14 @@ interface MouseHandlerEntry {
 interface HookRuntimeState {
   appContext: AppContext | null;
   focusManager: FocusManager | null;
-  inputHandlers: InputHandlerEntry[];
-  handlerIdCounter: number;
-  hookState: HookState;
-  hookIndex: number;
+  rootOwner: ComponentOwner;
+  currentOwner: ComponentOwner | null;
+  slotRefs: Map<number, HookSlotRef>;
+  nextSlotId: number;
+  lastHookSlotToken: HookSlotToken | null;
+  renderGeneration: number;
   isRendering: boolean;
-  lastMaxHookIndex: number;
   renderPhaseMode: 'hooks' | 'component';
-  hookCleanups: Map<number, Set<() => void>>;
   mouseHandlers: MouseHandlerEntry[];
   mouseHandlerIdCounter: number;
   lastMouseClick: {
@@ -75,30 +94,50 @@ interface HookRuntimeState {
     time: number;
     button: MouseEventType['button'];
   } | null;
-  pasteHandlers: PasteHandlerEntry[];
-  pasteHandlerIdCounter: number;
 }
 
 const HOOK_RUNTIME_STATE = Symbol('tuiuiu.hook-runtime-state');
 const appRuntimeScopes = new WeakMap<AppContext, RuntimeScope>();
 
+function createComponentOwner(
+  name: string,
+  parent: ComponentOwner | null,
+  definition: object | null,
+  identity: string,
+): ComponentOwner {
+  return {
+    name,
+    parent,
+    definition,
+    identity,
+    state: [],
+    slotIds: [],
+    hookIndex: 0,
+    lastMaxHookIndex: 0,
+    hookCleanups: new Map(),
+    children: new Map(),
+    unkeyedCounts: new Map(),
+    lastRenderedGeneration: 0,
+    disposed: false,
+  };
+}
+
 function createHookRuntimeState(): HookRuntimeState {
+  const rootOwner = createComponentOwner('Root', null, null, 'root');
   return {
     appContext: null,
     focusManager: null,
-    inputHandlers: [],
-    handlerIdCounter: 0,
-    hookState: { state: [], effects: [] },
-    hookIndex: 0,
+    rootOwner,
+    currentOwner: null,
+    slotRefs: new Map(),
+    nextSlotId: 0,
+    lastHookSlotToken: null,
+    renderGeneration: 0,
     isRendering: false,
-    lastMaxHookIndex: 0,
     renderPhaseMode: 'hooks',
-    hookCleanups: new Map(),
     mouseHandlers: [],
     mouseHandlerIdCounter: 0,
     lastMouseClick: null,
-    pasteHandlers: [],
-    pasteHandlerIdCounter: 0,
   };
 }
 
@@ -122,51 +161,110 @@ export function runWithAppContext<T>(
 /** Call before rendering component */
 export function beginRender(mode: 'hooks' | 'component' = 'hooks'): void {
   const runtime = getHookRuntimeState();
-  runtime.hookIndex = 0;
+  runtime.renderGeneration++;
+  runtime.rootOwner.hookIndex = 0;
+  runtime.rootOwner.unkeyedCounts.clear();
+  runtime.rootOwner.lastRenderedGeneration = runtime.renderGeneration;
+  runtime.currentOwner = runtime.rootOwner;
+  runtime.lastHookSlotToken = null;
   runtime.isRendering = true;
   runtime.renderPhaseMode = mode;
+}
+
+function formatOwner(owner: ComponentOwner): string {
+  return owner.parent ? `${formatOwner(owner.parent)} > ${owner.name}` : owner.name;
+}
+
+function runHookCleanups(
+  slotId: number,
+  owner: ComponentOwner,
+): void {
+  const cleanups = owner.hookCleanups.get(slotId);
+  if (!cleanups) return;
+  owner.hookCleanups.delete(slotId);
+  for (const cleanup of [...cleanups].reverse()) {
+    try {
+      cleanup();
+    } catch (error) {
+      console.error('[tuiuiu] Error during hook cleanup:', error);
+    }
+  }
+}
+
+function releaseSlot(runtime: HookRuntimeState, owner: ComponentOwner, index: number): void {
+  const slotId = owner.slotIds[index];
+  if (slotId === undefined) return;
+  runHookCleanups(slotId, owner);
+  runtime.slotRefs.delete(slotId);
+}
+
+function finalizeOwnerHooks(runtime: HookRuntimeState, owner: ComponentOwner): void {
+  const currentMaxIndex = owner.hookIndex;
+  if (owner.lastMaxHookIndex > 0 && currentMaxIndex !== owner.lastMaxHookIndex) {
+    hookWarnOnce(
+      `hook-count-changed:${formatOwner(owner)}`,
+      `Hook count changed in ${formatOwner(owner)} (${owner.lastMaxHookIndex} → ${currentMaxIndex}). ` +
+      'Hooks must be called unconditionally inside that component.',
+    );
+  }
+
+  if (currentMaxIndex < owner.lastMaxHookIndex) {
+    for (let index = owner.lastMaxHookIndex - 1; index >= currentMaxIndex; index--) {
+      releaseSlot(runtime, owner, index);
+    }
+  }
+
+  owner.state.length = currentMaxIndex;
+  owner.slotIds.length = currentMaxIndex;
+  owner.lastMaxHookIndex = currentMaxIndex;
+}
+
+function disposeOwner(runtime: HookRuntimeState, owner: ComponentOwner): void {
+  if (owner.disposed) return;
+  owner.disposed = true;
+  for (const byIdentity of owner.children.values()) {
+    for (const child of byIdentity.values()) disposeOwner(runtime, child);
+  }
+  owner.children.clear();
+  for (let index = owner.slotIds.length - 1; index >= 0; index--) {
+    releaseSlot(runtime, owner, index);
+  }
+  owner.state = [];
+  owner.slotIds = [];
+  owner.lastMaxHookIndex = 0;
+}
+
+function pruneUnvisitedOwners(runtime: HookRuntimeState, owner: ComponentOwner): void {
+  for (const [definition, byIdentity] of owner.children) {
+    for (const [identity, child] of byIdentity) {
+      if (child.lastRenderedGeneration !== runtime.renderGeneration) {
+        disposeOwner(runtime, child);
+        byIdentity.delete(identity);
+      } else {
+        pruneUnvisitedOwners(runtime, child);
+      }
+    }
+    if (byIdentity.size === 0) owner.children.delete(definition);
+  }
 }
 
 /** Call after rendering component */
 export function endRender(): void {
   const runtime = getHookRuntimeState();
+  if (!runtime.isRendering) return;
+  finalizeOwnerHooks(runtime, runtime.rootOwner);
+  pruneUnvisitedOwners(runtime, runtime.rootOwner);
+  runtime.currentOwner = null;
   runtime.isRendering = false;
   runtime.renderPhaseMode = 'hooks';
+}
 
-  const currentMaxIndex = runtime.hookIndex;
-
-  // Detect conditional hook usage: hook count changed between renders
-  // This means hooks were called inside if/else, loops, or early returns — which breaks.
-  if (runtime.lastMaxHookIndex > 0 && currentMaxIndex !== runtime.lastMaxHookIndex) {
-    hookWarnOnce(
-      'hook-count-changed',
-      `Hook count changed between renders (${runtime.lastMaxHookIndex} → ${currentMaxIndex}). ` +
-      'A component with internal hooks (Select, Tabs, Menu, ChatList, ScrollList, etc.) ' +
-      'was conditionally added or removed from the render tree. ' +
-      'FIX: Keep hook-bearing components always rendered — use height: 0, isActive: false, ' +
-      'or display: "none" to hide them instead of removing them with ternaries or When().',
-    );
-  }
-
-  // Deactivate orphaned hooks (hooks that were called in previous render but not in this one)
-  // This happens when switching between components with different numbers of hooks
-  if (currentMaxIndex < runtime.lastMaxHookIndex) {
-    for (let i = currentMaxIndex; i < runtime.lastMaxHookIndex; i++) {
-      runHookCleanups(i, runtime);
-      const hookData = runtime.hookState.state[i];
-      if (hookData && typeof hookData === 'object' && 'registered' in hookData && 'handlerId' in hookData) {
-        // This is a useInput hook - deactivate it
-        if (hookData.registered && hookData.handlerId !== null) {
-          removeInputHandlerById(hookData.handlerId);
-          hookData.handlerId = null;
-          hookData.registered = false;
-        }
-      }
-    }
-  }
-
-  runtime.hookState.state.length = Math.min(runtime.hookState.state.length, currentMaxIndex);
-  runtime.lastMaxHookIndex = currentMaxIndex;
+/** Abort a failed root evaluation without pruning or truncating the last committed owner tree. */
+export function abortRender(): void {
+  const runtime = getHookRuntimeState();
+  runtime.currentOwner = null;
+  runtime.isRendering = false;
+  runtime.renderPhaseMode = 'hooks';
 }
 
 /** Whether hooks are currently executing inside a render cycle. */
@@ -181,6 +279,7 @@ export function getRenderPhaseMode(): 'hooks' | 'component' {
 /** Get or initialize hook state at current index */
 export function getHookState<T>(initialValue: T): { value: T; isNew: boolean } {
   const runtime = getHookRuntimeState();
+  const scope = getRuntimeScope();
   // Warn if hook called outside render context
   if (!runtime.isRendering) {
     hookWarnOnce(
@@ -191,31 +290,52 @@ export function getHookState<T>(initialValue: T): { value: T; isNew: boolean } {
     );
   }
 
-  const index = runtime.hookIndex++;
+  const owner = runtime.currentOwner ?? runtime.rootOwner;
+  const index = owner.hookIndex++;
 
-  if (index >= runtime.hookState.state.length) {
-    // New hook - initialize
-    runtime.hookState.state.push(initialValue);
+  if (index >= owner.state.length) {
+    const slotId = runtime.nextSlotId++;
+    owner.state.push(initialValue);
+    owner.slotIds.push(slotId);
+    runtime.slotRefs.set(slotId, { owner, index });
+    runtime.lastHookSlotToken = { [HOOK_SLOT_TOKEN]: true, scope, id: slotId };
     return { value: initialValue, isNew: true };
   }
 
-  // Existing hook - return stored value
-  return { value: runtime.hookState.state[index], isNew: false };
+  const slotId = owner.slotIds[index]!;
+  runtime.lastHookSlotToken = { [HOOK_SLOT_TOKEN]: true, scope, id: slotId };
+  return { value: owner.state[index], isNew: false };
 }
 
 /** Update hook state at a specific index */
-export function setHookState(index: number, value: any): void {
-  getHookRuntimeState().hookState.state[index] = value;
+function resolveHookSlot(reference: HookSlotReference): {
+  runtime: HookRuntimeState;
+  ref: HookSlotRef | undefined;
+  id: number;
+} {
+  const runtime = typeof reference === 'number'
+    ? getHookRuntimeState()
+    : getHookRuntimeState(reference.scope);
+  const id = typeof reference === 'number' ? reference : reference.id;
+  return { runtime, ref: runtime.slotRefs.get(id), id };
+}
+
+export function setHookState(index: HookSlotReference, value: any): void {
+  const { ref } = resolveHookSlot(index);
+  if (ref && !ref.owner.disposed) ref.owner.state[ref.index] = value;
 }
 
 /** Get hook state by index (for closures that need to access state later) */
-export function getHookStateByIndex(index: number): any {
-  return getHookRuntimeState().hookState.state[index];
+export function getHookStateByIndex(index: HookSlotReference): any {
+  const { ref } = resolveHookSlot(index);
+  return ref && !ref.owner.disposed ? ref.owner.state[ref.index] : undefined;
 }
 
 /** Get hook index (for setState to know which index to update) */
-export function getCurrentHookIndex(): number {
-  return getHookRuntimeState().hookIndex - 1; // Return the index of the last accessed hook
+export function getCurrentHookIndex(): HookSlotToken {
+  const token = getHookRuntimeState().lastHookSlotToken;
+  if (!token) throw new Error('[tuiuiu] No hook slot is active');
+  return token;
 }
 
 /**
@@ -225,31 +345,92 @@ export function getCurrentHookIndex(): number {
  */
 export function registerHookCleanup(
   cleanup: () => void,
-  index = getCurrentHookIndex(),
+  index: HookSlotReference = getCurrentHookIndex(),
 ): () => void {
-  const runtime = getHookRuntimeState();
-  let cleanups = runtime.hookCleanups.get(index);
+  const { ref, id } = resolveHookSlot(index);
+  if (!ref || ref.owner.disposed) return () => {};
+  let cleanups = ref.owner.hookCleanups.get(id);
   if (!cleanups) {
     cleanups = new Set();
-    runtime.hookCleanups.set(index, cleanups);
+    ref.owner.hookCleanups.set(id, cleanups);
   }
   cleanups.add(cleanup);
   return () => {
     cleanups?.delete(cleanup);
-    if (cleanups?.size === 0) runtime.hookCleanups.delete(index);
+    if (cleanups?.size === 0) ref.owner.hookCleanups.delete(id);
   };
 }
 
-function runHookCleanups(index: number, runtime: HookRuntimeState): void {
-  const cleanups = runtime.hookCleanups.get(index);
-  if (!cleanups) return;
-  runtime.hookCleanups.delete(index);
-  for (const cleanup of [...cleanups].reverse()) {
-    try {
-      cleanup();
-    } catch (error) {
-      console.error('[tuiuiu] Error during hook cleanup:', error);
+/** Execute one explicit stateful component inside its keyed owner. */
+export function renderOwnedComponent<T>(
+  definition: object,
+  name: string,
+  key: ComponentKey | undefined,
+  render: () => T,
+): T {
+  const runtime = getHookRuntimeState();
+  const parent = runtime.currentOwner;
+  if (!runtime.isRendering || !parent) {
+    throw new Error(
+      `[tuiuiu] ${name} is stateful and must be evaluated inside render(() => ...).`,
+    );
+  }
+
+  let identity: string;
+  if (key === undefined) {
+    const ordinal = parent.unkeyedCounts.get(definition) ?? 0;
+    if (ordinal > 0 && process.env.NODE_ENV !== 'production') {
+      throw new Error(
+        `[tuiuiu] Multiple unkeyed ${name} components share the same owner. ` +
+        'Pass a stable `key` to every repeated stateful component.',
+      );
     }
+    parent.unkeyedCounts.set(definition, ordinal + 1);
+    identity = `unkeyed:${ordinal}`;
+  } else {
+    identity = `key:${typeof key}:${String(key)}`;
+  }
+
+  let byIdentity = parent.children.get(definition);
+  if (!byIdentity) {
+    byIdentity = new Map();
+    parent.children.set(definition, byIdentity);
+  }
+  let owner = byIdentity.get(identity);
+  const wasNew = !owner;
+  if (!owner) {
+    owner = createComponentOwner(name, parent, definition, identity);
+    byIdentity.set(identity, owner);
+  } else if (owner.lastRenderedGeneration === runtime.renderGeneration) {
+    throw new Error(`[tuiuiu] Duplicate ${name} component key: ${String(key)}`);
+  }
+
+  owner.disposed = false;
+  const previousGeneration = owner.lastRenderedGeneration;
+  const previousState = owner.state.slice();
+  const previousSlotIds = owner.slotIds.slice();
+  const previousLastMaxHookIndex = owner.lastMaxHookIndex;
+  owner.lastRenderedGeneration = runtime.renderGeneration;
+  owner.hookIndex = 0;
+  owner.unkeyedCounts.clear();
+  runtime.currentOwner = owner;
+  try {
+    const result = render();
+    finalizeOwnerHooks(runtime, owner);
+    return result;
+  } catch (error) {
+    for (let index = owner.slotIds.length - 1; index >= previousSlotIds.length; index--) {
+      releaseSlot(runtime, owner, index);
+    }
+    owner.state = previousState;
+    owner.slotIds = previousSlotIds;
+    owner.lastMaxHookIndex = previousLastMaxHookIndex;
+    owner.lastRenderedGeneration = previousGeneration;
+    if (wasNew) byIdentity.delete(identity);
+    if (byIdentity.size === 0) parent.children.delete(definition);
+    throw error;
+  } finally {
+    runtime.currentOwner = parent;
   }
 }
 
@@ -258,17 +439,13 @@ export function resetHookState(scope?: RuntimeScope): void {
   const resolvedScope = getRuntimeScope(scope);
   const runtime = getHookRuntimeState(resolvedScope);
   runInRuntimeScope(resolvedScope, () => {
-    for (const index of [...runtime.hookCleanups.keys()].sort((a, b) => b - a)) {
-      runHookCleanups(index, runtime);
-    }
+    disposeOwner(runtime, runtime.rootOwner);
   });
-
-  for (const effect of runtime.hookState.effects) {
-    if (effect) effect.dispose();
-  }
-  runtime.hookState = { state: [], effects: [] };
-  runtime.hookIndex = 0;
-  runtime.lastMaxHookIndex = 0;
+  runtime.rootOwner = createComponentOwner('Root', null, null, 'root');
+  runtime.currentOwner = null;
+  runtime.slotRefs.clear();
+  runtime.nextSlotId = 0;
+  runtime.lastHookSlotToken = null;
   runtime.isRendering = false;
 }
 
@@ -286,114 +463,6 @@ export function setAppContext(
   runtime.appContext = ctx;
   if (previous && previous !== ctx) appRuntimeScopes.delete(previous);
   if (ctx) appRuntimeScopes.set(ctx, resolvedScope);
-}
-
-// =============================================================================
-// INPUT HANDLER MANAGEMENT (Priority-based)
-// =============================================================================
-
-/**
- * Register an input handler with priority support
- *
- * @param handler - The input handler function
- * @param options - Priority and propagation options
- * @returns Handler ID for removal
- */
-export function addInputHandler(
-  handler: InputHandler,
-  options: {
-    priority?: InputPriority;
-    stopPropagation?: boolean;
-  } = {}
-): number {
-  const { priority = 'normal', stopPropagation = false } = options;
-  const runtime = getHookRuntimeState();
-
-  const id = runtime.handlerIdCounter++;
-  const entry: InputHandlerEntry = {
-    handler,
-    priorityValue: INPUT_PRIORITY_VALUES[priority],
-    stopPropagation,
-    id,
-  };
-
-  runtime.inputHandlers.push(entry);
-
-  // Warn if we have too many handlers
-  if (runtime.inputHandlers.length > 100) {
-    console.warn(
-      `[tuiuiu] High number of input handlers (${runtime.inputHandlers.length}). ` +
-        'This may indicate a memory leak from handlers not being properly removed.'
-    );
-  }
-
-  return id;
-}
-
-/**
- * Remove an input handler by ID
- */
-export function removeInputHandlerById(id: number): boolean {
-  const runtime = getHookRuntimeState();
-  const index = runtime.inputHandlers.findIndex((entry) => entry.id === id);
-  if (index !== -1) {
-    runtime.inputHandlers.splice(index, 1);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Emit input event to all handlers, respecting priority
- *
- * Handlers are called in priority order (highest first).
- * If a handler with stopPropagation returns truthy, lower priority handlers don't fire.
- */
-export function emitInput(input: string, key: Key, event?: Partial<InputEvent>): void {
-  const runtime = getHookRuntimeState();
-  // Sort handlers by priority (highest first), stable sort by id for same priority
-  const sorted = [...runtime.inputHandlers].sort((a, b) => {
-    if (b.priorityValue !== a.priorityValue) {
-      return b.priorityValue - a.priorityValue;
-    }
-    return a.id - b.id; // Earlier registered first at same priority
-  });
-
-  const inputEvent: InputEvent = {
-    input,
-    key,
-    isPasted: false,
-    ...event,
-  };
-
-  for (const entry of sorted) {
-    try {
-      const result = entry.handler(input, key, inputEvent);
-      // Stop propagation if handler returned truthy and has stopPropagation flag
-      if (entry.stopPropagation && result) {
-        break;
-      }
-    } catch (error) {
-      console.error('[tuiuiu] Error in input handler:', error);
-    }
-  }
-}
-
-/** Clear all input handlers */
-export function clearInputHandlers(scope?: RuntimeScope): void {
-  const runtime = getHookRuntimeState(scope);
-  runtime.inputHandlers.length = 0;
-  runtime.handlerIdCounter = 0;
-}
-
-/** Get count of registered input handlers (for testing/debugging) */
-export function getInputHandlerCount(): number {
-  return getHookRuntimeState().inputHandlers.length;
-}
-
-/** Get all input handlers (for testing/debugging) */
-export function getInputHandlers(): readonly InputHandlerEntry[] {
-  return getHookRuntimeState().inputHandlers;
 }
 
 export function getFocusManager(): FocusManager | null {
@@ -499,83 +568,4 @@ export function resetMouseClickState(scope?: RuntimeScope): void {
  */
 export function getMouseHandlerCount(): number {
   return getHookRuntimeState().mouseHandlers.length;
-}
-
-// =============================================================================
-// PASTE EVENT HANDLING (Priority-based)
-// =============================================================================
-
-/**
- * Register a paste event handler with priority support
- */
-export function addPasteHandler(
-  handler: PasteHandler,
-  options: {
-    priority?: InputPriority;
-    stopPropagation?: boolean;
-  } = {}
-): number {
-  const { priority = 'normal', stopPropagation = false } = options;
-  const runtime = getHookRuntimeState();
-
-  const id = runtime.pasteHandlerIdCounter++;
-  const entry: PasteHandlerEntry = {
-    handler,
-    priorityValue: INPUT_PRIORITY_VALUES[priority],
-    stopPropagation,
-    id,
-  };
-
-  runtime.pasteHandlers.push(entry);
-  return id;
-}
-
-/**
- * Remove a paste handler by ID
- */
-export function removePasteHandlerById(id: number): boolean {
-  const runtime = getHookRuntimeState();
-  const index = runtime.pasteHandlers.findIndex((entry) => entry.id === id);
-  if (index !== -1) {
-    runtime.pasteHandlers.splice(index, 1);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Emit paste event to all handlers, respecting priority
- */
-export function emitPaste(text: string, isBracketed: boolean): void {
-  const sorted = [...getHookRuntimeState().pasteHandlers].sort((a, b) => {
-    if (b.priorityValue !== a.priorityValue) {
-      return b.priorityValue - a.priorityValue;
-    }
-    return a.id - b.id;
-  });
-
-  const event: PasteEvent = { text, isBracketed };
-
-  for (const entry of sorted) {
-    try {
-      const result = entry.handler(event);
-      if (entry.stopPropagation && result) {
-        break;
-      }
-    } catch (error) {
-      console.error('[tuiuiu] Error in paste handler:', error);
-    }
-  }
-}
-
-/** Clear all paste handlers */
-export function clearPasteHandlers(scope?: RuntimeScope): void {
-  const runtime = getHookRuntimeState(scope);
-  runtime.pasteHandlers.length = 0;
-  runtime.pasteHandlerIdCounter = 0;
-}
-
-/** Get count of registered paste handlers */
-export function getPasteHandlerCount(): number {
-  return getHookRuntimeState().pasteHandlers.length;
 }

@@ -118,16 +118,14 @@ function createEntrySource(): string {
   return `import {
   Box,
   Text,
-  renderInline,
+  render,
   useApp,
-  useInput,
-} from 'tuiuiu.js/minimal';
+  useShortcut,
+} from 'tuiuiu.js';
 
 function App() {
   const app = useApp();
-  useInput((input) => {
-    if (input === 'q') app.exit();
-  });
+  useShortcut('q', () => app.exit());
 
   return Box(
     { flexDirection: 'column', padding: 1, borderStyle: 'round' },
@@ -136,7 +134,7 @@ function App() {
   );
 }
 
-const tui = renderInline(App);
+const tui = render(App, { screen: 'inline' });
 await tui.waitUntilExit();
 `;
 }

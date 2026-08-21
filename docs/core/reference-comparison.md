@@ -53,7 +53,7 @@ Capability caches and resize listeners follow the output stream that owns the
 session.
 
 The convenience event bus, error boundary, focus zones, command and keybinding
-registries, router, screen stack, transition manager and legacy delta-renderer
+registries, router, screen stack, transition manager and standalone delta-renderer
 singleton are runtime-owned as well. Declarative command, keybinding, router
 and screen defaults created before `render()` are cloned into each app; later
 mutations, listeners, history and recent-command state remain local.

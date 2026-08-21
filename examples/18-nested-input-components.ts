@@ -15,12 +15,12 @@ import {
   Box,
   Text,
   Tabs,
-  ButtonGroup,
   createSignal,
-  useInput,
+  useInteraction,
   useApp,
   type VNode,
 } from '../src/index.js';
+import { ButtonGroup } from '../src/ui/index.js';
 
 type FocusArea = 'tabs' | 'buttons';
 
@@ -37,7 +37,10 @@ function NestedInputDemo(): VNode {
   const [lastAction, setLastAction] = createSignal('');
 
   // Global handler: Tab key toggles focus area
-  useInput((input, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const input = event.key.text;
+    const key = event.key.native;
     if (key.escape) {
       exit();
       return true;

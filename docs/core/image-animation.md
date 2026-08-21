@@ -157,7 +157,7 @@ Pass `currentImageData()` to a `TerminalImage` component for rendering. Because 
 
 ```typescript
 import {
-  render, Box, TerminalImage, useState, useHotkeys, useApp,
+  render, Box, TerminalImage, useState, useShortcut, useApp,
   createAnimatedImageSource, createAnimatedImage, setTheme, darkTheme,
 } from 'tuiuiu.js';
 
@@ -170,8 +170,8 @@ function App() {
     return createAnimatedImage(source);
   });
 
-  useHotkeys('space', () => anim().isPlaying() ? anim().pause() : anim().play());
-  useHotkeys('q', () => { anim().dispose(); exit(); });
+  useShortcut('space', () => anim().isPlaying() ? anim().pause() : anim().play());
+  useShortcut('q', () => { anim().dispose(); exit(); });
 
   return Box({ flexDirection: 'column' },
     TerminalImage({ imageData: anim().currentImageData(), width: 40 }),

@@ -18,7 +18,7 @@ import {
   useChartInteraction,
   useChartKeyboard,
 } from '../src/molecules/data-viz/index.js';
-import { useState, useInput } from '../src/hooks/index.js';
+import { useState, useInteraction } from '../src/hooks/index.js';
 
 // Sample data
 const scatterData = Array.from({ length: 15 }, (_, i) => ({
@@ -42,7 +42,10 @@ function InteractiveScatterDemo(): any {
   // Keyboard navigation for points
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  useInput((char, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const char = event.key.text;
+    const key = event.key.native;
     // Navigation with arrow keys
     if (key.upArrow) {
       setCurrentIndex((i) => Math.max(0, i - 1));
@@ -108,7 +111,10 @@ function InteractiveLineChartDemo(): any {
   const [focusedSeries, setFocusedSeries] = useState(0);
   const [hoveredValue, setHoveredValue] = useState<number | undefined>(undefined);
 
-  useInput((char, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const char = event.key.text;
+    const key = event.key.native;
     // Navigate between series
     if (key.leftArrow) {
       setFocusedSeries((i) => Math.max(0, i - 1));

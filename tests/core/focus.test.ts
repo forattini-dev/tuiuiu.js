@@ -116,6 +116,22 @@ describe('FocusZoneManager', () => {
       expect(manager.getStackDepth()).toBe(1);
     });
 
+    it('should remove a non-active zone without stealing focus from the top zone', () => {
+      const manager = getFocusZoneManager();
+      const zone1 = manager.createZone();
+      const zone2 = manager.createZone();
+      const zone3 = manager.createZone();
+
+      manager.activateZone(zone1);
+      manager.activateZone(zone2);
+      manager.activateZone(zone3);
+      manager.deactivateZone(zone2);
+
+      expect(manager.getActiveZone()!.id).toBe(zone3);
+      manager.deactivateZone(zone3);
+      expect(manager.getActiveZone()!.id).toBe(zone1);
+    });
+
     it('should warn on stack overflow', () => {
       const manager = getFocusZoneManager();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

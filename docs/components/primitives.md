@@ -73,7 +73,7 @@ Divider()
 Divider({ title: 'Section A', titleColor: 'cyan' })
 
 // Vertical
-Divider({ direction: 'vertical', width: 10 })
+Divider({ direction: 'vertical', height: 10 })
 ```
 
 ## Slot

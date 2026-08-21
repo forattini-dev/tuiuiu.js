@@ -20,16 +20,16 @@ import {
   Panel,
   createSignal,
   batch,
-  useHotkeys,
+  useShortcut,
   useApp,
   useLayoutRef,
-  getTerminalSize,
   setTheme,
   darkTheme,
   useInterval,
-  useFps,
   resolveColor,
 } from '../../src/index.js';
+import { useFps } from '../../src/app/index.js';
+import { getTerminalSize } from '../../src/core/index.js';
 import { useLocalMouse } from '../../src/hooks/use-local-mouse.js';
 import type { VNode } from '../../src/utils/types.js';
 
@@ -1147,32 +1147,32 @@ function TowerDefense(): VNode {
   const _ = gameSpeed();
 
   // Manual tick for debugging - press T
-  useHotkeys('t', () => {
+  useShortcut('t', () => {
     if (screen() !== 'game') return;
     tickGame();
   });
 
   // Speed control - 1=1x, 2=2x, 3=4x, 4=8x
   // Update both signal (for UI) and ref (for game loop)
-  useHotkeys('1', () => {
+  useShortcut('1', () => {
     if (screen() !== 'game') return;
     speedRef.current = 1;
     setGameSpeed(1);
     setMessage(`Speed: 1x`);
   });
-  useHotkeys('2', () => {
+  useShortcut('2', () => {
     if (screen() !== 'game') return;
     speedRef.current = 2;
     setGameSpeed(2);
     setMessage(`Speed: 2x`);
   });
-  useHotkeys('3', () => {
+  useShortcut('3', () => {
     if (screen() !== 'game') return;
     speedRef.current = 4;
     setGameSpeed(4);
     setMessage(`Speed: 4x`);
   });
-  useHotkeys('4', () => {
+  useShortcut('4', () => {
     if (screen() !== 'game') return;
     speedRef.current = 8;
     setGameSpeed(8);
@@ -1232,16 +1232,16 @@ function TowerDefense(): VNode {
     { onlyInside: true },
   );
 
-  // Keyboard controls using useHotkeys
-  useHotkeys('escape', () => exit());
-  useHotkeys('q', () => exit());
-  useHotkeys('r', () => {
+  // Keyboard controls using useShortcut
+  useShortcut('escape', () => exit());
+  useShortcut('q', () => exit());
+  useShortcut('r', () => {
     if (screen() === 'game') resetGame();
   });
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (screen() === 'menu') activateMenuSelection();
   });
-  useHotkeys('space', () => {
+  useShortcut('space', () => {
     if (screen() !== 'game') return;
     const nextPaused = !paused();
     setPaused(nextPaused);
@@ -1249,54 +1249,54 @@ function TowerDefense(): VNode {
   });
 
   // Movement (only when not game over)
-  useHotkeys('up', () => {
+  useShortcut('up', () => {
     if (screen() === 'menu') {
       moveMenuSelection(-1);
       return;
     }
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y - 1, 0, mapHeight() - 1) }));
   });
-  useHotkeys('w', () => {
+  useShortcut('w', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y - 1, 0, mapHeight() - 1) }));
   });
-  useHotkeys('down', () => {
+  useShortcut('down', () => {
     if (screen() === 'menu') {
       moveMenuSelection(1);
       return;
     }
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y + 1, 0, mapHeight() - 1) }));
   });
-  useHotkeys('s', () => {
+  useShortcut('s', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: pos.x, y: clamp(pos.y + 1, 0, mapHeight() - 1) }));
   });
-  useHotkeys('left', () => {
+  useShortcut('left', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x - 1, 0, mapWidth() - 1), y: pos.y }));
   });
-  useHotkeys('a', () => {
+  useShortcut('a', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x - 1, 0, mapWidth() - 1), y: pos.y }));
   });
-  useHotkeys('right', () => {
+  useShortcut('right', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x + 1, 0, mapWidth() - 1), y: pos.y }));
   });
-  useHotkeys('d', () => {
+  useShortcut('d', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) setCursor(pos => ({ x: clamp(pos.x + 1, 0, mapWidth() - 1), y: pos.y }));
   });
 
   // Actions
-  useHotkeys('b', () => {
+  useShortcut('b', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) {
       const { x, y } = cursor();
       buildAt(x, y);
     }
   });
-  useHotkeys('u', () => {
+  useShortcut('u', () => {
     if (screen() !== 'game') return;
     if (!gameOver()) {
       const { x, y } = cursor();

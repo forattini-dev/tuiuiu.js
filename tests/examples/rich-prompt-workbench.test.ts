@@ -3,11 +3,8 @@ import { EventEmitter } from 'node:events';
 
 import { render } from '../../src/app/render-loop.js';
 import { cleanupApp } from '../../src/hooks/use-app.js';
-import {
-  clearInputHandlers,
-  resetHookState,
-  setAppContext,
-} from '../../src/hooks/context.js';
+import { resetHookState, setAppContext } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import { RichPromptWorkbench } from '../../examples/rich-prompt-workbench.ts';
 
 function createMockStdin(): NodeJS.ReadStream {
@@ -88,14 +85,14 @@ async function typeText(stdin: NodeJS.ReadStream, text: string): Promise<void> {
 describe('rich-prompt-workbench example', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
   });
 
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('completes a worker-backed prompt pass and records the assistant output', async () => {
@@ -105,10 +102,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, 'terminal worker');
@@ -128,10 +124,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, 'cancel this worker task');
@@ -155,10 +150,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await wait(50);
@@ -174,10 +168,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '/help');
@@ -196,10 +189,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '/seed reviewer');
@@ -219,10 +211,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '!git status');
@@ -241,10 +232,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '/seed reviewer');
@@ -263,10 +253,9 @@ describe('rich-prompt-workbench example', () => {
       stdin,
       stdout,
       maxFps: 0,
-      clearOnStart: false,
-      showCursor: true,
+      showHardwareCursor: true,
       useDeltaRenderer: false,
-      fullHeight: true,
+      screen: 'fullscreen',
     });
 
     await typeText(stdin, '/seed');

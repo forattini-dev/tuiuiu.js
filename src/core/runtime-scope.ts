@@ -127,7 +127,7 @@ export function getRuntimeResource<T>(
 }
 
 /**
- * Access a compatibility default inherited by newly-created app resources.
+ * Access the process default inherited by newly-created app resources.
  *
  * Stateful modules should copy values from this resource when an app scope is
  * initialized, then mutate only their own copy.
@@ -159,7 +159,7 @@ export function deleteRuntimeResource(
   disposeRuntimeResource(resource);
 }
 
-/** Reset the compatibility scope used by standalone tests and utilities. */
+/** Reset the default scope used by standalone tests and utilities. */
 export function resetDefaultRuntimeScope(): void {
   disposeRuntimeResources(defaultRuntimeScope);
 }

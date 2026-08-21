@@ -17,10 +17,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createConfirmButton,
-  ConfirmButton,
+  ConfirmButton as OwnedConfirmButton,
   type ConfirmButtonState,
   type ConfirmButtonOptions,
 } from '../../src/molecules/confirm-button.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ConfirmButton = testComponent(OwnedConfirmButton);
 
 // =============================================================================
 // Test Helpers

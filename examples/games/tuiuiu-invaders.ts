@@ -18,36 +18,34 @@ import { pathToFileURL } from 'node:url';
 import {
   render,
   Badge,
-  BigText,
   Box,
   Text,
   Panel,
-  Canvas,
-  createCanvas,
   DataRow,
   Digits,
   Gauge,
-  Heatmap,
   ListItem,
   Modal,
   ProgressBar,
   Sparkline,
-  SplitView,
   StatusIndicator,
   Table,
   Tabs,
-  createTabs,
-  createSplitView,
   darkTheme,
   setTheme,
   useApp,
   useConst,
-  useFps,
-  useHotkeys,
+  useShortcut,
   useInterval,
   useState,
   useTerminalSize,
 } from '../../src/index.js';
+import { BigText } from '../../src/atoms/big-text.js';
+import { Canvas, createCanvas } from '../../src/primitives/canvas.js';
+import { Heatmap } from '../../src/molecules/data-viz/heatmap.js';
+import { SplitView, createSplitView } from '../../src/molecules/split-view.js';
+import { createTabs } from '../../src/molecules/tabs.js';
+import { useFps } from '../../src/hooks/use-fps.js';
 import type { VNode } from '../../src/utils/types.js';
 
 setTheme(darkTheme);
@@ -2061,21 +2059,21 @@ function TuiuiuInvaders(): VNode {
     exit();
   }
 
-  useHotkeys(['left', 'a', 'h'], () => {
+  useShortcut(['left', 'a', 'h'], () => {
     if (currentScreen !== 'game' || isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, -1, arena));
   });
 
-  useHotkeys(['right', 'd', 'l'], () => {
+  useShortcut(['right', 'd', 'l'], () => {
     if (currentScreen !== 'game' || isHelpOpen) {
       return;
     }
     setGame((current) => movePlayer(current, 1, arena));
   });
 
-  useHotkeys('space', () => {
+  useShortcut('space', () => {
     if (currentScreen !== 'game' || isHelpOpen) {
       return;
     }
@@ -2084,14 +2082,14 @@ function TuiuiuInvaders(): VNode {
       : firePlayerBullet(current, arena));
   });
 
-  useHotkeys('p', () => {
+  useShortcut('p', () => {
     if (currentScreen !== 'game' || isHelpOpen) {
       return;
     }
     setGame((current) => togglePause(current));
   });
 
-  useHotkeys('r', () => {
+  useShortcut('r', () => {
     if (currentScreen !== 'game') {
       return;
     }
@@ -2100,7 +2098,7 @@ function TuiuiuInvaders(): VNode {
     setGame((current) => createNewGameState(arena, current.hiScore));
   });
 
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (currentScreen === 'menu') {
       activateMenuSelection();
       return;
@@ -2116,7 +2114,7 @@ function TuiuiuInvaders(): VNode {
         : current);
   });
 
-  useHotkeys(['up', 'k'], () => {
+  useShortcut(['up', 'k'], () => {
     if (currentScreen === 'menu') {
       moveMenuSelection(-1);
       return;
@@ -2127,7 +2125,7 @@ function TuiuiuInvaders(): VNode {
     debriefView.selectPrevious();
   });
 
-  useHotkeys(['down', 'j'], () => {
+  useShortcut(['down', 'j'], () => {
     if (currentScreen === 'menu') {
       moveMenuSelection(1);
       return;
@@ -2138,7 +2136,7 @@ function TuiuiuInvaders(): VNode {
     debriefView.selectNext();
   });
 
-  useHotkeys('tab', () => {
+  useShortcut('tab', () => {
     if (currentScreen !== 'game' || isHelpOpen || arena.compact) {
       return;
     }
@@ -2146,35 +2144,35 @@ function TuiuiuInvaders(): VNode {
     hudTabs.selectFocused();
   });
 
-  useHotkeys('1', () => {
+  useShortcut('1', () => {
     if (currentScreen !== 'game' || isHelpOpen || arena.compact) {
       return;
     }
     hudTabs.setActiveTab('intel');
   });
 
-  useHotkeys('2', () => {
+  useShortcut('2', () => {
     if (currentScreen !== 'game' || isHelpOpen || arena.compact) {
       return;
     }
     hudTabs.setActiveTab('defense');
   });
 
-  useHotkeys('3', () => {
+  useShortcut('3', () => {
     if (currentScreen !== 'game' || isHelpOpen || arena.compact) {
       return;
     }
     hudTabs.setActiveTab('log');
   });
 
-  useHotkeys('f1', () => {
+  useShortcut('f1', () => {
     if (currentScreen !== 'game') {
       return;
     }
     setHelpOpen((current) => !current);
   });
 
-  useHotkeys('escape', () => {
+  useShortcut('escape', () => {
     if (currentScreen === 'menu') {
       exit();
       return;
@@ -2190,7 +2188,7 @@ function TuiuiuInvaders(): VNode {
     exit();
   });
 
-  useHotkeys(['q', 'ctrl+c'], () => {
+  useShortcut(['q', 'ctrl+c'], () => {
     exit();
   });
 
@@ -2261,7 +2259,7 @@ function isMainModule(): boolean {
 
 export async function runTuiuiuInvaders(): Promise<void> {
   const { waitUntilExit } = render(TuiuiuInvaders, {
-    fullHeight: true,
+    screen: 'fullscreen',
     autoTabNavigation: false,
     maxFps: 40,
   });

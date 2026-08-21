@@ -45,7 +45,8 @@ unsubscribe();
 Inside components, use `store.state()` so reads participate in Tuiuiu's reactive graph.
 
 ```typescript
-import { render, Box, Text, useInput, useApp, createStore } from 'tuiuiu.js';
+import { render, Box, Text, useShortcut, useApp } from 'tuiuiu.js';
+import { createStore } from 'tuiuiu.js/ui';
 
 const store = createStore(
   (state = { count: 0 }, action) => {
@@ -65,11 +66,9 @@ function Counter() {
   const { exit } = useApp();
   const state = store.state();
 
-  useInput((input, key) => {
-    if (key.upArrow) store.dispatch({ type: 'INCREMENT' });
-    if (key.downArrow) store.dispatch({ type: 'DECREMENT' });
-    if (input === 'q' || key.escape) exit();
-  });
+  useShortcut('up', () => store.dispatch({ type: 'INCREMENT' }));
+  useShortcut('down', () => store.dispatch({ type: 'DECREMENT' }));
+  useShortcut(['q', 'escape'], exit);
 
   return Box(
     { padding: 1, borderStyle: 'round' },
@@ -202,8 +201,6 @@ Supported options:
 - `key`
 - `debounce`
 - `storage`
-
-Unsupported legacy options like `path` and `format` are deprecated and have no runtime effect.
 
 ## Reactive Store (Proxy-based)
 

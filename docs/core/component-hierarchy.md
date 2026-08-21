@@ -19,6 +19,8 @@ This project follows a strict atomic design taxonomy. Every exported UI componen
 
 A component is any exported function that returns a VNode or a renderable UI element. Utilities, state factories, and constants are not considered components and are excluded from storybook coverage.
 
-## Legacy Exports
+## Public ownership
 
-Some components may be re-exported for backward compatibility. Classification is based on the component's source layer, not the re-export path. Storybook grouping always follows the classification rules above.
+Every component has one implementation layer and one owning v2 entrypoint.
+Re-exports do not create alternate component identities, and compatibility
+layers are not part of the hierarchy.

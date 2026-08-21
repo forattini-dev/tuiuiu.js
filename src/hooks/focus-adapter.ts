@@ -5,12 +5,10 @@
  */
 
 import { getFocusZoneManager } from '../core/focus.js';
-import { setFocusManager } from './context.js';
 import type { FocusManager } from './types.js';
 
 /**
- * Bridges the simple FocusManager interface to FocusZoneManager while
- * preserving the existing public API.
+ * Presents the root focus zone through the app-facing FocusManager contract.
  */
 export class FocusZoneManagerAdapter implements FocusManager {
   private zoneManager = getFocusZoneManager();
@@ -49,13 +47,4 @@ export class FocusZoneManagerAdapter implements FocusManager {
   getActiveId(): string | undefined {
     return this.zoneManager.getActiveId(this.zoneId) ?? undefined;
   }
-}
-
-/**
- * Create and install an adapter for the requested focus zone.
- */
-export function createFocusAdapter(zoneId?: string): FocusManager {
-  const adapter = new FocusZoneManagerAdapter(zoneId);
-  setFocusManager(adapter);
-  return adapter;
 }

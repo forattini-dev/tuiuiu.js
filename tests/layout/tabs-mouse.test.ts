@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Tabs, VerticalTabs, createTabs, type Tab } from '../../src/molecules/tabs.js';
+import { Tabs as OwnedTabs, VerticalTabs as OwnedVerticalTabs, createTabs, type Tab } from '../../src/molecules/tabs.js';
 import { Box, Text } from '../../src/primitives/index.js';
 import { calculateLayout } from '../../src/core/layout.js';
 import { renderToString } from '../../src/core/renderer.js';
@@ -15,8 +15,12 @@ import {
   registerHitTestFromLayout,
 } from '../../src/core/hit-test.js';
 import { MouseSimulator, simulateClick } from '../../src/dev-tools/mouse-simulator.js';
-import { clearInputHandlers } from '../../src/hooks/context.js';
+import { resetTestInteractions } from '../../src/testing/interaction.js';
 import type { VNode } from '../../src/utils/types.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const Tabs = testComponent(OwnedTabs);
+const VerticalTabs = testComponent(OwnedVerticalTabs);
 
 // Test tabs
 const basicTabs: Tab<string>[] = [
@@ -34,12 +38,12 @@ const tabsWithDisabled: Tab<string>[] = [
 describe('Tabs Mouse Events', () => {
   beforeEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('Tab Click Selection', () => {
@@ -112,7 +116,7 @@ describe('Tabs Mouse Events', () => {
 
       for (const styleType of styles) {
         resetHitTestRegistry();
-        clearInputHandlers();
+        resetTestInteractions();
 
         const onChange = vi.fn();
         const state = createTabs({ tabs: basicTabs, onChange });
@@ -209,12 +213,12 @@ describe('Tabs Mouse Events', () => {
 describe('VerticalTabs Mouse Events', () => {
   beforeEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHitTestRegistry();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   describe('Tab Click Selection', () => {
@@ -296,11 +300,11 @@ describe('VerticalTabs Mouse Events', () => {
 
 describe('Tabs State API', () => {
   beforeEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('should switch tabs via setActiveTab', () => {

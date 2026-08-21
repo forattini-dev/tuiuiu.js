@@ -6,8 +6,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  ScrollArea,
-  VirtualList,
+  ScrollArea as OwnedScrollArea,
+  VirtualList as OwnedVirtualList,
   createScrollArea,
   createVirtualList,
 } from '../../src/organisms/scroll-area.js';
@@ -21,6 +21,10 @@ import {
 } from '../../src/core/hit-test.js';
 import { MouseSimulator, simulateScroll } from '../../src/dev-tools/mouse-simulator.js';
 import type { VNode } from '../../src/utils/types.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const ScrollArea = testComponent(OwnedScrollArea);
+const VirtualList = testComponent(OwnedVirtualList);
 
 describe('ScrollArea Mouse Events', () => {
   beforeEach(() => {

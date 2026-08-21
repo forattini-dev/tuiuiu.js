@@ -36,7 +36,9 @@ interface ClipboardImageHintHookData {
   timeoutId: ReturnType<typeof setTimeout> | null;
 }
 
-function subscribeToClipboardImageFocus(hookIndex: number): () => void {
+function subscribeToClipboardImageFocus(
+  hookIndex: import('./context.js').HookSlotToken,
+): () => void {
   return onTerminalFocusChange((focused) => {
     const stored = getHookStateByIndex(hookIndex) as ClipboardImageHintHookData | null;
     if (!stored || !focused) return;

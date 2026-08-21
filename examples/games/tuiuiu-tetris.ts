@@ -23,16 +23,16 @@ import {
   Modal,
   Panel,
   Text,
-  createCanvas,
   darkTheme,
   setTheme,
   useApp,
-  useFps,
-  useHotkeys,
+  useShortcut,
   useInterval,
   useState,
   useTerminalSize,
 } from '../../src/index.js';
+import { createCanvas } from '../../src/primitives/canvas.js';
+import { useFps } from '../../src/hooks/use-fps.js';
 import type { VNode } from '../../src/utils/types.js';
 
 setTheme(darkTheme);
@@ -1011,58 +1011,58 @@ function TuiuiuTetris(): VNode {
   const isHelpOpen = helpOpen();
   const boardLines = renderBoard(state);
 
-  useHotkeys(['left', 'a', 'h'], () => {
+  useShortcut(['left', 'a', 'h'], () => {
     if (isHelpOpen) return;
     setGame((current) => moveActivePiece(current, -1));
   });
 
-  useHotkeys(['right', 'd', 'l'], () => {
+  useShortcut(['right', 'd', 'l'], () => {
     if (isHelpOpen) return;
     setGame((current) => moveActivePiece(current, 1));
   });
 
-  useHotkeys(['down', 's', 'j'], () => {
+  useShortcut(['down', 's', 'j'], () => {
     if (isHelpOpen) return;
     setGame((current) => softDrop(current));
   });
 
-  useHotkeys(['up', 'x', 'k'], () => {
+  useShortcut(['up', 'x', 'k'], () => {
     if (isHelpOpen) return;
     setGame((current) => rotateActivePiece(current, 1));
   });
 
-  useHotkeys('z', () => {
+  useShortcut('z', () => {
     if (isHelpOpen) return;
     setGame((current) => rotateActivePiece(current, -1));
   });
 
-  useHotkeys('c', () => {
+  useShortcut('c', () => {
     if (isHelpOpen) return;
     setGame((current) => holdActivePiece(current));
   });
 
-  useHotkeys('space', () => {
+  useShortcut('space', () => {
     if (isHelpOpen) return;
     setGame((current) => current.phase === 'game-over'
       ? createNewGameState(arena, current.hiScore)
       : hardDrop(current));
   });
 
-  useHotkeys('p', () => {
+  useShortcut('p', () => {
     if (isHelpOpen || state.phase === 'game-over') return;
     setGame((current) => togglePause(current));
   });
 
-  useHotkeys('r', () => {
+  useShortcut('r', () => {
     setHelpOpen(false);
     setGame((current) => createNewGameState(arena, current.hiScore));
   });
 
-  useHotkeys('f1', () => {
+  useShortcut('f1', () => {
     setHelpOpen((open) => !open);
   });
 
-  useHotkeys('enter', () => {
+  useShortcut('enter', () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -1075,7 +1075,7 @@ function TuiuiuTetris(): VNode {
         : current);
   });
 
-  useHotkeys(['escape', 'q'], () => {
+  useShortcut(['escape', 'q'], () => {
     if (isHelpOpen) {
       setHelpOpen(false);
       return;
@@ -1157,7 +1157,7 @@ function isMainModule(): boolean {
 
 export async function runTuiuiuTetris(): Promise<void> {
   const { waitUntilExit } = render(TuiuiuTetris, {
-    fullHeight: true,
+    screen: 'fullscreen',
     autoTabNavigation: false,
     maxFps: 30,
   });

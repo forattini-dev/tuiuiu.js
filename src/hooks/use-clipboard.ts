@@ -25,7 +25,7 @@ export interface UseClipboardResult {
  * ```typescript
  * function App() {
  *   const { copy, supported } = useClipboard();
- *   useHotkeys('ctrl+c', () => copy('Hello!'));
+ *   useShortcut('ctrl+c', () => copy('Hello!'));
  *   return Text({}, supported ? 'Ctrl+C to copy' : 'Clipboard not supported');
  * }
  * ```

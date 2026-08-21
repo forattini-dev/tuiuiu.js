@@ -11,24 +11,26 @@ import {
   render,
   Box,
   Text,
-  SplitPanel,
   ScrollList,
-  createScrollList,
-  createTextInput,
-  renderTextInput,
   Badge,
   Spinner,
-  useHotkeys,
-  useInput,
-  useMouse,
+  useShortcut,
+  useInteraction,
   useApp,
   useState,
   useTerminalSize,
   createSignal,
-  measureHeight,
   setTheme,
   darkTheme,
 } from '../src/index.js';
+import { useMouse } from '../src/app/index.js';
+import { measureHeight } from '../src/core/index.js';
+import {
+  SplitPanel,
+  createScrollList,
+  createTextInput,
+  renderTextInput,
+} from '../src/ui/index.js';
 import { wrapText, stringWidth } from '../src/utils/text-utils.js';
 import type { VNode } from '../src/utils/types.js';
 
@@ -631,7 +633,6 @@ function ChatMessages(props: { contactId: string; width: number; height: number 
       autoScroll: true,
       autoScrollThreshold: 0,
       state: chatScrollState,
-      hotkeyScope: 'global',
     }),
   );
 }
@@ -766,17 +767,20 @@ function WhatsAppClone(): VNode {
   };
 
   // Keyboard shortcuts
-  useHotkeys('escape', () => exit());
-  useHotkeys('q', () => exit());
+  useShortcut('escape', () => exit());
+  useShortcut('q', () => exit());
 
   // Filter tab navigation with 1-4 keys
-  useHotkeys('1', () => setActiveFilter('all'));
-  useHotkeys('2', () => setActiveFilter('unread'));
-  useHotkeys('3', () => setActiveFilter('favorites'));
-  useHotkeys('4', () => setActiveFilter('groups'));
+  useShortcut('1', () => setActiveFilter('all'));
+  useShortcut('2', () => setActiveFilter('unread'));
+  useShortcut('3', () => setActiveFilter('favorites'));
+  useShortcut('4', () => setActiveFilter('groups'));
 
   // Tab focuses the search input; Shift+Tab returns to message input
-  useInput((_, key) => {
+  useInteraction((event) => {
+    if (event.type !== 'key') return;
+    const _ = event.key.text;
+    const key = event.key.native;
     if (!key.tab) return;
     if (key.shift) {
       setActiveInput('message');
@@ -784,9 +788,9 @@ function WhatsAppClone(): VNode {
       setActiveInput('search');
     }
     return true;
-  }, { priority: 'critical', stopPropagation: true });
+  }, { priority: 300 });
 
-  useHotkeys('up', () => {
+  useShortcut('up', () => {
     if (activeInput() !== 'search') return;
     const filtered = getFilteredContacts();
     const newIndex = Math.max(0, selectedIndex() - 1);
@@ -798,7 +802,7 @@ function WhatsAppClone(): VNode {
     }
   });
 
-  useHotkeys('down', () => {
+  useShortcut('down', () => {
     if (activeInput() !== 'search') return;
     const filtered = getFilteredContacts();
     const newIndex = Math.min(filtered.length - 1, selectedIndex() + 1);
@@ -889,7 +893,7 @@ simulateIncomingMessages();
 
 // Start the app
 const { waitUntilExit } = render(WhatsAppClone, {
-  fullHeight: true,
+  screen: 'fullscreen',
   exitOnCtrlC: true,
   autoTabNavigation: false,
 });

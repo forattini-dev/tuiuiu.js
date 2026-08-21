@@ -1,22 +1,21 @@
 # ADR 0005: BackgroundExecutor is canonical
 
 - Status: accepted
-- Date: 2026-07-30
+- Date: 2026-08-21
 
 ## Context
 
 Workers, inline execution, pools, bridges, and the thread bus used overlapping
-executor shapes. Wrapping an executor in a task bridge could create needless
-identity and lifecycle ambiguity.
+executor shapes and lifecycle ownership.
 
 ## Decision
 
-`BackgroundExecutor` is the canonical `submit`/`execute`/`destroy` contract.
-`TaskBridge` remains a deprecated source-compatible interface. Factory
-adapters return an existing compatible executor by identity.
+`BackgroundExecutor` is the only `submit`/`execute`/`destroy` contract. Inline
+and worker-backed implementations and pools implement this interface directly.
+The ThreadBus coordinates executors without wrapping them in another lifecycle
+abstraction.
 
 ## Consequences
 
-Thread-bus and pool documentation use `BackgroundExecutor`. New worker
-features target the executor contract rather than adding another abstraction.
-
+Factories return a BackgroundExecutor, ownership stays explicit, and worker
+features extend one contract.

@@ -6,14 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useApp, initializeApp, cleanupApp } from '../../src/hooks/use-app.js';
 import { useTerminalFocus } from '../../src/hooks/use-terminal-focus.js';
 import {
-  getAppContext,
-  setAppContext,
-  resetHookState,
-  clearInputHandlers,
-  getInputHandlerCount,
-  addInputHandler,
-  addPasteHandler,
-} from '../../src/hooks/context.js';
+  getAppContext, setAppContext, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, getTestInteractionHandlerCount, registerTestKeyHandler, registerTestPasteHandler } from '../../src/testing/interaction.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { EventEmitter } from 'node:events';
 import { Writable, Readable } from 'node:stream';
@@ -72,7 +66,7 @@ function createMockAppContext(): AppContext {
 describe('useApp', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     resetProgressive();
   });
@@ -80,7 +74,7 @@ describe('useApp', () => {
   afterEach(() => {
     cleanupApp();
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('throws when called outside app', () => {
@@ -103,7 +97,7 @@ describe('initializeApp', () => {
 
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
     setAppContext(null);
     resetProgressive();
     stdin = createMockStdin();
@@ -196,10 +190,10 @@ describe('initializeApp', () => {
 
   describe('input handling', () => {
     it('calls input handlers on keypress', () => {
-      initializeApp(stdin, stdout);
+      const ctx = initializeApp(stdin, stdout);
 
       const handler = vi.fn();
-      addInputHandler(handler);
+      registerTestKeyHandler(handler, { app: ctx });
 
       // Simulate keypress
       stdin.emit('data', Buffer.from('a'));
@@ -220,9 +214,9 @@ describe('initializeApp', () => {
     });
 
     it('can pass Ctrl+C through when exitOnCtrlC is disabled', () => {
-      initializeApp(stdin, stdout, { exitOnCtrlC: false });
+      const ctx = initializeApp(stdin, stdout, { exitOnCtrlC: false });
       const handler = vi.fn();
-      addInputHandler(handler);
+      registerTestKeyHandler(handler, { app: ctx });
 
       stdin.emit('data', Buffer.from([0x03]));
 
@@ -231,9 +225,9 @@ describe('initializeApp', () => {
     });
 
     it('dispatches Kitty CSI-u modifiers through the real app path', () => {
-      initializeApp(stdin, stdout, { exitOnCtrlC: false });
+      const ctx = initializeApp(stdin, stdout, { exitOnCtrlC: false });
       const handler = vi.fn();
-      addInputHandler(handler);
+      registerTestKeyHandler(handler, { app: ctx });
 
       stdin.emit('data', Buffer.from('\x1b[97;6u'));
 
@@ -260,9 +254,9 @@ describe('initializeApp', () => {
     });
 
     it('decodes a UTF-8 character split across stream chunks', () => {
-      initializeApp(stdin, stdout);
+      const ctx = initializeApp(stdin, stdout);
       const handler = vi.fn();
-      addInputHandler(handler);
+      registerTestKeyHandler(handler, { app: ctx });
       const emoji = Buffer.from('😀');
 
       stdin.emit('data', emoji.subarray(0, 2));
@@ -281,7 +275,7 @@ describe('initializeApp', () => {
         const activeStdout = createMockStdout();
         const ctx = initializeApp(activeStdin, activeStdout);
         const handler = vi.fn();
-        addPasteHandler(handler);
+        registerTestPasteHandler(handler, { app: ctx });
 
         activeStdin.emit('data', packet.subarray(0, split));
         activeStdin.emit('data', packet.subarray(split));
@@ -308,11 +302,11 @@ describe('initializeApp', () => {
     it('flushes an ambiguous Escape key after its configured deadline', () => {
       vi.useFakeTimers();
       try {
-        initializeApp(stdin, stdout, {
+        const ctx = initializeApp(stdin, stdout, {
           escapeSequenceTimeoutMs: 5,
         });
         const handler = vi.fn();
-        addInputHandler(handler);
+        registerTestKeyHandler(handler, { app: ctx });
 
         stdin.emit('data', Buffer.from('\x1b'));
         expect(handler).not.toHaveBeenCalled();
@@ -330,13 +324,13 @@ describe('initializeApp', () => {
     it('drops an unterminated paste after its configured deadline', () => {
       vi.useFakeTimers();
       try {
-        initializeApp(stdin, stdout, {
+        const ctx = initializeApp(stdin, stdout, {
           pasteTimeoutMs: 5,
         });
         const pasteHandler = vi.fn();
         const inputHandler = vi.fn();
-        addPasteHandler(pasteHandler);
-        addInputHandler(inputHandler);
+        registerTestPasteHandler(pasteHandler, { app: ctx });
+        registerTestKeyHandler(inputHandler, { app: ctx });
 
         stdin.emit('data', Buffer.from('\x1b[200~secret'));
         vi.advanceTimersByTime(5);
@@ -354,12 +348,12 @@ describe('initializeApp', () => {
     });
 
     it('does not retain escape sequences beyond maxPendingEscapeBytes', () => {
-      initializeApp(stdin, stdout, {
+      const ctx = initializeApp(stdin, stdout, {
         maxPendingEscapeBytes: 4,
         escapeSequenceTimeoutMs: 60_000,
       });
       const handler = vi.fn();
-      addInputHandler(handler);
+      registerTestKeyHandler(handler, { app: ctx });
 
       stdin.emit('data', Buffer.from('\x1b]abcdef'));
 
@@ -367,9 +361,9 @@ describe('initializeApp', () => {
     });
 
     it('drops bracketed pastes larger than maxPasteBytes', () => {
-      initializeApp(stdin, stdout, { maxPasteBytes: 4 });
+      const ctx = initializeApp(stdin, stdout, { maxPasteBytes: 4 });
       const handler = vi.fn();
-      addPasteHandler(handler);
+      registerTestPasteHandler(handler, { app: ctx });
 
       stdin.emit('data', Buffer.from('\x1b[200~123'));
       stdin.emit('data', Buffer.from('45\x1b[201~'));
@@ -378,11 +372,11 @@ describe('initializeApp', () => {
     });
 
     it('applies automatic Tab handling before a bracketed paste marker', () => {
-      initializeApp(stdin, stdout);
+      const ctx = initializeApp(stdin, stdout);
       const inputHandler = vi.fn();
       const pasteHandler = vi.fn();
-      addInputHandler(inputHandler);
-      addPasteHandler(pasteHandler);
+      registerTestKeyHandler(inputHandler, { app: ctx });
+      registerTestPasteHandler(pasteHandler, { app: ctx });
 
       stdin.emit('data', Buffer.from('\t\x1b[200~hello\x1b[201~'));
 
@@ -515,12 +509,15 @@ describe('initializeApp', () => {
 
 describe('cleanupApp', () => {
   it('clears input handlers', () => {
-    addInputHandler(vi.fn());
-    expect(getInputHandlerCount()).toBeGreaterThan(0);
+    const stdin = createMockStdin();
+    const stdout = createMockStdout();
+    const ctx = initializeApp(stdin, stdout);
+    registerTestKeyHandler(vi.fn(), { app: ctx });
+    expect(getTestInteractionHandlerCount(ctx)).toBeGreaterThan(0);
 
-    cleanupApp();
+    cleanupApp(ctx);
 
-    expect(getInputHandlerCount()).toBe(0);
+    expect(getTestInteractionHandlerCount(ctx)).toBe(0);
   });
 
   it('clears app context', () => {

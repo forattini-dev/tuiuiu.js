@@ -2,12 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderToString } from '../../src/core/renderer.js';
 import {
-  beginRender,
-  clearInputHandlers,
-  emitInput,
-  endRender,
-  resetHookState,
-} from '../../src/hooks/context.js';
+  beginRender, endRender, resetHookState } from '../../src/hooks/context.js';
+import { resetTestInteractions, dispatchTestKey } from '../../src/testing/interaction.js';
 import {
   createEditableDataTable,
   EditableDataTable,
@@ -188,12 +184,12 @@ describe('createEditableDataTable', () => {
 describe('EditableDataTable component input', () => {
   beforeEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   afterEach(() => {
     resetHookState();
-    clearInputHandlers();
+    resetTestInteractions();
   });
 
   it('owns navigation and commit input without the base table handling it twice', () => {
@@ -202,11 +198,11 @@ describe('EditableDataTable component input', () => {
     const state = createEditableDataTable(options);
 
     renderWithHooks(() => EditableDataTable({ ...options, state }));
-    emitInput('', keys.enter().key);
+    dispatchTestKey('', keys.enter().key);
     expect(state.isEditing()).toBe(true);
 
-    emitInput('X', charKey('X').key);
-    emitInput('', keys.enter().key);
+    dispatchTestKey('X', charKey('X').key);
+    dispatchTestKey('', keys.enter().key);
     expect(onCellEdit).toHaveBeenCalledWith(
       '1',
       'name',

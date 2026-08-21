@@ -17,6 +17,7 @@ import { useInput } from '../../hooks/index.js';
 import { useFactoryState } from '../../hooks/factory-state.js';
 import { getRenderMode } from '../../core/capabilities.js';
 import { padTextToWidth, stringWidth } from '../../utils/text-utils.js';
+import { component, type ComponentKeyProps } from '../../app/component.js';
 
 // =============================================================================
 // Types
@@ -326,7 +327,7 @@ export function createHeatmap(options: HeatmapOptions): HeatmapState {
   };
 }
 
-export interface HeatmapProps extends HeatmapOptions {
+export interface HeatmapProps extends HeatmapOptions, ComponentKeyProps {
   state?: HeatmapState;
 }
 
@@ -353,7 +354,7 @@ export interface HeatmapProps extends HeatmapOptions {
  *   showValues: true,
  * })
  */
-export function Heatmap(props: HeatmapProps): VNode {
+function renderHeatmap(props: HeatmapProps): VNode {
   const {
     data,
     columnHeaders,
@@ -845,7 +846,7 @@ export function CalendarHeatmap(props: CalendarHeatmapOptions): VNode {
 // CorrelationMatrix - Statistical correlation heatmap
 // =============================================================================
 
-export interface CorrelationMatrixOptions {
+export interface CorrelationMatrixOptions extends ComponentKeyProps {
   /** Labels for variables */
   labels: string[];
   /** Correlation matrix data */
@@ -859,7 +860,7 @@ export interface CorrelationMatrixOptions {
 /**
  * CorrelationMatrix - Display correlation coefficients
  */
-export function CorrelationMatrix(props: CorrelationMatrixOptions): VNode {
+function renderCorrelationMatrix(props: CorrelationMatrixOptions): VNode {
   const { labels, correlations, showValues = true, decimals = 2 } = props;
 
   // Correlation color scale: -1 (blue) to 0 (white) to +1 (red)
@@ -880,3 +881,9 @@ export function CorrelationMatrix(props: CorrelationMatrixOptions): VNode {
     cellWidth: Math.max(4, decimals + 3),
   });
 }
+
+export const Heatmap = component<HeatmapProps, VNode>('Heatmap', renderHeatmap);
+export const CorrelationMatrix = component<CorrelationMatrixOptions, VNode>(
+  'CorrelationMatrix',
+  renderCorrelationMatrix,
+);

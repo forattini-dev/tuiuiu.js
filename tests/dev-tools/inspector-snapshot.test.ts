@@ -127,7 +127,7 @@ describe('InspectorSnapshot', () => {
     };
     const renderer = createDeltaRenderer({
       stdout: stdout as unknown as NodeJS.WriteStream,
-      showCursor: true,
+      showHardwareCursor: true,
       useDelta: true,
     });
 

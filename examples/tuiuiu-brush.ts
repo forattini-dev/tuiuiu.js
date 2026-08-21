@@ -19,19 +19,21 @@ import {
   render,
   Box,
   Text,
-  useHotkeys,
-  useMouse,
+  useShortcut,
   useApp,
   useTerminalSize,
   createSignal,
-  createCanvas,
   setTheme,
   darkTheme,
-  bresenhamLine,
-  midpointCircle,
-  rectanglePoints,
   useInterval,
 } from '../src/index.js';
+import { useMouse } from '../src/app/index.js';
+import {
+  bresenhamLine,
+  createCanvas,
+  midpointCircle,
+  rectanglePoints,
+} from '../src/ui/index.js';
 import type { VNode } from '../src/utils/types.js';
 import type { Point } from '../src/primitives/canvas.js';
 
@@ -444,15 +446,15 @@ function MSPaintApp(): VNode {
   );
 
   // Keyboard shortcuts
-  useHotkeys('1', () => setCurrentTool('pencil'));
-  useHotkeys('2', () => setCurrentTool('line'));
-  useHotkeys('3', () => setCurrentTool('rectangle'));
-  useHotkeys('4', () => setCurrentTool('circle'));
-  useHotkeys('5', () => setCurrentTool('fill'));
-  useHotkeys('6', () => setCurrentTool('eraser'));
-  useHotkeys('d', () => startDemoAnimation());
-  useHotkeys('c', () => clearCanvas());
-  useHotkeys('q', () => exit());
+  useShortcut('1', () => setCurrentTool('pencil'));
+  useShortcut('2', () => setCurrentTool('line'));
+  useShortcut('3', () => setCurrentTool('rectangle'));
+  useShortcut('4', () => setCurrentTool('circle'));
+  useShortcut('5', () => setCurrentTool('fill'));
+  useShortcut('6', () => setCurrentTool('eraser'));
+  useShortcut('d', () => startDemoAnimation());
+  useShortcut('c', () => clearCanvas());
+  useShortcut('q', () => exit());
 
   // Mouse handling
   // API: action = 'click' | 'double-click' | 'drag' | 'release' | 'move'

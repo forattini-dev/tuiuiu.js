@@ -20,6 +20,7 @@ import { getChars, getRenderMode } from '../core/capabilities.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
@@ -516,7 +517,7 @@ export function createButtonGroup(options: ButtonGroupOptions): ButtonGroupState
   };
 }
 
-export interface ButtonGroupProps {
+export interface ButtonGroupProps extends ComponentKeyProps {
   /** Button configurations (required if no state provided) */
   buttons?: ButtonProps[];
   /** State from createButtonGroup() */
@@ -591,7 +592,7 @@ export function renderButtonGroup(
  * // Arrow keys navigate, Enter/Space triggers click!
  * ```
  */
-export function ButtonGroup(props: ButtonGroupProps): VNode {
+export const ButtonGroup = component<ButtonGroupProps, VNode>('ButtonGroup', (props) => {
   const {
     buttons = [],
     state,
@@ -650,4 +651,4 @@ export function ButtonGroup(props: ButtonGroupProps): VNode {
     },
     ...buttonNodes
   );
-}
+});

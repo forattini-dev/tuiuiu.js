@@ -1,97 +1,26 @@
-# Common Mistakes
+# Common mistakes
 
-This page mirrors the development-mode warnings built into `tuiuiu.js` and the same guidance exposed through MCP at `tuiuiu://guide/common-mistakes`.
+## Unowned stateful functions
 
-## Signals Inside Component Render
+Hooks belong inside a `component()` definition. Pure visual helpers can remain
+ordinary functions.
 
-Do not call `createSignal()` inside a component render. It recreates state every rerender.
+## Index identity for dynamic items
 
-Why it breaks:
-- Signals created inside the component are replaced every time render runs again.
-- Input handlers and effects often keep references to the old signal instance.
-- The UI reads a fresh signal while callbacks mutate an older one, so state appears stuck or resets.
+Use stable domain keys for tabs, menu items, selections, completion results,
+and reorderable component siblings.
 
-Wrong:
+## Parsing keys inside actions
 
-```typescript
-function App() {
-  const [count, setCount] = createSignal(0);
-  useHotkeys('up', () => setCount(c => c + 1));
-  return Text({}, `Count: ${count()}`);
-}
-```
+Use `useShortcut()` or command bindings. Reserve `useInteraction()` for editors
+and terminal protocols that actually need normalized key text and phases.
 
-Right:
+## Independent overlay or prompt loops
 
-```typescript
-function App() {
-  const [count, setCount] = useState(0);
-  useHotkeys('up', () => setCount(c => c + 1));
-  return Text({}, `Count: ${count()}`);
-}
+Use the current app's OverlayHost and PromptHost. A mounted app must have one
+terminal input and focus authority.
 
-// Or keep createSignal() at module scope.
-const [sharedCount, setSharedCount] = createSignal(0);
-```
+## Writing directly to stdout
 
-## API Pattern Mismatch
-
-Use the child/content pattern each component expects: variadic, props, render-function, or data-driven.
-
-Why it breaks:
-- Props-pattern components like `Page`, `AppShell`, and `Modal` do not read variadic children the same way as `Box`.
-- Render-function components like `ScrollList` and `Static` need a function, not a prebuilt `VNode`.
-- Data-driven components like `Tabs` and `Accordion` expect content inside item objects, not top-level children.
-
-Wrong:
-
-```typescript
-Page({ title: 'Home' }, Content());
-ScrollList({ items, children: Text({}, 'Row') });
-Tabs({ tabs, children: Text({}, 'Wrong') });
-```
-
-Right:
-
-```typescript
-Page({ title: 'Home', children: Content() });
-ScrollList({ items, children: (item) => Row({ item }) });
-Tabs({ tabs: [{ key: 'home', label: 'Home', content: Content() }] });
-```
-
-## Arrow Keys Have Empty input String
-
-Arrow keys pass an empty string as `input` in `useInput`. Use the `key` object or prefer `useHotkeys`.
-
-Why it breaks:
-- `useInput(input, key)` receives `input=""` for arrow keys, so string checks like `input === "ArrowUp"` never match.
-- Checking input length or treating input as the key name silently does nothing on arrow presses.
-- `useHotkeys("up", fn)` is the simpler and correct alternative for arrow key handling.
-
-Wrong:
-
-```typescript
-useInput((input, key) => {
-  if (input === 'ArrowUp') moveUp();   // never fires
-  if (input === 'ArrowDown') moveDown(); // never fires
-});
-```
-
-Right:
-
-```typescript
-// Option 1: useInput with key object
-useInput((input, key) => {
-  if (key.upArrow) moveUp();
-  if (key.downArrow) moveDown();
-});
-
-// Option 2: useHotkeys (preferred)
-useHotkeys('up', () => moveUp());
-useHotkeys('down', () => moveDown());
-```
-
-See also:
-- [API Patterns](/core/api-patterns.md)
-- [Quick Start](/getting-started/quick-start.md)
-- [MCP Server](/core/mcp.md)
+Use `app.writeLine()` while an inline live region is mounted. Direct writes can
+split control sequences and invalidate cursor assumptions.

@@ -392,7 +392,7 @@ export function parseKeypress(data: Buffer | string): { input: string; key: Key;
   if (textMatch) {
       const text = textMatch[0];
       
-      // If exactly 1 char and uppercase, normalize it (legacy behavior)
+      // Normalize uppercase characters into a key plus Shift modifier.
       if (text.length === 1 && text >= 'A' && text <= 'Z') {
           key.shift = true;
           input = text.toLowerCase();

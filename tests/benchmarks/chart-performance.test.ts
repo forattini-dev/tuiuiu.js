@@ -13,18 +13,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Skip benchmarks in CI - they're flaky due to variable runner performance
 const isCI = process.env.CI === 'true';
 const describeOrSkip = isCI ? describe.skip : describe;
-import {
-  renderToString,
-  Sparkline,
-  BarChart,
-  LineChart,
-  Gauge,
-  Heatmap,
-  setRenderMode,
-  setTheme,
-  darkTheme,
-  DEFAULT_ZONES,
-} from '../../src/index.js';
+import { renderToString } from '../../src/core/renderer.js';
+import { setRenderMode } from '../../src/core/capabilities.js';
+import { setTheme, darkTheme } from '../../src/core/theme.js';
+import { Sparkline, BarChart, LineChart, Gauge, Heatmap } from '../../src/ui/index.js';
+import { DEFAULT_ZONES } from '../../src/molecules/data-viz/gauge.js';
 
 // =============================================================================
 // Test Utilities

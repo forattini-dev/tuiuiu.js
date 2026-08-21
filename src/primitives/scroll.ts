@@ -35,12 +35,13 @@ import { useInput } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { calculateLayout } from '../core/layout.js';
+import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface ScrollProps {
+export interface ScrollProps extends ComponentKeyProps {
   /** Explicit runtime query ID */
   id?: string;
 
@@ -242,7 +243,7 @@ export function useScroll(options: UseScrollOptions = {}): UseScrollReturn {
  *   ...content
  * )
  */
-export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
+function renderScroll(props: ScrollProps, ...children: VNode[]): VNode {
   const {
     id,
     height,
@@ -405,6 +406,8 @@ export function Scroll(props: ScrollProps, ...children: VNode[]): VNode {
     scrollbar
   );
 }
+
+export const Scroll = component('Scroll', renderScroll);
 
 function isInternalScrollState(state: ScrollState): state is InternalScrollState {
   return (

@@ -15,7 +15,7 @@ describe('tree-scoped Context', () => {
 
     expect(useContext(context)).toBe('default');
     expect(hasContext(context)).toBe(false);
-    expect(context._stack).toEqual([]);
+    expect(hasContext(context)).toBe(false);
   });
 
   it('evaluates render-function descendants inside the Provider scope', () => {
@@ -61,7 +61,7 @@ describe('tree-scoped Context', () => {
 
     expect(observations).toEqual(['outer', 'inner', 'outer']);
     expect(useContext(context)).toBe('default');
-    expect(context._stack).toEqual([]);
+    expect(hasContext(context)).toBe(false);
   });
 
   it('restores context when a descendant throws', () => {
@@ -76,21 +76,19 @@ describe('tree-scoped Context', () => {
     )).toThrow('child failed');
 
     expect(useContext(context)).toBe('default');
-    expect(context._stack).toEqual([]);
+    expect(hasContext(context)).toBe(false);
   });
 
-  it('supports props children, arrays, eager VNodes, and empty results', () => {
+  it('supports variadic eager VNodes, render functions, and empty results', () => {
     const context = createContext('default');
     const eager = Text({}, 'eager');
-    const node = context.Provider({
-      value: 'provided',
-      children: [
-        eager,
-        () => Text({}, useContext(context)),
-        () => null,
-        () => [Text({}, 'A'), Text({}, 'B')],
-      ],
-    });
+    const node = context.Provider(
+      { value: 'provided' },
+      eager,
+      () => Text({}, useContext(context)),
+      () => null,
+      () => [Text({}, 'A'), Text({}, 'B')],
+    );
 
     expect(node.children).toHaveLength(4);
     expect(node.children[0]).toBe(eager);

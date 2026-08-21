@@ -120,7 +120,7 @@ Box({ flexDirection: 'row', gap: 1 },
 
 ## ButtonGroup
 
-Group of buttons with **built-in keyboard navigation** - no `useInput` needed!
+Group of buttons with built-in semantic keyboard navigation.
 
 When `isActive` is enabled, direct `ButtonGroup({ ... })` usage now keeps keyboard focus stable across parent rerenders.
 

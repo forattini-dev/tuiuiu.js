@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  Tabs,
+  Tabs as OwnedTabs,
   createTabs,
-  VerticalTabs,
+  VerticalTabs as OwnedVerticalTabs,
   type Tab,
   type TabsOptions,
   type TabsState,
 } from '../../src/molecules/tabs.js';
-import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage } from '../../src/atoms/terminal-image.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { renderFrameToString } from '../../src/core/renderer.js';
@@ -15,6 +15,11 @@ import { Text, Box } from '../../src/primitives/nodes.js';
 import { renderOnce } from '../../src/app/render-loop.js';
 import { setRenderMode } from '../../src/core/capabilities.js';
 import { stripAnsi } from '../../src/utils/text-utils.js';
+import { testComponent } from '../../src/testing/component.js';
+const TerminalImage = testComponent(OwnedTerminalImage);
+
+const Tabs = testComponent(OwnedTabs);
+const VerticalTabs = testComponent(OwnedVerticalTabs);
 
 describe('Tabs', () => {
   // ==========================================================================

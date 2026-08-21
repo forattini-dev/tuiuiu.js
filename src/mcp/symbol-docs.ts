@@ -100,7 +100,7 @@ export const symbolDocs: SymbolDoc[] = [
     kind: 'hook',
     importPath: 'tuiuiu.js',
     summary: 'Preferred component-local state hook. Persists across rerenders.',
-    related: ['createSignal', 'useHotkeys', 'useInput'],
+    related: ['createSignal', 'useShortcut', 'useInteraction'],
     stability: 'stable',
   },
   {

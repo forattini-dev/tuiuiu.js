@@ -3,24 +3,25 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { TerminalImage } from '../../src/atoms/terminal-image.js';
+import { TerminalImage as OwnedTerminalImage } from '../../src/atoms/terminal-image.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { createSolidImage } from '../../src/core/graphics.js';
 import { renderToString } from '../../src/core/renderer.js';
 import { Text, Box } from '../../src/primitives/index.js';
 import { VStack, HStack, Center, Spacer } from '../../src/templates/stack.js';
 import { SplitPanel, ThreePanel, createSplitPanel } from '../../src/organisms/split-panel.js';
+import { testComponent } from '../../src/testing/component.js';
+
+const TerminalImage = testComponent(OwnedTerminalImage);
 
 describe('Layout Components', () => {
   describe('VStack', () => {
     it('should stack children vertically', () => {
-      const node = VStack({
-        children: [
+      const node = VStack({},
           Text({}, 'Line 1'),
           Text({}, 'Line 2'),
-          Text({}, 'Line 3'),
-        ],
-      });
+          Text({}, 'Line 3')
+      );
       const output = renderToString(node, 80);
       const lines = output.split('\n');
       expect(lines[0]).toContain('Line 1');
@@ -29,65 +30,40 @@ describe('Layout Components', () => {
     });
 
     it('should apply gap', () => {
-      const node = VStack({
-        gap: 2,
-        children: [
+      const node = VStack({ gap: 2 },
           Text({}, 'A'),
-          Text({}, 'B'),
-        ],
-      });
+          Text({}, 'B')
+      );
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
     });
 
     it('should align left', () => {
-      const node = VStack({
-        align: 'left',
-        children: [
-          Text({}, 'Left'),
-        ],
-      });
+      const node = VStack({ align: 'left' }, Text({}, 'Left'));
       const output = renderToString(node, 80);
       expect(output).toContain('Left');
     });
 
     it('should align center', () => {
-      const node = VStack({
-        align: 'center',
-        width: 20,
-        children: [
-          Text({}, 'Center'),
-        ],
-      });
+      const node = VStack({ align: 'center', width: 20 }, Text({}, 'Center'));
       const output = renderToString(node, 80);
       expect(output).toContain('Center');
     });
 
     it('should align right', () => {
-      const node = VStack({
-        align: 'right',
-        width: 20,
-        children: [
-          Text({}, 'Right'),
-        ],
-      });
+      const node = VStack({ align: 'right', width: 20 }, Text({}, 'Right'));
       const output = renderToString(node, 80);
       expect(output).toContain('Right');
     });
 
     it('should apply padding', () => {
-      const node = VStack({
-        padding: 1,
-        children: [
-          Text({}, 'Padded'),
-        ],
-      });
+      const node = VStack({ padding: 1 }, Text({}, 'Padded'));
       const output = renderToString(node, 80);
       expect(output).toContain('Padded');
     });
 
     it('should handle empty children', () => {
-      const node = VStack({ children: [] });
+      const node = VStack({});
       const output = renderToString(node, 80);
       expect(output).toBe('');
     });
@@ -95,13 +71,11 @@ describe('Layout Components', () => {
 
   describe('HStack', () => {
     it('should stack children horizontally', () => {
-      const node = HStack({
-        children: [
+      const node = HStack({},
           Text({}, 'A'),
           Text({}, 'B'),
-          Text({}, 'C'),
-        ],
-      });
+          Text({}, 'C')
+      );
       const output = renderToString(node, 80);
       expect(output).toContain('A');
       expect(output).toContain('B');
@@ -109,56 +83,36 @@ describe('Layout Components', () => {
     });
 
     it('should apply gap', () => {
-      const node = HStack({
-        gap: 2,
-        children: [
+      const node = HStack({ gap: 2 },
           Text({}, 'X'),
-          Text({}, 'Y'),
-        ],
-      });
+          Text({}, 'Y')
+      );
       const output = renderToString(node, 80);
       expect(output).toBeDefined();
     });
 
     it('should align top', () => {
-      const node = HStack({
-        align: 'top',
-        children: [
-          Text({}, 'Top'),
-        ],
-      });
+      const node = HStack({ align: 'top' }, Text({}, 'Top'));
       const output = renderToString(node, 80);
       expect(output).toContain('Top');
     });
 
     it('should align center', () => {
-      const node = HStack({
-        align: 'center',
-        height: 3,
-        children: [
-          Text({}, 'Centered'),
-        ],
-      });
+      const node = HStack({ align: 'center', height: 3 }, Text({}, 'Centered'));
       const output = renderToString(node, 80);
       // Check content is rendered (alignment may vary based on terminal width)
       expect(output).toBeDefined();
     });
 
     it('should align bottom', () => {
-      const node = HStack({
-        align: 'bottom',
-        height: 3,
-        children: [
-          Text({}, 'At Bottom'),
-        ],
-      });
+      const node = HStack({ align: 'bottom', height: 3 }, Text({}, 'At Bottom'));
       const output = renderToString(node, 80);
       // Check content is rendered
       expect(output).toBeDefined();
     });
 
     it('should handle empty children', () => {
-      const node = HStack({ children: [] });
+      const node = HStack({});
       const output = renderToString(node, 80);
       expect(output).toBe('');
     });
@@ -166,21 +120,16 @@ describe('Layout Components', () => {
 
   describe('Center', () => {
     it('should center content', () => {
-      const node = Center({
-        width: 20,
-        height: 3,
-        children: Text({}, 'Centered'),
-      });
+      const node = Center({ width: 20, height: 3 }, Text({}, 'Centered'));
       const output = renderToString(node, 80);
       expect(output).toContain('Centered');
     });
 
     it('should handle box child', () => {
-      const node = Center({
-        width: 30,
-        height: 5,
-        children: Box({ borderStyle: 'single' }, Text({}, 'Box')),
-      });
+      const node = Center(
+        { width: 30, height: 5 },
+        Box({ borderStyle: 'single' }, Text({}, 'Box')),
+      );
       const output = renderToString(node, 80);
       expect(output).toContain('Box');
     });
