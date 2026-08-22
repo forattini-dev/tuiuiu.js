@@ -102,7 +102,7 @@ describe('OpenCode lab responsive contracts', () => {
       expect(frame).toContain('Thinking');
       expect(frame).toContain('BUILD');
       expect(frame).toContain('esc interrupt');
-      expect(composerLine).toBeGreaterThanOrEqual(viewport.height - 5);
+      expect(composerLine).toBeGreaterThanOrEqual(viewport.height - 6);
 
       if (viewport.width >= 105) {
         expect(frame).toContain('Context');
@@ -133,6 +133,30 @@ describe('OpenCode lab responsive contracts', () => {
     expect(frame).toContain('esc again to interrupt');
   });
 
+  it('keeps the placeholder on the second of three reserved input rows', () => {
+    const frame = renderFrame(
+      SessionScreen({
+        width: 100,
+        height: 28,
+        composer: composer('Ask a follow-up...'),
+        agent: 'Build',
+        model: 'Big Pickle',
+        messages,
+        phase: 'idle',
+      }),
+      100,
+    );
+    const lines = frame.split('\n');
+    const inputLine = lines.findIndex((line) => line.includes('Ask a follow-up'));
+    const agentLine = lines.findIndex((line) => line.includes('Build · Big Pickle'));
+    const composerColumn = lines[inputLine]?.indexOf('│') ?? -1;
+
+    expect(inputLine).toBeGreaterThanOrEqual(0);
+    expect(composerColumn).toBeGreaterThanOrEqual(0);
+    expect(lines[inputLine - 1]?.[composerColumn]).toBe('│');
+    expect(agentLine - (inputLine - 1)).toBe(3);
+  });
+
   it('shows the selected provider, model, effort, and credential state', () => {
     const frame = renderFrame(
       SessionScreen({
@@ -144,6 +168,7 @@ describe('OpenCode lab responsive contracts', () => {
         model: 'GPT-5.6',
         effort: 'high',
         credentialConfigured: true,
+        fps: 42,
         messages,
         phase: 'idle',
       }),
@@ -153,6 +178,7 @@ describe('OpenCode lab responsive contracts', () => {
     expect(frame).toContain('GPT-5.6');
     expect(frame).toContain('OpenAI · high');
     expect(frame).toContain('credential configured');
+    expect(frame).toContain('42 fps');
   });
 });
 

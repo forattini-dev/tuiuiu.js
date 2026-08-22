@@ -477,9 +477,14 @@ describe('Core Layout Engine', () => {
       });
 
       it('should respect maxWidth', () => {
-        const node = Box({ maxWidth: 40 }, Text({}, 'Limited'));
+        const node = Box(
+          { maxWidth: 40, borderStyle: 'round', paddingX: 1 },
+          Box({ flexGrow: 1 }, Text({}, 'Limited')),
+        );
         const layout = calculateLayout(node, 80, 24);
-        expect(layout).toBeDefined();
+
+        expect(layout.width).toBe(40);
+        expect(layout.children[0]?.width).toBe(36);
       });
 
       it('should respect minHeight', () => {

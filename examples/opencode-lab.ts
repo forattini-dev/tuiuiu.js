@@ -30,6 +30,7 @@ import {
   useTimeout,
   type VNode,
 } from '../src/index.js';
+import { useFps } from '../src/app/index.js';
 import {
   CompletionDropdown,
   CommandPalette,
@@ -280,6 +281,7 @@ export interface ScreenFrameProps {
   interruptArmed?: boolean;
   statusNotice?: string;
   animationFrame?: number;
+  fps?: number;
 }
 
 let nextMessageId = 1;
@@ -359,7 +361,10 @@ function Composer(props: {
       paddingRight: 1,
     },
     ...(props.completion ? [props.completion] : []),
-    props.input,
+    Box(
+      { flexDirection: 'column', minHeight: 3, paddingTop: 1 },
+      props.input,
+    ),
     AgentLine({
       agent: props.agent,
       model: props.model,
@@ -842,6 +847,7 @@ function StatusLine(props: {
   model: string;
   effort: ModelEffort;
   animationFrame: number;
+  fps: number;
 }): VNode {
   const running = isRunningPhase(props.phase);
   const modeColor = props.phase === 'interrupted'
@@ -859,6 +865,13 @@ function StatusLine(props: {
       : props.phase === 'interrupted'
         ? 'interrupted'
         : props.notice;
+  const fpsColor = props.fps === 0
+    ? colors.muted
+    : props.fps >= 30
+      ? colors.positive
+      : props.fps >= 15
+        ? colors.warning
+        : colors.error;
 
   return Box(
     {
@@ -887,13 +900,14 @@ function StatusLine(props: {
         ? AnimatedPulse({ frame: props.animationFrame, color: colors.accent })
         : Text({}, ''),
       running ? Text({ color: statusColor }, ' esc ') : Text({}, ''),
-      Text({ color: statusColor }, truncateText(status, Math.max(8, props.width - 34))),
+      Text({ color: statusColor }, truncateText(status, Math.max(8, props.width - 42))),
     ),
     props.width >= 72
       ? Box(
           { flexDirection: 'row', paddingRight: 1 },
           Text({ color: colors.text }, props.agent),
           Text({ color: colors.muted }, ` · ${props.model} · ${props.effort}`),
+          Text({ color: fpsColor }, ` · ${props.fps} fps`),
         )
       : Text({}, ''),
   );
@@ -947,6 +961,7 @@ export function SessionScreen(props: ScreenFrameProps): VNode {
       model: props.model,
       effort: props.effort ?? 'medium',
       animationFrame: props.animationFrame ?? 0,
+      fps: props.fps ?? 0,
     }),
   );
 
@@ -976,6 +991,7 @@ export function SessionScreen(props: ScreenFrameProps): VNode {
 
 export function OpenCodeLab(): VNode {
   const { columns, rows } = useTerminalSize();
+  const { fps } = useFps();
   const runtime = getInteractionRuntime();
   const overlays = getOverlayHost<VNode | null>();
   const [screen, setScreen] = useState<'home' | 'session'>('home');
@@ -1604,6 +1620,7 @@ export function OpenCodeLab(): VNode {
     effort: modelConfig.effort,
     credentialConfigured: modelConfig.credentialConfigured,
     animationFrame: animationFrame(),
+    fps,
   };
 
   return isHome

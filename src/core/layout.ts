@@ -515,14 +515,28 @@ function layoutNode(node: VNode, ctx: RenderContext, parentNode: VNode | null): 
   const explicitHeight = resolveSize(style.height, ctx.height);
   const hasExplicitWidth = style.width !== undefined && style.width !== 'auto';
   const hasExplicitHeight = style.height !== undefined && style.height !== 'auto';
+  const maxWidth = style.maxWidth === undefined
+    ? undefined
+    : normalizeNonNegativeLayoutNumber(style.maxWidth, 'maxWidth');
+  const maxHeight = style.maxHeight === undefined
+    ? undefined
+    : normalizeNonNegativeLayoutNumber(style.maxHeight, 'maxHeight');
+  const constrainedOuterWidth = Math.min(
+    hasExplicitWidth ? explicitWidth : ctx.width,
+    maxWidth ?? Infinity,
+  );
+  const constrainedOuterHeight = Math.min(
+    hasExplicitHeight ? explicitHeight : ctx.height,
+    maxHeight ?? Infinity,
+  );
   const contentWidth = Math.max(
     0,
-    (hasExplicitWidth ? explicitWidth : ctx.width)
+    constrainedOuterWidth
       - paddingLeft - paddingRight - borderSize * 2
   );
   const contentHeight = Math.max(
     0,
-    (hasExplicitHeight ? explicitHeight : ctx.height)
+    constrainedOuterHeight
       - paddingTop - paddingBottom - borderSize * 2
   );
   // Scroll containers need to measure their complete child content before the
@@ -623,17 +637,11 @@ function layoutNode(node: VNode, ctx: RenderContext, parentNode: VNode | null): 
   const minHeight = normalizeNonNegativeLayoutNumber(style.minHeight, 'minHeight');
   width = Math.max(width, minWidth);
   height = Math.max(height, minHeight);
-  if (style.maxWidth !== undefined) {
-    width = Math.min(
-      width,
-      normalizeNonNegativeLayoutNumber(style.maxWidth, 'maxWidth')
-    );
+  if (maxWidth !== undefined) {
+    width = Math.min(width, maxWidth);
   }
-  if (style.maxHeight !== undefined) {
-    height = Math.min(
-      height,
-      normalizeNonNegativeLayoutNumber(style.maxHeight, 'maxHeight')
-    );
+  if (maxHeight !== undefined) {
+    height = Math.min(height, maxHeight);
   }
 
   if (isRow && style.alignItems === 'stretch') {
