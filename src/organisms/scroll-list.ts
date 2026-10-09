@@ -19,6 +19,7 @@ import type { VNode, ColorValue } from '../utils/types.js';
 import { createSignal } from '../primitives/signal.js';
 import { useInput } from '../hooks/use-input.js';
 import { useFactoryState } from '../hooks/factory-state.js';
+import { useConst } from '../hooks/use-const.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
 import { renderToString, measureHeight } from '../core/renderer.js';
@@ -119,11 +120,16 @@ interface ScrollListInternalOptions {
 interface CacheEntry {
   height: number;
   contentHash: string;
+  width: number;
+  index: number;
+  render: unknown;
+  revision: object | undefined;
 }
 
 // Use object wrapper so we can replace the WeakMap (for clearing)
-let heightCache = {
-  map: new WeakMap<object, CacheEntry>(),
+const heightCache = {
+  owners: new WeakMap<object, WeakMap<object, CacheEntry[]>>(),
+  revisions: new WeakMap<object, object>(),
 };
 
 /**
@@ -148,15 +154,25 @@ function estimateItemHeight<T>(
   item: T,
   render: (item: T, index: number) => VNode,
   index: number,
-  width: number
+  width: number,
+  owner: object,
 ): number {
+  let cache = heightCache.owners.get(owner);
+  if (!cache) {
+    cache = new WeakMap<object, CacheEntry[]>();
+    heightCache.owners.set(owner, cache);
+  }
+  const cacheable = typeof item === 'object' && item !== null;
+  const currentHash = cacheable ? getContentHash(item) : '';
+  const revision = cacheable ? heightCache.revisions.get(item) : undefined;
   // Only cache objects (not primitives)
-  if (typeof item === 'object' && item !== null) {
-    const cached = heightCache.map.get(item);
-    const currentHash = getContentHash(item);
+  if (cacheable) {
+    const cached = cache.get(item)?.find((entry) => entry.width === width);
 
     // Return cached value only if content hash matches
-    if (cached !== undefined && cached.contentHash === currentHash) {
+    if (cached !== undefined && cached.contentHash === currentHash
+      && cached.width === width && cached.index === index
+      && cached.render === render && cached.revision === revision) {
       return cached.height;
     }
   }
@@ -166,11 +182,18 @@ function estimateItemHeight<T>(
   const height = Math.max(1, measureHeight(node, width));
 
   // Cache if object (with content hash for invalidation)
-  if (typeof item === 'object' && item !== null) {
-    heightCache.map.set(item, {
+  if (cacheable) {
+    const entry: CacheEntry = {
       height,
-      contentHash: getContentHash(item),
-    });
+      contentHash: currentHash,
+      width,
+      index,
+      render,
+      revision,
+    };
+    // Retain at most the full-width and scrollbar-width measurements.
+    const previous = cache.get(item)?.filter((candidate) => candidate.width !== width) ?? [];
+    cache.set(item, [...previous.slice(-1), entry]);
   }
 
   return height;
@@ -396,6 +419,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     { inverted, initialHeight: height },
     createScrollList
   );
+  const cacheOwner = useConst(() => ({}));
 
   // Cast to internal state type for accessing private methods
   const internalState = state as ScrollListState & {
@@ -412,6 +436,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   };
 
   // Height resolver
+  let contentWidth = width;
   const getItemHeight = (item: T, index: number): number => {
     if (typeof itemHeight === 'number') {
       return itemHeight;
@@ -420,7 +445,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
       return itemHeight(item);
     }
     // Auto-estimate
-    return estimateItemHeight(item, children, index, width);
+    return estimateItemHeight(item, children, index, contentWidth, cacheOwner);
   };
 
   // Calculate total height and max scroll
@@ -432,6 +457,18 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     const h = getItemHeight(itemList[i]!, i);
     itemHeights.push(h);
     totalHeight += h;
+  }
+
+  // A visible scrollbar occupies two columns. Measure and rasterize at the
+  // same content width, otherwise wrapped items silently lose their tail.
+  if (showScrollbar && totalHeight > height) {
+    contentWidth = Math.max(1, width - 2);
+    totalHeight = 0;
+    for (let i = 0; i < itemList.length; i++) {
+      const h = getItemHeight(itemList[i]!, i);
+      itemHeights[i] = h;
+      totalHeight += h;
+    }
   }
 
   const maxScroll = Math.max(0, totalHeight - height);
@@ -603,7 +640,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     // Render to string and slice visible lines
     if (intersectingNodes.length > 0) {
       const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
-      const rendered = renderToString(contentNode, width);
+      const rendered = renderToString(contentNode, contentWidth);
       const allLines = rendered.split('\n');
 
       // Slice visible portion
@@ -669,7 +706,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     // Render to string and slice visible lines
     if (intersectingNodes.length > 0) {
       const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
-      const rendered = renderToString(contentNode, width);
+      const rendered = renderToString(contentNode, contentWidth);
       const allLines = rendered.split('\n');
 
       // Slice visible portion
@@ -710,9 +747,6 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   }
 
   // Layout
-  const hasScrollbar = showScrollbar && maxScroll > 0;
-  const scrollbarWidth = 2;
-  const contentWidth = hasScrollbar ? width - scrollbarWidth : width;
 
   return Box(
     { flexDirection: 'row', width, onScroll: handleScroll },
@@ -767,12 +801,13 @@ export const ChatList = component('ChatList', renderChatList);
  */
 export function clearScrollListCache(): void {
   // Replace the WeakMap with a fresh one to clear all cached heights
-  heightCache.map = new WeakMap<object, CacheEntry>();
+  heightCache.owners = new WeakMap<object, WeakMap<object, CacheEntry[]>>();
+  heightCache.revisions = new WeakMap<object, object>();
 }
 
 /**
  * Invalidate cached height for a specific item
  */
 export function invalidateScrollListItem<T extends object>(item: T): void {
-  heightCache.map.delete(item);
+  heightCache.revisions.set(item, {});
 }

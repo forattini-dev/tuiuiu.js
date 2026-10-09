@@ -24,9 +24,14 @@ import {
   style,
   hyperlink,
   styles,
+  readRenderableSymbol,
 } from '../../src/utils/text-utils.js';
 
 describe('Text Utilities', () => {
+  it.each(['e\u0301', '1\uFE0F\u20E3', 'a\u0308\u0301'])('keeps ASCII-based grapheme %s together', (grapheme) => {
+    expect(readRenderableSymbol(`${grapheme}x`, 0)).toEqual({ symbol: grapheme, nextIndex: grapheme.length });
+    expect(readRenderableSymbol(`${grapheme}x`, grapheme.length)).toEqual({ symbol: 'x', nextIndex: grapheme.length + 1 });
+  });
   describe('terminal-column fitting', () => {
     it('pads and aligns wide graphemes by terminal columns', () => {
       expect(padTextToWidth('界a', 4)).toBe('界a ');

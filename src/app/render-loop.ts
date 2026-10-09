@@ -61,7 +61,7 @@ import { OverlayHostView } from '../organisms/overlay-host.js';
 import { createVNodePromptRenderer } from '../organisms/prompt-host.js';
 import { getPromptHost } from '../interaction/prompt.js';
 import { getInteractionRuntime } from '../interaction/runtime.js';
-import type { InteractionRuntime } from '../interaction/runtime.js';
+import type { InteractionRuntime, InteractionRuntimeOptions } from '../interaction/runtime.js';
 import type { OverlayHost } from '../interaction/overlay.js';
 import type { PromptHost } from '../interaction/prompt.js';
 import {
@@ -145,6 +145,8 @@ const ansi = {
 };
 
 export interface RenderOptions<TSlots extends SlotMap = SlotMap> {
+  /** App-owned command policy, including ambiguous key-sequence resolution. */
+  interaction?: InteractionRuntimeOptions;
   /** Output stream (default: process.stdout) */
   stdout?: NodeJS.WriteStream;
   /** Input stream (default: process.stdin) */
@@ -316,6 +318,7 @@ export function render<TSlots extends SlotMap = SlotMap>(
 
   // Initialize app context FIRST (before calling component functions)
   const appContext = initializeApp(stdin, stdout, {
+    interaction: options.interaction,
     autoTabNavigation,
     exitOnCtrlC,
     exitProcess,

@@ -9,6 +9,7 @@ Start with:
 - [Quick start](/getting-started/quick-start.md)
 - [Import map](/core/imports.md)
 - [Interaction runtime](/core/interaction-runtime.md)
+- [Testing real applications](/core/testing.md)
 - [Migrating from 1.x](/migration/2.0.md)
 
 The root package is intentionally compact. Import the complete visual catalog

@@ -10,6 +10,13 @@
  */
 
 import type { VNode } from '../utils/types.js';
+import { EventEmitter } from 'node:events';
+import { Writable } from 'node:stream';
+import { render as renderApp, type AppHandle, type RenderOptions } from '../app/render-loop.js';
+import { getCommittedFrameSnapshot, type FrameSnapshot } from '../core/frame.js';
+import { getActiveRuntimeScope, type RuntimeScope } from '../core/runtime-scope.js';
+import { readGrapheme } from '../utils/grapheme.js';
+import { stringWidth } from '../utils/text-utils.js';
 
 // =============================================================================
 // Types
@@ -112,6 +119,7 @@ export class TerminalSimulator {
   private output: string[] = [];
   private inputQueue: string[] = [];
   private eventHandlers: Map<string, Array<(...args: unknown[]) => void>> = new Map();
+  private style: Omit<TerminalCell, 'char'> = {};
 
   constructor(columns = 80, rows = 24) {
     this.size = { columns, rows };
@@ -150,8 +158,14 @@ export class TerminalSimulator {
    * Resize terminal
    */
   resize(columns: number, rows: number): void {
+    const previous = this.state;
     this.size = { columns, rows };
-    this.state = this.createInitialState();
+    const next = this.createInitialState();
+    // A terminal resize does not turn off its input protocols or rendition.
+    this.state = { ...previous, cells: next.cells, cursor: {
+      x: Math.min(previous.cursor.x, Math.max(0, columns - 1)),
+      y: Math.min(previous.cursor.y, Math.max(0, rows - 1)),
+    } };
     this.emit('resize', this.size);
   }
 
@@ -335,6 +349,7 @@ export class TerminalSimulator {
     this.state = this.createInitialState();
     this.output = [];
     this.inputQueue = [];
+    this.style = {};
   }
 
   /**
@@ -365,21 +380,33 @@ export class TerminalSimulator {
         i++;
       } else {
         // Regular character
-        this.writeChar(data[i]!);
-        i++;
+        const grapheme = readGrapheme(data, i)!;
+        this.writeChar(grapheme.segment);
+        i = grapheme.end;
       }
     }
   }
 
   private writeChar(char: string): void {
+    if (this.state.cursor.x >= this.size.columns) {
+      this.state.cursor.x = 0;
+      this.state.cursor.y++;
+    }
     const { x, y } = this.state.cursor;
     if (y >= 0 && y < this.size.rows && x >= 0 && x < this.size.columns) {
-      this.state.cells[y]![x]!.char = char;
-      this.state.cursor.x++;
-      if (this.state.cursor.x >= this.size.columns) {
-        this.state.cursor.x = 0;
-        this.state.cursor.y++;
+      const width = stringWidth(char);
+      if (this.state.cells[y]![x]!.char === '' && x > 0) {
+        this.state.cells[y]![x - 1] = { char: ' ', ...this.style };
       }
+      if (stringWidth(this.state.cells[y]![x]!.char) === 2 && x + 1 < this.size.columns) {
+        this.state.cells[y]![x + 1] = { char: ' ', ...this.style };
+      }
+      this.state.cells[y]![x] = { char, ...this.style };
+      if (width === 2 && x + 1 < this.size.columns) {
+        this.state.cells[y]![x + 1] = { char: '', ...this.style };
+      }
+      // Keep an end-of-line cursor until the next printable symbol (VT wrap).
+      this.state.cursor.x += width;
     }
   }
 
@@ -412,7 +439,7 @@ export class TerminalSimulator {
     let i = start;
 
     // Collect parameters
-    while (i < data.length && /[0-9;?]/.test(data[i]!)) {
+    while (i < data.length && /[0-9;?:]/.test(data[i]!)) {
       params += data[i];
       i++;
     }
@@ -458,11 +485,60 @@ export class TerminalSimulator {
         this.setMode(params, false);
         break;
       case 'm': // SGR (style)
-        // Ignore for now - could track styles
+        this.applyStyle(params);
         break;
     }
 
     return { nextIndex: i };
+  }
+
+  private applyStyle(params: string): void {
+    // Colon subparameters belong to one attribute, not independent SGR codes.
+    const parameters = (params || '0').split(';');
+    const codes = parameters.map((parameter) => Number(parameter.split(':')[0]));
+    const colors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+    for (let index = 0; index < codes.length; index++) {
+      const code = codes[index]!;
+      if (parameters[index]!.includes(':')) {
+        const parts = parameters[index]!.split(':');
+        if (code === 4) this.style.underline = parts[1] !== '0';
+        else if (code === 38 || code === 48) {
+          const key = code === 38 ? 'fg' : 'bg';
+          if (parts[1] === '5') this.style[key] = `ansi256:${parts[2]}`;
+          else if (parts[1] === '2' && parts.length >= 5) {
+            this.style[key] = `#${parts.slice(-3).map((value) => Number(value).toString(16).padStart(2, '0')).join('')}`;
+          }
+        }
+        continue;
+      }
+      if (code === 0) this.style = {};
+      else if (code === 1) this.style.bold = true;
+      else if (code === 2) this.style.dim = true;
+      else if (code === 3) this.style.italic = true;
+      else if (code === 4) this.style.underline = true;
+      else if (code === 7) this.style.inverse = true;
+      else if (code === 9) this.style.strikethrough = true;
+      else if (code === 22) { delete this.style.bold; delete this.style.dim; }
+      else if (code === 23) delete this.style.italic;
+      else if (code === 24) delete this.style.underline;
+      else if (code === 27) delete this.style.inverse;
+      else if (code === 29) delete this.style.strikethrough;
+      else if (code === 39) delete this.style.fg;
+      else if (code === 49) delete this.style.bg;
+      else if (code === 38 || code === 48) {
+        const key = code === 38 ? 'fg' : 'bg';
+        const mode = codes[++index];
+        if (mode === 5) this.style[key] = `ansi256:${codes[++index]}`;
+        else if (mode === 2) {
+          const rgb = codes.slice(index + 1, index + 4);
+          if (rgb.length === 3) this.style[key] = `#${rgb.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+          index += 3;
+        }
+      } else if (code >= 30 && code <= 37) this.style.fg = colors[code - 30];
+      else if (code >= 40 && code <= 47) this.style.bg = colors[code - 40];
+      else if (code >= 90 && code <= 97) this.style.fg = `${colors[code - 90]}Bright`;
+      else if (code >= 100 && code <= 107) this.style.bg = `${colors[code - 100]}Bright`;
+    }
   }
 
   private parseOSC(data: string, start: number): { nextIndex: number } {
@@ -495,7 +571,7 @@ export class TerminalSimulator {
         for (let y = this.state.cursor.y; y < this.size.rows; y++) {
           const startX = y === this.state.cursor.y ? this.state.cursor.x : 0;
           for (let x = startX; x < this.size.columns; x++) {
-            this.state.cells[y]![x]!.char = ' ';
+            this.state.cells[y]![x] = { char: ' ', ...this.style };
           }
         }
         break;
@@ -503,7 +579,7 @@ export class TerminalSimulator {
         for (let y = 0; y <= this.state.cursor.y; y++) {
           const endX = y === this.state.cursor.y ? this.state.cursor.x : this.size.columns;
           for (let x = 0; x < endX; x++) {
-            this.state.cells[y]![x]!.char = ' ';
+            this.state.cells[y]![x] = { char: ' ', ...this.style };
           }
         }
         break;
@@ -511,7 +587,7 @@ export class TerminalSimulator {
       case 3:
         for (let y = 0; y < this.size.rows; y++) {
           for (let x = 0; x < this.size.columns; x++) {
-            this.state.cells[y]![x]!.char = ' ';
+            this.state.cells[y]![x] = { char: ' ', ...this.style };
           }
         }
         break;
@@ -525,17 +601,17 @@ export class TerminalSimulator {
     switch (mode) {
       case 0: // From cursor to end
         for (let x = this.state.cursor.x; x < this.size.columns; x++) {
-          this.state.cells[y]![x]!.char = ' ';
+          this.state.cells[y]![x] = { char: ' ', ...this.style };
         }
         break;
       case 1: // From start to cursor
         for (let x = 0; x <= this.state.cursor.x; x++) {
-          this.state.cells[y]![x]!.char = ' ';
+          this.state.cells[y]![x] = { char: ' ', ...this.style };
         }
         break;
       case 2: // Entire line
         for (let x = 0; x < this.size.columns; x++) {
-          this.state.cells[y]![x]!.char = ' ';
+          this.state.cells[y]![x] = { char: ' ', ...this.style };
         }
         break;
     }
@@ -603,7 +679,7 @@ export class TerminalSimulator {
     const key = event.key.toLowerCase();
     if (specialKeys[key]) {
       seq = specialKeys[key]!;
-    } else if (event.key.length === 1) {
+    } else if ([...event.key].length === 1) {
       seq = event.key;
     }
 
@@ -1050,12 +1126,20 @@ export interface TestHarnessOptions {
   rows?: number;
   enableMouse?: boolean;
   enableBracketedPaste?: boolean;
+  /** Production presentation options, with isolated test-owned streams. */
+  renderOptions?: Omit<RenderOptions, 'stdin' | 'stdout' | 'exitProcess'>;
 }
 
 export interface TestHarness {
   terminal: TerminalSimulator;
   events: EventSimulator;
-  render(node: VNode): string;
+  /** Mount a real application; rendering again replaces the previous mount. */
+  render(node: VNode | (() => VNode)): string;
+  readonly app: AppHandle | null;
+  /** Drain render microtasks; does not advance application timers or external IO. */
+  flush(maxPasses?: number): Promise<void>;
+  /** The frame committed by this application, never another runtime's frame. */
+  getFrame(): FrameSnapshot | null;
   getScreen(): string[];
   getScreenString(): string;
   checkA11y(node: VNode): AccessibilityReport;
@@ -1073,25 +1157,85 @@ export function createTestHarness(options: TestHarnessOptions = {}): TestHarness
 
   const terminal = new TerminalSimulator(columns, rows);
   const events = createEventSimulator(terminal);
-
-  // Enable mouse if requested
-  if (options.enableMouse) {
-    terminal.write('\x1b[?1000h');
-  }
-
-  // Enable bracketed paste if requested
-  if (options.enableBracketedPaste) {
-    terminal.write('\x1b[?2004h');
-  }
+  let app: AppHandle | null = null;
+  let scope: RuntimeScope | undefined;
+  const stdin = Object.assign(new EventEmitter(), {
+    isTTY: true,
+    isRaw: false,
+    setRawMode(value: boolean) { this.isRaw = value; return this; },
+    resume() { return this; },
+    pause() { return this; },
+  });
+  const stdout = Object.assign(new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      terminal.write(chunk.toString('utf8'));
+      callback();
+    },
+  }), { columns, rows, isTTY: true, getColorDepth: () => 24, hasColors: () => true });
+  const onData = (data: unknown) => stdin.emit('data', Buffer.from(String(data)));
+  const onResize = () => {
+    const size = terminal.getSize();
+    stdout.columns = size.columns;
+    stdout.rows = size.rows;
+    stdout.emit('resize');
+  };
+  terminal.on('data', onData);
+  terminal.on('resize', onResize);
+  const enableProtocols = () => {
+    if (options.enableMouse) terminal.write('\x1b[?1000h');
+    if (options.enableBracketedPaste) terminal.write('\x1b[?2004h');
+  };
+  const unmount = () => {
+    const previous = app;
+    app = null;
+    scope = undefined;
+    previous?.unmount();
+  };
+  const screenOutput = () => terminal.getScreen().map((line) => line.trimEnd()).join('\n').trimEnd();
+  const readFrame = () => app && scope ? getCommittedFrameSnapshot(scope) : null;
+  enableProtocols();
 
   return {
     terminal,
     events,
 
-    render(node: VNode): string {
-      // This would integrate with the actual renderer
-      // For now, return a simple string representation
-      return formatVNode(node);
+    get app() { return app; },
+
+    render(node: VNode | (() => VNode)): string {
+      unmount();
+      terminal.reset();
+      app = renderApp(() => {
+        scope = getActiveRuntimeScope() ?? undefined;
+        return typeof node === 'function' ? node() : node;
+      }, {
+        screen: 'fullscreen', maxFps: 0, exitOnCtrlC: false,
+        ...options.renderOptions,
+        exitProcess: false,
+        stdin: stdin as unknown as NodeJS.ReadStream,
+        stdout: stdout as unknown as NodeJS.WriteStream,
+      });
+      enableProtocols();
+      return screenOutput();
+    },
+
+    async flush(maxPasses = 50): Promise<void> {
+      if (!Number.isSafeInteger(maxPasses) || maxPasses < 2) {
+        throw new RangeError('flush maxPasses must be a safe integer of at least 2');
+      }
+      if (!app) return;
+      app.invalidate('urgent');
+      let quietPasses = 0;
+      for (let pass = 0; pass < maxPasses; pass++) {
+        const previous = readFrame();
+        await new Promise<void>((resolve) => queueMicrotask(resolve));
+        quietPasses = readFrame() === previous ? quietPasses + 1 : 0;
+        if (quietPasses >= 2) return;
+      }
+      throw new Error('TestHarness did not settle within flush maxPasses');
+    },
+
+    getFrame(): FrameSnapshot | null {
+      return readFrame();
     },
 
     getScreen(): string[] {
@@ -1115,47 +1259,14 @@ export function createTestHarness(options: TestHarnessOptions = {}): TestHarness
     },
 
     reset(): void {
+      unmount();
       terminal.reset();
+      enableProtocols();
     },
 
     cleanup(): void {
+      unmount();
       terminal.reset();
     },
   };
-}
-
-/**
- * Format VNode as string (simple representation)
- */
-function formatVNode(node: VNode, indent = 0): string {
-  const type = typeof node.type === 'string' ? node.type : (node.type as { name?: string } | undefined)?.name || 'Component';
-  const props = node.props || {};
-  const prefix = '  '.repeat(indent);
-
-  let result = `${prefix}<${type}`;
-
-  // Add relevant props
-  if (props.id) result += ` id="${props.id}"`;
-  if (props.className) result += ` class="${props.className}"`;
-
-  const children = node.children || [];
-  const hasChildren = children.length > 0;
-
-  if (!hasChildren) {
-    result += ' />\n';
-  } else {
-    result += '>\n';
-
-    for (const child of children) {
-      if (typeof child === 'string') {
-        result += `${prefix}  ${child}\n`;
-      } else if (child && typeof child === 'object' && 'type' in child) {
-        result += formatVNode(child as VNode, indent + 1);
-      }
-    }
-
-    result += `${prefix}</${type}>\n`;
-  }
-
-  return result;
 }

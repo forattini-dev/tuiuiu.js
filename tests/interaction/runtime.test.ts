@@ -11,6 +11,149 @@ function key(input: string) {
 }
 
 describe('InteractionRuntime', () => {
+  function ambiguousRuntime(options: Parameters<typeof createInteractionRuntime>[0] = {}) {
+    const calls: string[] = [];
+    const runtime = createInteractionRuntime(options);
+    let shortCommand: ReturnType<typeof runtime.registerCommand> | undefined;
+    for (const id of ['short', 'long', 'plain']) {
+      const registration = runtime.registerCommand({ id, title: id, run: () => { calls.push(id); } });
+      if (id === 'short') shortCommand = registration;
+    }
+    const shortBinding = runtime.bind({ command: 'short', keys: 'g' });
+    const longBinding = runtime.bind({ command: 'long', keys: ['g', 'g'] });
+    runtime.bind({ command: 'plain', keys: 'x' });
+    return { runtime, calls, longBinding, shortBinding, shortCommand: shortCommand! };
+  }
+
+  it('defers ambiguous exact matches and exposes their continuations', () => {
+    const { runtime, calls } = ambiguousRuntime();
+    const observer = vi.fn();
+    runtime.subscribe(observer);
+    expect(runtime.dispatch(key('g'))).toEqual({ status: 'handled' });
+    expect(calls).toEqual([]);
+    expect(runtime.inspect()).toMatchObject({
+      pendingSequence: ['g'], deferredCommand: 'short',
+      continuations: [{ command: 'long', keys: ['g'] }],
+      diagnostics: [{ type: 'prefix-ambiguity', commands: ['short', 'long'], keys: ['g'] }],
+    });
+    expect(observer).toHaveBeenCalled();
+    expect(runtime.dispatch(key('g'))).toEqual({ status: 'handled', command: 'long' });
+    expect(calls).toEqual(['long']);
+    expect(runtime.inspect().pendingSequence).toEqual([]);
+    runtime.dispose();
+  });
+
+  it('executes the shorter command once after the timeout', async () => {
+    vi.useFakeTimers();
+    const { runtime, calls } = ambiguousRuntime({ sequenceTimeoutMs: 25 });
+    try {
+      runtime.dispatch(key('g'));
+      await vi.advanceTimersByTimeAsync(26);
+      expect(calls).toEqual(['short']);
+      expect(runtime.inspect().pendingSequence).toEqual([]);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(calls).toEqual(['short']);
+    } finally { runtime.dispose(); vi.useRealTimers(); }
+  });
+
+  it('runs the deferred command and redispatches an unmatched chord', () => {
+    const { runtime, calls } = ambiguousRuntime();
+    runtime.dispatch(key('g'));
+    expect(runtime.dispatch(key('x'))).toEqual({ status: 'handled', command: 'plain' });
+    expect(calls).toEqual(['short', 'plain']);
+    runtime.dispose();
+  });
+
+  it('preserves the last exact match while advancing a deeper prefix', async () => {
+    vi.useFakeTimers();
+    const { runtime, calls, longBinding } = ambiguousRuntime({ sequenceTimeoutMs: 25 });
+    try {
+      longBinding.update({ command: 'long', keys: ['g', 'g', 'g'] });
+      runtime.dispatch(key('g'));
+      runtime.dispatch(key('g'));
+      expect(runtime.inspect().deferredCommand).toBe('short');
+      await vi.advanceTimersByTimeAsync(51);
+      expect(calls).toEqual(['short', 'short']);
+      runtime.dispatch(key('g'));
+      runtime.dispatch(key('g'));
+      runtime.dispatch(key('x'));
+      expect(calls).toEqual(['short', 'short', 'short', 'short', 'plain']);
+    } finally { runtime.dispose(); vi.useRealTimers(); }
+  });
+
+  it('redispatches an unmatched chord in the mode opened by its fallback', () => {
+    const { runtime, calls, shortCommand } = ambiguousRuntime();
+    shortCommand.update({ id: 'short', title: 'Short', run: () => {
+      calls.push('short');
+      runtime.enter({ mode: 'modal', exclusive: true });
+    } });
+    runtime.registerCommand({ id: 'modal', title: 'Modal', run: () => { calls.push('modal'); } });
+    runtime.bind({ command: 'modal', keys: 'x', mode: 'modal' });
+    runtime.dispatch(key('g'));
+    runtime.dispatch(key('x'));
+    expect(calls).toEqual(['short', 'modal']);
+    runtime.dispose();
+  });
+
+  it('supports explicit immediate resolution and preserves higher-priority exact bindings', () => {
+    const { runtime, calls } = ambiguousRuntime({ sequenceResolution: 'immediate' });
+    runtime.dispatch(key('g'));
+    runtime.dispatch(key('g'));
+    expect(calls).toEqual(['short', 'short']);
+    expect(runtime.inspect().diagnostics[0]?.type).toBe('prefix-ambiguity');
+    runtime.dispose();
+    const ranked = ambiguousRuntime();
+    ranked.runtime.bind({ command: 'short', keys: 'g', priority: 10 });
+    ranked.runtime.dispatch(key('g'));
+    expect(ranked.calls).toEqual(['short']);
+    ranked.runtime.dispose();
+  });
+
+  it('does not execute a deferred command that was disabled, unbound or left its mode', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const change of ['disabled', 'when', 'unbound', 'mode', 'disposed']) {
+        const { runtime, calls, shortCommand, shortBinding } = ambiguousRuntime({ sequenceTimeoutMs: 25 });
+        runtime.dispatch(key('g'));
+        if (change === 'disabled') {
+          shortCommand.update({ id: 'short', title: 'Short', enabled: () => false,
+            run: () => { calls.push('short'); } });
+        } else if (change === 'when') shortBinding.update({ command: 'short', keys: 'g', when: () => false });
+        else if (change === 'unbound') shortBinding.dispose();
+        else if (change === 'mode') runtime.enter({ mode: 'modal', exclusive: true });
+        else runtime.dispose();
+        await vi.advanceTimersByTimeAsync(26);
+        expect(calls).toEqual([]);
+        runtime.dispose();
+      }
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not interpret release events as sequence chords', () => {
+    const { runtime, calls } = ambiguousRuntime();
+    runtime.dispatch(key('g'));
+    const release = key('g');
+    release.key.phase = 'release';
+    runtime.dispatch(release);
+    expect(runtime.inspect().pendingSequence).toEqual(['g']);
+    runtime.dispatch(key('g'));
+    expect(calls).toEqual(['long']);
+    runtime.dispose();
+  });
+
+  it('reports equivalent aliases and unresolved commands', () => {
+    const runtime = createInteractionRuntime({ warnOnConflict: false });
+    runtime.bind({ command: 'first', keys: 'control+k' });
+    runtime.bind({ command: 'second', keys: ['ctrl+k', 'x'], mode: 'global' });
+    expect(runtime.inspect().diagnostics.map((diagnostic) => diagnostic.type))
+      .toEqual(['unresolved-command', 'prefix-ambiguity', 'unresolved-command']);
+    runtime.dispose();
+  });
+
+  it.each([NaN, Infinity, -1])('rejects invalid sequenceTimeoutMs %s eagerly', (sequenceTimeoutMs) => {
+    expect(() => createInteractionRuntime({ sequenceTimeoutMs })).toThrow(RangeError);
+  });
+
   it('resolves a semantic command from a configured key', () => {
     const run = vi.fn();
     const runtime = createInteractionRuntime();

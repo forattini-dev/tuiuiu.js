@@ -122,6 +122,16 @@ export interface InteractionSnapshot {
   commands: CommandDefinition[];
   bindings: Array<CommandBinding & { id: number }>;
   conflicts: InteractionConflict[];
+  /** Chords consumed while waiting for a longer sequence. */
+  pendingSequence: string[];
+  continuations: Array<{ bindingId: number; command: string; keys: string[] }>;
+  deferredCommand?: string;
+  diagnostics: Array<{
+    type: 'prefix-ambiguity' | 'unresolved-command';
+    bindingIds: number[];
+    commands: string[];
+    keys: string[];
+  }>;
 }
 
 export interface InteractionRuntimeOptions {
@@ -129,6 +139,8 @@ export interface InteractionRuntimeOptions {
   warnOnConflict?: boolean;
   /** Maximum delay between chords in a sequence (default: 1000ms). */
   sequenceTimeoutMs?: number;
+  /** Resolve ambiguous exact/prefix matches after a timeout (default), or immediately. */
+  sequenceResolution?: 'timeout' | 'immediate';
 }
 
 export interface InteractionRuntime extends Disposable {
@@ -288,6 +300,14 @@ function matchesChord(event: InteractionEvent, value: string): boolean {
     && chord.meta === event.key.modifiers.meta;
 }
 
+function canonicalChord(value: string): string {
+  const chord = parseChord(value);
+  return [
+    chord.ctrl && 'ctrl', chord.alt && 'alt', chord.shift && 'shift', chord.meta && 'meta',
+    chord.key === ' ' ? 'space' : chord.key,
+  ].filter(Boolean).join('+');
+}
+
 function makeDisposable(dispose: () => void): Disposable {
   let isDisposed = false;
   return {
@@ -318,6 +338,14 @@ function normalizeBinding(binding: CommandBinding): Omit<BindingEntry, 'id' | 'o
 export function createInteractionRuntime(
   options: InteractionRuntimeOptions = {},
 ): InteractionRuntime {
+  const sequenceTimeoutMs = options.sequenceTimeoutMs ?? 1000;
+  const sequenceResolution = options.sequenceResolution ?? 'timeout';
+  if (!Number.isFinite(sequenceTimeoutMs) || sequenceTimeoutMs < 0) {
+    throw new RangeError('sequenceTimeoutMs must be a finite non-negative number');
+  }
+  if (sequenceResolution !== 'timeout' && sequenceResolution !== 'immediate') {
+    throw new TypeError('sequenceResolution must be timeout or immediate');
+  }
   const commands = new Map<string, CommandDefinition>();
   const bindings = new Map<number, BindingEntry>();
   const handlers = new Map<number, HandlerEntry>();
@@ -329,20 +357,38 @@ export function createInteractionRuntime(
   let isDisposed = false;
   let pendingSequence: Array<Extract<InteractionEvent, { type: 'key' }>> = [];
   let sequenceTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingExact: {
+    bindingId: number; event: InteractionEvent; modeId: number; matchedLength: number;
+  } | null = null;
 
   const clearSequence = () => {
+    const changed = pendingSequence.length > 0;
     pendingSequence = [];
+    pendingExact = null;
     if (sequenceTimer) clearTimeout(sequenceTimer);
     sequenceTimer = null;
+    if (changed && !isDisposed) notify();
   };
 
   const armSequenceTimeout = () => {
     if (sequenceTimer) clearTimeout(sequenceTimer);
-    const timeout = options.sequenceTimeoutMs ?? 1000;
-    if (!Number.isFinite(timeout) || timeout < 0) {
-      throw new RangeError('sequenceTimeoutMs must be a finite non-negative number');
-    }
-    sequenceTimer = setTimeout(clearSequence, timeout);
+    sequenceTimer = setTimeout(() => {
+      const deferred = pendingExact;
+      const remainder = deferred ? pendingSequence.slice(deferred.matchedLength) : [];
+      clearSequence();
+      if (!deferred || isDisposed) return;
+      const active = activeMode();
+      const entry = bindings.get(deferred.bindingId);
+      if (!entry || active.id !== deferred.modeId || !rankBinding(entry, active)
+        || entry.when?.() === false) return;
+      const command = commands.get(entry.command);
+      if (command && runCommand(command, deferred.event, active).status === 'handled') {
+        for (const remaining of remainder) {
+          if (isDisposed) break;
+          runtime.dispatch(remaining);
+        }
+      }
+    }, sequenceTimeoutMs);
     sequenceTimer.unref?.();
   };
 
@@ -434,6 +480,37 @@ export function createInteractionRuntime(
 
   const snapshot = (): InteractionSnapshot => {
     const active = activeMode();
+    const entries = [...bindings.values()];
+    const pendingKeys = pendingSequence.map((event) => canonicalChord([
+      event.key.modifiers.ctrl && 'ctrl', event.key.modifiers.alt && 'alt',
+      event.key.modifiers.shift && 'shift', event.key.modifiers.meta && 'meta',
+      event.key.name === ' ' ? 'space' : event.key.name,
+    ].filter(Boolean).join('+')));
+    const diagnostics: InteractionSnapshot['diagnostics'] = [];
+    const longerByPrefix = new Map<string, BindingEntry[]>();
+    const normalizedKeys = new Map<BindingEntry, string[]>();
+    const diagnosticKey = (entry: BindingEntry, keys: string[]) =>
+      JSON.stringify([entry.mode ?? 'global', entry.target ?? null, keys]);
+    for (const entry of entries) {
+      const keys = entry.keys.map(canonicalChord);
+      normalizedKeys.set(entry, keys);
+      for (let length = 1; length < keys.length; length++) {
+        const key = diagnosticKey(entry, keys.slice(0, length));
+        const group = longerByPrefix.get(key) ?? [];
+        group.push(entry);
+        longerByPrefix.set(key, group);
+      }
+    }
+    for (const entry of entries) {
+      if (!commands.has(entry.command)) {
+        diagnostics.push({ type: 'unresolved-command', bindingIds: [entry.id],
+          commands: [entry.command], keys: [...entry.keys] });
+      }
+      for (const longer of longerByPrefix.get(diagnosticKey(entry, normalizedKeys.get(entry)!)) ?? []) {
+        diagnostics.push({ type: 'prefix-ambiguity', bindingIds: [entry.id, longer.id],
+          commands: [entry.command, longer.command], keys: [...entry.keys] });
+      }
+    }
     return {
       mode: active.mode,
       target: active.target,
@@ -457,10 +534,21 @@ export function createInteractionRuntime(
         when,
       })),
       conflicts: conflicts(),
+      pendingSequence: pendingKeys,
+      continuations: pendingSequence.length === 0 ? [] : entries
+        .filter((entry) => entry.keys.length > pendingSequence.length
+          && pendingSequence.every((event, index) => matchesChord(event, entry.keys[index]!))
+          && rankBinding(entry, active) !== null && entry.when?.() !== false
+          && commands.has(entry.command) && commands.get(entry.command)!.enabled?.() !== false)
+        .map((entry) => ({ bindingId: entry.id, command: entry.command,
+          keys: entry.keys.slice(pendingSequence.length) })),
+      deferredCommand: pendingExact ? bindings.get(pendingExact.bindingId)?.command : undefined,
+      diagnostics,
     };
   };
 
   const notify = () => {
+    if (listeners.size === 0) return;
     const next = snapshot();
     for (const listener of [...listeners]) listener(next);
   };
@@ -506,6 +594,7 @@ export function createInteractionRuntime(
           if (isRegistrationDisposed) return;
           isRegistrationDisposed = true;
           commands.delete(id);
+          clearSequence();
           notify();
         },
       };
@@ -544,12 +633,17 @@ export function createInteractionRuntime(
             id,
             order: current.order,
           });
+          const updated = bindings.get(id)!;
+          if (current.command !== updated.command || current.mode !== updated.mode
+            || current.target !== updated.target || current.priority !== updated.priority
+            || current.keys.join('\u0000') !== updated.keys.join('\u0000')) clearSequence();
           notify();
         },
         dispose() {
           if (isRegistrationDisposed) return;
           isRegistrationDisposed = true;
           bindings.delete(id);
+          clearSequence();
           notify();
         },
       };
@@ -604,7 +698,8 @@ export function createInteractionRuntime(
     dispatch(event) {
       assertActive();
       const active = activeMode();
-      if (event.type === 'key') {
+      if (event.type === 'paste') clearSequence();
+      if (event.type === 'key' && event.key.phase !== 'release') {
         const resolveSequence = (
           prior: Array<Extract<InteractionEvent, { type: 'key' }>>,
         ): InteractionDispatchResult | null => {
@@ -626,6 +721,22 @@ export function createInteractionRuntime(
             .sort(compareRanked);
 
           const exact = prefixes.filter((candidate) => candidate.entry.keys.length === events.length);
+          const winner = exact[0];
+          const longer = prefixes.filter((candidate) => candidate.entry.keys.length > events.length);
+          const competingLonger = longer.some((candidate) => !winner
+            || candidate.modeRank > winner.modeRank
+            || (candidate.modeRank === winner.modeRank && candidate.targetRank > winner.targetRank)
+            || (candidate.modeRank === winner.modeRank && candidate.targetRank === winner.targetRank
+              && (candidate.entry.priority ?? 0) >= (winner.entry.priority ?? 0)));
+          if (competingLonger && (!winner || sequenceResolution === 'timeout')) {
+            pendingSequence = events;
+            pendingExact = winner ? {
+              bindingId: winner.entry.id, event, modeId: active.id, matchedLength: events.length,
+            } : pendingExact;
+            armSequenceTimeout();
+            notify();
+            return { status: 'handled' };
+          }
           for (const candidate of exact) {
             const command = commands.get(candidate.entry.command);
             if (!command || command.enabled?.() === false) continue;
@@ -635,7 +746,9 @@ export function createInteractionRuntime(
 
           if (prefixes.length > 0) {
             pendingSequence = events;
+            pendingExact = null;
             armSequenceTimeout();
+            notify();
             return { status: 'handled' };
           }
           return null;
@@ -644,7 +757,23 @@ export function createInteractionRuntime(
         const sequenceResult = resolveSequence(pendingSequence);
         if (sequenceResult) return sequenceResult;
         if (pendingSequence.length > 0) {
+          const deferred = pendingExact;
+          const remainder = deferred ? pendingSequence.slice(deferred.matchedLength) : [];
           clearSequence();
+          if (deferred) {
+            const entry = bindings.get(deferred.bindingId);
+            const command = entry && commands.get(entry.command);
+            if (entry && command && rankBinding(entry, active) && entry.when?.() !== false) {
+              if (runCommand(command, deferred.event, active).status === 'handled') {
+                for (const remaining of remainder) {
+                  if (isDisposed) break;
+                  runtime.dispatch(remaining);
+                }
+              }
+              // The fallback command may open a new mode before this key.
+              return isDisposed ? { status: 'handled' } : runtime.dispatch(event);
+            }
+          }
           const freshResult = resolveSequence([]);
           if (freshResult) return freshResult;
         }
@@ -709,10 +838,13 @@ export function getInteractionHandlerCountForTesting(): number {
   return controls.handlerCount();
 }
 
-export function getInteractionRuntime(scope?: RuntimeScope): InteractionRuntime {
+export function getInteractionRuntime(
+  scope?: RuntimeScope,
+  initialOptions?: InteractionRuntimeOptions,
+): InteractionRuntime {
   return getRuntimeResource(
     INTERACTION_RUNTIME,
-    createInteractionRuntime,
+    () => createInteractionRuntime(initialOptions),
     scope,
   );
 }

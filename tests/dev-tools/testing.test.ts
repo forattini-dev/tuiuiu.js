@@ -5,7 +5,8 @@
  * accessibility checker, and test harness.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { Text, Box } from '../../src/primitives/nodes.js';
 import {
   // Terminal simulator
   TerminalSimulator,
@@ -643,6 +644,11 @@ describe('Accessibility Checker', () => {
 });
 
 describe('Test Harness', () => {
+  afterEach(() => {
+    for (const harness of mountedHarnesses) harness.cleanup();
+    mountedHarnesses.length = 0;
+  });
+  const mountedHarnesses: ReturnType<typeof createTestHarness>[] = [];
   it('should create test harness', () => {
     const harness = createTestHarness();
 
@@ -670,11 +676,14 @@ describe('Test Harness', () => {
 
   it('should render VNode', () => {
     const harness = createTestHarness();
-    const node = createNode('box', { id: 'test' });
+    mountedHarnesses.push(harness);
+    const node = Box({ id: 'test', padding: 1 }, Text({}, 'Hello'));
 
     const result = harness.render(node);
-    expect(result).toContain('box');
-    expect(result).toContain('test');
+    expect(result).toContain('Hello');
+    expect(result).not.toContain('<box');
+    expect(harness.getScreen()[1]).toContain(' Hello');
+    expect(harness.getFrame()?.queries.getElement('test').status).toBe('found');
   });
 
   it('should get screen', () => {

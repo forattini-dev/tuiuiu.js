@@ -45,6 +45,7 @@ import {
   createInteractionKeyEvent,
   getInteractionRuntime,
   type InteractionDispatchResult,
+  type InteractionRuntimeOptions,
 } from '../interaction/runtime.js';
 import { installAppCommands } from '../interaction/app-commands.js';
 
@@ -67,6 +68,8 @@ export function useApp(): AppContext {
 
 /** App initialization options */
 export interface InitAppOptions {
+  /** Initial command-sequence policy for this app-owned runtime. */
+  interaction?: InteractionRuntimeOptions;
   /** Enable automatic Tab/Shift+Tab navigation (default: true) */
   autoTabNavigation?: boolean;
   /** Exit when Ctrl+C is received (default: true) */
@@ -425,7 +428,7 @@ export function initializeApp(
 
   setAppContext(appContext, runtimeScope);
   runInRuntimeScope(runtimeScope, () => {
-    installAppCommands(getInteractionRuntime(), {
+    installAppCommands(getInteractionRuntime(undefined, options.interaction), {
       exit: () => exit(),
       focusNext: () => focusManager.focusNext(),
       focusPrevious: () => focusManager.focusPrevious(),

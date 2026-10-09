@@ -31,13 +31,14 @@ export interface TextEditor {
 
 /** Scalar, renderer-independent editor shared by prompt and input adapters. */
 export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
-  let value = options.initialValue ?? '';
-  let cursor = value.length;
   const listeners = new Set<(snapshot: TextEditorSnapshot) => void>();
   const maxLength = options.maxLength ?? Number.MAX_SAFE_INTEGER;
   if (!Number.isSafeInteger(maxLength) || maxLength < 0) {
     throw new RangeError('TextEditor maxLength must be a non-negative safe integer');
   }
+  const initialValue = options.initialValue ?? '';
+  let value = initialValue.slice(0, clampToGraphemeBoundary(initialValue, maxLength, 'left'));
+  let cursor = value.length;
 
   const snapshot = (): TextEditorSnapshot => ({ value, cursor });
   const notify = () => {
@@ -45,7 +46,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     for (const listener of [...listeners]) listener(next);
   };
   const updateCursor = (next: number) => {
-    const clamped = Math.max(0, Math.min(next, value.length));
+    const clamped = clampToGraphemeBoundary(value, next, 'left');
     if (clamped === cursor) return false;
     cursor = clamped;
     notify();
@@ -56,7 +57,8 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     const insertion = text.slice(0, clampToGraphemeBoundary(text, available, 'left'));
     if (!insertion && start === end) return false;
     value = value.slice(0, start) + insertion + value.slice(end);
-    cursor = start + insertion.length;
+    // Insertion can merge with the following combining marks or ZWJ sequence.
+    cursor = clampToGraphemeBoundary(value, start + insertion.length, 'right');
     notify();
     return true;
   };
@@ -64,11 +66,14 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
   return {
     snapshot,
     setValue(nextValue, nextCursor = nextValue.length) {
+      if (!Number.isSafeInteger(nextCursor)) {
+        throw new RangeError('TextEditor cursor must be a safe integer UTF-16 offset');
+      }
       value = nextValue.slice(
         0,
         clampToGraphemeBoundary(nextValue, maxLength, 'left'),
       );
-      cursor = Math.max(0, Math.min(nextCursor, value.length));
+      cursor = clampToGraphemeBoundary(value, nextCursor, 'left');
       notify();
     },
     insert(text) {

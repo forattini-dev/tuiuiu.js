@@ -16,7 +16,8 @@ import {
 } from 'tuiuiu.js/app';
 
 useCommand({ id: 'project.save', title: 'Save project', run: saveProject });
-useCommandBinding({ command: 'project.save', keys: ['ctrl+s', 'meta+s'] });
+useCommandBinding({ command: 'project.save', keys: 'ctrl+s' });
+useCommandBinding({ command: 'project.save', keys: 'meta+s' });
 useInteractionMode({ mode: 'editor', target: documentId }, isEditorActive);
 ```
 
@@ -28,6 +29,46 @@ do not claim a sequence prefix.
 `runtime.inspect()` exposes commands, bindings, leases, and conflicts;
 `runtime.subscribe()` makes that surface reactive; `runtime.execute()` invokes
 a command without fabricating input.
+
+### Ordered sequences and ambiguous prefixes
+
+A `CommandBinding.keys` array is an ordered sequence, not a list of
+alternatives. Register separate bindings for alternatives (or use
+`useShortcut(['ctrl+s', 'meta+s'], saveProject)`).
+
+When both `g` and `['g', 'g']` are active at the same precedence, the default
+policy waits for the next chord. A second `g` executes the longer command;
+the timeout executes the shorter command once. A mismatched chord executes
+the shorter command and then dispatches the new chord in the current mode.
+Unambiguous exact bindings still execute immediately, and higher-precedence
+exact bindings are not delayed by lower-precedence sequences.
+
+```ts
+import { render } from 'tuiuiu.js/app';
+
+render(() => App(), {
+  interaction: {
+    sequenceTimeoutMs: 300,
+    sequenceResolution: 'timeout', // default; 'immediate' preserves exact-first behavior
+  },
+});
+```
+
+The same options are available to standalone `createInteractionRuntime()`.
+`getInteractionRuntime(scope, initialOptions)` uses the options only when
+creating that scope's runtime; it does not reconfigure an existing runtime.
+
+`inspect().pendingSequence`, `continuations`, and `deferredCommand` expose
+pending input for hints. Subscribers are notified when it starts, completes,
+or expires. `diagnostics` reports prefix ambiguity and bindings whose command
+is not registered; `conflicts` continues to report exact equal-priority ties.
+Diagnostics describe registry structure, not proof that dynamic `when`
+predicates can be simultaneously true.
+
+Release events do not advance a sequence. Mode changes, binding removal,
+relevant binding changes, paste and runtime disposal cancel pending input.
+Timeout execution rechecks the current command and its `enabled`/`when`
+predicates instead of invoking an obsolete callback.
 
 `useShortcut()` is the concise API for a local semantic action.
 `useInteraction()` receives normalized events and is intended for text editors
@@ -83,3 +124,9 @@ and word movement without depending on a renderer. `createCompletionSession()`
 owns request cancellation, stale-result suppression, anchor data, and the
 identity-based result collection. Visual TextInput and Autocomplete components
 layer their presentation over these contracts.
+
+Cursor positions are UTF-16 offsets. `setValue(value, cursor)` requires a
+safe integer and clamps it left to a grapheme boundary; out-of-range offsets
+are bounded by the document. `maxLength` bounds both initial values and edits
+without cutting through a grapheme. Insertion keeps the cursor on a boundary
+even when it joins a following combining mark.

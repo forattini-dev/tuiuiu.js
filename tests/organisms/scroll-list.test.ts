@@ -34,6 +34,51 @@ describe('ScrollList', () => {
   });
 
   describe('basic rendering', () => {
+    it('remeasures object items after resize without requiring a cache reset', () => {
+      const state = createScrollList();
+      const item = { text: '0123456789'.repeat(6) };
+      const children = (entry: typeof item) => Text({ wrap: 'wrap' }, entry.text);
+      for (const [width, expected] of [[60, 0], [10, 4], [60, 0]]) {
+        ScrollList({ items: [item], children, width, height: 2, state, showScrollbar: false });
+        expect(state.maxScroll()).toBe(expected);
+      }
+    });
+
+    it('does not reuse heights across render callbacks or item positions', () => {
+      const state = createScrollList();
+      const item = { text: 'a' };
+      ScrollList({ items: [item], children: () => Text({}, 'one'), width: 20, height: 1, state });
+      ScrollList({ items: [item], children: () => Text({}, 'one\ntwo\nthree'), width: 20, height: 1, state });
+      expect(state.maxScroll()).toBe(2);
+      const children = (_entry: typeof item, index: number) => Text({}, 'line\n'.repeat(index) + 'last');
+      ScrollList({ items: [item, item], children, width: 20, height: 1, state });
+      expect(state.maxScroll()).toBe(2);
+    });
+
+    it('isolates cache entries belonging to different component owners', () => {
+      const first = createScrollList();
+      const second = createScrollList();
+      const item = { text: 'shared' };
+      let text = 'one';
+      const children = () => Text({}, text);
+      ScrollList({ key: 'first', items: [item], children, width: 20, height: 1, state: first });
+      text = 'one\ntwo\nthree';
+      ScrollList({ key: 'second', items: [item], children, width: 20, height: 1, state: second });
+      expect(first.maxScroll()).toBe(0);
+      expect(second.maxScroll()).toBe(2);
+    });
+
+    it('uses the width left by the scrollbar for both height and visible lines', () => {
+      const state = createScrollList();
+      const node = ScrollList({
+        items: [{ text: '0123456789'.repeat(2) }],
+        children: (item) => Text({ wrap: 'wrap' }, item.text),
+        width: 10, height: 1, state,
+      });
+      expect(state.maxScroll()).toBe(2);
+      expect(renderToString(node, 10)).toContain('01234567');
+    });
+
     it('should render items with children function', () => {
       const items = ['Item 1', 'Item 2', 'Item 3'];
       const node = ScrollList({

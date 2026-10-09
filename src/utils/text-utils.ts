@@ -75,7 +75,10 @@ export function readRenderableSymbol(text: string, startIndex: number): Renderab
   }
 
   const firstCodeUnit = text.charCodeAt(startIndex);
-  if (firstCodeUnit <= 0x7f) {
+  const nextCodeUnit = text.charCodeAt(startIndex + 1);
+  // ASCII can start a non-ASCII grapheme (e + combining mark, keycaps, ...).
+  // Only bypass segmentation when the following code unit is also ASCII/end.
+  if (firstCodeUnit <= 0x7f && (Number.isNaN(nextCodeUnit) || nextCodeUnit <= 0x7f)) {
     return {
       symbol: text[startIndex]!,
       nextIndex: startIndex + 1,
