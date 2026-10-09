@@ -36,6 +36,12 @@ export interface ScrollListProps<T> extends ComponentKeyProps {
   /** Render function for each item */
   children: (item: T, index: number) => VNode;
 
+  /** Stable unique identity used to preserve the visible item during updates. */
+  getKey?: (item: T, index: number) => string | number;
+
+  /** Preserve item/line offset when geometry changes (default: true with getKey). */
+  preserveAnchor?: boolean;
+
   /** Visible height in lines */
   height: number;
 
@@ -411,6 +417,8 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     state: externalState,
     autoScroll = false,
     autoScrollThreshold = 0,
+    getKey,
+    preserveAnchor = true,
   } = props;
 
   // Use external state or create internal
@@ -420,6 +428,13 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     createScrollList
   );
   const cacheOwner = useConst(() => ({}));
+  const geometry = useConst(() => ({ previous: null as null | {
+    state: ScrollListState;
+    keys: (string | number)[];
+    offsets: number[];
+    height: number;
+    inverted: boolean;
+  } }));
 
   // Cast to internal state type for accessing private methods
   const internalState = state as ScrollListState & {
@@ -450,6 +465,11 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
 
   // Calculate total height and max scroll
   const itemList = getItems();
+  const keys = getKey ? itemList.map(getKey) : null;
+  if (keys && (keys.some(key => typeof key !== 'string'
+    && (typeof key !== 'number' || !Number.isFinite(key))) || new Set(keys).size !== keys.length)) {
+    throw new TypeError('ScrollList getKey must return unique strings or finite numbers');
+  }
   let totalHeight = 0;
   const itemHeights: number[] = [];
 
@@ -471,7 +491,35 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     }
   }
 
+  const offsets = [0];
+  for (const itemH of itemHeights) offsets.push(offsets[offsets.length - 1]! + itemH);
   const maxScroll = Math.max(0, totalHeight - height);
+  const previous = geometry.previous;
+  let anchoredScroll: number | null = null;
+  if (keys && preserveAnchor && previous?.state === state && previous.inverted === inverted && previous.keys.length) {
+    const previousTotal = previous.offsets[previous.offsets.length - 1]!;
+    const top = Math.max(0, inverted
+      ? previousTotal - previous.height - state.scrollTop() : state.scrollTop());
+    let index = 0;
+    while (index + 1 < previous.keys.length && previous.offsets[index + 1]! <= top) index++;
+    const positions = new Map(keys.map((key, position) => [key, position]));
+    let target = positions.get(previous.keys[index]!);
+    let lineOffset = top - previous.offsets[index]!;
+    if (target === undefined) {
+      lineOffset = 0;
+      for (let next = index + 1; next < previous.keys.length && target === undefined; next++) {
+        target = positions.get(previous.keys[next]!);
+      }
+      for (let prior = index - 1; prior >= 0 && target === undefined; prior--) {
+        target = positions.get(previous.keys[prior]!);
+      }
+    }
+    if (target !== undefined) {
+      const anchoredTop = offsets[target]! + Math.min(lineOffset, Math.max(0, itemHeights[target]! - 1));
+      anchoredScroll = inverted ? totalHeight - height - anchoredTop : anchoredTop;
+    }
+  }
+  let followedBottom = false;
 
   // Auto-scroll when content grows
   // IMPORTANT: Check isNearBottom BEFORE updating maxScroll, so we use the old maxScroll
@@ -499,6 +547,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
       }
 
       if (shouldAutoScroll) {
+        followedBottom = true;
         state.scrollToBottom();
       }
     } else {
@@ -519,6 +568,9 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
       internalState._setMaxScroll(maxScroll);
     }
   }
+
+  if (!followedBottom && anchoredScroll !== null) state.scrollTo(anchoredScroll);
+  geometry.previous = keys && preserveAnchor ? { state, keys, offsets, height, inverted } : null;
 
   // Clamp scrollTop if it exceeds maxScroll (can happen when content shrinks)
   const currentScrollTop = state.scrollTop();
@@ -588,133 +640,24 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   // 4. Recreate as Text nodes
 
   let visibleNodes: VNode[] = [];
-
-  if (!inverted) {
-    // Standard (top-down)
-    // Find range of items that intersect the viewport [scrollTop, scrollTop + height)
-    let currentY = 0;
-    let firstIndex = 0;
-    let lastIndex = itemList.length;
-
-    // Find first item that intersects viewport
-    for (let i = 0; i < itemList.length; i++) {
-      const itemH = itemHeights[i]!;
-      if (currentY + itemH > scrollTop) {
-        firstIndex = i;
-        break;
-      }
-      currentY += itemH;
-    }
-
-    // Find last item that intersects viewport
-    currentY = 0;
-    for (let i = 0; i < itemList.length; i++) {
-      const itemH = itemHeights[i]!;
-      currentY += itemH;
-      if (currentY >= scrollTop + height) {
-        lastIndex = i + 1;
-        break;
-      }
-    }
-
-    // Render intersecting items
-    const intersectingNodes: VNode[] = [];
-    let startOffset = 0; // Lines before viewport in first intersecting item
-    currentY = 0;
-
-    for (let i = 0; i < itemList.length; i++) {
-      const itemH = itemHeights[i]!;
-
-      if (i === firstIndex) {
-        // Calculate how many lines of first item are above viewport
-        startOffset = scrollTop - currentY;
-      }
-
-      if (i >= firstIndex && i < lastIndex) {
-        intersectingNodes.push(children(itemList[i]!, i));
-      }
-
-      currentY += itemH;
-    }
-
-    // Render to string and slice visible lines
-    if (intersectingNodes.length > 0) {
-      const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
-      const rendered = renderToString(contentNode, contentWidth);
-      const allLines = rendered.split('\n');
-
-      // Slice visible portion
-      const visibleLines = allLines.slice(startOffset, startOffset + height);
-
-      // Convert back to Text nodes (preserves ANSI codes)
-      visibleNodes = visibleLines.map(line => Text({}, line));
-    }
-  } else {
-    // Inverted (chat-style, bottom-up)
-    // In inverted mode, scrollTop=0 shows newest (end of array)
-    // We work backwards from the end
-    const reversedItems = [...itemList].reverse();
-    const reversedHeights = [...itemHeights].reverse();
-
-    // Find range of items that intersect viewport
-    let currentY = 0;
-    let firstIndex = 0;
-    let lastIndex = reversedItems.length;
-
-    // Find first item (newest) that intersects viewport
-    for (let i = 0; i < reversedItems.length; i++) {
-      const itemH = reversedHeights[i]!;
-      if (currentY + itemH > scrollTop) {
-        firstIndex = i;
-        break;
-      }
-      currentY += itemH;
-    }
-
-    // Find last item (oldest) that intersects viewport
-    currentY = 0;
-    for (let i = 0; i < reversedItems.length; i++) {
-      const itemH = reversedHeights[i]!;
-      currentY += itemH;
-      if (currentY >= scrollTop + height) {
-        lastIndex = i + 1;
-        break;
-      }
-    }
-
-    // Render intersecting items (in original order for display)
-    const intersectingNodes: VNode[] = [];
-    let startOffset = 0;
-    currentY = 0;
-
-    for (let i = 0; i < reversedItems.length; i++) {
-      const itemH = reversedHeights[i]!;
-
-      if (i === firstIndex) {
-        startOffset = scrollTop - currentY;
-      }
-
-      if (i >= firstIndex && i < lastIndex) {
-        const originalIndex = itemList.length - 1 - i;
-        // Add to front to maintain visual order (oldest at top)
-        intersectingNodes.unshift(children(reversedItems[i]!, originalIndex));
-      }
-
-      currentY += itemH;
-    }
-
-    // Render to string and slice visible lines
-    if (intersectingNodes.length > 0) {
-      const contentNode = Box({ flexDirection: 'column' }, ...intersectingNodes);
-      const rendered = renderToString(contentNode, contentWidth);
-      const allLines = rendered.split('\n');
-
-      // Slice visible portion
-      const visibleLines = allLines.slice(startOffset, startOffset + height);
-
-      // Convert back to Text nodes
-      visibleNodes = visibleLines.map(line => Text({}, line));
-    }
+  // Both modes share top-down geometry; inverted scrollTop is distance from bottom.
+  const viewportTop = Math.max(0, inverted ? totalHeight - height - scrollTop : scrollTop);
+  let low = 0;
+  let high = itemList.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (offsets[middle + 1]! <= viewportTop) low = middle + 1;
+    else high = middle;
+  }
+  const firstIndex = low;
+  const intersectingNodes: VNode[] = [];
+  for (let index = firstIndex; index < itemList.length && offsets[index]! < viewportTop + height; index++) {
+    intersectingNodes.push(children(itemList[index]!, index));
+  }
+  if (intersectingNodes.length) {
+    const rendered = renderToString(Box({ flexDirection: 'column' }, ...intersectingNodes), contentWidth);
+    const startOffset = viewportTop - offsets[firstIndex]!;
+    visibleNodes = rendered.split('\n').slice(startOffset, startOffset + height).map(line => Text({}, line));
   }
 
   // Scrollbar

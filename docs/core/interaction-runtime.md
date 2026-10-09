@@ -130,3 +130,8 @@ safe integer and clamps it left to a grapheme boundary; out-of-range offsets
 are bounded by the document. `maxLength` bounds both initial values and edits
 without cutting through a grapheme. Insertion keeps the cursor on a boundary
 even when it joins a following combining mark.
+
+The editor can now share a `TextDocument` with independent `TextViewport`
+instances and supports selection and bounded undo/redo. See
+[text models and stable scroll anchors](/core/text-models.md) for ownership,
+coordinates, history limits, and disposal.

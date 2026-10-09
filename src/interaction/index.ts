@@ -123,7 +123,24 @@ export {
   type TextEditor,
   type TextEditorOptions,
   type TextEditorSnapshot,
+  type TextEditorSelection,
 } from './text-editor.js';
+
+export {
+  createTextDocument,
+  type TextDocument,
+  type TextDocumentOptions,
+  type TextDocumentSnapshot,
+  type TextDocumentChange,
+  type TextDocumentLine,
+} from './text-document.js';
+
+export {
+  createTextViewport,
+  type TextViewport,
+  type TextViewportOptions,
+  type TextViewportLine,
+} from './text-viewport.js';
 
 export {
   createInteractionTarget,

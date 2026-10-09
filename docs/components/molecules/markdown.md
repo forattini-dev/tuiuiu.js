@@ -5,7 +5,7 @@ Terminal markdown renderer with syntax highlighting, tables, and rich formatting
 ## Import
 
 ```typescript
-import { Markdown, renderMarkdown } from 'tuiuiu.js'
+import { Markdown, renderMarkdown, createMarkdownDocument } from 'tuiuiu.js/ui'
 ```
 
 ## Basic Usage
@@ -29,6 +29,7 @@ This is **bold** and *italic* text.
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `content` | `string` | required | Markdown content |
+| `document` | `MarkdownDocument` | - | Optional per-message incremental block cache |
 | `maxWidth` | `number` | `'100%'` | Max width for text wrapping. Defaults to filling parent width |
 | `theme` | `MarkdownTheme` | - | Custom theme colors |
 | `codeLineNumbers` | `boolean` | `true` | Show line numbers in code blocks |
@@ -295,6 +296,44 @@ SplitPanel({
   right: Markdown({ content: selectedDoc }),  // Fills right panel automatically
 })
 ```
+
+## Incremental streaming
+
+Keep one document per message, not one shared cache for unrelated messages:
+
+```ts
+import { component, useConst } from 'tuiuiu.js/app';
+import { createMarkdownDocument, TerminalMessage } from 'tuiuiu.js/ui';
+
+const AssistantMessage = component('AssistantMessage', (props: {
+  content: string;
+  streaming: boolean;
+}) => {
+  const document = useConst(() => createMarkdownDocument());
+  return TerminalMessage({
+    role: 'assistant',
+    content: props.content,
+    streaming: props.streaming,
+    streamingMarkdown: true,
+    document,
+    maxWidth: 80,
+  });
+});
+```
+
+The parser retains immutable identities for a grammar-stable prefix and reparses
+the unfinished tail. Tables, partial delimiters, and unclosed code fences are
+not prematurely committed. A replacement/truncation falls back to full parsing.
+Rendering reuses stable block VNodes until formatting options change.
+`document.snapshot()` reports revision, reused block count and the source offset
+where parsing resumed.
+
+No document is required for ordinary Markdown calls. Raw text remains
+TerminalMessage's default during streaming; rich streaming is explicitly opt-in.
+This implements Tuiuiu's Markdown subset, not a full CommonMark specification.
+A long unfinished paragraph/fence still requires reparsing its tail; prefix
+comparison, layout and frame rendering also have costs. Incremental parsing is
+not a claim of constant-time streaming or a measured advantage over OpenTUI.
 
 ## Related
 

@@ -166,6 +166,10 @@ export {
   Markdown,
   renderMarkdown,
   type MarkdownOptions,
+  createMarkdownDocument,
+  type MarkdownDocument,
+  type MarkdownDocumentSnapshot,
+  type MarkdownNode,
 } from './markdown.js';
 
 export {

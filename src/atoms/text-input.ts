@@ -57,6 +57,8 @@ import {
   writePersistedHistoryEntries,
 } from './text-input-persistence.js';
 import { createCollectionController } from '../interaction/collection.js';
+import { createTextDocument } from '../interaction/text-document.js';
+import { createTextViewport } from '../interaction/text-viewport.js';
 
 export interface TextInputState {
   value: string;
@@ -298,83 +300,33 @@ interface VisualLine {
   end: number;
 }
 
+type VisualLineReader = (text: string, width: number, wrap: boolean) => VisualLine[];
+const inputLineReaders = new WeakMap<object, VisualLineReader>();
+
+function createVisualLineReader(): VisualLineReader {
+  const document = createTextDocument();
+  const views = new Map<string, ReturnType<typeof createTextViewport>>();
+  return (text, width, wrap) => {
+    document.setValue(text);
+    const resolvedWidth = Math.max(1, Math.floor(width));
+    const mode = wrap && width >= 1 ? 'word' : 'none';
+    const key = `${resolvedWidth}:${mode}`;
+    let view = views.get(key);
+    if (!view) {
+      if (views.size >= 2) views.delete(views.keys().next().value!);
+      view = createTextViewport(document, { width: resolvedWidth, wrap: mode });
+      views.set(key, view);
+    }
+    return view.lines().map(({ text: line, start, end }) => ({ text: line, start, end }));
+  };
+}
+
 /**
- * Calculate visual lines based on width and wrapping
- * Preserves strict whitespace for editor behavior
+ * Calculate visual lines based on width and wrapping.
+ * Preserves whitespace and original UTF-16 source offsets.
  */
 export function getVisualLines(text: string, width: number, wrap: boolean): VisualLine[] {
-  if (!wrap || width < 1) {
-    const lines = text.split('\n');
-    let currentIndex = 0;
-    return lines.map(line => {
-      const start = currentIndex;
-      const end = start + line.length;
-      currentIndex = end + 1; // +1 for newline
-      return { text: line, start, end };
-    });
-  }
-
-  // Strict word wrapping
-  const lines: VisualLine[] = [];
-  let currentIndex = 0;
-
-  // Split by physical newlines first
-  const physicalLines = text.split('\n');
-
-  for (let phase = 0; phase < physicalLines.length; phase++) {
-    const rawLine = physicalLines[phase];
-    if (rawLine === '') {
-      lines.push({ text: '', start: currentIndex, end: currentIndex });
-      currentIndex += 1;
-      continue;
-    }
-
-    let lineRemaining = rawLine;
-    let lineStartIndex = currentIndex;
-
-    while (stringWidth(lineRemaining) > width) {
-      const graphemes = segmentGraphemes(lineRemaining);
-      let usedWidth = 0;
-      let hardSplitIndex = 0;
-      let wordSplitIndex = -1;
-
-      for (const grapheme of graphemes) {
-        const graphemeDisplayWidth = stringWidth(grapheme.segment);
-        if (hardSplitIndex > 0 && usedWidth + graphemeDisplayWidth > width) break;
-        usedWidth += graphemeDisplayWidth;
-        hardSplitIndex = grapheme.end;
-        if (/^[\t ]$/u.test(grapheme.segment) && grapheme.index > 0) {
-          wordSplitIndex = grapheme.index;
-        }
-        if (usedWidth >= width) break;
-      }
-
-      // Always consume at least one complete grapheme, even in a one-column
-      // viewport containing a wide glyph.
-      const splitIndex = wordSplitIndex > 0 ? wordSplitIndex : hardSplitIndex;
-
-      const subLine = lineRemaining.slice(0, splitIndex);
-      lines.push({
-        text: subLine,
-        start: lineStartIndex,
-        end: lineStartIndex + subLine.length
-      });
-
-      lineRemaining = lineRemaining.slice(splitIndex);
-      lineStartIndex += splitIndex;
-    }
-
-    // Remaining part
-    lines.push({
-      text: lineRemaining,
-      start: lineStartIndex,
-      end: lineStartIndex + lineRemaining.length
-    });
-
-    currentIndex += rawLine.length + 1; // +1 for newline
-  }
-
-  return lines;
+  return createVisualLineReader()(text, width, wrap);
 }
 
 
@@ -389,6 +341,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     autoGrow = false,
     wordWrap = false,
   } = options;
+  const readVisualLines = createVisualLineReader();
   let currentOptions: TextInputOptions = { ...options };
   let runtimeOptions = resolveRuntimeOptions(currentOptions);
   let wrapWidth = width;
@@ -1029,7 +982,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   });
 
   const getCursorLineInfo = (val: string, cursor: number) => {
-    const visualLines = getVisualLines(val, wrapWidth, wrapWordWrap);
+    const visualLines = readVisualLines(val, wrapWidth, wrapWordWrap);
     let lineIndex = 0;
     let lineStart = visualLines[0]?.start ?? 0;
     let lineText = visualLines[0]?.text ?? '';
@@ -1088,7 +1041,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   const scrollToCursor = (val: string, cursor: number) => {
     if (!resolvedMaxLines) return; // No scrolling needed if no max height
 
-    const visualLines = getVisualLines(val, wrapWidth, wrapWordWrap);
+    const visualLines = readVisualLines(val, wrapWidth, wrapWordWrap);
 
     // Find visual line containing cursor
     let cursorLineFn = 0;
@@ -1097,8 +1050,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     if (cursor >= val.length && visualLines.length > 0) {
       cursorLineFn = visualLines.length - 1;
       // If the last line is full and cursor causes a wrap-to-new-empty-line logic?
-      // Our getVisualLines handles 'newline' at end by pushing empty line?
-      // Check getVisualLines: "currentIndex += rawLine.length + 1". 
+      // The document preserves a final empty logical line after a newline.
       // If text ends with \n, physicalLines has empty string at end.
     } else {
       // Find line where start <= cursor <= end
@@ -1387,7 +1339,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   // handleInput is exposed to be registered during render phase
   // This allows isActive to be a reactive getter function
 
-  return {
+  const controller = {
     value,
     segments,
     completion: completionState,
@@ -1476,6 +1428,8 @@ export function createTextInput(options: TextInputOptions = {}) {
       // Focus logic if needed
     },
   };
+  inputLineReaders.set(controller, readVisualLines);
+  return controller;
 }
 
 /**
@@ -1485,6 +1439,7 @@ export function renderTextInput(
   state: ReturnType<typeof createTextInput>,
   options: TextInputOptions = {}
 ): VNode {
+  const readVisualLines = inputLineReaders.get(state) ?? getVisualLines;
   const mergedOptions = {
     ...(state.getOptions?.() ?? {}),
     ...options,
@@ -1618,13 +1573,13 @@ export function renderTextInput(
     let contentWidth = baseWidth;
     const placeholderValue = showPlaceholder ? placeholder : '';
     const multilineSource = showPlaceholder ? placeholderValue : displayValue;
-    let lines = getVisualLines(multilineSource, contentWidth, wordWrap);
+    let lines = readVisualLines(multilineSource, contentWidth, wordWrap);
     const hasOverflow = maxLines !== undefined && lines.length > maxLines;
     const shouldShowScrollbar = showScrollbar && hasOverflow;
 
     if (shouldShowScrollbar) {
       contentWidth = Math.max(1, baseWidth - 1);
-      lines = getVisualLines(multilineSource, contentWidth, wordWrap);
+      lines = readVisualLines(multilineSource, contentWidth, wordWrap);
       state.setLayout?.({
         width: contentWidth,
         wordWrap,

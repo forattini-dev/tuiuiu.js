@@ -29,6 +29,8 @@ export interface TerminalMessageOptions extends MarkdownOptions {
   content: string;
   /** Render content as raw text while it is still streaming */
   streaming?: boolean;
+  /** Opt into rich Markdown during streaming; use a document to retain completed blocks. */
+  streamingMarkdown?: boolean;
   /** Show the role header and gutter */
   showRole?: boolean;
   /** Override the role label for this message */
@@ -114,13 +116,14 @@ export function TerminalMessage(options: TerminalMessageOptions): VNode {
     codeLineNumbers,
     codeBlock,
     indentSize,
+    document,
   } = options;
 
   const roleStyle = resolveRoleStyle(options);
   const headerText = roleStyle.marker
     ? `${roleStyle.marker} ${roleStyle.label}`
     : roleStyle.label;
-  const body = streaming
+  const body = streaming && !options.streamingMarkdown
     ? RawMessageContent({ content, color: options.rawTextColor })
     : Markdown({
       content,
@@ -129,6 +132,7 @@ export function TerminalMessage(options: TerminalMessageOptions): VNode {
       codeLineNumbers,
       codeBlock,
       indentSize,
+      document,
     });
 
   return Box(

@@ -42,7 +42,12 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - identity-based collections: `src/interaction/collection.ts`
 - normalized collection bindings: `src/interaction/collection-bindings.ts`
 - text completion: `src/interaction/completion.ts`
+- text content/revisions: `src/interaction/text-document.ts`
 - scalar text editing: `src/interaction/text-editor.ts`
+- text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
+- incremental Markdown blocks: `src/utils/markdown-document.ts`; visual
+  formatting/cache adapter: `src/molecules/markdown.ts`
+- line-based scrolling and stable item anchors: `src/organisms/scroll-list.ts`
 - overlay and prompt ownership: `src/interaction/overlay.ts` and
   `src/interaction/prompt.ts`
 - background execution: `src/utils/background-executor.ts`
@@ -59,6 +64,10 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
   `autocomplete`, or `prompt`.
 - **Collection Controller** owns cursor, selection, filtering, modality, and
   viewport reconciliation by stable item identity.
+- **Text Document** owns content/revision and logical lines; editors own cursor,
+  selection and bounded history; viewports own reflow and visual coordinates.
+- **Markdown Document** retains only grammar-stable block identities while its
+  unfinished tail remains reparsable. It is opt-in and belongs to one message.
 - **Overlay Session** owns an opened overlay's mode, focus capture, backdrop,
   timer, and exactly-once close result.
 - **Prompt Session** is renderer-independent prompt state; VNode and ANSI hosts

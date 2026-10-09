@@ -22,10 +22,15 @@ import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { CodeBlock, type CodeBlockOptions, type Language } from './code-block.js';
 import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
+import { createMarkdownDocument, type MarkdownDocument, type MarkdownNode as ParsedNode } from '../utils/markdown-document.js';
+
+export { createMarkdownDocument, type MarkdownDocument, type MarkdownNode, type MarkdownDocumentSnapshot } from '../utils/markdown-document.js';
 
 type MarkdownCodeBlockOptions = Partial<Omit<CodeBlockOptions, 'code'>>;
 
 export interface MarkdownOptions {
+  /** Retain completed blocks across streaming updates; one document per message. */
+  document?: MarkdownDocument;
   /** Max width for text wrapping */
   maxWidth?: number;
   /** Theme colors */
@@ -68,19 +73,6 @@ const DEFAULT_THEME = {
   hr: 'border',
 };
 
-interface ParsedNode {
-  type: string;
-  content?: string;
-  children?: ParsedNode[];
-  language?: string;
-  level?: number;
-  ordered?: boolean;
-  checked?: boolean;
-  url?: string;
-  alt?: string;
-  filename?: string;
-}
-
 const SUPPORTED_LANGUAGES: Language[] = [
   'javascript',
   'typescript',
@@ -122,217 +114,6 @@ function normalizeLanguage(language?: string): Language {
   if (!normalized) return 'plain';
   if ((SUPPORTED_LANGUAGES as string[]).includes(normalized)) return normalized as Language;
   return LANGUAGE_ALIASES[normalized] ?? 'plain';
-}
-
-function tokenizeFenceInfo(info: string): string[] {
-  const tokens: string[] = [];
-  const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(info)) !== null) {
-    tokens.push(match[1] ?? match[2] ?? match[3] ?? '');
-  }
-
-  return tokens.filter(Boolean);
-}
-
-function parseFenceInfo(info: string): { language: Language; filename?: string } {
-  const tokens = tokenizeFenceInfo(info);
-  let language: Language = 'plain';
-  let filename: string | undefined;
-
-  const first = tokens[0];
-  if (first && !first.includes('=')) {
-    language = normalizeLanguage(first);
-    tokens.shift();
-  }
-
-  for (const token of tokens) {
-    const keyValue = token.match(/^(?:file|filename|path|title)=(.+)$/i);
-    if (keyValue) {
-      filename = keyValue[1].replace(/^["']|["']$/g, '');
-      continue;
-    }
-
-    if (!token.includes('=') && !filename) {
-      filename = token;
-    }
-  }
-
-  return { language, filename };
-}
-
-function getFenceStart(line: string): { char: '`' | '~'; length: number; info: string } | null {
-  const match = line.match(/^(`{3,}|~{3,})(.*)$/);
-  if (!match) return null;
-
-  const fence = match[1];
-  return {
-    char: fence[0] as '`' | '~',
-    length: fence.length,
-    info: match[2].trim(),
-  };
-}
-
-function isFenceClose(line: string, char: '`' | '~', minLength: number): boolean {
-  const trimmed = line.trim();
-  let length = 0;
-
-  while (trimmed[length] === char) {
-    length++;
-  }
-
-  return length >= minLength && trimmed.slice(length).trim() === '';
-}
-
-/**
- * Parse markdown into AST
- */
-function parseMarkdown(markdown: string): ParsedNode[] {
-  const lines = markdown.split('\n');
-  const nodes: ParsedNode[] = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Empty line
-    if (!line.trim()) {
-      nodes.push({ type: 'newline' });
-      i++;
-      continue;
-    }
-
-    // Code block (fenced)
-    const fenceStart = getFenceStart(line);
-    if (fenceStart) {
-      const { language, filename } = parseFenceInfo(fenceStart.info);
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !isFenceClose(lines[i], fenceStart.char, fenceStart.length)) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      nodes.push({
-        type: 'codeblock',
-        content: codeLines.join('\n'),
-        language,
-        filename,
-      });
-      if (i < lines.length) i++; // Skip closing fence
-      continue;
-    }
-
-    // Headers
-    const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headerMatch) {
-      nodes.push({
-        type: 'header',
-        level: headerMatch[1].length,
-        content: headerMatch[2],
-      });
-      i++;
-      continue;
-    }
-
-    // Horizontal rule
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-      nodes.push({ type: 'hr' });
-      i++;
-      continue;
-    }
-
-    // Blockquote
-    if (line.startsWith('>')) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && (lines[i].startsWith('>') || (lines[i].trim() && !lines[i].match(/^[#\-*>]/)))) {
-        quoteLines.push(lines[i].replace(/^>\s?/, ''));
-        i++;
-      }
-      nodes.push({
-        type: 'blockquote',
-        content: quoteLines.join('\n'),
-      });
-      continue;
-    }
-
-    // Unordered list
-    if (/^[-*+]\s/.test(line)) {
-      const listItems: ParsedNode[] = [];
-      while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
-        const itemText = lines[i].replace(/^[-*+]\s/, '');
-        // Check for task list
-        const taskMatch = itemText.match(/^\[([ xX])\]\s(.+)$/);
-        if (taskMatch) {
-          listItems.push({
-            type: 'listitem',
-            content: taskMatch[2],
-            checked: taskMatch[1].toLowerCase() === 'x',
-          });
-        } else {
-          listItems.push({
-            type: 'listitem',
-            content: itemText,
-          });
-        }
-        i++;
-      }
-      nodes.push({
-        type: 'list',
-        ordered: false,
-        children: listItems,
-      });
-      continue;
-    }
-
-    // Ordered list
-    if (/^\d+\.\s/.test(line)) {
-      const listItems: ParsedNode[] = [];
-      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-        const itemText = lines[i].replace(/^\d+\.\s/, '');
-        listItems.push({
-          type: 'listitem',
-          content: itemText,
-        });
-        i++;
-      }
-      nodes.push({
-        type: 'list',
-        ordered: true,
-        children: listItems,
-      });
-      continue;
-    }
-
-    // Table
-    if (line.includes('|') && lines[i + 1]?.includes('|') && /^[\s|:-]+$/.test(lines[i + 1])) {
-      const tableLines: string[] = [];
-      while (i < lines.length && lines[i].includes('|')) {
-        tableLines.push(lines[i]);
-        i++;
-      }
-      nodes.push({
-        type: 'table',
-        content: tableLines.join('\n'),
-      });
-      continue;
-    }
-
-    // Paragraph (collect consecutive non-empty lines)
-    const paragraphLines: string[] = [];
-    while (i < lines.length && lines[i].trim() && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !/^[-*+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i]) && !getFenceStart(lines[i])) {
-      paragraphLines.push(lines[i]);
-      i++;
-    }
-    if (paragraphLines.length > 0) {
-      nodes.push({
-        type: 'paragraph',
-        content: paragraphLines.join(' '),
-      });
-    }
-  }
-
-  return nodes;
 }
 
 /**
@@ -564,6 +345,11 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
   }
 }
 
+const documentRenderCaches = new WeakMap<MarkdownDocument, {
+  signature: string;
+  nodes: WeakMap<ParsedNode, VNode>;
+}>();
+
 /**
  * Markdown - Render markdown content
  *
@@ -574,8 +360,17 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
  * })
  */
 export function Markdown(options: MarkdownOptions & { content: string }): VNode {
-  const { content, maxWidth, ...rest } = options;
-  const nodes = parseMarkdown(content);
+  const { content, maxWidth, document, ...rest } = options;
+  const nodes = (document ?? createMarkdownDocument(content)).update(content);
+  const renderOptions = { ...rest, maxWidth };
+  let cache = document ? documentRenderCaches.get(document) : undefined;
+  if (document) {
+    const signature = JSON.stringify(renderOptions);
+    if (!cache || cache.signature !== signature) {
+      cache = { signature, nodes: new WeakMap() };
+      documentRenderCaches.set(document, cache);
+    }
+  }
 
   // Use maxWidth if provided, otherwise fill available space from parent
   // This enables flexWrap to work - without a width constraint, flexbox never wraps
@@ -586,7 +381,13 @@ export function Markdown(options: MarkdownOptions & { content: string }): VNode 
       flexDirection: 'column',
       width,
     },
-    ...nodes.map((node) => renderNode(node, { ...rest, maxWidth }))
+    ...nodes.map((node) => {
+      const previous = cache?.nodes.get(node);
+      if (previous) return previous;
+      const rendered = renderNode(node, renderOptions);
+      cache?.nodes.set(node, rendered);
+      return rendered;
+    })
   );
 }
 

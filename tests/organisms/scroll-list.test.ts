@@ -1774,15 +1774,14 @@ describe('ScrollList - Smooth Scrolling (Line-Based Slicing)', () => {
 
       // First render to establish maxScroll
       render();
-      // In inverted mode, scrollTop=2 means we've scrolled 2 lines from top
-      // This cuts off the oldest lines (AAA_1, AAA_2)
+      // In inverted mode, scrollTop=2 means two lines UP from the bottom.
+      // With total=12 and height=10, the viewport starts at line zero.
       state.scrollTo(2);
       const output = render();
 
-      // With smooth scrolling at scrollTop=2:
-      // AAA (oldest) - only last line visible
-      expect(output).not.toContain('AAA_1'); // Scrolled off
-      expect(output).not.toContain('AAA_2'); // Scrolled off
+      // AAA (oldest) is now completely visible.
+      expect(output).toContain('AAA_1');
+      expect(output).toContain('AAA_2');
       expect(output).toContain('AAA_3');      // Visible
 
       // BBB, CCC fully visible
@@ -1793,10 +1792,10 @@ describe('ScrollList - Smooth Scrolling (Line-Based Slicing)', () => {
       expect(output).toContain('CCC_2');
       expect(output).toContain('CCC_3');
 
-      // DDD (newest) - all visible (at bottom in inverted mode)
+      // DDD (newest) - only its first line remains in this viewport.
       expect(output).toContain('DDD_1');
-      expect(output).toContain('DDD_2');
-      expect(output).toContain('DDD_3');
+      expect(output).not.toContain('DDD_2');
+      expect(output).not.toContain('DDD_3');
     });
 
     it('should render newest items first when at bottom in inverted mode', () => {
