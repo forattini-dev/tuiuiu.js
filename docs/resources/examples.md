@@ -33,7 +33,7 @@ pnpm example app-dashboard
 | `shell-session-workbench` | Advanced | App-owned subprocess transcript routing, streamed output, persisted replay restoration, live status, and line-based stdin bridging |
 | `interaction-workbench` | Advanced | Semantic commands, collection identity, overlay sessions, and app-hosted prompts |
 | `text-selection-lab` | Medium | Read-only source selection with wrapping, scrolling, Unicode and a copy preview |
-| `text-editor-lab` | Medium | Editable Unicode selection, atomic segments and bounded undo/redo |
+| `text-editor-lab` | Medium | Editable Unicode drag selection, copy preview, atomic segments and bounded undo/redo |
 | `app-dashboard` | Advanced | Heavy composition, metrics, and animation-like updates |
 | `app-ai-assistant` | Advanced | Assistant-style composition, overlays, streaming, code, and settings |
 

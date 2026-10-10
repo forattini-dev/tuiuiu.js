@@ -13,7 +13,7 @@ export const examplesManifest: ExampleManifestEntry[] = [
   {
     name: 'text-editor-lab',
     file: 'text-editor-lab.ts',
-    description: 'Editable Unicode selection, atomic segments, bounded undo/redo and separate submitted history.',
+    description: 'Editable Unicode drag selection, copy preview, atomic segments, bounded undo/redo and separate submitted history.',
     category: 'interaction',
     difficulty: 'medium',
     validate: true,

@@ -17,14 +17,17 @@
 
 import { Box, Text } from '../primitives/nodes.js';
 import { component } from '../app/component.js';
-import type { VNode, MouseEventData, TextStyle } from '../utils/types.js';
+import type { VNode, TextStyle } from '../utils/types.js';
 import { batch, createSignal, createEffect } from '../primitives/signal.js';
 import { useInput, type Key } from '../hooks/index.js';
 import { useFactoryState } from '../hooks/factory-state.js';
 import { usePaste } from '../hooks/use-paste.js';
+import { usePointerSelection } from '../hooks/use-pointer-selection.js';
+import { useClipboard } from '../hooks/use-clipboard.js';
 import { getTheme, getContrastColor } from '../core/theme.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { stripTerminalControls } from '../utils/terminal-sanitize.js';
 import {
   clampToGraphemeBoundary,
   nextGraphemeBoundary,
@@ -219,6 +222,8 @@ export interface TextInputOptions {
   undoLimit?: number;
   /** Style for selected text; the cursor retains its own style. */
   selectionStyle?: TextStyle;
+  /** Ctrl+Shift+C override. Receives plain selected source text; never runs in password mode. */
+  onCopy?: (text: string) => void;
   /** Input history for Up/Down navigation */
   history?: TextInputHistoryItem[];
   /** Optional synchronous persistence for submitted history entries */
@@ -1440,6 +1445,8 @@ export function createTextInput(options: TextInputOptions = {}) {
     completion: completionState,
     cursorPosition,
     selection,
+    /** Pure source extraction; no clipboard write. Password inputs return an empty string. */
+    copyText: () => currentOptions.password ? '' : stripTerminalControls(selection().text),
     setSelection: (anchor: number, head: number) => {
       if (!Number.isSafeInteger(anchor) || !Number.isSafeInteger(head)) {
         throw new RangeError('TextInput selection must use safe integer UTF-16 offsets');
@@ -1591,16 +1598,32 @@ export function renderTextInput(
     fullWidth = false,
   } = mergedOptions;
   const isActive = typeof activeOption === 'function' ? activeOption() : activeOption;
+  const checkActive = () => {
+    if (state.disposed || !(typeof activeOption === 'function' ? activeOption() : activeOption)) return false;
+    const current = state.getOptions().isActive;
+    return current === undefined || current === activeOption || (typeof current === 'function' ? current() : current);
+  };
   const autoGrow = mergedOptions.autoGrow ?? false;
   const showScrollbar = mergedOptions.showScrollbar ?? true;
   const resolvedMaxLines = autoGrow ? (mergedOptions.maxLines ?? 5) : mergedOptions.maxLines;
 
   // Register input handler during render phase
-  useInput(state.handleInput);
+  const clipboard = useClipboard();
+  useInput((input, key) => {
+    if (key.ctrl && key.shift && input.toLowerCase() === 'c') {
+      if (!checkActive() || password) return false;
+      const text = state.copyText();
+      if (!text || (!mergedOptions.onCopy && !clipboard.supported)) return false;
+      (mergedOptions.onCopy ?? clipboard.copy)(text);
+      return true;
+    }
+    if (checkActive()) state.handleInput(input, key);
+    return false;
+  }, { stopPropagation: true });
 
   // Register paste handler for bracketed paste support
   usePaste((event) => {
-    if (isActive && !state.disposed) state.paste(event.text);
+    if (checkActive()) state.paste(event.text);
   });
 
   const value = state.value();
@@ -1641,6 +1664,24 @@ export function renderTextInput(
   const wordWrap = mergedOptions.wordWrap ?? false;
   const maxLines = resolvedMaxLines;
   const showCharCount = mergedOptions.showCharCount ?? false;
+  let hitAt: (x: number, y: number, dragging: boolean) => number | null = () => null;
+  const pointer = usePointerSelection({
+    identity: state,
+    geometry: `${width}:${maxLines}:${wordWrap}:${password}:${maskChar}:${prompt}:${borderStyle}:${fullWidth}:${showCharCount}:${showScrollbar}`,
+    revision: value,
+    isActive: () => checkActive() && state.value() === value,
+    onStart(event) {
+      const next = hitAt(event.x, event.y, false);
+      if (next === null) return false;
+      if (event.modifiers.shift) state.setSelection(state.selection().anchor, next);
+      else state.setCursorPosition(next, { scroll: false });
+      return true;
+    },
+    onMove(x, y) {
+      const next = hitAt(x, y, true);
+      if (next !== null) state.setSelection(state.selection().anchor, next);
+    },
+  });
 
   // Build the input display with cursor
   const displayCursorEnd = nextGraphemeBoundary(displayValue, displayCursor);
@@ -1803,18 +1844,19 @@ export function renderTextInput(
       return Text({ color }, scrollbarChars[index] ?? ' ');
     };
 
-    const handleMultilineClick = (event: MouseEventData) => {
-      const lineIndex = event.y - contentStartY;
-      if (lineIndex < 0 || lineIndex >= visibleLines.length) return;
+    hitAt = (x, y, dragging) => {
+      const lineIndex = y - contentStartY;
+      if (!dragging && (lineIndex < 0 || lineIndex >= visibleLines.length)) return null;
+      // Move one visual row past the visible window to scroll while dragging.
+      const absoluteRow = Math.max(0, Math.min(lines.length - 1,
+        offset + Math.max(-1, Math.min(visibleLines.length, lineIndex))));
 
-      const lineObj = visibleLines[lineIndex];
-      const linePrompt = lineIndex === 0 && offset === 0 ? prompt : chars.border.vertical;
+      const lineObj = lines[absoluteRow]!;
+      const linePrompt = absoluteRow === 0 ? prompt : chars.border.vertical;
       const promptWidth = stringWidth(`${linePrompt} `);
-      const column = event.x - contentStartX - promptWidth;
+      const column = x - contentStartX - promptWidth;
       const cursorOffset = getCursorIndexFromColumn(lineObj.text, column);
-      const nextCursor = displayIndexToValueIndex(lineObj.start + cursorOffset);
-
-      if (isActive) state.setCursorPosition(nextCursor, { scroll: false, extend: event.modifiers.shift });
+      return displayIndexToValueIndex(lineObj.start + cursorOffset);
     };
 
     const renderedLines = visibleLines.map((lineObj, i) => {
@@ -1875,10 +1917,10 @@ export function renderTextInput(
       );
     }
 
-    return Box(
-      { ...boxStyle, onClick: handleMultilineClick },
+    return pointer.bind(Box(
+      { ...boxStyle, onClick: pointer.onMouseDown },
       ...renderedLines
-    );
+    ));
   }
 
   // Single line - simple row layout
@@ -1893,23 +1935,21 @@ export function renderTextInput(
     rowStyle.paddingX = 1;
   }
 
-  const handleSingleLineClick = (event: MouseEventData) => {
+  hitAt = (x, y, dragging) => {
     const borderSize = noBorder ? 0 : 1;
     const contentStartX = noBorder ? 0 : 2;
     const contentStartY = borderSize;
-    const lineIndex = event.y - contentStartY;
-    if (lineIndex !== 0) return;
+    const lineIndex = y - contentStartY;
+    if (!dragging && lineIndex !== 0) return null;
 
     const promptWidth = stringWidth(`${prompt} `);
-    const column = event.x - contentStartX - promptWidth;
+    const column = x - contentStartX - promptWidth;
     const cursorOffset = getCursorIndexFromColumn(displayValue, column);
-    const nextCursor = displayIndexToValueIndex(cursorOffset);
-
-    if (isActive) state.setCursorPosition(nextCursor, { scroll: false, extend: event.modifiers.shift });
+    return displayIndexToValueIndex(cursorOffset);
   };
 
-  return Box(
-    { ...rowStyle, onClick: handleSingleLineClick },
+  return pointer.bind(Box(
+    { ...rowStyle, onClick: pointer.onMouseDown },
     Text({ color: foreground }, `${prompt} `),
     showPlaceholder
       ? Box(
@@ -1925,7 +1965,7 @@ export function renderTextInput(
           : renderContent(cursorChar, displayCursor),
         renderContent(afterCursor, displayCursorEnd)
       )
-  );
+  ));
 }
 
 export interface TextInputProps extends TextInputOptions {

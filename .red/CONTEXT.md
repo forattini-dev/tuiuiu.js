@@ -47,6 +47,9 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - editable input adapter: `src/atoms/text-input.ts` owns a TextEditor, attaches
   segment snapshots to its undo checkpoints, and keeps submitted command history
   and completion separate. Hook-owned input controllers dispose on unmount.
+- editable/read-only pointer capture: `src/hooks/use-pointer-selection.ts` keeps
+  mouse lifetime and committed, unclipped node geometry shared across both views.
+  Clipboard handles bind to the creating app output; password input copy is blocked.
 - text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
 - read-only source selection: `src/interaction/text-selection.ts`; bounded
   visual adapter: `src/atoms/text-view.ts`

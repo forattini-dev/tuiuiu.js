@@ -4,10 +4,9 @@ import { RichText, type TextSpan, type TextSpanStyle } from '../primitives/rich-
 import { useConst } from '../hooks/use-const.js';
 import { useState } from '../hooks/use-state.js';
 import { useEffect } from '../hooks/use-effect.js';
-import { useMouse } from '../hooks/use-mouse.js';
+import { usePointerSelection } from '../hooks/use-pointer-selection.js';
 import { useInput } from '../hooks/use-input.js';
 import { useClipboard } from '../hooks/use-clipboard.js';
-import { getHitTestRegistry } from '../core/hit-test.js';
 import type { TextSelection } from '../interaction/text-selection.js';
 import { createTextViewport, type TextViewport, type TextViewportOptions } from '../interaction/text-viewport.js';
 import { previousGraphemeBoundary, nextGraphemeBoundary, segmentGraphemes } from '../utils/grapheme.js';
@@ -47,10 +46,7 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
   const slot = useConst(() => ({
     selection: null as TextSelection | null,
     viewport: null as TextViewport | null,
-    node: null as VNode | null,
     unsubscribe: () => {},
-    dragging: false,
-    startedHere: false,
     goalColumn: null as number | null,
     goalHead: null as number | null,
     width,
@@ -58,18 +54,16 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
     wrap,
     tabSize,
   }));
-  useEffect(() => () => { slot.unsubscribe(); slot.dragging = false; });
+  useEffect(() => () => { slot.unsubscribe(); });
   if (slot.selection !== selection) {
     const nextViewport = createTextViewport(selection.document, { width, wrap, tabSize });
     slot.unsubscribe();
     slot.selection = selection;
     slot.viewport = nextViewport;
     slot.unsubscribe = selection.subscribe(() => setRevision(value => value + 1));
-    slot.dragging = false;
     slot.goalColumn = null;
   }
   if (slot.width !== width || slot.height !== height || slot.wrap !== wrap || slot.tabSize !== tabSize) {
-    slot.dragging = false;
     slot.goalColumn = null;
   }
   Object.assign(slot, { width, height, wrap, tabSize });
@@ -94,21 +88,17 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
     Math.max(scrollTop, Math.min(scrollTop + row, Math.min(rows.length - 1, scrollTop + height - 1))),
     column,
   );
-  useMouse(event => {
-    if (!slot.dragging) return;
-    if (event.action === 'click' || event.action === 'double-click') {
-      // Hit handlers run first. A press on another element cancels our capture.
-      if (!slot.startedHere) slot.dragging = false;
-      slot.startedHere = false;
-      return;
-    }
-    if (event.action === 'release' || (event.action === 'drag' && event.button === 'left')) {
-      const bounds = slot.node && getHitTestRegistry().getBounds(slot.node);
-      if (!bounds) { slot.dragging = false; return; }
-      selection.extend(offsetAt(event.y - (bounds.originY ?? bounds.y), event.x - (bounds.originX ?? bounds.x)));
-      if (event.action === 'release') slot.dragging = false;
-    }
-  }, { enableTracking: true });
+  const pointer = usePointerSelection({
+    identity: selection, geometry: `${width}:${height}:${wrap}:${tabSize}`,
+    onStart(event) {
+      const offset = offsetAt(event.y, event.x);
+      if (event.modifiers.shift) selection.extend(offset);
+      else selection.set(offset, offset);
+      slot.goalColumn = null;
+      return true;
+    },
+    onMove(x, y) { selection.extend(offsetAt(y, x)); },
+  });
   useInput((input, key) => {
     if (key.ctrl && key.shift && input.toLowerCase() === 'c') {
       if (selection.snapshot().start === selection.snapshot().end) return false;
@@ -161,21 +151,11 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
   });
   const node = Box({ id: props.id, width, height, flexShrink: 0, overflow: 'hidden',
     role: 'document', 'aria-readonly': true,
-    onMouseDown(event) {
-      if (event.button !== 'left') return;
-      const offset = offsetAt(event.y, event.x);
-      if (event.modifiers.shift) selection.extend(offset);
-      else selection.set(offset, offset);
-      slot.dragging = true;
-      slot.startedHere = true;
-      slot.goalColumn = null;
-      event.stopPropagation();
-    },
+    onMouseDown: pointer.onMouseDown,
     onScroll(event) {
       scrollTo(scrollTop + (event.button === 'scroll-up' ? -3 : 3));
       event.stopPropagation();
     },
   }, ...visible);
-  slot.node = node;
-  return node;
+  return pointer.bind(node);
 });

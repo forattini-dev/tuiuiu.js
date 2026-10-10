@@ -121,6 +121,12 @@ function separateStaticNodes(node: VNode): { staticNodes: VNode[]; interactiveNo
         .map(child => (child && typeof child === 'object' && 'type' in child) ? processNode(child as VNode) : child)
         .filter((child): child is VNode => child !== null);
 
+      // Preserve interactive-node identity unless static extraction changed
+      // this subtree. Mouse capture and retained layout refer to these nodes.
+      if (newChildren.length === n.children.length && newChildren.every((child, index) => child === n.children[index])) {
+        return n;
+      }
+
       return {
         ...n,
         children: newChildren,

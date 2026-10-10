@@ -121,10 +121,11 @@ passed another selection but never disposes the caller's controller. Captured
 drags resolve origins from the active hit-test frame, including partial clipping.
 See [TextView usage and limitations](/components/primitives/text.md#read-only-document-selection).
 
-This does not yet connect TextInput to the editor or add selection to formatted
-Markdown. TextView uses TextViewport's source-preserving wrapping, whereas
-ordinary Text/RichText use their canonical presentation fitter. Source mappings
-must not be exchanged between those geometries implicitly.
+Selection of formatted Markdown is not yet connected. TextView and TextInput
+share owner-local pointer capture, but retain their own source projections.
+TextView uses TextViewport's source-preserving wrapping, whereas ordinary
+Text/RichText use their canonical presentation fitter. Source mappings must not
+be exchanged between those geometries implicitly.
 
 ## Stable list anchors
 

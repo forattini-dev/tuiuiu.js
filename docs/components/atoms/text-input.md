@@ -51,6 +51,7 @@ to `TextInput()` is suitable for simpler cases.
 | `completion` | `TextInputCompletionOptions` | - | Anchored synchronous or async completions |
 | `undoLimit` | `number` | `100` | Bounded undo checkpoints; zero disables undo. May change through `updateOptions()` |
 | `selectionStyle` | `TextStyle` | `{ inverse: true }` | Selection paint; cursor style remains independent |
+| `onCopy` | `(text: string) => void` | - | Overrides the default Ctrl+Shift+C OSC52 write; receives plain selected source, except in password mode |
 
 ## Selection and undo/redo
 
@@ -87,8 +88,40 @@ programmatic resets and recalled history retain their supplied values.
 `useTextInputState()` and internally owned TextInput controllers dispose on unmount.
 For a caller-owned `createTextInput()`, call `dispose()` yourself. Disposal cancels
 pending completions and releases subscriptions without disposing external views.
-This does not yet add mouse-drag selection, selection clipboard integration or
-horizontal scrolling to TextInput. Password mode paints selection on masked text.
+Horizontal scrolling is not yet supported. Password mode paints selection on masked text.
+
+## Pointer selection and clipboard
+
+Drag with the left button to select source text, including across soft wraps and
+outside the panel. Pointer hits account for the border, prompt, viewport offset,
+wide graphemes and clipped parents. Segments remain atomic. Dragging past visible
+rows advances the viewport as mouse events arrive; a stationary pointer does not
+start a scrolling timer. A new press elsewhere, controller/content changes,
+geometry changes or deactivation end capture. Unmount releases mouse tracking.
+
+Ctrl+Shift+C copies the selected source text through the terminal's capability-aware
+OSC52 adapter. Unsupported terminals and empty selections are no-ops. Plain Ctrl+C
+is never consumed. Copied text excludes soft wraps, prompts, borders and terminal
+protocols. `onCopy` overrides OSC52, so applications can show a preview or choose
+their own clipboard adapter. No clipboard read or shell command is performed.
+
+```ts
+import { component, useState } from 'tuiuiu.js/app';
+import { Box, Text, TextInput, useTextInputState } from 'tuiuiu.js/ui';
+
+const CopyPreview = component('CopyPreview', () => {
+  const [copied, setCopied] = useState('');
+  const input = useTextInputState({ initialValue: 'hello 👩‍💻' });
+  return Box({ flexDirection: 'column' },
+    TextInput({ state: input, onCopy: setCopied }),
+    Text({}, JSON.stringify(copied())));
+});
+```
+
+`state.copyText()` extracts plain selected text without clipboard side effects.
+Both this method and UI copy are blocked in password mode, including `onCopy`.
+The application still owns and can access the original `value()`/selection;
+password mode prevents accidental clipboard disclosure, not application access.
 
 Try `pnpm example text-editor-lab`.
 

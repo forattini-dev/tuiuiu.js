@@ -60,6 +60,22 @@ describe('terminal integration hooks', () => {
     expect(processWrite).toHaveBeenCalledWith('\u001B]52;c;SGVsbG8=\u0007');
   });
 
+  it('keeps the creating app output when the clipboard handle is invoked outside its scope', () => {
+    const ownerWrite = vi.fn(() => true);
+    const otherWrite = vi.fn(() => true);
+    setAppContext({ stdout: { write: ownerWrite } } as never);
+    const clipboard = useClipboard();
+    setAppContext({ stdout: { write: otherWrite } } as never);
+    clipboard.copy('Hello');
+    expect(ownerWrite).toHaveBeenCalledOnce();
+    expect(otherWrite).not.toHaveBeenCalled();
+    expect(processWrite).not.toHaveBeenCalled();
+    setAppContext(null);
+    clipboard.copy('Hello');
+    expect(ownerWrite).toHaveBeenCalledTimes(2);
+    expect(processWrite).not.toHaveBeenCalled();
+  });
+
   it('does not write when clipboard support cannot produce a sequence', () => {
     integrationMocks.getCapabilities.mockReturnValue({
       clipboard: false,

@@ -198,8 +198,8 @@ describe('TextView', () => {
     await app.flush();
     expect(app.getScreen()[0]!.trim()).toBe('3');
   });
-  it('keeps capture through reactive presentation and Shift-click extends its anchor', async () => {
-    const { app, selection } = setup('hello\nworld');
+  it.each([true, false])('keeps capture through reactive presentation and Shift-click extends its anchor (delta=%s)', async delta => {
+    const { app, selection } = setup('hello\nworld', delta);
     app.render(() => TextView({ selection, width: 8, height: 2 }));
     app.terminal.sendMouse({ x: 1, y: 0, button: 'left', action: 'press' });
     await app.flush();

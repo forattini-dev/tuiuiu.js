@@ -33,11 +33,14 @@ export interface UseClipboardResult {
 export function useClipboard(): UseClipboardResult {
   const caps = getCapabilities();
   const supported = !!caps.clipboard;
+  // Clipboard handles belong to the app that created them, even when invoked
+  // through commands.dispatch() or another asynchronous caller outside its scope.
+  const stdout = getAppContext()?.stdout ?? process.stdout;
 
   function copy(text: string): void {
     const seq = getClipboardWriteSequence(text, caps);
     if (seq) {
-      (getAppContext()?.stdout ?? process.stdout).write(seq);
+      stdout.write(seq);
     }
   }
 

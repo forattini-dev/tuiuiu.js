@@ -6,6 +6,7 @@ const App = component('TextEditorLab', () => {
   const size = useTerminalSize();
   const { exit } = useApp();
   const [submitted, setSubmitted] = useState('');
+  const [copied, setCopied] = useState('');
   const input = useTextInputState({
     initialValue: 'Edit me: é · 界 · 👩‍💻 · 🇧🇷\nSelect text and replace it. Undo also restores attached segments.',
     multiline: true,
@@ -22,13 +23,15 @@ const App = component('TextEditorLab', () => {
   });
   return Box({ flexDirection: 'column' },
     Text({ bold: true, color: 'primary' }, 'Text editor lab — no JSX'),
-    Text({ dim: true }, 'Shift+arrows / Shift+click: select · Ctrl+Z: undo · Ctrl+Y: redo'),
+    Text({ dim: true }, 'Drag / Shift+arrows / Shift+click: select · Ctrl+Z: undo · Ctrl+Y: redo'),
     Text({ dim: true }, 'Ctrl+L: select all · Ctrl+B: attach a segment · Ctrl+N: newline · Ctrl+C: quit'),
-    TextInput({ state: input, width: Math.max(8, size.columns), maxLines: Math.max(1, size.rows - 8),
+    Text({ dim: true }, 'Ctrl+Shift+C: preview copied source text (not a system clipboard write)'),
+    TextInput({ state: input, width: Math.max(8, size.columns), maxLines: Math.max(1, size.rows - 10), onCopy: setCopied,
       selectionStyle: { backgroundColor: 'blue', color: 'white' } }),
     Text({ wrap: 'truncate-end' }, `Selected: ${JSON.stringify(input.selection().text)}`),
     Text({ dim: true }, `Undo: ${input.canUndo()} · Redo: ${input.canRedo()} · Segments: ${input.segments().length}`),
-    Text({ wrap: 'truncate-end' }, `Last submitted: ${JSON.stringify(submitted())}`));
+    Text({ wrap: 'truncate-end' }, `Last submitted: ${JSON.stringify(submitted())}`),
+    Text({ wrap: 'truncate-end' }, `Copy preview: ${JSON.stringify(copied())}`));
 });
 
 await render(() => App(), { screen: 'fullscreen' }).waitUntilExit();
