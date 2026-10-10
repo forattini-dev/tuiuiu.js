@@ -8,12 +8,12 @@ and prompts.
 ## Install
 
 ```bash
-pnpm add tuiuiu.js@next
+pnpm add tuiuiu.js
 ```
 
-This README describes the breaking v2 prerelease. Install `@next` to try these
-APIs; `@latest` remains the stable v1 channel until v2 is promoted. See the
-[migration guide](docs/migration/2.0.md) before upgrading an existing application.
+This README describes v2. See the [migration guide](docs/migration/2.0.md) before
+upgrading an existing v1 application; pin `tuiuiu.js@1` to stay on the previous
+major version while migrating.
 
 Node.js 22.12 or newer is required.
 

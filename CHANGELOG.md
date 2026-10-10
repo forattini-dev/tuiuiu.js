@@ -2,12 +2,12 @@
 
 Notable changes to Tuiuiu are documented here.
 
-## Unreleased (2.0)
+## 2.0.0 — 2026-10-10
 
 Version 2 changes public entrypoints, component ownership and interaction APIs.
 Follow [the migration guide](docs/migration/2.0.md); this is not a 1.x patch.
-Release candidates are published through the explicit `next` channel before
-promotion to the stable `latest` channel.
+The stable release follows cross-platform CI and consumer testing of the `next`
+candidate. Install `tuiuiu.js@latest` for v2, or pin `tuiuiu.js@1` while migrating.
 
 ### Added
 
