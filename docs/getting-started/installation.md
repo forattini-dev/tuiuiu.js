@@ -7,13 +7,17 @@
 - TypeScript recommended
 
 ```bash
-pnpm add tuiuiu.js
+pnpm add tuiuiu.js@next
 ```
+
+These docs describe the v2 prerelease. `@next` opts into its breaking APIs;
+`@latest` remains the stable v1 channel until v2 is promoted. Existing users
+should read [the migration guide](/migration/2.0.md) first.
 
 Or generate a project:
 
 ```bash
-npx tuiuiu.js@latest init my-tui-app
+npx tuiuiu.js@next init my-tui-app
 ```
 
 ## Imports

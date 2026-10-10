@@ -440,6 +440,11 @@ The parser retains immutable identities for a grammar-stable prefix and reparses
 the unfinished tail. Tables, partial delimiters, and unclosed code fences are
 not prematurely committed. A replacement/truncation falls back to full parsing.
 Rendering reuses stable block VNodes until formatting options change.
+Owned code fences retain safe lexical prefixes and equal fitted visual rows;
+theme, wrapping, gutter and width changes invalidate their presentation. The
+resumable shipped definitions are JavaScript, TypeScript, Go, SQL, JSON, YAML,
+Java and diff. Other languages and modified definitions use the full scanner.
+Unfinished multiline strings/comments rewind to a prior safe checkpoint.
 `document.snapshot()` reports revision, reused block count and the source offset
 where parsing resumed.
 

@@ -2,7 +2,12 @@
 
 Notable changes to Tuiuiu are documented here.
 
-## Unreleased
+## Unreleased (2.0)
+
+Version 2 changes public entrypoints, component ownership and interaction APIs.
+Follow [the migration guide](docs/migration/2.0.md); this is not a 1.x patch.
+Release candidates are published through the explicit `next` channel before
+promotion to the stable `latest` channel.
 
 ### Added
 
@@ -26,6 +31,9 @@ Notable changes to Tuiuiu are documented here.
   preserves inline attributes and edits invalidate stale pointer captures.
 - Add shared structured lexical highlighting to selectable Markdown fences,
   with opt-out and code-theme configuration that preserve source/copy geometry.
+- Add owned incremental code highlighting and fitted-row reuse to Markdown
+  documents/readers. Eight shipped language definitions resume from safe lexical
+  checkpoints; other languages and modified definitions retain full scanning.
 
 ### Security
 
@@ -47,7 +55,10 @@ Notable changes to Tuiuiu are documented here.
 - Highlight code before fitting lines, preserving multiline comments/strings and
   deterministic numeric tokens. CodeBlock and InlineCode no longer create a flex
   item per token; explicit-width wrapping reserves real terminal gutter columns.
-
+- Reflow affected logical text lines instead of repeatedly rebuilding the entire
+  document, and use binary search for source-to-visual-row lookup.
+- Detach retained text and code-row slices from old source revisions, preventing
+  substring-backed history retention while preserving raw UTF-16 and Unicode.
 - Preserve UTF-8 characters split across input chunks.
 - Parse fragmented CSI, OSC, bracketed-paste, mouse, and focus input
   incrementally with bounded buffers.
@@ -73,7 +84,6 @@ Notable changes to Tuiuiu are documented here.
   long legends with an ellipsis.
 - Preserve narrow siblings when integer `flexShrink` rounding can assign a
   one-column overflow to a wider child.
-- Export `createWizard` and the navigation factory family from the package root.
 - Keep `useShortcut()` callbacks argument-free, so passing `useApp().exit`
   directly does not interpret command context as an application error.
 - Correct macOS shortcut-label expectations and cover native labels explicitly
