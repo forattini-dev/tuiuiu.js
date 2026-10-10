@@ -64,7 +64,8 @@ idempotent; later mutations through that editor are rejected. When passing
 
 `lines()` is a frozen array of frozen rows, reused until document revision or
 configuration changes. Each row exposes raw `text`, terminal `displayText`
-(tabs expanded), `width`, `start`, `end`, and `logicalLine`.
+(tabs expanded and other control characters shown as replacement glyphs),
+`width`, `start`, `end`, and `logicalLine`.
 
 `positionAt(offset, 'forward')` maps a soft-wrap boundary to the next visual
 row; `'backward'` keeps it at the preceding row's end. `offsetAt(row, column)`
@@ -77,6 +78,39 @@ TextInput reuses this wrapping implementation with two cached width configuratio
 per controller (content with and without its scrollbar). Its rich segments and
 completion state remain separate; this does not add selection/undo keybindings
 to TextInput automatically.
+
+## Read-only selection and visual projection
+
+`createTextSelection(document)` owns a read-only anchor/head without creating
+an editor or retaining undo history. `set(anchor, head)`, `extend(head)`,
+`clear()` and `selectAll()` preserve direction and clamp to whole graphemes.
+Snapshots are immutable and include source `start`, `end` and `text`.
+`copyText()` removes terminal protocols; it has no clipboard side effects.
+
+Selection observes document edits: endpoints before or exactly at an edit's
+start stay before the insertion, later endpoints shift by the edit delta, and
+endpoints inside replaced content move to the inserted content's end. Every
+document revision notifies selection subscribers, even when the endpoints are
+unchanged. Dispose the selection to release its document subscription; disposal
+does not dispose the shared document.
+
+`viewport.rangeRects(start, end, firstRow?, rowCount?)` projects a source range
+onto immutable cell rectangles. It uses the same tab expansion, grapheme width
+and reflow as `positionAt`/`offsetAt`; source newline characters have no cells.
+Optional row bounds limit projection to the visible window, but not document
+reflow. This is a reusable base for selections and other range decorations.
+
+`TextView` from `tuiuiu.js/ui` is the read-only visual adapter. It paints only
+visible rows, binds keyboard handlers only when explicitly active, and owns
+mouse capture and subscriptions for its component lifetime. It rebinds when
+passed another selection but never disposes the caller's controller. Captured
+drags resolve origins from the active hit-test frame, including partial clipping.
+See [TextView usage and limitations](/components/primitives/text.md#read-only-document-selection).
+
+This does not yet connect TextInput to the editor or add selection to formatted
+Markdown. TextView uses TextViewport's source-preserving wrapping, whereas
+ordinary Text/RichText use their canonical presentation fitter. Source mappings
+must not be exchanged between those geometries implicitly.
 
 ## Stable list anchors
 

@@ -13,6 +13,14 @@ export interface TextDocumentChange {
   revision: number;
 }
 
+/** Internal shared endpoint policy: stick before insertions at the endpoint. */
+export function rebaseTextOffset(offset: number, value: string, change: TextDocumentChange): number {
+  const next = offset <= change.start ? offset
+    : offset >= change.end ? offset + change.inserted.length - (change.end - change.start)
+    : change.start + change.inserted.length;
+  return clampToGraphemeBoundary(value, next, 'left');
+}
+
 export interface TextDocumentLine {
   text: string;
   start: number;

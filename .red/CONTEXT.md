@@ -45,6 +45,8 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - text content/revisions: `src/interaction/text-document.ts`
 - scalar text editing: `src/interaction/text-editor.ts`
 - text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
+- read-only source selection: `src/interaction/text-selection.ts`; bounded
+  visual adapter: `src/atoms/text-view.ts`
 - incremental Markdown blocks: `src/utils/markdown-document.ts`; visual
   formatting/cache adapter: `src/molecules/markdown.ts`
 - structured text/style snapshots and canonical fitted source mapping:

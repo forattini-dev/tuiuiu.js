@@ -23,6 +23,21 @@ export interface TextViewport {
   lines(): readonly TextViewportLine[];
   positionAt(offset: number, affinity?: 'forward' | 'backward'): { row: number; column: number };
   offsetAt(row: number, column: number): number;
+  /** Cell ranges for retained source ink. Line terminators have no cells. */
+  rangeRects(start: number, end: number, firstRow?: number, rowCount?: number): readonly TextViewportRangeRect[];
+}
+
+export interface TextViewportRangeRect {
+  readonly row: number;
+  readonly column: number;
+  readonly width: number;
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Source controls are visible placeholders, never interpreted terminal protocols. */
+function printable(segment: string): string {
+  return segment.replace(/[\u0000-\u001f\u007f-\u009f]/gu, '\ufffd');
 }
 
 function normalize(options: TextViewportOptions): Required<TextViewportOptions> {
@@ -45,8 +60,8 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
     let width = 0;
     let displayText = '';
     for (const { segment } of segmentGraphemes(text)) {
-      const cells = segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(segment);
-      displayText += segment === '\t' ? ' '.repeat(cells) : segment;
+      const cells = segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(segment));
+      displayText += segment === '\t' ? ' '.repeat(cells) : printable(segment);
       width += cells;
     }
     return { displayText, width };
@@ -65,7 +80,7 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
         let wordBreak = -1;
         while (next < graphemes.length) {
           const part = graphemes[next]!;
-          const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(part.segment);
+          const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(part.segment));
           if (options.wrap !== 'none' && next > first && width + cells > options.width) break;
           width += cells;
           if (/^[\t ]$/u.test(part.segment) && next > first) wordBreak = next;
@@ -112,12 +127,33 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
       let width = 0;
       let offset = line.start;
       for (const part of segmentGraphemes(line.text)) {
-        const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(part.segment);
+        const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(part.segment));
         if (width + cells > Math.max(0, column)) break;
         width += cells;
         offset = line.start + part.end;
       }
       return offset;
+    },
+    rangeRects(start, end, firstRow = 0, rowCount = Number.MAX_SAFE_INTEGER) {
+      if (![start, end, firstRow, rowCount].every(Number.isSafeInteger) || start > end
+        || firstRow < 0 || rowCount < 0) {
+        throw new RangeError('TextViewport ranges require ordered safe offsets and non-negative row bounds');
+      }
+      const value = document.snapshot().value;
+      const first = clampToGraphemeBoundary(value, start, 'left');
+      const last = clampToGraphemeBoundary(value, end, 'left');
+      const rects: TextViewportRangeRect[] = [];
+      const current = lines();
+      for (let row = firstRow; row < Math.min(current.length, firstRow + rowCount); row++) {
+        const line = current[row]!;
+        const from = Math.max(first, line.start);
+        const to = Math.min(last, line.end);
+        if (from >= to) continue;
+        const column = display(line.text.slice(0, from - line.start)).width;
+        const right = display(line.text.slice(0, to - line.start)).width;
+        rects.push(Object.freeze({ row, column, width: right - column, start: from, end: to }));
+      }
+      return Object.freeze(rects);
     },
   };
 }

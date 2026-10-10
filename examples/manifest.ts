@@ -11,6 +11,14 @@ export interface ExampleManifestEntry {
 
 export const examplesManifest: ExampleManifestEntry[] = [
   {
+    name: 'text-selection-lab',
+    file: 'text-selection-lab.ts',
+    description: 'Source-based read-only selection, wrapping, scrolling, Unicode and copy preview.',
+    category: 'interaction',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
     name: 'app-counter',
     file: 'app-counter.ts',
     description: 'Counter with local state and keyboard input.',

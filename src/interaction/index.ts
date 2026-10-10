@@ -140,7 +140,14 @@ export {
   type TextViewport,
   type TextViewportOptions,
   type TextViewportLine,
+  type TextViewportRangeRect,
 } from './text-viewport.js';
+
+export {
+  createTextSelection,
+  type TextSelection,
+  type TextSelectionSnapshot,
+} from './text-selection.js';
 
 export {
   createInteractionTarget,

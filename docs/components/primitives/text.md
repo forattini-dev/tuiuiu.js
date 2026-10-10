@@ -44,6 +44,61 @@ crossing a span boundary takes the first code unit's style; it is never split
 into separate cells. Generated truncation markers inherit the node style.
 There are no per-span mouse handlers or automatic OSC hyperlinks in this API.
 
+## Read-only document selection
+
+`TextView` from `tuiuiu.js/ui` displays a `TextSelection` from
+`tuiuiu.js/interaction`. The caller owns the document and selection; mounting or
+unmounting a view never disposes an external controller.
+
+```typescript
+import { createTextDocument, createTextSelection } from 'tuiuiu.js/interaction';
+import { TextView } from 'tuiuiu.js/ui';
+
+const document = createTextDocument({ initialValue: 'hello 界\nnext line' });
+const selection = createTextSelection(document);
+
+// Inside your application render:
+TextView({ selection, width: 40, height: 8, isActive: true });
+
+// Programmatic source offsets (UTF-16, clamped to grapheme boundaries):
+selection.set(0, 7);
+selection.copyText();
+// On application disposal, the owner calls selection.dispose().
+```
+
+Drag with the left mouse button; Shift-click extends the existing anchor.
+Capture ends on release, including outside the view. Keyboard handling is
+opt-in through `isActive`: Shift+arrows/Home/End extend, Ctrl+A selects all,
+Escape clears, and Ctrl+Shift+C copies. Plain Ctrl+C is not intercepted. A
+terminal may reserve Ctrl+Shift+C for its own clipboard; applications can also
+call `selection.copyText()` from their own commands. Without `onCopy`, copying
+uses the existing OSC 52 adapter only when the terminal reports support.
+
+`onCopy(text)` overrides that clipboard adapter. `copyText()` itself does not
+write anything: it returns selected source text with terminal protocols removed,
+preserves tabs and source newlines, and never inserts soft-wrap newlines. Source
+controls are displayed as visible replacement characters, not interpreted as
+ANSI. CRLF terminators do not occupy display cells; copied CRLF is normalized to LF.
+
+`wrap` is `'word'` (default), `'grapheme'`, or `'none'`; `tabSize` defaults to 4.
+`style` supplies base text styles and `selectionStyle` overrides selected ink
+(default: inverse). Width/height are positive integers. Use a surrounding Box
+for borders, padding and layout. No-wrap overflow is clipped; horizontal
+scrolling is not implemented in this adapter.
+
+Mouse wheel scrolling is internal unless `scrollTop` is supplied. Controlled
+scrolling reports requested visual rows through `onScrollTopChange`; the parent
+must update `scrollTop`. Resize and document edits reproject the same source
+selection. `TextViewport.rangeRects(start, end, firstRow?, rowCount?)` exposes
+immutable row/column/width ranges for other adapters, with no newline cells.
+
+Only visible rows create VNodes. Reflow still processes the full document on
+revision changes; this is not yet incremental large-document layout. Selection
+does not automatically extend across separate views or apply to Markdown's
+formatted output. Those integrations require their own source mapping.
+
+Try `pnpm example text-selection-lab` for an interactive copy preview.
+
 ## Colors
 
 ### Named Colors
@@ -110,8 +165,8 @@ Text({ wrap: 'truncate-start' }, '...truncated at the start')
 // Truncate in middle
 Text({ wrap: 'truncate-middle' }, 'Long te...iddle')
 
-// No wrapping (default)
-Text({ wrap: 'nowrap' }, 'Text on single line')
+// Constrain to one visible line using truncation.
+Text({ wrap: 'truncate-end' }, 'Text on single line')
 ```
 
 ## Props Reference
@@ -126,7 +181,7 @@ Text({ wrap: 'nowrap' }, 'Text on single line')
 | `underline` | `boolean` | `false` | Underlined text |
 | `strikethrough` | `boolean` | `false` | Strikethrough text |
 | `inverse` | `boolean` | `false` | Swap foreground/background |
-| `wrap` | `'wrap' \| 'truncate' \| 'truncate-start' \| 'truncate-middle' \| 'nowrap'` | `'nowrap'` | Text wrapping mode |
+| `wrap` | `'wrap' \| 'truncate' \| 'truncate-start' \| 'truncate-middle' \| 'truncate-end'` | wrapping | Text wrapping mode |
 
 ## Color Reference
 

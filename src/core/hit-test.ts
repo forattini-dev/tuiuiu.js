@@ -497,6 +497,11 @@ class HitTestRegistry {
   getElements(): ElementBounds[] {
     return [...this.elements];
   }
+
+  /** Active-frame geometry, including the original origin of clipped nodes. */
+  getBounds(node: VNode): Readonly<ElementBounds> | null {
+    return this.boundsByNode.get(node) ?? null;
+  }
 }
 
 // =============================================================================

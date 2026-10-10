@@ -26,11 +26,11 @@ const PUBLIC_RUNTIME_EXPORT_BASELINE = {
   './colors': { count: 72, sha256: 'c9ceb73af03412b2071453c24d5af717dbac1d290ca213dc111a9065313176b6' },
   './core': { count: 54, sha256: '0db99838957036fa4e12ee1682f5c1bb0f4e6198c874953c7979b0c62131c6d1' },
   './devtools': { count: 49, sha256: 'b180c9d39546737c5929714eb5274d0e711456003d252a9e2cacdf4ad3736718' },
-  './interaction': { count: 40, sha256: '8afaa9f99a8dbccd1bfbff2cde539efbf3a9431421a6906adc5b00fc18b59466' },
+  './interaction': { count: 41, sha256: '3936bc805710f1015e1d8951114ae758cf2db56c87585f150919f6bba86bb412' },
   './mcp': { count: 18, sha256: 'e2a3f373802073dd340f9659b977a00d99cce62282cae80847f6aca1f30d02dc' },
   './storybook': { count: 29, sha256: '179e7e8000ee02fb9bb37f1e8a2714067c6f6a63b5ece1153eea82cb97c30552' },
   './testing': { count: 19, sha256: '6438cfb01cad7867eff8e9d34bf1dfd31d5b9c5e3477c28794ccd05fd0be6522' },
-  './ui': { count: 462, sha256: 'c71a90180c80279d352b0b9d006412a36508a404f002092546b2556ac09be006' },
+  './ui': { count: 463, sha256: '2855fa09c549f5f1f5352d0e51c21737f798c50d6732f81fcce21669fb55b643' },
 } as const;
 
 const PUBLIC_TYPE_EXPORT_BASELINE = {
@@ -39,11 +39,11 @@ const PUBLIC_TYPE_EXPORT_BASELINE = {
   './colors': { count: 74, sha256: '37e4e8b8998c7086a67d16e4295315093a8b3708392cb9b5e9f987ed37d3159a' },
   './core': { count: 94, sha256: '5ee19ef951a1094294782127028c8edd72119069747c6152edb218b020ee7f0b' },
   './devtools': { count: 77, sha256: '7e1ca88fb61615aa946095e57c7890c7fef45e70ce8f57b5b21991703fc6af3e' },
-  './interaction': { count: 143, sha256: '9435913263c59c974f47a606c099b4b0adc8c9fadf7b4f11c153dab726554219' },
+  './interaction': { count: 147, sha256: 'd5eeb49e460d5e6cce61f528b51b69fc64dadcdb6477d546b7c7bff2fc0c2d31' },
   './mcp': { count: 40, sha256: '47e4dc4b5bb46ce6efeec12f40d975a26e72f872de331920321c18911c746d5c' },
   './storybook': { count: 53, sha256: '6bf91cdc208541dc2a38088ca8334b4cb9ab2d65751a932e1e1dfa970d63ac2a' },
   './testing': { count: 33, sha256: '0f509db270b221b359ba31c052d41e6265d06828fd2631a6701b71bd4c700410' },
-  './ui': { count: 916, sha256: '7375edd7fb9d87e6910e1a11137877927b09916f3f7bab86f215377741189d7e' },
+  './ui': { count: 918, sha256: '94269053618ae41414f3ec4b6937b4f83f7c184e8c8c89731366c0fe34edf71b' },
 } as const;
 
 const ALLOWED_ROOT_RUNTIME_ALIAS_GROUPS = [] as const;

@@ -22,6 +22,8 @@
 // =============================================================================
 // Spinner - Loading indicators
 // =============================================================================
+export { TextView, type TextViewProps } from './text-view.js';
+
 export {
   Spinner,
   createSpinner,

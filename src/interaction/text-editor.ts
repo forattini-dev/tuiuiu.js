@@ -5,7 +5,7 @@ import {
   nextWordBoundary,
   previousWordBoundary,
 } from '../utils/grapheme.js';
-import { createTextDocument, type TextDocument, type TextDocumentOptions } from './text-document.js';
+import { createTextDocument, rebaseTextOffset, type TextDocument, type TextDocumentOptions } from './text-document.js';
 
 export interface TextEditorSnapshot {
   value: string;
@@ -111,11 +111,8 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
   const unsubscribe = document.subscribe((next, change) => {
     value = next.value;
     if (editing) return;
-    const transform = (position: number) => position <= change.start ? position
-      : position >= change.end ? position + change.inserted.length - (change.end - change.start)
-      : change.start + change.inserted.length;
-    cursor = clampToGraphemeBoundary(value, transform(cursor), 'left');
-    anchor = clampToGraphemeBoundary(value, transform(anchor), 'left');
+    cursor = rebaseTextOffset(cursor, value, change);
+    anchor = rebaseTextOffset(anchor, value, change);
     past.length = 0;
     future.length = 0;
     notify();
