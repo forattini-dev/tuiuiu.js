@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createTextDocument } from '../../src/interaction/text-document.js';
 import { createTextViewport } from '../../src/interaction/text-viewport.js';
 import { performanceBudget, shouldSkipPerformanceBenchmarks } from './_shared/performance-budget.js';
+import { createCodeTokenDocument } from '../../src/utils/code-tokenizer.js';
+import { Markdown, createMarkdownDocument } from '../../src/molecules/markdown.js';
 
 const describeOrSkip = shouldSkipPerformanceBenchmarks ? describe.skip : describe;
 const initialValue = Array.from({ length: 1000 }, (_, index) => `row ${index}: text é 界 with words and a tab\there`).join('\n');
@@ -55,5 +57,44 @@ describeOrSkip('Incremental text performance budgets', () => {
     const ms = medianOperationMs(() => { row = viewport.positionAt(offset).row; }, 50);
     expect(row).toBeGreaterThanOrEqual(700);
     expect(ms).toBeLessThan(performanceBudget(2));
+  });
+});
+
+describeOrSkip('Incremental lexical performance budgets', () => {
+  const source = Array.from({ length: 1000 }, (_, index) => `const value${index} = ${index}; // é 界 comment`).join('\n') + '\n';
+  it('retains completed lines while appending source', () => {
+    const document = createCodeTokenDocument();
+    document.update(source, 'ts');
+    let content = source;
+    const ms = medianOperationMs(step => {
+      content += `const streamed${step} = 42;\n`;
+      document.update(content, 'ts');
+    }, 12);
+    expect(document.snapshot().reparsedFrom).toBeGreaterThan(source.length - 1);
+    expect(document.snapshot().reusedTokenCount).toBeGreaterThan(1000);
+    expect(ms).toBeLessThan(performanceBudget(2));
+  });
+  it('avoids retokenizing intact code before a late edit', () => {
+    const document = createCodeTokenDocument();
+    document.update(source, 'ts');
+    const start = source.lastIndexOf('value999');
+    const ms = medianOperationMs(step => {
+      document.update(source.slice(0, start) + (step % 2 ? 'other999' : 'value999') + source.slice(start + 8), 'ts');
+    }, 12);
+    expect(document.snapshot().reparsedFrom).toBeGreaterThan(source.length * 0.9);
+    expect(ms).toBeLessThan(performanceBudget(2));
+  });
+  it('retains fitted code rows during rich Markdown streaming', () => {
+    const document = createMarkdownDocument();
+    let content = source;
+    const render = () => Markdown({ content: '~~~ts\n' + content + '~~~', document, maxWidth: 80 });
+    const initial = render().children[0]!.children[0]!.children[0];
+    let last = render();
+    const ms = medianOperationMs(step => {
+      content += `const streamed${step} = 42;\n`;
+      last = render();
+    }, 6);
+    expect(last.children[0]!.children[0]!.children[0]).toBe(initial);
+    expect(ms).toBeLessThan(performanceBudget(20));
   });
 });

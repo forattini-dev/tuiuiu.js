@@ -2171,21 +2171,37 @@ function matchAt(pattern: RegExp, source: string, offset: number): string | unde
 export type CodeTokenRange = Pick<Token, 'type' | 'start' | 'end'>;
 
 export function tokenizeCodeRanges(source: string, languageName: string): CodeTokenRange[] {
+  return scanCodeRanges(source, languageName);
+}
+
+interface CodeCheckpoint {
+  offset: number;
+  /** A newline must remain intact, including prior token lookahead. */
+  validThrough: number;
+  count: number;
+  previous?: CodeTokenRange;
+}
+
+function scanCodeRanges(source: string, languageName: string, startOffset = 0,
+  ranges: CodeTokenRange[] = [], previous?: CodeTokenRange, checkpoints?: CodeCheckpoint[]): CodeTokenRange[] {
   const id = getLanguageId(languageName) ?? 'plain';
   if (!source) return [];
   if (id === 'plain') return [{ type: 'plain', start: 0, end: source.length }];
   const language = getLanguage(id)!;
-  const ranges: { type: TokenType; start: number; end: number }[] = [];
   const emit = (type: TokenType, start: number, end: number) => {
     const previous = ranges.at(-1);
-    if (type === 'plain' && previous?.type === type && previous.end === start) { previous.end = end; return previous; }
+    if (type === 'plain' && previous?.type === type && previous.end === start) {
+      previous.end = end;
+      return previous;
+    }
     const range = { type, start, end };
     ranges.push(range);
     return range;
   };
   if (id === 'diff') {
-    let start = 0;
+    let start = startOffset;
     while (start < source.length) {
+      checkpoints?.push({ offset: start, validThrough: start, count: ranges.length });
       const newline = source.indexOf('\n', start);
       const end = newline < 0 ? source.length : newline + 1;
       const header = source.startsWith('+++', start) || source.startsWith('---', start);
@@ -2260,8 +2276,7 @@ export function tokenizeCodeRanges(source: string, languageName: string): CodeTo
     }
     return source.length;
   };
-  let index = 0;
-  let previous: { type: TokenType; start: number; end: number } | undefined;
+  let index = startOffset;
   const consume = (type: TokenType, end: number) => {
     const range = emit(type, index, end);
     if (type !== 'plain' && !type.startsWith('comment')) previous = range;
@@ -2272,7 +2287,11 @@ export function tokenizeCodeRanges(source: string, languageName: string): CodeTo
     // Avoid failed regex matches for the common ASCII identifier/punctuation
     // path; non-ASCII whitespace still follows JavaScript's canonical \s rule.
     const space = unit <= 0x20 || unit >= 0x80 ? matchAt(whitespace, source, index) : undefined;
-    if (space) { consume('plain', index + space.length); continue; }
+    if (space) {
+      const newline = checkpoints ? space.indexOf('\n') : -1;
+      if (newline >= 0) checkpoints!.push({ offset: index, validThrough: index + newline + 1, count: ranges.length, previous });
+      consume('plain', index + space.length); continue;
+    }
     const char = source[index]!;
     const blockStart = language.blockCommentStart;
     const blockEnd = language.blockCommentEnd;
@@ -2345,6 +2364,85 @@ export function tokenizeCodeRanges(source: string, languageName: string): CodeTo
       : char === '.' ? 'punctuation.accessor' : /[+\-*/%=!<>|&^~?:]/.test(char) ? 'operator' : 'plain', index + 1);
   }
   return ranges;
+}
+
+function definitionSignature(id: string): string {
+  return JSON.stringify(getLanguage(id), (_key, value: unknown) => value instanceof RegExp
+    ? { source: value.source, flags: value.flags } : value);
+}
+
+// These shipped definitions have line-bounded custom lookahead. Other languages
+// (e.g. heredocs, CDATA, Markdown links) conservatively use the same full scanner.
+// Mutable/custom definitions are never assumed safe based only on their name.
+const resumableDefinitions = new Map(['javascript', 'typescript', 'go', 'sql', 'json', 'yaml', 'java', 'diff']
+  .map(id => [id, definitionSignature(id)]));
+
+export interface CodeTokenDocumentSnapshot {
+  readonly source: string;
+  readonly language: string;
+  readonly revision: number;
+  readonly reparsedFrom: number;
+  readonly reusedTokenCount: number;
+}
+
+/** Internal owned lexical cache. One source revision, no listeners or global history. */
+export interface CodeTokenDocument {
+  update(source: string, language: string): readonly CodeTokenRange[];
+  snapshot(): CodeTokenDocumentSnapshot;
+}
+
+export function createCodeTokenDocument(): CodeTokenDocument {
+  let source = '';
+  let language = 'plain';
+  let signature = definitionSignature(language);
+  let revision = 0;
+  let reparsedFrom = 0;
+  let reusedTokenCount = 0;
+  let tokens: readonly CodeTokenRange[] = Object.freeze([]);
+  let checkpoints: CodeCheckpoint[] = [];
+  return {
+    snapshot: () => Object.freeze({ source, language, revision, reparsedFrom, reusedTokenCount }),
+    update(nextSource, nextLanguage) {
+      const id = getLanguageId(nextLanguage) ?? 'plain';
+      const nextSignature = definitionSignature(id);
+      if (nextSource === source && id === language && nextSignature === signature) return tokens;
+      const resumable = resumableDefinitions.get(id) === nextSignature;
+      let common = 0;
+      if (resumable && id === language && nextSignature === signature) {
+        if (nextSource.length >= source.length && nextSource.startsWith(source)) common = source.length;
+        else if (source.startsWith(nextSource)) common = nextSource.length;
+        else while (common < Math.min(source.length, nextSource.length) && source[common] === nextSource[common]) common++;
+      }
+      let low = 0;
+      let high = common > 0 ? checkpoints.length : 0;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (checkpoints[middle]!.validThrough <= common) low = middle + 1;
+        else high = middle;
+      }
+      const checkpoint = low > 0 ? checkpoints[low - 1] : undefined;
+      // Native slice on frozen arrays takes a slow generic path in V8. Copy the
+      // immutable references explicitly, then detach a mergeable final plain run.
+      const prefix: CodeTokenRange[] = [];
+      if (checkpoint) for (let index = 0; index < checkpoint.count; index++) prefix.push(tokens[index]!);
+      const last = prefix.at(-1);
+      if (checkpoint && last?.type === 'plain') prefix[prefix.length - 1] = { ...last, end: Math.min(last.end, checkpoint.offset) };
+      const nextCheckpoints = checkpoint ? checkpoints.slice(0, low - 1) : [];
+      const nextTokens = scanCodeRanges(nextSource, id, checkpoint?.offset ?? 0, prefix,
+        checkpoint?.previous, resumable ? nextCheckpoints : undefined);
+      reusedTokenCount = checkpoint?.count ?? 0;
+      if (reusedTokenCount && nextTokens[reusedTokenCount - 1] !== tokens[reusedTokenCount - 1]) reusedTokenCount--;
+      for (let index = Math.max(0, (checkpoint?.count ?? 0) - 1); index < nextTokens.length; index++) Object.freeze(nextTokens[index]);
+      tokens = Object.freeze(nextTokens);
+      checkpoints = nextCheckpoints;
+      source = nextSource;
+      language = id;
+      signature = nextSignature;
+      revision++;
+      reparsedFrom = checkpoint?.offset ?? 0;
+      return tokens;
+    },
+  };
 }
 
 /** Materialize token values only for callers that need them. */

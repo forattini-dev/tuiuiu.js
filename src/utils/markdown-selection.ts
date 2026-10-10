@@ -5,6 +5,7 @@ import type { TextSpan, TextSpanStyle } from './styled-text.js';
 import { stripTerminalControls } from './terminal-sanitize.js';
 import { clampToGraphemeBoundary } from './grapheme.js';
 import { DEFAULT_CODE_THEME, highlightCodeSpans, normalizeCodeLanguage, type CodeTheme } from './code-highlight.js';
+import { createCodeTokenDocument, type CodeTokenDocument } from './code-tokenizer.js';
 import { createTextDocument } from '../interaction/text-document.js';
 import { createTextSelection, type TextSelection } from '../interaction/text-selection.js';
 
@@ -38,6 +39,7 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
   const document = createTextDocument();
   const selection = createTextSelection(document);
   const listeners = new Set<() => void>();
+  const codeDocuments = new Map<number, CodeTokenDocument>();
   let source = '';
   let options = initialOptions;
   let signature = '';
@@ -58,14 +60,20 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
     const nextSignature = JSON.stringify([theme, nextOptions.showLinkUrls ?? true, nextOptions.highlightCode ?? true, codeTheme]);
     if (initialized && nextSource === source && nextSignature === signature) return false;
     const builder = createTextProjectionBuilder();
+    const activeCode = new Set<number>();
     const text = (node: MarkdownNode, style?: TextSpanStyle, inline = true) => {
       const content = createTextProjectionBuilder();
       for (const part of getMarkdownNodeSource(node).parts) content.append(part.text, style, part.start, part.end);
       const raw = content.finish();
       if (!inline) {
-        builder.appendProjection(node.type === 'codeblock' && nextOptions.highlightCode !== false
-          && normalizeCodeLanguage(node.language) !== 'plain'
-          ? { ...raw, spans: highlightCodeSpans(raw.text, normalizeCodeLanguage(node.language), codeTheme) } : raw);
+        const language = normalizeCodeLanguage(node.language);
+        if (node.type === 'codeblock' && nextOptions.highlightCode !== false && language !== 'plain') {
+          const start = getMarkdownNodeSource(node).start;
+          activeCode.add(start);
+          let document = codeDocuments.get(start);
+          if (!document) { document = createCodeTokenDocument(); codeDocuments.set(start, document); }
+          builder.appendProjection({ ...raw, spans: highlightCodeSpans(raw.text, language, codeTheme, document.update(raw.text, language)) });
+        } else builder.appendProjection(raw);
         return;
       }
       const formatted = composeTextProjection(projectInlineMarkdown(raw.text, theme, nextOptions.showLinkUrls), raw);
@@ -95,6 +103,7 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
         case 'hr': builder.append('───', { color: 'border' }); break;
       }
     });
+    for (const start of codeDocuments.keys()) if (!activeCode.has(start)) codeDocuments.delete(start);
     const nextProjection = builder.finish();
     const previous = document.snapshot().value;
     let prefix = 0;
@@ -150,6 +159,7 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
       disposed = true;
       selection.dispose();
       listeners.clear();
+      codeDocuments.clear();
     },
   };
 }

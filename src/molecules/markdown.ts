@@ -22,8 +22,10 @@ import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { TextProps, VNode } from '../utils/types.js';
 import { RichText } from '../primitives/rich-text.js';
 import { parseInlineMarkdown } from '../utils/markdown-inline.js';
-import { CodeBlock, type CodeBlockOptions } from './code-block.js';
-import { normalizeCodeLanguage } from '../utils/code-highlight.js';
+import { CodeBlock, renderHighlightedCodeBlock, type CodeBlockOptions } from './code-block.js';
+import { DEFAULT_CODE_THEME, highlightCodeSpans, normalizeCodeLanguage } from '../utils/code-highlight.js';
+import { createCodeTokenDocument, type CodeTokenDocument } from '../utils/code-tokenizer.js';
+import { stripTerminalControls } from '../utils/terminal-sanitize.js';
 import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
 import { createMarkdownDocument, type MarkdownDocument, type MarkdownNode as ParsedNode } from '../utils/markdown-document.js';
 
@@ -89,7 +91,7 @@ function inlineText(text: string, theme: typeof DEFAULT_THEME, options: Markdown
 /**
  * Render markdown node to VNode
  */
-function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
+function renderNode(node: ParsedNode, options: MarkdownOptions, document?: CodeTokenDocument): VNode {
   const theme = { ...DEFAULT_THEME, ...options.theme };
 
   switch (node.type) {
@@ -113,17 +115,20 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
 
     case 'codeblock': {
       const codeBlockOptions = options.codeBlock ?? {};
+      const codeOptions: CodeBlockOptions = {
+        ...codeBlockOptions,
+        code: node.content || '',
+        language: normalizeCodeLanguage(node.language),
+        filename: node.filename ?? codeBlockOptions.filename,
+        lineNumbers: options.codeLineNumbers ?? codeBlockOptions.lineNumbers ?? true,
+        borderStyle: codeBlockOptions.borderStyle ?? 'round',
+        maxWidth: codeBlockOptions.maxWidth ?? options.maxWidth,
+      };
+      const source = document ? stripTerminalControls(codeOptions.code) : '';
       return Box(
         { marginBottom: 1 },
-        CodeBlock({
-          ...codeBlockOptions,
-          code: node.content || '',
-          language: normalizeCodeLanguage(node.language),
-          filename: node.filename ?? codeBlockOptions.filename,
-          lineNumbers: options.codeLineNumbers ?? codeBlockOptions.lineNumbers ?? true,
-          borderStyle: codeBlockOptions.borderStyle ?? 'round',
-          maxWidth: codeBlockOptions.maxWidth ?? options.maxWidth,
-        })
+        document ? renderHighlightedCodeBlock(codeOptions, highlightCodeSpans(source, codeOptions.language!,
+          { ...DEFAULT_CODE_THEME, ...codeOptions.theme }, document.update(source, codeOptions.language!)), document) : CodeBlock(codeOptions)
       );
     }
 
@@ -241,6 +246,7 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
 const documentRenderCaches = new WeakMap<MarkdownDocument, {
   signature: string;
   nodes: WeakMap<ParsedNode, VNode>;
+  code: Map<number, CodeTokenDocument>;
 }>();
 
 /**
@@ -258,13 +264,23 @@ export function Markdown(options: MarkdownOptions & { content: string }): VNode 
   const renderOptions = { ...rest, maxWidth };
   // User renderers may depend on external reactive state: never cache their VNodes.
   let cache = document && !rest.renderNode ? documentRenderCaches.get(document) : undefined;
+  if (document && rest.renderNode) documentRenderCaches.delete(document);
   if (document && !rest.renderNode) {
     const signature = JSON.stringify(renderOptions);
     if (!cache || cache.signature !== signature) {
-      cache = { signature, nodes: new WeakMap() };
+      cache = { signature, nodes: new WeakMap(), code: cache?.code ?? new Map() };
       documentRenderCaches.set(document, cache);
     }
   }
+  const activeCode = new Set<number>();
+  const codeDocuments = nodes.map((node, index) => {
+    if (!cache || node.type !== 'codeblock') return undefined;
+    activeCode.add(index);
+    let document = cache.code.get(index);
+    if (!document) { document = createCodeTokenDocument(); cache.code.set(index, document); }
+    return document;
+  });
+  if (cache) for (const index of cache.code.keys()) if (!activeCode.has(index)) cache.code.delete(index);
 
   // Use maxWidth if provided, otherwise fill available space from parent
   // This enables flexWrap to work - without a width constraint, flexbox never wraps
@@ -275,10 +291,10 @@ export function Markdown(options: MarkdownOptions & { content: string }): VNode 
       flexDirection: 'column',
       width,
     },
-    ...nodes.map((node) => {
+    ...nodes.map((node, index) => {
       const previous = cache?.nodes.get(node);
       if (previous) return previous;
-      const defaultRender = () => renderNode(node, renderOptions);
+      const defaultRender = () => renderNode(node, renderOptions, codeDocuments[index]);
       const rendered = renderOptions.renderNode?.(node, { defaultRender }) ?? defaultRender();
       cache?.nodes.set(node, rendered);
       return rendered;

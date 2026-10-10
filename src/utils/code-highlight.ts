@@ -65,7 +65,8 @@ export function normalizeCodeLanguage(language?: string): Language {
 }
 
 /** Structured theme adapter; tokenization is shared with FilePreview. */
-export function highlightCodeSpans(code: string, language: Language, theme: CodeTheme = DEFAULT_CODE_THEME): readonly TextSpan[] {
+export function highlightCodeSpans(code: string, language: Language, theme: CodeTheme = DEFAULT_CODE_THEME,
+  ranges: readonly CodeTokenRange[] = tokenizeCodeRanges(code, language)): readonly TextSpan[] {
   const colors = new Map<TokenType, string>();
   const resolveColor = (type: TokenType): string => {
     if (language === 'diff') {
@@ -81,7 +82,7 @@ export function highlightCodeSpans(code: string, language: Language, theme: Code
       : parent === 'class' || parent === 'interface' || parent === 'namespace' ? theme.type
       : parent === 'tag' ? theme.function : parent === 'entity' ? theme.constant : 'foreground';
   };
-  return codeRangesToSpans(code, tokenizeCodeRanges(code, language), token => {
+  return codeRangesToSpans(code, ranges, token => {
     const cached = colors.get(token.type);
     if (cached !== undefined) return cached;
     const color = resolveColor(token.type);

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as codeTokenizer from '../../src/utils/code-tokenizer.js';
 import { Markdown, createMarkdownDocument } from '../../src/molecules/markdown.js';
 import { TerminalMessage } from '../../src/molecules/terminal-message.js';
 import { renderToString } from '../../src/core/renderer.js';
@@ -14,6 +15,37 @@ const cases = [
 ];
 
 describe('incremental Markdown', () => {
+  it('owns incremental fence lexers and releases their slots when rendering mode or blocks change', () => {
+    const factory = codeTokenizer.createCodeTokenDocument;
+    const created: codeTokenizer.CodeTokenDocument[] = [];
+    const spy = vi.spyOn(codeTokenizer, 'createCodeTokenDocument').mockImplementation(() => {
+      const document = factory(); created.push(document); return document;
+    });
+    try {
+      const document = createMarkdownDocument();
+      let content = '```ts\nconst first = 1;\nconst second = "text";\n';
+      Markdown({ content, document, maxWidth: 40 });
+      expect(created).toHaveLength(1);
+      content += 'return /a/g;\n```';
+      const rendered = Markdown({ content, document, maxWidth: 40 });
+      expect(created).toHaveLength(1);
+      expect(created[0]!.snapshot().reparsedFrom).toBeGreaterThan(0);
+      expect(renderToString(rendered, 40)).toBe(renderToString(Markdown({ content, maxWidth: 40 }), 40));
+      const revision = created[0]!.snapshot().revision;
+      const options = { maxWidth: 20, codeBlock: { theme: { keyword: 'red' } } };
+      expect(renderToString(Markdown({ content, document, ...options }), 20))
+        .toBe(renderToString(Markdown({ content, ...options }), 20));
+      expect(created[0]!.snapshot().revision).toBe(revision);
+      Markdown({ content, document, renderNode: () => undefined });
+      Markdown({ content, document });
+      expect(created).toHaveLength(2);
+      Markdown({ content: 'no code', document });
+      Markdown({ content, document });
+      expect(created).toHaveLength(3);
+      Markdown({ content, document: createMarkdownDocument() });
+      expect(created).toHaveLength(4);
+    } finally { spy.mockRestore(); }
+  });
   it.each(cases)('matches fresh parsing at every append boundary: %s', source => {
     const document = createMarkdownDocument();
     for (let end = 0; end <= source.length; end++) {

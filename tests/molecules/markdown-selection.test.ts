@@ -4,6 +4,7 @@ import { projectInlineMarkdown } from '../../src/utils/markdown-inline.js';
 import { createMarkdownDocument, getMarkdownNodeSource } from '../../src/utils/markdown-document.js';
 import { stripTerminalControls } from '../../src/utils/terminal-sanitize.js';
 import { createTextViewport } from '../../src/interaction/text-viewport.js';
+import * as codeTokenizer from '../../src/utils/code-tokenizer.js';
 
 const controllers: ReturnType<typeof createMarkdownSelection>[] = [];
 afterEach(() => { for (const controller of controllers.splice(0)) controller.dispose(); });
@@ -20,6 +21,34 @@ function select(controller: ReturnType<typeof setup>, text: string) {
 }
 
 describe('Markdown source projection', () => {
+  it('owns incremental code slots independently of styles and drops inactive fences', () => {
+    const factory = codeTokenizer.createCodeTokenDocument;
+    const created: codeTokenizer.CodeTokenDocument[] = [];
+    const spy = vi.spyOn(codeTokenizer, 'createCodeTokenDocument').mockImplementation(() => {
+      const document = factory(); created.push(document); return document;
+    });
+    try {
+      let source = '```ts\nconst first = 1;\nconst second = "text";\n';
+      const controller = setup(source);
+      source += 'return /a/g;\n```';
+      controller.update(source);
+      expect(created).toHaveLength(1);
+      expect(created[0]!.snapshot().reparsedFrom).toBeGreaterThan(0);
+      const revision = created[0]!.snapshot().revision;
+      select(controller, 'first');
+      controller.update(source, { codeTheme: { keyword: 'red' } });
+      expect(created[0]!.snapshot().revision).toBe(revision);
+      expect(controller.copyText('source')).toBe('first');
+      controller.update(source, { highlightCode: false });
+      controller.update(source, { highlightCode: true });
+      expect(created).toHaveLength(2);
+      controller.update('no code');
+      controller.update(source);
+      expect(created).toHaveLength(3);
+      setup(source);
+      expect(created).toHaveLength(4);
+    } finally { spy.mockRestore(); }
+  });
   it('highlights aliased fenced code without changing CRLF/Unicode source mapping or copy', () => {
     const source = '```ts\r\n/* first\r\nconst 👩‍💻 = "界";\r\n*/\r\nconst real = 42;\r\n```\r\n\r\nend';
     const controller = setup(source, { codeTheme: { comment: 'red', keyword: 'magenta' } });

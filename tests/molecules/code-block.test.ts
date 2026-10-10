@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CodeBlock, InlineCode } from '../../src/molecules/code-block.js';
+import { CodeBlock, InlineCode, renderHighlightedCodeBlock, type CodeBlockOptions } from '../../src/molecules/code-block.js';
+import { execFileSync } from 'node:child_process';
+import { createCodeTokenDocument } from '../../src/utils/code-tokenizer.js';
+import { DEFAULT_CODE_THEME, highlightCodeSpans } from '../../src/utils/code-highlight.js';
+import { stripTerminalControls } from '../../src/utils/terminal-sanitize.js';
 import { createFrameSnapshot } from '../../src/core/frame.js';
 import { renderFrameToCellBuffer } from '../../src/core/delta-render.js';
 import { renderToString } from '../../src/core/renderer.js';
@@ -9,6 +13,59 @@ const codeNode = (code: string, extra: Partial<Parameters<typeof CodeBlock>[0]> 
   CodeBlock({ code, language: 'typescript', lineNumbers: false, borderStyle: 'none', ...extra });
 
 describe('structured CodeBlock', () => {
+  it('retains equal fitted rows only for an explicit lexical owner', () => {
+    const owner = createCodeTokenDocument();
+    const options: CodeBlockOptions = { code: 'const first = 1;\nconst second = "界👩‍💻é";', language: 'typescript',
+      maxWidth: 14, wrap: true, borderStyle: 'none' };
+    const render = (value: CodeBlockOptions) => {
+      const source = stripTerminalControls(value.code);
+      return renderHighlightedCodeBlock(value, highlightCodeSpans(source, value.language!,
+        { ...DEFAULT_CODE_THEME, ...value.theme }, owner.update(source, value.language!)), owner);
+    };
+    const before = render(options);
+    const nextOptions = { ...options, code: options.code + '\nreturn /a/g;' };
+    const next = render(nextOptions);
+    expect(next.children[0]).toBe(before.children[0]);
+    expect(renderToString(next, 30)).toBe(renderToString(CodeBlock(nextOptions), 30));
+    expect(codeNode('const x = 1;').children[0]).not.toBe(codeNode('const x = 1;').children[0]);
+    for (const changed of [
+      { ...nextOptions, maxWidth: 8 }, { ...nextOptions, theme: { background: 'blue', keyword: 'red' } },
+      { ...nextOptions, startLine: 99 }, { ...nextOptions, highlightLines: [1, 2] },
+      { ...nextOptions, code: '/*\n' + nextOptions.code + '\n*/' },
+    ]) {
+      const actual = render(changed);
+      expect(actual.children[0]).not.toBe(next.children[0]);
+      expect(renderToString(actual, 30)).toBe(renderToString(CodeBlock(changed), 30));
+    }
+  });
+  it('refits every retained row when growing line numbers change gutter width', () => {
+    const owner = {};
+    const source = 'words and a long line\n'.repeat(8) + 'last';
+    const options: CodeBlockOptions = { code: source, language: 'plain', borderStyle: 'none', maxWidth: 12, wrap: true };
+    const before = renderHighlightedCodeBlock(options, highlightCodeSpans(source, 'plain'), owner);
+    const nextOptions = { ...options, code: source + '\nnext' };
+    const after = renderHighlightedCodeBlock(nextOptions, highlightCodeSpans(nextOptions.code, 'plain'), owner);
+    expect(after.children[0]).not.toBe(before.children[0]);
+    expect(renderToString(after, 30)).toBe(renderToString(CodeBlock(nextOptions), 30));
+  });
+  it('does not pin old whole-source revisions through cached code rows', () => {
+    const markdownUrl = new URL('../../src/molecules/markdown.ts', import.meta.url).href;
+    const script = `
+      import { Markdown, createMarkdownDocument } from ${JSON.stringify(markdownUrl)};
+      const document = createMarkdownDocument();
+      const lines = Array.from({ length: 120 }, (_, i) => '// row ' + i + ': ' + 'x'.repeat(480));
+      const render = () => Markdown({ content: '~~~ts\\n' + lines.join('\\n') + '\\n~~~', document });
+      render();
+      for (let i = 0; i < 3; i++) global.gc();
+      const before = process.memoryUsage().heapUsed;
+      for (let i = 0; i < lines.length; i++) { lines[i] += 'y'; render(); }
+      for (let i = 0; i < 3; i++) global.gc();
+      console.log(JSON.stringify({ retained: process.memoryUsage().heapUsed - before }));
+    `;
+    const measured: { retained: number } = JSON.parse(execFileSync(process.execPath,
+      ['--expose-gc', '--import', 'tsx', '--input-type=module', '-e', script], { encoding: 'utf8', timeout: 20_000 }));
+    expect(measured.retained).toBeLessThan(4 * 1024 * 1024);
+  });
   it('uses a single styled text node and draw command per logical line, independent of token count', () => {
     const node = codeNode('const value = 42; customCall(value);\n/* second\nconst fake = 1; */',
       { theme: { comment: 'red' } });

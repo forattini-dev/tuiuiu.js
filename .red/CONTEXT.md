@@ -70,8 +70,21 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - bounded terminal Markdown inline parsing: `src/utils/markdown-inline.ts`
 - renderer-independent lexical code: `src/utils/code-tokenizer.ts` owns the
   language/alias registry and partitions raw UTF-16 source once, materializing
-  token values only when requested. `src/utils/code-highlight.ts` owns palettes
-  and immutable span adapters (CodeTheme or detailed token colors) over those
+  token values only when requested. Its optional owned CodeTokenDocument uses
+  the same scanner with safe newline
+  checkpoints and the preceding significant token (including regex/division context).
+  It retains one source and numeric ranges, not token-value slices or a revision log.
+  JavaScript, TypeScript, Go, SQL, JSON, YAML, Java and diff have resumable shipped
+  definitions; cross-line custom-pattern languages and mutated definitions use full
+  scanning. Unterminated multiline constructs rewind to a prior neutral checkpoint.
+  Markdown documents/readers own and prune per-fence lexical slots; style/geometry
+  changes recolor/refit retained ranges. Standalone CodeBlock/FilePreview stay pure.
+  Owned Markdown fences retain equal styled visual rows, invalidating on fitting,
+  palette and gutter changes. Retained row text is detached from whole source revisions.
+  Prefix comparison, flat token arrays and styled presentation are still linear,
+  not a tree-sitter parser or an incremental semantic grammar.
+  `src/utils/code-highlight.ts` owns palettes and immutable span adapters
+  (CodeTheme or detailed token colors) over those
   same ranges. CodeBlock fits after highlighting; FilePreview tokenizes one
   visible source prefix instead of restarting per line. Both keep one RichText
   flow per code row; MarkdownSelection changes styles without replacing source

@@ -18,7 +18,7 @@
 import { Box, Text } from '../primitives/nodes.js';
 import type { VNode } from '../utils/types.js';
 import { RichText } from '../primitives/rich-text.js';
-import { layoutTextSpans } from '../utils/styled-text.js';
+import { layoutTextSpans, textSpansEqual, type TextSpan } from '../utils/styled-text.js';
 import { stripTerminalControls } from '../utils/terminal-sanitize.js';
 import { stringWidth } from '../utils/text-utils.js';
 import { DEFAULT_CODE_THEME, highlightCodeSpans, splitCodeSpanLines, type Language, type CodeTheme } from '../utils/code-highlight.js';
@@ -66,9 +66,20 @@ export interface CodeBlockOptions {
  * })
  */
 export function CodeBlock(options: CodeBlockOptions): VNode {
+  if (options.maxWidth !== undefined && (!Number.isFinite(options.maxWidth) || options.maxWidth < 0)) {
+    throw new RangeError('CodeBlock maxWidth must be finite and nonnegative');
+  }
+  const theme = { ...DEFAULT_CODE_THEME, ...options.theme };
+  return renderHighlightedCodeBlock(options, highlightCodeSpans(stripTerminalControls(options.code), options.language ?? 'plain', theme));
+}
+
+interface CodeRow { spans: readonly TextSpan[]; nodes: readonly VNode[] }
+// Only explicit lexical owners retain rows; standalone CodeBlock remains pure.
+const codeRowCaches = new WeakMap<object, { signature: string; rows: readonly CodeRow[] }>();
+
+/** Internal presentation adapter; owned readers can retain fitted visual rows. */
+export function renderHighlightedCodeBlock(options: CodeBlockOptions, spans: readonly TextSpan[], owner?: object): VNode {
   const {
-    code,
-    language = 'plain',
     lineNumbers = true,
     startLine = 1,
     highlightLines = [],
@@ -87,9 +98,13 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
     throw new RangeError('CodeBlock maxWidth must be finite and nonnegative');
   }
   const theme: CodeTheme = { ...DEFAULT_CODE_THEME, ...customTheme };
-  const lines = splitCodeSpanLines(highlightCodeSpans(stripTerminalControls(code), language, theme));
+  const lines = splitCodeSpanLines(spans);
   const lineCount = lines.length;
   const lineNumWidth = String(startLine + lineCount - 1).length;
+  const signature = owner ? JSON.stringify([lineNumWidth, { ...options, code: undefined }, theme]) : '';
+  const previous = owner ? codeRowCaches.get(owner) : undefined;
+  const cached = previous?.signature === signature ? previous.rows : undefined;
+  const nextRows: CodeRow[] = [];
 
   const rows: VNode[] = [];
 
@@ -107,14 +122,25 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
 
   // Code lines
   for (let i = 0; i < lines.length; i++) {
+    const previous = cached?.[i];
+    if (previous && textSpansEqual(lines[i], previous.spans)) {
+      rows.push(...previous.nodes);
+      nextRows.push(previous);
+      continue;
+    }
+    // Do not let one retained row pin an entire old source revision through slices.
+    const sourceSpans = owner ? Object.freeze(lines[i]!.map(span => Object.freeze({
+      text: span.text.split('').join(''), style: span.style && Object.freeze({ ...span.style }),
+    }))) : lines[i]!;
+    const nodes: VNode[] = [];
     const lineNum = startLine + i;
     const isHighlighted = highlightLines.includes(lineNum);
     const gutter = (lineNumbers ? `${String(lineNum).padStart(lineNumWidth, ' ')} │ ` : '')
       + (isHighlighted ? '▶ ' : '');
     const gutterWidth = stringWidth(gutter);
     const available = maxWidth === undefined ? undefined : Math.max(0, Math.trunc(maxWidth) - gutterWidth);
-    const fitted = available === undefined ? [lines[i]!]
-      : available === 0 ? [[]] : layoutTextSpans(lines[i]!, available, wrap ? undefined : 'truncate-end');
+    const fitted = available === undefined ? [sourceSpans]
+      : available === 0 ? [[]] : layoutTextSpans(sourceSpans, available, wrap ? undefined : 'truncate-end');
     fitted.forEach((spans, continuation) => {
       const prefix = continuation === 0 ? gutter : ' '.repeat(gutterWidth);
       const prefixSpans = [{ text: prefix, style: { color: isHighlighted ? highlightColor : theme.lineNumber, dim: !isHighlighted } }];
@@ -122,9 +148,12 @@ export function CodeBlock(options: CodeBlockOptions): VNode {
         ? Math.trunc(maxWidth) === 0 ? [] : layoutTextSpans(prefixSpans, Math.trunc(maxWidth), 'truncate-end')[0]!
         : prefixSpans;
       // One text flow per visual row: token boundaries never become flex items.
-      rows.push(RichText({ color: 'foreground', backgroundColor: theme.background }, ...fittedPrefix, ...spans));
+      nodes.push(RichText({ color: 'foreground', backgroundColor: theme.background }, ...fittedPrefix, ...spans));
     });
+    rows.push(...nodes);
+    if (owner) nextRows.push({ spans: sourceSpans, nodes: Object.freeze(nodes) });
   }
+  if (owner) codeRowCaches.set(owner, { signature, rows: Object.freeze(nextRows) });
 
   // Apply border
   if (borderStyle !== 'none') {
