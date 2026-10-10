@@ -1,5 +1,6 @@
 import type { BackgroundTaskHandle } from '../utils/background-executor.js';
 import { stringWidth } from '../utils/text-utils.js';
+import { segmentGraphemes } from '../utils/grapheme.js';
 
 import type {
   TextInputCompletionItem,
@@ -48,11 +49,11 @@ export function getCursorIndexFromColumn(text: string, column: number): number {
   let width = 0;
   let index = 0;
 
-  for (const char of text) {
-    const charWidth = stringWidth(char);
+  for (const grapheme of segmentGraphemes(text)) {
+    const charWidth = stringWidth(grapheme.segment);
     if (width + charWidth > column) break;
     width += charWidth;
-    index += char.length;
+    index = grapheme.end;
   }
 
   return index;

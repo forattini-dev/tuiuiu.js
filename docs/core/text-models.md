@@ -54,6 +54,16 @@ Undo/redo restore content, cursor and selection. The default retains at most
 than a rope or edit log, so memory still depends on document length. A fresh edit
 clears redo. `setValue()` resets history.
 
+`replace(start, end, text)` also supports explicit source ranges with the same
+grapheme normalization. `setHistoryLimit(limit)` trims both stacks immediately;
+zero clears them. Optional `historyState: { capture, restore }` associates
+adapter metadata with each checkpoint. Capture must return an independent
+snapshot and restore must not mutate the document or throw. Passing metadata
+as the fourth argument to `replace()` commits it before editor subscribers
+are notified, including metadata-only edits. Undo/redo restores that metadata
+before notification. The adapter owns validation and rebasing of metadata on
+external document edits.
+
 External document changes remap cursor/selection and clear that editor's history,
 preventing undo from overwriting another editor's intervening edit. Call
 `dispose()` to unsubscribe an editor sharing a long-lived document. Disposal is
@@ -74,10 +84,14 @@ than the viewport occupies one row rather than being split or discarded.
 
 This is a plain-text model, not an ANSI/Markdown parser. Reflow still visits the
 whole document on a content/configuration change; unchanged reads reuse layout.
-TextInput reuses this wrapping implementation with two cached width configurations
-per controller (content with and without its scrollbar). Its rich segments and
-completion state remain separate; this does not add selection/undo keybindings
-to TextInput automatically.
+TextInput uses an owned TextEditor for content, cursor, selection and bounded
+undo/redo. Segment snapshots are attached to the editor's history, while completion
+and submitted-command navigation remain adapter concerns. Its wrapping reader
+uses the editor's source document directly and retains at most two cached
+configurations (content with and without its scrollbar). Masked passwords and
+placeholders use a separate display document, never mutating source text.
+See [TextInput](/components/atoms/text-input.md)
+for keybindings and `pnpm example text-editor-lab` for an interactive demo.
 
 ## Read-only selection and visual projection
 

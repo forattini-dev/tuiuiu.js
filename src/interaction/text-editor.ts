@@ -16,6 +16,10 @@ export interface TextEditorOptions extends TextDocumentOptions {
   document?: TextDocument;
   /** Bounded history; zero disables undo (default: 100 edits). */
   historyLimit?: number;
+  /** Adapter-owned metadata captured/restored atomically with undo checkpoints.
+   * Capture must return an independent snapshot; restore must not mutate the document.
+   */
+  historyState?: { capture(): unknown; restore(state: unknown): void };
 }
 
 export interface TextEditorSelection {
@@ -35,6 +39,8 @@ export interface TextEditor {
   setSelection(anchor: number, head: number): void;
   setValue(value: string, cursor?: number): void;
   insert(text: string): boolean;
+  /** Replace a source range; optional state commits adapter metadata before notification. */
+  replace(start: number, end: number, text: string, state?: unknown): boolean;
   backspace(word?: boolean): boolean;
   deleteForward(word?: boolean): boolean;
   moveLeft(word?: boolean, extend?: boolean): boolean;
@@ -45,6 +51,7 @@ export interface TextEditor {
   redo(): boolean;
   canUndo(): boolean;
   canRedo(): boolean;
+  setHistoryLimit(limit: number): void;
   subscribe(listener: (snapshot: TextEditorSnapshot) => void): () => void;
 }
 
@@ -54,7 +61,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
   if (options.document && (options.initialValue !== undefined || options.maxLength !== undefined)) {
     throw new TypeError('TextEditor document owns initialValue and maxLength');
   }
-  const historyLimit = options.historyLimit ?? 100;
+  let historyLimit = options.historyLimit ?? 100;
   if (!Number.isSafeInteger(historyLimit) || historyLimit < 0) {
     throw new RangeError('TextEditor historyLimit must be a non-negative safe integer');
   }
@@ -64,7 +71,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
   let anchor = cursor;
   let disposed = false;
   let editing = false;
-  type Checkpoint = TextEditorSnapshot & { anchor: number };
+  type Checkpoint = TextEditorSnapshot & { anchor: number; state: unknown };
   const past: Checkpoint[] = [];
   const future: Checkpoint[] = [];
   const assertActive = () => { if (disposed) throw new Error('TextEditor has been disposed'); };
@@ -74,7 +81,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     const next = snapshot();
     for (const listener of [...listeners]) listener(next);
   };
-  const checkpoint = (): Checkpoint => ({ value, cursor, anchor });
+  const checkpoint = (): Checkpoint => ({ value, cursor, anchor, state: options.historyState?.capture() });
   const updateCursor = (next: number, extend = false) => {
     assertActive();
     const clamped = clampToGraphemeBoundary(value, next, 'left');
@@ -84,21 +91,27 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     notify();
     return true;
   };
-  const replace = (start: number, end: number, text: string) => {
+  const replace = (start: number, end: number, text: string, state?: unknown) => {
     assertActive();
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end) {
+      throw new RangeError('TextEditor range must be ordered safe integer UTF-16 offsets');
+    }
+    const first = clampToGraphemeBoundary(value, start, 'left');
+    const last = start === end ? first : clampToGraphemeBoundary(value, end, 'right');
     const before = checkpoint();
     editing = true;
     let changed: boolean;
-    try { changed = document.replace(start, end, text); } finally { editing = false; }
-    if (!changed) return false;
+    try { changed = document.replace(first, last, text); } finally { editing = false; }
+    if (!changed && !(options.historyState && state !== undefined)) return false;
+    if (options.historyState && state !== undefined) options.historyState.restore(state);
     if (historyLimit > 0) {
       past.push(before);
       if (past.length > historyLimit) past.shift();
     }
     future.length = 0;
-    const insertedLength = value.length - (before.value.length - (end - start));
+    const insertedLength = value.length - (before.value.length - (last - first));
     // Insertion can merge with the following combining marks or ZWJ sequence.
-    cursor = clampToGraphemeBoundary(value, start + insertedLength, 'right');
+    cursor = clampToGraphemeBoundary(value, first + insertedLength, 'right');
     anchor = cursor;
     notify();
     return true;
@@ -126,6 +139,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     try { document.setValue(next.value); } finally { editing = false; }
     cursor = next.cursor;
     anchor = next.anchor;
+    options.historyState?.restore(next.state);
     notify();
     return true;
   };
@@ -141,8 +155,11 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
       if (!Number.isSafeInteger(nextAnchor) || !Number.isSafeInteger(nextHead)) {
         throw new RangeError('TextEditor selection must use safe integer UTF-16 offsets');
       }
-      anchor = clampToGraphemeBoundary(value, nextAnchor, 'left');
-      cursor = clampToGraphemeBoundary(value, nextHead, 'left');
+      const first = clampToGraphemeBoundary(value, nextAnchor, 'left');
+      const last = clampToGraphemeBoundary(value, nextHead, 'left');
+      if (first === anchor && last === cursor) return;
+      anchor = first;
+      cursor = last;
       notify();
     },
     setValue(nextValue, nextCursor = nextValue.length) {
@@ -163,6 +180,7 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
       const { start, end } = selection();
       return replace(start, end, text);
     },
+    replace,
     backspace(word = false) {
       assertActive();
       if (anchor !== cursor) { const { start, end } = selection(); return replace(start, end, ''); }
@@ -203,6 +221,17 @@ export function createTextEditor(options: TextEditorOptions = {}): TextEditor {
     redo: () => restore(future, past),
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
+    setHistoryLimit(limit) {
+      assertActive();
+      if (!Number.isSafeInteger(limit) || limit < 0) {
+        throw new RangeError('TextEditor historyLimit must be a non-negative safe integer');
+      }
+      if (historyLimit === limit) return;
+      historyLimit = limit;
+      if (past.length > limit) past.splice(0, past.length - limit);
+      if (future.length > limit) future.splice(0, future.length - limit);
+      notify();
+    },
     subscribe(listener) {
       assertActive();
       listeners.add(listener);

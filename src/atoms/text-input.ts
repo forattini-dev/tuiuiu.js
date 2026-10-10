@@ -35,6 +35,7 @@ import {
 } from '../utils/grapheme.js';
 import type { BackgroundTaskHandle } from '../utils/background-executor.js';
 import type { SyncStorageAdapter } from '../primitives/store.js';
+import { createTextEditor } from '../interaction/text-editor.js';
 import {
   clampCursorToSegmentBoundary,
   clampSegmentsToValue,
@@ -214,6 +215,10 @@ export interface TextInputOptions {
   multiline?: boolean;
   /** Max length */
   maxLength?: number;
+  /** Maximum undo checkpoints (default: 100). Separate from submitted command history. */
+  undoLimit?: number;
+  /** Style for selected text; the cursor retains its own style. */
+  selectionStyle?: TextStyle;
   /** Input history for Up/Down navigation */
   history?: TextInputHistoryItem[];
   /** Optional synchronous persistence for submitted history entries */
@@ -278,6 +283,12 @@ interface TextInputRuntimeOptions {
 }
 
 function resolveRuntimeOptions(options: TextInputOptions): TextInputRuntimeOptions {
+  if (options.maxLength !== undefined && (!Number.isSafeInteger(options.maxLength) || options.maxLength < 0)) {
+    throw new RangeError('TextInput maxLength must be a non-negative safe integer');
+  }
+  if (options.undoLimit !== undefined && (!Number.isSafeInteger(options.undoLimit) || options.undoLimit < 0)) {
+    throw new RangeError('TextInput undoLimit must be a non-negative safe integer');
+  }
   return {
     maxLength: options.maxLength,
     history: normalizeHistoryEntries(options.history ?? []),
@@ -303,14 +314,16 @@ interface VisualLine {
 type VisualLineReader = (text: string, width: number, wrap: boolean) => VisualLine[];
 const inputLineReaders = new WeakMap<object, VisualLineReader>();
 
-function createVisualLineReader(): VisualLineReader {
-  const document = createTextDocument();
+function createVisualLineReader(sourceDocument?: ReturnType<typeof createTextDocument>): VisualLineReader {
+  // Password/placeholder projection must never write into the editor's document.
+  const displayDocument = createTextDocument();
   const views = new Map<string, ReturnType<typeof createTextViewport>>();
   return (text, width, wrap) => {
-    document.setValue(text);
+    const document = sourceDocument?.snapshot().value === text ? sourceDocument : displayDocument;
+    if (document === displayDocument) document.setValue(text);
     const resolvedWidth = Math.max(1, Math.floor(width));
     const mode = wrap && width >= 1 ? 'word' : 'none';
-    const key = `${resolvedWidth}:${mode}`;
+    const key = `${document === sourceDocument ? 'source' : 'display'}:${resolvedWidth}:${mode}`;
     let view = views.get(key);
     if (!view) {
       if (views.size >= 2) views.delete(views.keys().next().value!);
@@ -341,7 +354,6 @@ export function createTextInput(options: TextInputOptions = {}) {
     autoGrow = false,
     wordWrap = false,
   } = options;
-  const readVisualLines = createVisualLineReader();
   let currentOptions: TextInputOptions = { ...options };
   let runtimeOptions = resolveRuntimeOptions(currentOptions);
   let wrapWidth = width;
@@ -349,15 +361,41 @@ export function createTextInput(options: TextInputOptions = {}) {
   let wrapMaxLines = maxLines;
   let wrapAutoGrow = autoGrow;
   let resolvedMaxLines = wrapAutoGrow ? (wrapMaxLines ?? 5) : wrapMaxLines;
+  let disposed = false;
 
   // Helper to check if input is currently active
   // Supports both static boolean and reactive getter function
   const checkIsActive = (): boolean => {
-    return typeof runtimeOptions.isActive === 'function' ? runtimeOptions.isActive() : runtimeOptions.isActive;
+    return !disposed && (typeof runtimeOptions.isActive === 'function' ? runtimeOptions.isActive() : runtimeOptions.isActive);
   };
 
-  const [value, setValue] = createSignal(initialValue);
-  const [cursorPosition, setCursorPosition] = createSignal(initialValue.length);
+  const [segments, setSegments] = createSignal(
+    clampSegmentsToValue(options.initialSegments ?? [], initialValue.length)
+  );
+  const editor = createTextEditor({
+    initialValue,
+    historyLimit: options.undoLimit,
+    historyState: {
+      capture: () => cloneSegments(segments()),
+      restore: (state) => setSegments(cloneSegments(state as TextInputSegment[])),
+    },
+  });
+  const readVisualLines = createVisualLineReader(editor.document);
+  // Reactive projection only: the editor owns content, cursor, selection and undo.
+  // Keep accessors granular: cursor-only moves must not invalidate value-only consumers.
+  const [value, publishValue] = createSignal(editor.snapshot().value);
+  const [cursorPosition, publishCursor] = createSignal(editor.snapshot().cursor);
+  const [selection, publishSelection] = createSignal(Object.freeze(editor.selection()));
+  const [historyRevision, publishHistoryRevision] = createSignal(0);
+  const unsubscribeEditor = editor.subscribe((snapshot) => {
+    batch(() => {
+      publishValue(snapshot.value);
+      publishCursor(snapshot.cursor);
+      publishSelection(Object.freeze(editor.selection()));
+      publishHistoryRevision(revision => revision + 1);
+    });
+  });
+  const setValue = (next: string) => editor.setValue(next);
   const [isMultilineMode, setIsMultilineMode] = createSignal(false);
   const [historyIndex, setHistoryIndex] = createSignal(-1);
   const [originalHistoryDraft, setOriginalHistoryDraft] = createSignal<TextInputHistoryEntry>({
@@ -366,9 +404,6 @@ export function createTextInput(options: TextInputOptions = {}) {
   });
   const [viewportOffset, setViewportOffset] = createSignal(0);
   const [preferredColumn, setPreferredColumn] = createSignal<number | null>(null);
-  const [segments, setSegments] = createSignal(
-    clampSegmentsToValue(options.initialSegments ?? [], initialValue.length)
-  );
   const [completionState, setCompletionStateSignal] = createSignal<TextInputCompletionState | null>(null);
   const completionCollection = createCollectionController<TextInputCompletionItem, string>({
     items: [],
@@ -595,7 +630,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     currentValue: string,
     range: TextInputRange
   ): TextInputInsertedPart[] => {
-    if (!runtimeOptions.maxLength) {
+    if (runtimeOptions.maxLength === undefined) {
       return [...parts];
     }
 
@@ -607,12 +642,12 @@ export function createTextInput(options: TextInputOptions = {}) {
     const limited: TextInputInsertedPart[] = [];
     for (const part of parts) {
       if (part.type === 'text') {
-        const text = part.text.slice(0, remaining);
+        const text = part.text.slice(0, clampToGraphemeBoundary(part.text, remaining, 'left'));
         if (text.length > 0) {
           limited.push({ type: 'text', text });
           remaining -= text.length;
         }
-        if (remaining <= 0) break;
+        if (remaining <= 0 || text.length < part.text.length) break;
         continue;
       }
 
@@ -637,9 +672,15 @@ export function createTextInput(options: TextInputOptions = {}) {
       suppressCompletion?: boolean;
     }
   ) => {
+    if (disposed) throw new Error('TextInput has been disposed');
     const currentValue = value();
     const currentSegments = segments();
-    const expandedRange = expandRangeAcrossSegments(currentSegments, range.start, range.end);
+    if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start > range.end) {
+      throw new RangeError('TextInput range must be ordered safe integer UTF-16 offsets');
+    }
+    const start = clampToGraphemeBoundary(currentValue, range.start, 'left');
+    const end = range.start === range.end ? start : clampToGraphemeBoundary(currentValue, range.end, 'right');
+    const expandedRange = expandRangeAcrossSegments(currentSegments, start, end);
     const normalizedInsertion = normalizeInsertion(insertionLike);
 
     if ('ignore' in normalizedInsertion) {
@@ -695,6 +736,15 @@ export function createTextInput(options: TextInputOptions = {}) {
       clampSegmentsToValue([...shiftedSegments, ...insertedSegments], nextValue.length)
     );
     insertedCursor = expandedRange.start + insertedText.length;
+    if (nextValue === currentValue && nextSegments.length === currentSegments.length &&
+      nextSegments.every((segment, index) => {
+        const previous = currentSegments[index]!;
+        return segment.id === previous.id && segment.kind === previous.kind && segment.start === previous.start &&
+          segment.end === previous.end && segment.displayText === previous.displayText && segment.payload === previous.payload;
+      })) {
+      setCursorPositionInternal(insertedCursor);
+      return false;
+    }
 
     if (options?.suppressCompletion && runtimeOptions.completion) {
       const nextAnchor = runtimeOptions.completion.resolveAnchor({
@@ -710,9 +760,8 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
 
     batch(() => {
-      setValue(nextValue);
-      setSegments(nextSegments);
-      setCursorPositionInternal(insertedCursor, { updatePreferredColumn: true });
+      editor.replace(expandedRange.start, expandedRange.end, insertedText, nextSegments);
+      setCursorPositionInternal(editor.snapshot().cursor, { updatePreferredColumn: true });
       if (options?.resetHistory) {
         setHistoryIndex(-1);
       }
@@ -726,10 +775,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   };
 
   const applyPaste = (text: string) => {
-    const range = {
-      start: cursorPosition(),
-      end: cursorPosition(),
-    };
+    const range = selection();
     const context: TextInputPasteContext = {
       text,
       value: value(),
@@ -765,6 +811,7 @@ export function createTextInput(options: TextInputOptions = {}) {
   };
 
   const refreshCompletion = () => {
+    if (disposed) return;
     const completion = runtimeOptions.completion;
     if (!completion) {
       clearCompletion();
@@ -969,7 +1016,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     return applied;
   };
 
-  createEffect(() => {
+  const disposeCompletionEffect = createEffect(() => {
     value();
     cursorPosition();
     segments();
@@ -1014,8 +1061,10 @@ export function createTextInput(options: TextInputOptions = {}) {
       scroll?: boolean;
       updatePreferredColumn?: boolean;
       clampDirection?: 'nearest' | 'left' | 'right';
+      extend?: boolean;
     }
   ) => {
+    if (!Number.isSafeInteger(pos)) throw new RangeError('TextInput cursor must be a safe integer UTF-16 offset');
     const current = value();
     const bounded = Math.max(0, Math.min(pos, current.length));
     const graphemeClamped = clampToGraphemeBoundary(
@@ -1028,7 +1077,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       graphemeClamped,
       options?.clampDirection ?? 'nearest'
     );
-    setCursorPosition(clamped);
+    editor.setSelection(options?.extend ? selection().anchor : clamped, clamped);
     if (options?.updatePreferredColumn !== false) {
       updatePreferredColumn(current, clamped);
     }
@@ -1091,6 +1140,23 @@ export function createTextInput(options: TextInputOptions = {}) {
     return nextWordBoundary(text, pos);
   };
 
+  const restoreEdit = (redo: boolean) => {
+    let changed = false;
+    batch(() => {
+      changed = redo ? editor.redo() : editor.undo();
+      if (!changed) return;
+      suppressedCompletionKey = null;
+      setHistoryIndex(-1);
+      updatePreferredColumn(value(), cursorPosition());
+      scrollToCursor(value(), cursorPosition());
+    });
+    if (changed) {
+      runtimeOptions.onChange?.(value());
+      emitSegmentsChange(segments());
+    }
+    return changed;
+  };
+
   // Input handling
   const handleInput = (input: string, key: Key) => {
     // Check isActive dynamically at input time (supports reactive getter)
@@ -1100,11 +1166,22 @@ export function createTextInput(options: TextInputOptions = {}) {
     const currentSegments = segments();
     const pos = cursorPosition();
     const activeCompletion = completionState();
+    const selected = selection();
+    const hasSelection = selected.start !== selected.end;
+
+    if (key.ctrl && (input.toLowerCase() === 'z' || input.toLowerCase() === 'y')) {
+      restoreEdit(input.toLowerCase() === 'y' || Boolean(key.shift));
+      return;
+    }
 
     // Escape - cancel
     if (key.escape) {
       if (activeCompletion) {
         clearCompletion();
+        return;
+      }
+      if (hasSelection) {
+        setCursorPositionInternal(pos);
         return;
       }
       runtimeOptions.onCancel?.();
@@ -1113,7 +1190,7 @@ export function createTextInput(options: TextInputOptions = {}) {
 
     // Ctrl+N - insert newline (N = New line, works in all terminals)
     if (key.ctrl && input === 'n' && runtimeOptions.multiline) {
-      applyEdit({ start: pos, end: pos }, '\n', {
+      applyEdit(selected, '\n', {
         resetHistory: true,
         setMultiline: true,
       });
@@ -1124,7 +1201,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     // Ctrl+Alt+Enter, Alt+Enter, or Shift+Enter creates newline (if terminal supports it)
     if (key.return) {
       if (((key.shift || key.meta) && runtimeOptions.multiline) || (runtimeOptions.multiline && runtimeOptions.enterCreatesNewline)) {
-        applyEdit({ start: pos, end: pos }, '\n', {
+        applyEdit(selected, '\n', {
           resetHistory: true,
           setMultiline: true,
         });
@@ -1146,43 +1223,51 @@ export function createTextInput(options: TextInputOptions = {}) {
 
     // Cursor movement
     if (key.leftArrow) {
+      if (hasSelection && !key.shift) {
+        setCursorPositionInternal(selected.start);
+        return;
+      }
       if (key.ctrl) {
         // Move to previous word boundary
         const newPos = findPrevWordBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos, { clampDirection: 'left' });
+        setCursorPositionInternal(newPos, { clampDirection: 'left', extend: key.shift });
       } else {
         const newPos = previousGraphemeBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos, { clampDirection: 'left' });
+        setCursorPositionInternal(newPos, { clampDirection: 'left', extend: key.shift });
       }
       return;
     }
 
     if (key.rightArrow) {
+      if (hasSelection && !key.shift) {
+        setCursorPositionInternal(selected.end);
+        return;
+      }
       if (key.ctrl) {
         // Move to next word boundary
         const newPos = findNextWordBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos, { clampDirection: 'right' });
+        setCursorPositionInternal(newPos, { clampDirection: 'right', extend: key.shift });
       } else {
         const newPos = nextGraphemeBoundary(currentValue, pos);
-        setCursorPositionInternal(newPos, { clampDirection: 'right' });
+        setCursorPositionInternal(newPos, { clampDirection: 'right', extend: key.shift });
       }
       return;
     }
 
     // Home/End or Ctrl+A/E
     if (key.home || (key.ctrl && input === 'a')) {
-      setCursorPositionInternal(0);
+      setCursorPositionInternal(0, { extend: key.shift });
       return;
     }
 
     if (key.end || (key.ctrl && input === 'e')) {
       const newPos = currentValue.length;
-      setCursorPositionInternal(newPos);
+      setCursorPositionInternal(newPos, { extend: key.shift });
       return;
     }
 
     if (key.upArrow) {
-      if (activeCompletion && activeCompletion.items.length > 0) {
+      if (!key.shift && activeCompletion && activeCompletion.items.length > 0) {
         selectCompletionIndex(activeCompletion.selectedIndex - 1);
         return;
       }
@@ -1200,12 +1285,13 @@ export function createTextInput(options: TextInputOptions = {}) {
         setCursorPositionInternal(newPos, {
           updatePreferredColumn: false,
           clampDirection: 'left',
+          extend: key.shift,
         });
         return;
       }
 
       const historyEntries = getHistoryEntries();
-      if (historyEntries.length > 0) {
+      if (!key.shift && historyEntries.length > 0) {
         const currentIndex = historyIndex();
         if (currentIndex === -1) {
           setOriginalHistoryDraft({
@@ -1221,7 +1307,7 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
 
     if (key.downArrow) {
-      if (activeCompletion && activeCompletion.items.length > 0) {
+      if (!key.shift && activeCompletion && activeCompletion.items.length > 0) {
         selectCompletionIndex(activeCompletion.selectedIndex + 1);
         return;
       }
@@ -1239,11 +1325,12 @@ export function createTextInput(options: TextInputOptions = {}) {
         setCursorPositionInternal(newPos, {
           updatePreferredColumn: false,
           clampDirection: 'right',
+          extend: key.shift,
         });
         return;
       }
 
-      if (historyIndex() >= 0) {
+      if (!key.shift && historyIndex() >= 0) {
         const historyEntries = getHistoryEntries();
         const newIndex = historyIndex() - 1;
         setHistoryIndex(newIndex);
@@ -1259,6 +1346,10 @@ export function createTextInput(options: TextInputOptions = {}) {
     // History navigation
     // Deletion
     if (key.backspace) {
+      if (hasSelection) {
+        applyEdit(selected, '', { resetHistory: true });
+        return;
+      }
       if (pos > 0) {
         if (key.ctrl) {
           // Delete word before cursor
@@ -1277,6 +1368,10 @@ export function createTextInput(options: TextInputOptions = {}) {
     }
 
     if (key.delete) {
+      if (hasSelection) {
+        applyEdit(selected, '', { resetHistory: true });
+        return;
+      }
       if (pos < currentValue.length) {
         if (key.ctrl) {
           // Delete word after cursor
@@ -1328,7 +1423,7 @@ export function createTextInput(options: TextInputOptions = {}) {
       if (input.length > 1) {
         applyPaste(input);
       } else {
-        applyEdit({ start: pos, end: pos }, input, {
+        applyEdit(selected, input, {
           resetHistory: true,
           setMultiline: input.includes('\n'),
         });
@@ -1344,11 +1439,44 @@ export function createTextInput(options: TextInputOptions = {}) {
     segments,
     completion: completionState,
     cursorPosition,
+    selection,
+    setSelection: (anchor: number, head: number) => {
+      if (!Number.isSafeInteger(anchor) || !Number.isSafeInteger(head)) {
+        throw new RangeError('TextInput selection must use safe integer UTF-16 offsets');
+      }
+      if (anchor === head) {
+        setCursorPositionInternal(head);
+        return;
+      }
+      const direction = head >= anchor;
+      const first = clampCursorToSegmentBoundary(segments(), clampToGraphemeBoundary(value(), anchor, 'left'), direction ? 'left' : 'right');
+      const last = clampCursorToSegmentBoundary(segments(), clampToGraphemeBoundary(value(), head, 'left'), direction ? 'right' : 'left');
+      editor.setSelection(first, last);
+      updatePreferredColumn(value(), cursorPosition());
+      scrollToCursor(value(), cursorPosition());
+    },
+    selectAll: () => {
+      editor.setSelection(0, value().length);
+      scrollToCursor(value(), cursorPosition());
+    },
+    undo: () => restoreEdit(false),
+    redo: () => restoreEdit(true),
+    canUndo: () => { historyRevision(); return editor.canUndo(); },
+    canRedo: () => { historyRevision(); return editor.canRedo(); },
+    get disposed() { return disposed; },
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      disposeCompletionEffect();
+      clearCompletion();
+      unsubscribeEditor();
+      editor.dispose();
+    },
     viewportOffset,
     isMultiline: isMultilineMode,
     handleInput, // Expose handler to be registered during render
     setLayout,
-    setCursorPosition: (pos: number, options?: { scroll?: boolean }) => {
+    setCursorPosition: (pos: number, options?: { scroll?: boolean; extend?: boolean }) => {
       setCursorPositionInternal(pos, options);
     },
     setValue: (v: string) => {
@@ -1363,13 +1491,13 @@ export function createTextInput(options: TextInputOptions = {}) {
     },
     insertSegment: (
       segment: TextInputSegmentInput,
-      range: TextInputRange = { start: cursorPosition(), end: cursorPosition() }
+      range: TextInputRange = selection()
     ) => {
       return applyEdit(range, segment, { resetHistory: true });
     },
     insertText: (
       text: string,
-      range: TextInputRange = { start: cursorPosition(), end: cursorPosition() }
+      range: TextInputRange = selection()
     ) => {
       return applyEdit(range, text, {
         resetHistory: true,
@@ -1402,10 +1530,14 @@ export function createTextInput(options: TextInputOptions = {}) {
       emitSegmentsChange([]);
     },
     updateOptions: (nextOptions: TextInputOptions = {}) => {
+      if (disposed) throw new Error('TextInput has been disposed');
       const previousHistoryPersistence = runtimeOptions.historyPersistence;
       const previousRankingPersistence = runtimeOptions.completion?.ranking?.persistence;
-      currentOptions = { ...currentOptions, ...nextOptions };
-      runtimeOptions = resolveRuntimeOptions(currentOptions);
+      const merged = { ...currentOptions, ...nextOptions };
+      const resolved = resolveRuntimeOptions(merged);
+      currentOptions = merged;
+      runtimeOptions = resolved;
+      editor.setHistoryLimit(currentOptions.undoLimit ?? 100);
       seedHistoryEntries = runtimeOptions.history;
 
       if (!isSameHistoryPersistenceOptions(previousHistoryPersistence, runtimeOptions.historyPersistence)) {
@@ -1455,9 +1587,10 @@ export function renderTextInput(
     unfocusedBorderColor = theme.borders.default,
     prompt = getChars().arrows.right,
     foreground = theme.accents.info,
-    isActive = true,
+    isActive: activeOption = true,
     fullWidth = false,
   } = mergedOptions;
+  const isActive = typeof activeOption === 'function' ? activeOption() : activeOption;
   const autoGrow = mergedOptions.autoGrow ?? false;
   const showScrollbar = mergedOptions.showScrollbar ?? true;
   const resolvedMaxLines = autoGrow ? (mergedOptions.maxLines ?? 5) : mergedOptions.maxLines;
@@ -1467,7 +1600,7 @@ export function renderTextInput(
 
   // Register paste handler for bracketed paste support
   usePaste((event) => {
-    state.paste(event.text);
+    if (isActive && !state.disposed) state.paste(event.text);
   });
 
   const value = state.value();
@@ -1483,6 +1616,23 @@ export function renderTextInput(
     const displayGraphemes = segmentGraphemes(displayValue);
     const completed = displayGraphemes.filter((grapheme) => grapheme.end <= displayIndex).length;
     return valueGraphemes[completed]?.index ?? value.length;
+  };
+  const selected = state.selection();
+  const toDisplayIndex = (sourceIndex: number) => password
+    ? valueGraphemes.filter((grapheme) => grapheme.end <= sourceIndex).length * maskGrapheme.length
+    : sourceIndex;
+  const selectionStart = toDisplayIndex(selected.start);
+  const selectionEnd = toDisplayIndex(selected.end);
+  const renderContent = (text: string, start: number, placeholderText = false): VNode => {
+    const style: TextStyle = placeholderText ? { color: 'mutedForeground', dim: true } : {};
+    const first = Math.max(0, selectionStart - start);
+    const last = Math.min(text.length, selectionEnd - start);
+    if (placeholderText || first >= last) return Text(style, text);
+    return Box({ flexDirection: 'row' },
+      Text(style, text.slice(0, first)),
+      Text({ ...style, ...(mergedOptions.selectionStyle ?? { inverse: true }) }, text.slice(first, last)),
+      Text(style, text.slice(last)),
+    );
   };
   const isEmpty = value.length === 0;
 
@@ -1617,6 +1767,7 @@ export function renderTextInput(
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (displayCursor >= line.start && displayCursor <= line.end) {
+        if (displayCursor === line.end && lines[i + 1]?.start === displayCursor) continue;
         cursorLine = i;
         cursorCol = displayCursor - line.start;
         // Handle edge case where cursor is at the very beginning of a wrapped line
@@ -1663,7 +1814,7 @@ export function renderTextInput(
       const cursorOffset = getCursorIndexFromColumn(lineObj.text, column);
       const nextCursor = displayIndexToValueIndex(lineObj.start + cursorOffset);
 
-      state.setCursorPosition(nextCursor, { scroll: false });
+      if (isActive) state.setCursorPosition(nextCursor, { scroll: false, extend: event.modifiers.shift });
     };
 
     const renderedLines = visibleLines.map((lineObj, i) => {
@@ -1693,9 +1844,9 @@ export function renderTextInput(
         return Box(
           { flexDirection: 'row' },
           Text({ color: foreground }, `${linePrompt} `),
-          Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, before),
+          renderContent(before, lineObj.start, renderPlaceholderLine),
           renderCursor(char, renderPlaceholderLine),
-          Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, after),
+          renderContent(after, lineObj.start + cursorEnd, renderPlaceholderLine),
           padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
           renderScrollbar(i, isThumb)
         );
@@ -1707,14 +1858,14 @@ export function renderTextInput(
       return Box(
         { flexDirection: 'row' },
         Text({ color: foreground }, `${linePrompt} `),
-        Text(renderPlaceholderLine ? { color: 'mutedForeground', dim: true } : {}, line),
+        renderContent(line, lineObj.start, renderPlaceholderLine),
         padCount > 0 ? Text({}, ' '.repeat(padCount)) : null,
         renderScrollbar(i, isThumb)
       );
     });
 
     if (showCharCount) {
-      const countText = `${value.length}${mergedOptions.maxLength ? '/' + mergedOptions.maxLength : ''}`;
+      const countText = `${value.length}${mergedOptions.maxLength !== undefined ? '/' + mergedOptions.maxLength : ''}`;
       renderedLines.push(
         Box(
           { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 0 },
@@ -1754,7 +1905,7 @@ export function renderTextInput(
     const cursorOffset = getCursorIndexFromColumn(displayValue, column);
     const nextCursor = displayIndexToValueIndex(cursorOffset);
 
-    state.setCursorPosition(nextCursor, { scroll: false });
+    if (isActive) state.setCursorPosition(nextCursor, { scroll: false, extend: event.modifiers.shift });
   };
 
   return Box(
@@ -1768,11 +1919,11 @@ export function renderTextInput(
       )
       : Box(
         { flexDirection: 'row', flexGrow: fullWidth ? 1 : 0 },
-        Text({}, beforeCursor),
+        renderContent(beforeCursor, 0),
         isActive
           ? renderCursor(cursorChar)
-          : Text({}, cursorChar),
-        Text({}, afterCursor)
+          : renderContent(cursorChar, displayCursor),
+        renderContent(afterCursor, displayCursorEnd)
       )
   );
 }
@@ -1782,14 +1933,14 @@ export interface TextInputProps extends TextInputOptions {
 }
 
 export function useTextInputState(options: TextInputOptions = {}) {
-  return useFactoryState(undefined, options, createTextInput);
+  return useFactoryState(undefined, options, createTextInput, state => state.dispose());
 }
 
 /**
  * Simple standalone TextInput component
  */
 export const TextInput = component<TextInputProps, VNode>('TextInput', ({ state, ...options }) => {
-  const internalState = useFactoryState(state, options, createTextInput);
+  const internalState = useFactoryState(state, options, createTextInput, owned => owned.dispose());
 
   return renderTextInput(internalState, options);
 });

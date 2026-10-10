@@ -11,6 +11,14 @@ export interface ExampleManifestEntry {
 
 export const examplesManifest: ExampleManifestEntry[] = [
   {
+    name: 'text-editor-lab',
+    file: 'text-editor-lab.ts',
+    description: 'Editable Unicode selection, atomic segments, bounded undo/redo and separate submitted history.',
+    category: 'interaction',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
     name: 'text-selection-lab',
     file: 'text-selection-lab.ts',
     description: 'Source-based read-only selection, wrapping, scrolling, Unicode and copy preview.',

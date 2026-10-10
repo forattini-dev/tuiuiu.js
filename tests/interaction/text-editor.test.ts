@@ -2,6 +2,40 @@ import { describe, expect, it } from 'vitest';
 import { createTextEditor } from '../../src/interaction/text-editor.js';
 
 describe('TextEditor', () => {
+  it('normalizes explicit replacement ranges before placing the cursor', () => {
+    const editor = createTextEditor({ initialValue: 'a😀b' });
+    editor.replace(2, 3, 'X');
+    expect(editor.snapshot()).toEqual({ value: 'aXb', cursor: 2 });
+    editor.replace(100, 101, '!');
+    expect(editor.snapshot()).toEqual({ value: 'aXb!', cursor: 4 });
+    expect(() => editor.replace(2, 1, 'X')).toThrow(RangeError);
+  });
+
+  it('restores adapter metadata before notifying and records metadata-only changes', () => {
+    let metadata = 'old';
+    const editor = createTextEditor({ initialValue: 'text', historyState: {
+      capture: () => metadata,
+      restore: state => { metadata = state as string; },
+    } });
+    const observed: string[] = [];
+    editor.subscribe(snapshot => observed.push(`${snapshot.value}:${metadata}`));
+    expect(editor.replace(0, 4, 'text', 'new')).toBe(true);
+    editor.undo(); editor.redo();
+    expect(observed).toEqual(['text:new', 'text:old', 'text:new']);
+    expect(editor.replace(0, 4, 'text')).toBe(false);
+  });
+
+  it('trims both undo stacks when the history limit changes', () => {
+    const editor = createTextEditor();
+    editor.insert('a'); editor.insert('b'); editor.insert('c');
+    editor.setHistoryLimit(1);
+    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(false);
+    editor.setHistoryLimit(0);
+    expect(editor.redo()).toBe(false);
+    expect(() => editor.setHistoryLimit(NaN)).toThrow(RangeError);
+    expect(editor.snapshot().value).toBe('ab');
+  });
   it('edits and moves on Unicode grapheme boundaries', () => {
     const editor = createTextEditor({ initialValue: 'a👨‍👩‍👧‍👦b' });
     editor.moveLeft();

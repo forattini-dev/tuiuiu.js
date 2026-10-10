@@ -44,6 +44,9 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - text completion: `src/interaction/completion.ts`
 - text content/revisions: `src/interaction/text-document.ts`
 - scalar text editing: `src/interaction/text-editor.ts`
+- editable input adapter: `src/atoms/text-input.ts` owns a TextEditor, attaches
+  segment snapshots to its undo checkpoints, and keeps submitted command history
+  and completion separate. Hook-owned input controllers dispose on unmount.
 - text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
 - read-only source selection: `src/interaction/text-selection.ts`; bounded
   visual adapter: `src/atoms/text-view.ts`
