@@ -4,6 +4,7 @@ import { composeTextProjection, createTextProjectionBuilder, projectedSourceRang
 import type { TextSpan, TextSpanStyle } from './styled-text.js';
 import { stripTerminalControls } from './terminal-sanitize.js';
 import { clampToGraphemeBoundary } from './grapheme.js';
+import { DEFAULT_CODE_THEME, highlightCodeSpans, normalizeCodeLanguage, type CodeTheme } from './code-highlight.js';
 import { createTextDocument } from '../interaction/text-document.js';
 import { createTextSelection, type TextSelection } from '../interaction/text-selection.js';
 
@@ -13,6 +14,10 @@ const DEFAULT_THEME = { bold: 'foreground', italic: 'foreground', link: 'info', 
 export interface MarkdownSelectionOptions {
   showLinkUrls?: boolean;
   theme?: Partial<InlineMarkdownTheme & { heading: string; blockquote: string; listMarker: string }>;
+  /** Lexical fenced-code highlighting (default true); never changes display/source offsets. */
+  highlightCode?: boolean;
+  /** Token colors only: the compact reader has no code gutters or block background. */
+  codeTheme?: Partial<Omit<CodeTheme, 'lineNumber' | 'background'>>;
 }
 
 export interface MarkdownSelection {
@@ -49,14 +54,20 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
     assertActive();
     assertProjection();
     const theme = { ...DEFAULT_THEME, ...nextOptions.theme };
-    const nextSignature = JSON.stringify([theme, nextOptions.showLinkUrls ?? true]);
+    const codeTheme = { ...DEFAULT_CODE_THEME, ...nextOptions.codeTheme };
+    const nextSignature = JSON.stringify([theme, nextOptions.showLinkUrls ?? true, nextOptions.highlightCode ?? true, codeTheme]);
     if (initialized && nextSource === source && nextSignature === signature) return false;
     const builder = createTextProjectionBuilder();
     const text = (node: MarkdownNode, style?: TextSpanStyle, inline = true) => {
       const content = createTextProjectionBuilder();
       for (const part of getMarkdownNodeSource(node).parts) content.append(part.text, style, part.start, part.end);
       const raw = content.finish();
-      if (!inline) { builder.appendProjection(raw); return; }
+      if (!inline) {
+        builder.appendProjection(node.type === 'codeblock' && nextOptions.highlightCode !== false
+          && normalizeCodeLanguage(node.language) !== 'plain'
+          ? { ...raw, spans: highlightCodeSpans(raw.text, normalizeCodeLanguage(node.language), codeTheme) } : raw);
+        return;
+      }
       const formatted = composeTextProjection(projectInlineMarkdown(raw.text, theme, nextOptions.showLinkUrls), raw);
       builder.appendProjection({ ...formatted, spans: formatted.spans.map(span => ({ text: span.text, style: { ...style, ...span.style } })) });
     };
@@ -101,7 +112,8 @@ export function createMarkdownSelection(initialSource = '', initialOptions: Mark
     // Mapping and style data become current before document/selection subscribers run.
     source = nextSource;
     projection = nextProjection;
-    options = { showLinkUrls: nextOptions.showLinkUrls, theme: { ...nextOptions.theme } };
+    options = { showLinkUrls: nextOptions.showLinkUrls, theme: { ...nextOptions.theme },
+      highlightCode: nextOptions.highlightCode, codeTheme: { ...nextOptions.codeTheme } };
     signature = nextSignature;
     initialized = true;
     document.replace(prefix, previous.length - suffix, projection.text.slice(prefix, projection.text.length - suffix));

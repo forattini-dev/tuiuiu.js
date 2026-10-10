@@ -58,6 +58,10 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - structured text/style snapshots and canonical fitted source mapping:
   `src/utils/styled-text.ts`; visual adapter: `src/primitives/rich-text.ts`
 - bounded terminal Markdown inline parsing: `src/utils/markdown-inline.ts`
+- renderer-independent lexical code spans and shared fence aliases:
+  `src/utils/code-highlight.ts`. CodeBlock fits after whole-source highlighting,
+  keeping one RichText flow per visual row; MarkdownSelection changes styles
+  without replacing source provenance. This is not a grammar/semantic parser.
 - selectable Markdown reader: `src/utils/markdown-selection.ts` composes inline
   and block source provenance through `src/utils/text-projection.ts`;
   `src/molecules/markdown-view.ts` adapts it to the style-only TextView viewport.

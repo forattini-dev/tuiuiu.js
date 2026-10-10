@@ -19,6 +19,39 @@ function select(controller: ReturnType<typeof setup>, text: string) {
 }
 
 describe('Markdown source projection', () => {
+  it('highlights aliased fenced code without changing CRLF/Unicode source mapping or copy', () => {
+    const source = '```ts\r\n/* first\r\nconst 👩‍💻 = "界";\r\n*/\r\nconst real = 42;\r\n```\r\n\r\nend';
+    const controller = setup(source, { codeTheme: { comment: 'red', keyword: 'magenta' } });
+    const spans = controller.snapshot().spans;
+    expect(spans.find(span => span.text.includes('const 👩‍💻'))!.style?.color).toBe('red');
+    expect(spans.find(span => span.text === 'const')!.style?.color).toBe('magenta');
+    select(controller, 'const 👩‍💻 = "界";');
+    expect(controller.copyText('source')).toBe('const 👩‍💻 = "界";');
+    const range = controller.sourceRange();
+    controller.update(source, { highlightCode: false });
+    expect(controller.sourceRange()).toEqual(range);
+    expect(controller.copyText()).toBe('const 👩‍💻 = "界";');
+    expect(controller.snapshot().spans.find(span => span.text.includes('const 👩‍💻'))!.style?.color).toBe('primary');
+    controller.selection.selectAll();
+    expect(controller.copyText('source')).toBe(stripTerminalControls(source));
+  });
+  it('snapshots code theme changes, preserves them on append, and notifies style-only subscribers', () => {
+    const source = '```js\nconst value = 42;\n```';
+    const options = { codeTheme: { keyword: 'red' } };
+    const controller = setup(source, options);
+    options.codeTheme.keyword = 'blue';
+    const changed = vi.fn();
+    controller.subscribe(changed);
+    controller.update(source + '\n\nnext');
+    expect(controller.snapshot().spans.find(span => span.text === 'const')!.style?.color).toBe('red');
+    select(controller, 'value');
+    const selection = controller.selection.snapshot();
+    controller.update(source + '\n\nnext', { codeTheme: { keyword: 'green' } });
+    expect(changed).toHaveBeenCalledTimes(2);
+    expect(controller.selection.snapshot()).toEqual(selection);
+    expect(controller.snapshot().spans.find(span => span.text === 'const')!.style?.color).toBe('green');
+    expect(controller.update(source + '\n\nnext')).toBe(false);
+  });
   it('fails closed when callers bypass projection updates instead of copying unrelated source', () => {
     const controller = setup('**original**');
     controller.selection.document.setValue('unrelated');
@@ -86,6 +119,7 @@ describe('Markdown source projection', () => {
       'first\r\nsecond\r\n\r\n[docs](https://example.org)\r\n',
       '| h | x |\n| --- | --- |\n| a | b |\n\nend',
       '👩‍💻é **tail**',
+      '```ts\n/* first\nconst inside = 42;\n*/\nconst text = `界\n👩‍💻`;\n```\n\nlast',
     ];
     for (const source of sources) {
       const streamed = setup('');

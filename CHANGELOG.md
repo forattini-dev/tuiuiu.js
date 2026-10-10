@@ -24,6 +24,8 @@ Notable changes to Tuiuiu are documented here.
   runnable `markdown-selection-lab` example.
 - Add style-only spans to `TextView` without changing viewport geometry; selection
   preserves inline attributes and edits invalidate stale pointer captures.
+- Add shared structured lexical highlighting to selectable Markdown fences,
+  with opt-out and code-theme configuration that preserve source/copy geometry.
 
 ### Security
 
@@ -41,6 +43,10 @@ Notable changes to Tuiuiu are documented here.
   the isolated framework benchmark lockfile alongside the root lockfile in CI.
 
 ### Fixed
+
+- Highlight code before fitting lines, preserving multiline comments/strings and
+  deterministic numeric tokens. CodeBlock and InlineCode no longer create a flex
+  item per token; explicit-width wrapping reserves real terminal gutter columns.
 
 - Preserve UTF-8 characters split across input chunks.
 - Parse fragmented CSI, OSC, bracketed-paste, mouse, and focus input

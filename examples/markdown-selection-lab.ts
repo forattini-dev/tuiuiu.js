@@ -4,7 +4,7 @@ import { Box, Text, MarkdownView, createMarkdownSelection } from '../src/ui/inde
 
 const initial = '# Selectable Markdown\n\nDrag across **bold**, *italic*, `inline code`, 界 and 👩‍💻.\n\n'
   + '- [x] Shared source mapping\n- [ ] More streaming content\n\n'
-  + '[Documentation](https://github.com/forattini-dev/tuiuiu.js)\n\n```ts\nconst greeting = "Olá";\nconsole.log(greeting);\n```';
+  + '[Documentation](https://github.com/forattini-dev/tuiuiu.js)\n\n```ts\n/* Multiline syntax\nconst insideComment = 42;\n*/\nconst greeting = "Olá 👩‍💻";\nconsole.log(greeting);\n```';
 
 const App = component('MarkdownSelectionLab', () => {
   const size = useTerminalSize();

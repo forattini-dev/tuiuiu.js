@@ -22,7 +22,8 @@ import { Box, Text, Newline } from '../primitives/nodes.js';
 import type { TextProps, VNode } from '../utils/types.js';
 import { RichText } from '../primitives/rich-text.js';
 import { parseInlineMarkdown } from '../utils/markdown-inline.js';
-import { CodeBlock, type CodeBlockOptions, type Language } from './code-block.js';
+import { CodeBlock, type CodeBlockOptions } from './code-block.js';
+import { normalizeCodeLanguage } from '../utils/code-highlight.js';
 import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
 import { createMarkdownDocument, type MarkdownDocument, type MarkdownNode as ParsedNode } from '../utils/markdown-document.js';
 
@@ -79,48 +80,6 @@ const DEFAULT_THEME = {
   hr: 'border',
 };
 
-const SUPPORTED_LANGUAGES: Language[] = [
-  'javascript',
-  'typescript',
-  'python',
-  'json',
-  'yaml',
-  'bash',
-  'shell',
-  'html',
-  'css',
-  'sql',
-  'go',
-  'rust',
-  'markdown',
-  'diff',
-  'plain',
-];
-
-const LANGUAGE_ALIASES: Record<string, Language> = {
-  cjs: 'javascript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  ts: 'typescript',
-  tsx: 'typescript',
-  py: 'python',
-  yml: 'yaml',
-  sh: 'shell',
-  zsh: 'shell',
-  fish: 'shell',
-  md: 'markdown',
-  patch: 'diff',
-  text: 'plain',
-  plaintext: 'plain',
-};
-
-function normalizeLanguage(language?: string): Language {
-  const normalized = (language || '').trim().toLowerCase().replace(/^\./, '');
-  if (!normalized) return 'plain';
-  if ((SUPPORTED_LANGUAGES as string[]).includes(normalized)) return normalized as Language;
-  return LANGUAGE_ALIASES[normalized] ?? 'plain';
-}
 
 /** Compose styles in data, then lay out one paragraph instead of flex children. */
 function inlineText(text: string, theme: typeof DEFAULT_THEME, options: MarkdownOptions, props: TextProps = {}): VNode {
@@ -159,7 +118,7 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
         CodeBlock({
           ...codeBlockOptions,
           code: node.content || '',
-          language: normalizeLanguage(node.language),
+          language: normalizeCodeLanguage(node.language),
           filename: node.filename ?? codeBlockOptions.filename,
           lineNumbers: options.codeLineNumbers ?? codeBlockOptions.lineNumbers ?? true,
           borderStyle: codeBlockOptions.borderStyle ?? 'round',

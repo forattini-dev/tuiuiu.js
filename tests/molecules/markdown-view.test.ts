@@ -24,6 +24,20 @@ function key(app: ReturnType<typeof createTestHarness>, sequence: string) {
 }
 
 describe('MarkdownView', () => {
+  it.each([true, false])('renders fenced-code colors under selection and theme-only updates (delta=%s)', async delta => {
+    const { app, controller } = setup('```ts\n/* first\nconst fake = 1;\n*/ const real = 42;\n```', delta);
+    controller.update(controller.snapshot().source, { codeTheme: { comment: 'red', keyword: 'magenta' } });
+    controller.selection.set(9, 14);
+    app.render(() => MarkdownView({ selection: controller, width: 30, height: 5 }));
+    const cells = renderFrameToCellBuffer(app.getFrame()!);
+    expect(cells.get(0, 1)).toMatchObject({ char: 'c', fg: 'red', attrs: { inverse: true } });
+    expect(cells.get(3, 2)).toMatchObject({ char: 'c', fg: 'magenta' });
+    const raw = controller.copyText('source');
+    controller.update(controller.snapshot().source, { codeTheme: { comment: 'green' } });
+    await vi.waitFor(() => expect(renderFrameToCellBuffer(app.getFrame()!).get(0, 1)!.fg).toBe('green'));
+    expect(controller.copyText('source')).toBe(raw);
+    expect(renderFrameToCellBuffer(app.getFrame()!).get(0, 1)!.attrs.inverse).toBe(true);
+  });
   it.each([true, false])('selects across style runs and paragraphs with real mouse geometry (delta=%s)', async delta => {
     const { app, controller } = setup('**hello**\n\n*world*', delta);
     app.render(() => MarkdownView({ selection: controller, width: 12, height: 4 }));

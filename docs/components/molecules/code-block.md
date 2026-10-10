@@ -5,7 +5,7 @@ Syntax highlighted code display with line numbers, highlighting, and themes.
 ## Import
 
 ```typescript
-import { CodeBlock, InlineCode } from 'tuiuiu.js'
+import { CodeBlock, InlineCode } from 'tuiuiu.js/ui'
 ```
 
 ## Basic Usage
@@ -39,7 +39,7 @@ Output:
 | `theme` | `Partial<CodeTheme>` | - | Custom theme |
 | `filename` | `string` | - | Filename to display |
 | `showFilename` | `boolean` | `true` | Show filename header |
-| `maxWidth` | `number` | - | Max width (truncates) |
+| `maxWidth` | `number` | - | Code-row columns, including line numbers/markers, excluding border/padding and filename header |
 | `wrap` | `boolean` | `false` | Word wrap long lines |
 | `showCopy` | `boolean` | `true` | Show copy indicator |
 | `borderStyle` | `'none' \| 'single' \| 'round'` | `'round'` | Border style |
@@ -86,6 +86,37 @@ Output:
 | `background` | Background color |
 
 ## Features
+
+### Structured highlighting and fitting
+
+Code is highlighted as a whole source before lines are wrapped or truncated.
+Multiline comments, Python triple-quoted strings, JavaScript template strings,
+Go raw strings and Rust raw strings keep their style across lines. Tokens remain
+structured spans inside one text flow per visual row, not separate flex items.
+`InlineCode` uses the same highlighter and one text flow.
+
+With `maxWidth`, `wrap: false` truncates with `…`; `wrap: true` uses the canonical
+word fitter and blank continuation gutters. Both account for terminal columns,
+not UTF-16 length. `maxWidth: 0` hides row content; negative or nonfinite values
+throw. A viewport narrower than one wide grapheme can still clip that grapheme.
+Without `maxWidth`, the surrounding layout determines available width.
+
+```ts
+CodeBlock({
+  code: '/* multiline\nconst notAKeyword = 42;\n*/\nconst greeting = "Hello world";',
+  language: 'typescript',
+  maxWidth: 40,
+  wrap: true,
+  theme: { comment: 'gray', keyword: 'magenta', number: 'cyan' },
+})
+```
+
+This is a lightweight lexical highlighter, not a full grammar parser or language
+server. Function/type names are heuristics; template interpolation, regular
+expression literals, heredocs and embedded languages are not parsed separately.
+Unfinished strings/comments can be colored while streaming. Unknown Markdown
+fence languages fall back to plain text. `showCopy` remains a label, not an
+interactive clipboard action.
 
 ### With Filename Header
 

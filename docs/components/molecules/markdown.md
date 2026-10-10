@@ -46,15 +46,26 @@ copies, Ctrl+A selects all, Escape clears and Shift+arrows extends selection whe
 `isActive: true`. Mouse selection and wheel scrolling remain available when
 keyboard routing is inactive.
 
-This first reader supports styled headings, paragraphs, lists, quotes, links,
-images-as-text and literal fenced code. Fences and code borders/gutters are not
+This reader supports styled headings, paragraphs, lists, quotes, links,
+images-as-text and syntax-highlighted fenced code. Fences and code borders/gutters are not
 painted; tables currently retain their literal source rows. It does not accept
-custom block VNodes or provide syntax highlighting, selection between separate
+custom block VNodes or provide selection between separate
 views, double/triple-click selection, drag auto-scroll or search yet.
 Block identities are retained on safe append, but the display projection and
 viewport reflow still visit the document. Display-document edits cancel captured drags;
 ordinary selection repaints do not. Source selections remain stable across resize,
 and unchanged display prefixes remain selected across append updates.
+
+Fenced code shares the whole-source lexical highlighter with `CodeBlock`,
+including multiline state and aliases such as `ts`, `js`, `py`, and `sh`.
+Highlighting only changes span styles: display/source offsets and copy policies
+stay identical. Configure the controller with `codeTheme: { comment: 'gray',
+keyword: 'magenta' }`, or `highlightCode: false` to use the uniform `theme.code`
+color. Unknown fence languages use that uniform fallback. Options are snapshotted
+and preserved when omitted on later `update()` calls. `codeTheme` accepts token
+colors, not `CodeBlock`'s line-number or background settings. There is no async parser,
+Tree-sitter integration, semantic highlighting, or independent template
+interpolation yet; see [CodeBlock](./code-block.md) for lexical limitations.
 
 ## Ordinary Markdown
 
