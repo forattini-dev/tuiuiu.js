@@ -1,5 +1,63 @@
 # Markdown
 
+## Selectable Markdown reader
+
+`MarkdownView` is a bounded, compact reader from `tuiuiu.js/ui`. It shares the
+existing Markdown block/inline parsers and TextView interaction/viewport, without
+changing the presentation or API of ordinary `Markdown`.
+
+```ts
+import { component, useConst, useEffect } from 'tuiuiu.js/app';
+import { MarkdownView, createMarkdownSelection } from 'tuiuiu.js/ui';
+
+const Reader = component('Reader', () => {
+  const controller = useConst(() => createMarkdownSelection(
+    '# Hello\n\nSelect **bold**, *italic*, and `code`.',
+    { showLinkUrls: false },
+  ));
+  useEffect(() => () => controller.dispose());
+  return MarkdownView({ selection: controller, width: 60, height: 12,
+    isActive: true, copyMode: 'display' });
+});
+```
+
+Run `pnpm example markdown-selection-lab` for resize, streaming append and a copy
+preview. The demo does not write to the system clipboard.
+
+The caller owns the controller. `update(source, options?)` updates content or
+styles; omitted options preserve the previous configuration. Use controller
+updates, not direct mutation of `selection.document`; bypassing the controller
+invalidates the projection and later reads/updates reject it. Unmounting a view releases
+subscriptions but does not dispose the caller's controller. Different readers
+need different controllers unless intentionally sharing selection.
+
+`selection` uses **display-document UTF-16 offsets**, not raw Markdown offsets.
+`sourceRange()` projects the selected ink to its smallest enclosing raw source
+interval. Hidden syntax between endpoints remains inside that interval. Generated
+bullets, heading prefixes and inline-code padding have no source positions.
+Selecting the whole nonempty display document returns the whole raw source,
+including fences and delimiters. Empty selections return `null`.
+
+`copyMode: 'display'` (default) copies projected text without soft-wrap newlines.
+`'source'` copies the source interval; partial fragments need not be valid Markdown.
+Both policies remove terminal protocols and control characters, including CR in
+CRLF. `onCopy(text)` overrides the capability-aware clipboard adapter. Ctrl+Shift+C
+copies, Ctrl+A selects all, Escape clears and Shift+arrows extends selection when
+`isActive: true`. Mouse selection and wheel scrolling remain available when
+keyboard routing is inactive.
+
+This first reader supports styled headings, paragraphs, lists, quotes, links,
+images-as-text and literal fenced code. Fences and code borders/gutters are not
+painted; tables currently retain their literal source rows. It does not accept
+custom block VNodes or provide syntax highlighting, selection between separate
+views, double/triple-click selection, drag auto-scroll or search yet.
+Block identities are retained on safe append, but the display projection and
+viewport reflow still visit the document. Display-document edits cancel captured drags;
+ordinary selection repaints do not. Source selections remain stable across resize,
+and unchanged display prefixes remain selected across append updates.
+
+## Ordinary Markdown
+
 Terminal markdown renderer with syntax highlighting, tables, and rich formatting.
 
 ## Import

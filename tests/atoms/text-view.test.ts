@@ -28,6 +28,25 @@ function key(app: ReturnType<typeof createTestHarness>, sequence: string) {
 }
 
 describe('TextView', () => {
+  it.each([true, false])('paints style-only spans over source graphemes, tabs and selection (delta=%s)', async delta => {
+    const { app, selection } = setup('a\t界é');
+    app.render(() => TextView({ selection, width: 8, height: 2, spans: [
+      { text: 'a\t', style: { color: 'red' } }, { text: '界e', style: { bold: true } }, { text: '́', style: { italic: true } },
+    ] }));
+    selection.set(1, 5);
+    await app.flush();
+    const cells = renderFrameToCellBuffer(app.getFrame()!);
+    expect(cells.get(1, 0)).toMatchObject({ char: ' ', fg: 'red', attrs: { inverse: true } });
+    expect(cells.get(4, 0)!.attrs).toMatchObject({ bold: true, inverse: true });
+    expect(cells.get(6, 0)!.char).toBe('é');
+    expect(cells.get(6, 0)!.attrs.bold).toBe(true);
+    expect(cells.get(6, 0)!.attrs.italic).not.toBe(true);
+  });
+  it('rejects styles that would silently change the document geometry', () => {
+    const { app, selection } = setup('source');
+    expect(() => app.render(() => TextView({ selection, width: 8, height: 2, spans: [{ text: 'different' }] })))
+      .toThrow('exactly match');
+  });
   it.each([true, false])('paints selections without changing document geometry (delta=%s)', async delta => {
     const { app, selection } = setup('a\t界é\nnext', delta);
     app.render(() => TextView({ selection, width: 6, height: 4, wrap: 'grapheme', style: { color: 'red' } }));

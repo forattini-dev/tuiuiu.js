@@ -40,6 +40,12 @@ function printable(segment: string): string {
   return segment.replace(/[\u0000-\u001f\u007f-\u009f]/gu, '\ufffd');
 }
 
+/** Internal shared projection for measurement and styled, source-indexed painting. */
+export function projectViewportGrapheme(segment: string, column: number, tabSize: number): { text: string; width: number } {
+  const text = segment === '\t' ? ' '.repeat(tabSize - column % tabSize) : printable(segment);
+  return { text, width: stringWidth(text) };
+}
+
 function normalize(options: TextViewportOptions): Required<TextViewportOptions> {
   const wrap = options.wrap ?? 'word';
   const tabSize = options.tabSize ?? 4;
@@ -60,9 +66,9 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
     let width = 0;
     let displayText = '';
     for (const { segment } of segmentGraphemes(text)) {
-      const cells = segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(segment));
-      displayText += segment === '\t' ? ' '.repeat(cells) : printable(segment);
-      width += cells;
+      const projected = projectViewportGrapheme(segment, width, options.tabSize);
+      displayText += projected.text;
+      width += projected.width;
     }
     return { displayText, width };
   };

@@ -19,6 +19,11 @@ Notable changes to Tuiuiu are documented here.
   read-only TextView, and bounded text-editor undo/redo.
 - Add owned TextInput drag selection and clipboard integration, stable scroll
   anchors, and opt-in incremental Markdown rendering.
+- Add a bounded `MarkdownView` reader with caller-owned `createMarkdownSelection`,
+  explicit display/source copy policy, source-mapped inline formatting and a
+  runnable `markdown-selection-lab` example.
+- Add style-only spans to `TextView` without changing viewport geometry; selection
+  preserves inline attributes and edits invalidate stale pointer captures.
 
 ### Security
 

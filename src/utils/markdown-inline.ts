@@ -1,4 +1,5 @@
 import type { TextSpan, TextSpanStyle } from './styled-text.js';
+import { createTextProjectionBuilder, type TextProjection } from './text-projection.js';
 
 export interface InlineMarkdownTheme {
   bold: string;
@@ -15,11 +16,16 @@ export interface InlineMarkdownTheme {
 export function parseInlineMarkdown(
   source: string, theme: InlineMarkdownTheme, showLinkUrls = true,
 ): TextSpan[] {
-  const result: TextSpan[] = [];
+  return [...projectInlineMarkdown(source, theme, showLinkUrls).spans];
+}
+
+/** Same parser as Markdown, with explicit source intervals for selectable readers. */
+export function projectInlineMarkdown(
+  source: string, theme: InlineMarkdownTheme, showLinkUrls = true, sourceBase = 0,
+): TextProjection {
+  const builder = createTextProjectionBuilder();
   let budget = source.length * 16 + 128;
-  const append = (text: string, style: TextSpanStyle) => {
-    if (text) result.push({ text, style });
-  };
+  const append = builder.append;
   const escaped = (text: string, index: number) => {
     let slashes = 0;
     while (index > 0 && text[--index] === '\\') slashes++;
@@ -47,15 +53,17 @@ export function parseInlineMarkdown(
     }
     return -1;
   };
-  const parse = (text: string, inherited: TextSpanStyle, depth: number): void => {
-    if (depth >= 32 || budget <= 0) { append(text, inherited); return; }
+  const parse = (text: string, inherited: TextSpanStyle, depth: number, base: number): void => {
+    if (depth >= 32 || budget <= 0) { append(text, inherited, base); return; }
     let plain = '';
-    const flush = () => { append(plain, inherited); plain = ''; };
+    let plainStart = 0;
+    const flush = () => { append(plain, inherited, base + plainStart); plain = ''; };
     for (let i = 0; i < text.length;) {
+      if (!plain) plainStart = i;
       if (budget-- <= 0) { plain += text.slice(i); break; }
       const char = text[i]!;
       if (char === '\\' && /[!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~]/u.test(text[i + 1] ?? '')) {
-        plain += text[i + 1]; i += 2; continue;
+        flush(); append(text[i + 1]!, inherited, base + i + 1); i += 2; continue;
       }
       if (char === '`') {
         let count = 1;
@@ -70,8 +78,10 @@ export function parseInlineMarkdown(
         }
         if (end >= 0) {
           flush();
-          append(` ${text.slice(i + count, end).replaceAll('\n', ' ')} `,
-            { ...inherited, color: theme.code, backgroundColor: 'black' });
+          const style = { ...inherited, color: theme.code, backgroundColor: 'black' };
+          append(' ', style);
+          append(text.slice(i + count, end).replaceAll('\n', ' '), style, base + i + count);
+          append(' ', style);
           i = end + count; continue;
         }
         plain += marker; i += count; continue;
@@ -87,12 +97,16 @@ export function parseInlineMarkdown(
           const label = text.slice(labelStart + 1, labelEnd);
           if (image) {
             append('🖼️ ', { ...inherited, color: 'warning' });
-            append(label || 'image', { ...inherited, color: 'mutedForeground' });
+            append(label || 'image', { ...inherited, color: 'mutedForeground' }, label ? base + labelStart + 1 : undefined);
           } else {
-            parse(label, { ...inherited, color: theme.link, underline: true }, depth + 1);
+            parse(label, { ...inherited, color: theme.link, underline: true }, depth + 1, base + labelStart + 1);
           }
-          if (showLinkUrls) append(` (${text.slice(labelEnd + 2, urlEnd)})`,
-            { ...inherited, color: 'mutedForeground', dim: true });
+          if (showLinkUrls) {
+            const style = { ...inherited, color: 'mutedForeground', dim: true };
+            append(' (', style);
+            append(text.slice(labelEnd + 2, urlEnd), style, base + labelEnd + 2);
+            append(')', style);
+          }
           i = urlEnd + 1; continue;
         }
       }
@@ -110,7 +124,7 @@ export function parseInlineMarkdown(
               : length === 3 ? { bold: true, italic: true, color: theme.bold }
               : length === 2 ? { bold: true, color: theme.bold }
               : { italic: true, color: theme.italic };
-            parse(text.slice(i + length, end), { ...inherited, ...style }, depth + 1);
+            parse(text.slice(i + length, end), { ...inherited, ...style }, depth + 1, base + i + length);
             i = end + length; continue;
           }
         }
@@ -120,6 +134,6 @@ export function parseInlineMarkdown(
     }
     flush();
   };
-  parse(source, {}, 0);
-  return result;
+  parse(source, {}, 0, sourceBase);
+  return builder.finish();
 }

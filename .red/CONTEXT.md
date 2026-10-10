@@ -58,6 +58,11 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - structured text/style snapshots and canonical fitted source mapping:
   `src/utils/styled-text.ts`; visual adapter: `src/primitives/rich-text.ts`
 - bounded terminal Markdown inline parsing: `src/utils/markdown-inline.ts`
+- selectable Markdown reader: `src/utils/markdown-selection.ts` composes inline
+  and block source provenance through `src/utils/text-projection.ts`;
+  `src/molecules/markdown-view.ts` adapts it to the style-only TextView viewport.
+  Display offsets never stand in for raw Markdown offsets; generated decoration
+  has no source interval. Ordinary Markdown rendering stays independent.
 - line-based scrolling and stable item anchors: `src/organisms/scroll-list.ts`
 - overlay and prompt ownership: `src/interaction/overlay.ts` and
   `src/interaction/prompt.ts`

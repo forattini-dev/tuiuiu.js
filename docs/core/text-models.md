@@ -121,8 +121,16 @@ passed another selection but never disposes the caller's controller. Captured
 drags resolve origins from the active hit-test frame, including partial clipping.
 See [TextView usage and limitations](/components/primitives/text.md#read-only-document-selection).
 
-Selection of formatted Markdown is not yet connected. TextView and TextInput
-share owner-local pointer capture, but retain their own source projections.
+`TextView.spans` adds source-indexed styles without changing text geometry. Its
+concatenated span text must exactly match the document, or rendering rejects it.
+Selection styles overlay rather than replace inline styling; a grapheme crossing
+style boundaries takes the style of its first UTF-16 unit. Tabs and control
+placeholders use the same projection for measurement, painting and pointer hits.
+
+`MarkdownView` connects formatted Markdown to this selection path through
+`createMarkdownSelection()`. See [selectable Markdown](/components/molecules/markdown.md#selectable-markdown-reader)
+for copy policy, source mapping, ownership and current presentation limits.
+TextView and TextInput share owner-local pointer capture, but retain their own source projections.
 TextView uses TextViewport's source-preserving wrapping, whereas ordinary
 Text/RichText use their canonical presentation fitter. Source mappings must not
 be exchanged between those geometries implicitly.

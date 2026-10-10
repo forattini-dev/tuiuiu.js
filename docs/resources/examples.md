@@ -34,6 +34,7 @@ pnpm example app-dashboard
 | `interaction-workbench` | Advanced | Semantic commands, collection identity, overlay sessions, and app-hosted prompts |
 | `text-selection-lab` | Medium | Read-only source selection with wrapping, scrolling, Unicode and a copy preview |
 | `text-editor-lab` | Medium | Editable Unicode drag selection, copy preview, atomic segments and bounded undo/redo |
+| `markdown-selection-lab` | Medium | Styled Markdown selection, display/source copy preview, resize and streaming append |
 | `app-dashboard` | Advanced | Heavy composition, metrics, and animation-like updates |
 | `app-ai-assistant` | Advanced | Assistant-style composition, overlays, streaming, code, and settings |
 

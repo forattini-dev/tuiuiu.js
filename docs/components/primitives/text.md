@@ -94,8 +94,9 @@ immutable row/column/width ranges for other adapters, with no newline cells.
 
 Only visible rows create VNodes. Reflow still processes the full document on
 revision changes; this is not yet incremental large-document layout. Selection
-does not automatically extend across separate views or apply to Markdown's
-formatted output. Those integrations require their own source mapping.
+does not automatically extend across separate views or ordinary Markdown VNodes.
+The [MarkdownView reader](/components/molecules/markdown.md#selectable-markdown-reader)
+provides an explicit formatted display-to-source projection on this viewport.
 
 Try `pnpm example text-selection-lab` for an interactive copy preview.
 

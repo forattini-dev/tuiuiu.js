@@ -8,9 +8,9 @@ import { usePointerSelection } from '../hooks/use-pointer-selection.js';
 import { useInput } from '../hooks/use-input.js';
 import { useClipboard } from '../hooks/use-clipboard.js';
 import type { TextSelection } from '../interaction/text-selection.js';
-import { createTextViewport, type TextViewport, type TextViewportOptions } from '../interaction/text-viewport.js';
+import { createTextViewport, projectViewportGrapheme, type TextViewport, type TextViewportOptions } from '../interaction/text-viewport.js';
 import { previousGraphemeBoundary, nextGraphemeBoundary, segmentGraphemes } from '../utils/grapheme.js';
-import { stringWidth } from '../utils/text-utils.js';
+import { normalizeTextSpans } from '../utils/styled-text.js';
 import type { VNode } from '../utils/types.js';
 
 export interface TextViewProps extends ComponentKeyProps {
@@ -22,6 +22,8 @@ export interface TextViewProps extends ComponentKeyProps {
   wrap?: TextViewportOptions['wrap'];
   tabSize?: number;
   style?: TextSpanStyle;
+  /** Style-only projection. Concatenated text must exactly match the source document. */
+  spans?: readonly TextSpan[];
   selectionStyle?: TextSpanStyle;
   /** Controlled visual-row offset; omit for component-owned scrolling. */
   scrollTop?: number;
@@ -40,6 +42,28 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
     throw new RangeError('TextView height must be positive and scrollTop non-negative safe integers');
   }
   if (selection.disposed) throw new Error('TextView requires an active TextSelection');
+  const value = selection.document.snapshot().value;
+  const styleRanges: { end: number; style?: TextSpanStyle }[] = [];
+  if (props.spans) {
+    if (props.spans.some(span => typeof span.text !== 'string') || props.spans.map(span => span.text).join('') !== value) {
+      throw new Error('TextView spans must exactly match its source document');
+    }
+    let end = 0;
+    for (const span of props.spans) {
+      end += span.text.length;
+      styleRanges.push({ end, style: normalizeTextSpans([{ text: '', style: span.style }])[0]!.style });
+    }
+  }
+  const styleAt = (offset: number): TextSpanStyle | undefined => {
+    let low = 0;
+    let high = styleRanges.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (styleRanges[middle]!.end <= offset) low = middle + 1;
+      else high = middle;
+    }
+    return styleRanges[low]?.style;
+  };
   const [revision, setRevision] = useState(0);
   const [localScroll, setLocalScroll] = useState(0);
   const clipboard = useClipboard();
@@ -90,6 +114,7 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
   );
   const pointer = usePointerSelection({
     identity: selection, geometry: `${width}:${height}:${wrap}:${tabSize}`,
+    revision: selection.document.snapshot().revision,
     onStart(event) {
       const offset = offsetAt(event.y, event.x);
       if (event.modifiers.shift) selection.extend(offset);
@@ -138,13 +163,19 @@ export const TextView = component<TextViewProps, VNode>('TextView', props => {
     const rect = rects.get(scrollTop + index);
     const spans: TextSpan[] = [];
     let column = 0;
-    for (const { segment } of segmentGraphemes(line.displayText)) {
+    let previousStyle: TextSpanStyle | undefined;
+    let previousSelected = false;
+    for (const { segment, index: sourceIndex } of segmentGraphemes(line.text)) {
       const selectedCell = rect !== undefined && column >= rect.column && column < rect.column + rect.width;
-      const style = selectedCell ? selectionStyle : undefined;
+      const sourceStyle = styleAt(line.start + sourceIndex);
+      const style = selectedCell ? { ...sourceStyle, ...selectionStyle } : sourceStyle;
+      const projected = projectViewportGrapheme(segment, column, tabSize);
       const previous = spans.at(-1);
-      if (previous && previous.style === style) spans[spans.length - 1] = { text: previous.text + segment, style };
-      else spans.push({ text: segment, style });
-      column += stringWidth(segment);
+      if (previous && sourceStyle === previousStyle && selectedCell === previousSelected) spans[spans.length - 1] = { text: previous.text + projected.text, style };
+      else spans.push({ text: projected.text, style });
+      previousStyle = sourceStyle;
+      previousSelected = selectedCell;
+      column += projected.width;
     }
     return Box({ width: Math.max(width, line.width), height: 1, flexShrink: 0, overflow: 'hidden' },
       RichText(props.style ?? {}, ...spans));

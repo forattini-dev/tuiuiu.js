@@ -206,6 +206,9 @@ export {
   type ExpandableTextProps,
 } from './collapsible.js';
 
+// Selectable Markdown reader
+export { MarkdownView, createMarkdownSelection, type MarkdownViewProps, type MarkdownSelection, type MarkdownSelectionOptions } from './markdown-view.js';
+
 // Form helpers
 export {
   FormField,

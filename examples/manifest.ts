@@ -11,6 +11,14 @@ export interface ExampleManifestEntry {
 
 export const examplesManifest: ExampleManifestEntry[] = [
   {
+    name: 'markdown-selection-lab',
+    file: 'markdown-selection-lab.ts',
+    description: 'Selectable styled Markdown, explicit source/display copy, Unicode, resize and streamed updates.',
+    category: 'interaction',
+    difficulty: 'medium',
+    validate: true,
+  },
+  {
     name: 'text-editor-lab',
     file: 'text-editor-lab.ts',
     description: 'Editable Unicode drag selection, copy preview, atomic segments, bounded undo/redo and separate submitted history.',
