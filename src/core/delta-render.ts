@@ -12,6 +12,7 @@
  */
 
 import type { VNode, TextStyle } from '../utils/types.js';
+import { layoutTextSpans, textSpansEqual, type TextSpanStyle } from '../utils/styled-text.js';
 import { BORDER_STYLES } from '../utils/types.js';
 import {
   fitTextToWidth,
@@ -127,6 +128,8 @@ function drawCommandEquals(left: DrawCommand, right: DrawCommand): boolean {
       left.y === right.y &&
       left.maxWidth === right.maxWidth &&
       left.text === right.text &&
+      textSpansEqual(left.textSpans, right.textSpans) &&
+      left.prebuiltAnsi === right.prebuiltAnsi &&
       left.inheritedBackgroundColor === right.inheritedBackgroundColor &&
       textStyleEquals(left.style, right.style)
     );
@@ -1450,6 +1453,40 @@ function renderTextToBuffer(
   };
 
   // Check if text contains ANSI sequences
+  if (command.textSpans) {
+    const rows = layoutTextSpans(command.textSpans, maxWidth, style.wrap);
+    const resolvedRuns = new Map<TextSpanStyle | undefined, Omit<AnsiSegment, 'text'>>();
+    for (let row = 0; row < rows.length; row++) {
+      let col = 0;
+      for (const span of rows[row]!) {
+        const charWidth = stringWidth(span.text);
+        if (charWidth <= 0) continue;
+        const run = span.style;
+        let resolved = resolvedRuns.get(run);
+        if (!resolved) {
+          resolved = {
+            fg: run?.color !== undefined ? parseColor(run.color) : baseFg,
+            bg: run?.backgroundColor !== undefined ? parseColor(run.backgroundColor) : baseBg,
+            attrs: {
+              ...baseAttrs,
+              bold: run?.bold ?? baseAttrs.bold,
+              dim: run?.dim ?? baseAttrs.dim,
+              italic: run?.italic ?? baseAttrs.italic,
+              underline: run?.underline ?? baseAttrs.underline,
+              inverse: run?.inverse ?? baseAttrs.inverse,
+              strikethrough: run?.strikethrough ?? baseAttrs.strikethrough,
+              underlineColor: run?.underlineColor !== undefined ? parseColor(run.underlineColor) : baseAttrs.underlineColor,
+            },
+          };
+          resolvedRuns.set(run, resolved);
+        }
+        writeCharReservedAware(buffer, reservedRegions, x + col, y + row, span.text,
+          resolved.fg, resolved.bg, resolved.attrs, command.clip);
+        col += charWidth;
+      }
+    }
+    return;
+  }
   const hasAnsi = isPrebuilt || text.includes('\x1b');
   const lines = fitTextToWidth(text, maxWidth, style.wrap);
 

@@ -145,7 +145,7 @@ When `itemHeight` is omitted, ScrollList automatically:
 
 ```typescript
 // Manual cache invalidation (rarely needed)
-import { invalidateScrollListItem, clearScrollListCache } from 'tuiuiu.js'
+import { invalidateScrollListItem, clearScrollListCache } from 'tuiuiu.js/ui'
 
 // Invalidate specific item when its content changes
 message.content = 'Updated!'
@@ -154,6 +154,18 @@ invalidateScrollListItem(message)
 // Clear entire cache (for major data changes)
 clearScrollListCache()
 ```
+
+Visible items remain semantic VNodes: IDs, mouse handlers and image metadata
+survive partial-item clipping. Mouse coordinates remain relative to the
+original row, not its clipped screen rectangle. Known `itemHeight` values are
+the row's geometry contract; content outside that height is clipped.
+
+Measurement and painting share one item callback evaluation per frame, even
+when the scrollbar changes the measured width. Auto-estimation may evaluate
+offscreen rows. For durable state across virtualization, keep per-row state
+outside those components. If internal row state changes its height without
+changing the item/callback, explicitly invalidate the cached object or provide
+an `itemHeight` function.
 
 ---
 

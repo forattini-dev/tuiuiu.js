@@ -30,7 +30,7 @@ const PUBLIC_RUNTIME_EXPORT_BASELINE = {
   './mcp': { count: 18, sha256: 'e2a3f373802073dd340f9659b977a00d99cce62282cae80847f6aca1f30d02dc' },
   './storybook': { count: 29, sha256: '179e7e8000ee02fb9bb37f1e8a2714067c6f6a63b5ece1153eea82cb97c30552' },
   './testing': { count: 19, sha256: '6438cfb01cad7867eff8e9d34bf1dfd31d5b9c5e3477c28794ccd05fd0be6522' },
-  './ui': { count: 461, sha256: '8c706ec1fd924180ef9127a96c91fe744952ae341b33f83a09bbebe6018bca53' },
+  './ui': { count: 462, sha256: 'c71a90180c80279d352b0b9d006412a36508a404f002092546b2556ac09be006' },
 } as const;
 
 const PUBLIC_TYPE_EXPORT_BASELINE = {
@@ -43,7 +43,7 @@ const PUBLIC_TYPE_EXPORT_BASELINE = {
   './mcp': { count: 40, sha256: '47e4dc4b5bb46ce6efeec12f40d975a26e72f872de331920321c18911c746d5c' },
   './storybook': { count: 53, sha256: '6bf91cdc208541dc2a38088ca8334b4cb9ab2d65751a932e1e1dfa970d63ac2a' },
   './testing': { count: 33, sha256: '0f509db270b221b359ba31c052d41e6265d06828fd2631a6701b71bd4c700410' },
-  './ui': { count: 913, sha256: '5d1dc3807935cdd267f400e96453341e4fae0e27044926bcf98db96d76be8518' },
+  './ui': { count: 916, sha256: '7375edd7fb9d87e6910e1a11137877927b09916f3f7bab86f215377741189d7e' },
 } as const;
 
 const ALLOWED_ROOT_RUNTIME_ALIAS_GROUPS = [] as const;

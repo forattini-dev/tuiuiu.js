@@ -117,6 +117,8 @@ export function TerminalMessage(options: TerminalMessageOptions): VNode {
     codeBlock,
     indentSize,
     document,
+    showLinkUrls,
+    renderNode,
   } = options;
 
   const roleStyle = resolveRoleStyle(options);
@@ -133,6 +135,8 @@ export function TerminalMessage(options: TerminalMessageOptions): VNode {
       codeBlock,
       indentSize,
       document,
+      showLinkUrls,
+      renderNode,
     });
 
   return Box(

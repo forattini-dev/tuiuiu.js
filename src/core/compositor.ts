@@ -138,6 +138,9 @@ function applyFade(command: DrawCommand, transform: FadeTransform): DrawCommand 
     dim: true,
     bold: opacity >= 0.4 ? next.style.bold : false,
   };
+  if (next.textSpans) next.textSpans = next.textSpans.map(span => ({
+    ...span, style: { ...span.style, dim: true, bold: opacity >= 0.4 ? span.style?.bold : false },
+  }));
   return next;
 }
 
@@ -213,6 +216,9 @@ function applyShimmer(
     bold: true,
     inverse: true,
   };
+  if (next.textSpans) next.textSpans = next.textSpans.map(span => ({
+    ...span, style: { ...span.style, bold: true, inverse: true },
+  }));
   return next;
 }
 
@@ -226,6 +232,20 @@ function applyReveal(command: DrawCommand, transform: RevealTransform, bounds: B
   }
 
   const next = cloneCommand(command);
+
+  // Structured text must keep its original flow and span offsets. Clipping
+  // painted cells also reveals wrapped rows without reflowing a narrower line.
+  if (next.type === 'text' && next.textSpans) {
+    const horizontal = transform.direction === 'left' || transform.direction === 'right';
+    const width = horizontal ? Math.round(bounds.width * progress) : bounds.width;
+    const height = horizontal ? bounds.height : Math.round(bounds.height * progress);
+    next.clip = intersectBounds(next.clip, {
+      x: transform.direction === 'right' ? bounds.x + bounds.width - width : bounds.x,
+      y: transform.direction === 'down' ? bounds.y + bounds.height - height : bounds.y,
+      width, height,
+    });
+    return next.clip.width > 0 && next.clip.height > 0 ? next : null;
+  }
 
   if (transform.direction === 'left' || transform.direction === 'right') {
     const visibleWidth = Math.max(0, Math.round(bounds.width * progress));

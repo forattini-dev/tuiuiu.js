@@ -3,6 +3,7 @@
 export {
   Box,
   Text,
+  RichText,
   CursorAnchor,
   Spacer,
   Newline,
@@ -35,6 +36,8 @@ export {
 } from '../primitives/index.js';
 
 export type {
+  TextSpan,
+  TextSpanStyle,
   ScrollProps,
   ScrollState,
   UseScrollOptions,

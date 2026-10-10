@@ -48,6 +48,41 @@ and the same cells; only their serialization strategy differs.
 
 ## Optimization Techniques
 
+### Semantic scrolling and styled text
+
+`ScrollList` renders only intersecting item subtrees, translates them by the
+partial-item line offset, and clips the resulting frame. It does not serialize
+items to ANSI and recreate them as Text nodes. IDs, mouse handlers and other
+VNode metadata therefore survive. Hit rectangles remain clipped, but mouse
+coordinates are relative to the original unclipped node origin.
+
+Each visible item's declared/measured height is its geometry contract. Provide
+correct `itemHeight` values when heights are known. Automatic estimation may
+evaluate offscreen callbacks; measurement at both scrollbar widths and painting
+share one callback evaluation per item per frame. Object estimates are cached
+by content, callback, index, width and explicit invalidation. If an internal row
+state changes its height without changing those inputs, invalidate that item
+using `invalidateScrollListItem` from `tuiuiu.js/ui` or supply a height function.
+Virtualized component-local state may be disposed when its row leaves the
+evaluated set; keep durable per-row state outside the virtualized component.
+
+`RichText` retains immutable spans in `DrawTextCommand.textSpans`; plain text
+still drives measurement. Rasterization resolves span colors and attributes
+directly into cells, using the same wrapping/truncation fitter as layout. It
+does not encode and reparse ANSI between style runs. Full and delta output,
+damage detection, clipping and compositor effects share this path.
+
+Markdown paragraphs/headings/quotes/list items adapt inline formatting to these
+spans. Block parsing and streaming cache ownership stay separate from display;
+custom block renderers return ordinary semantic VNodes.
+
+This borrows the separation of structured text and rendering used by
+[OpenTUI's styled-text model](https://github.com/anomalyco/opentui/blob/07225659bbe9e8a514e419fc83d25ac4e4aecb4c/packages/core/src/lib/styled-text.ts)
+and the extension points in its
+[Markdown renderer](https://github.com/anomalyco/opentui/blob/07225659bbe9e8a514e419fc83d25ac4e4aecb4c/packages/core/src/renderables/Markdown.ts).
+Tuiuiu's implementation remains TypeScript, function-based and dependency-free;
+it is not a port of their native renderer or complete Markdown parser.
+
 ### Text Measurement Caching
 Measuring string width (especially with ANSI codes and Unicode characters) is expensive. Tuiuiu caches these measurements.
 

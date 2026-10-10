@@ -12,6 +12,38 @@ Text({ color: 'cyan' }, 'Cyan text')
 Text({ bold: true }, 'Bold text')
 ```
 
+## Multiple styles in one text flow
+
+Use `RichText` from the visual subpath when words with different styles must
+wrap together. It is one text node, not a row of independent flexbox elements:
+
+```typescript
+import { RichText, type TextSpan } from 'tuiuiu.js/ui';
+
+const emphasis: TextSpan = {
+  text: 'world',
+  style: { color: '#65b7ff', bold: true },
+};
+
+RichText({ color: 'foreground', wrap: 'wrap' }, 'Hello ', emphasis, ' again');
+```
+
+Span styles support `color`, `backgroundColor`, `bold`, `dim`, `italic`,
+`underline`, `underlineColor`, `strikethrough` and `inverse`. Omitted properties
+inherit the node style; explicit `false` overrides it. Geometry and wrapping
+belong to the node, not individual spans. Colors use the existing theme and
+terminal capability machinery.
+
+`RichText` snapshots its spans/styles. Changing the caller's objects afterwards
+does not change an existing VNode; construct another VNode during the next
+render. Embedded ANSI/control protocols are stripped from span text: styles
+are data. Use `PreText` for intentionally pre-styled SGR content instead.
+
+Wrapping, truncation and clipping use Text's canonical geometry. A grapheme
+crossing a span boundary takes the first code unit's style; it is never split
+into separate cells. Generated truncation markers inherit the node style.
+There are no per-span mouse handlers or automatic OSC hyperlinks in this API.
+
 ## Colors
 
 ### Named Colors

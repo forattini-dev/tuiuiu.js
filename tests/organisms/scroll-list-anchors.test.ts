@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHarness } from '../../src/dev-tools/testing.js';
 import { ScrollList, createScrollList } from '../../src/organisms/scroll-list.js';
-import { Text } from '../../src/primitives/nodes.js';
+import { Box, Text } from '../../src/primitives/nodes.js';
+import { component, type ComponentKeyProps } from '../../src/app/component.js';
+import { useState } from '../../src/hooks/use-state.js';
 
 const harnesses: ReturnType<typeof createTestHarness>[] = [];
 afterEach(() => { for (const harness of harnesses.splice(0)) harness.cleanup(); });
@@ -13,6 +15,41 @@ const harness = () => {
 const seed = () => Array.from({ length: 12 }, (_, id) => ({ id, text: `item-${id}` }));
 
 describe('ScrollList stable anchors in the real app', () => {
+  it('evaluates an auto-measured stateful row only once per frame and preserves its owner', async () => {
+    const app = harness();
+    const Row = component('MeasuredRow', ({ id }: { id: number } & ComponentKeyProps) => {
+      const [count, setCount] = useState(0);
+      return Box({ onClick: () => setCount(value => value + 1) }, Text({}, `${id}:${count()}`));
+    });
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const children = (item: typeof items[number]) => Row({ key: item.id, id: item.id });
+    expect(() => app.render(() => ScrollList({ items, children, width: 20, height: 2 }))).not.toThrow();
+    app.events.click(1, 0);
+    await app.flush();
+    expect(app.getScreen()[0]!.slice(0, 3)).toBe('1:1');
+  });
+  it('retains interactive nodes and clips partial rows instead of flattening to ANSI', async () => {
+    const app = harness();
+    const state = createScrollList();
+    const clicks: { id: number; y: number }[] = [];
+    app.render(() => ScrollList({
+      state, items: [0, 1, 2, 3], itemHeight: 3, height: 4, width: 20,
+      showScrollbar: false,
+      children: id => Box({ id: `row-${id}`, role: 'button', onClick: event => clicks.push({ id, y: event.y }) },
+        Text({}, `a${id}\nb${id}\nc${id}`)),
+    }));
+    state.scrollTo(4);
+    await app.flush();
+    expect(app.getScreen().slice(0, 4).map(line => line.trim())).toEqual(['b1', 'c1', 'a2', 'b2']);
+    const targets = app.getFrame()!.hitTargets.filter(target => target.node.props.id?.startsWith('row-'));
+    expect(targets.map(target => target.node.props.id)).toEqual(['row-1', 'row-2']);
+    expect(targets.map(({ y, height }) => ({ y, height }))).toEqual([{ y: 0, height: 2 }, { y: 2, height: 2 }]);
+    expect(app.getFrame()!.queries.getElement('row-1').status).toBe('found');
+    app.events.click(1, 0);
+    app.events.click(1, 3);
+    app.events.click(1, 5);
+    expect(clicks).toEqual([{ id: 1, y: 1 }, { id: 2, y: 1 }]);
+  });
   it.each([false, true])('retains visible identity across prepend/append (inverted=%s)', async inverted => {
     const app = harness();
     const state = createScrollList({ inverted });

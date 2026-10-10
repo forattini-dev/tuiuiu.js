@@ -32,6 +32,7 @@ import {
 import { fingerprintValue } from './structural-fingerprint.js';
 import type { BorderStyleName, BoxStyle, LayoutNode, TextStyle, VNode } from '../utils/types.js';
 import { stringWidth } from '../utils/text-utils.js';
+import type { TextSpan } from '../utils/styled-text.js';
 import {
   getRuntimeResource,
   type RuntimeScope,
@@ -172,6 +173,8 @@ export interface DrawTextCommand extends DrawCommandBase {
   y: number;
   maxWidth: number;
   text: string;
+  /** Structured styles retained until the canonical cell rasterizer. */
+  textSpans?: readonly TextSpan[];
   style: TextStyle;
   inheritedBackgroundColor?: string;
   /** When true, text contains pre-built SGR and ignores component style encoding */
@@ -312,6 +315,9 @@ const BOX_DRAW_KEYS = new Set([
 const TEXT_DRAW_KEYS = new Set([
   'id',
   'children',
+  '__textSpans',
+  '__prebuiltAnsi',
+  'underlineColor',
   '__divider',
   '__splitDivider',
   'color',
@@ -1112,6 +1118,7 @@ function buildCachedDrawCommands(
     id?: string;
     __terminalImage?: unknown;
     __prebuiltAnsi?: boolean;
+    __textSpans?: readonly TextSpan[];
     __divider?: 'horizontal' | 'vertical';
     __splitDivider?: { top: string; bottom: string };
     __scrollOffsetY?: number;
@@ -1298,6 +1305,7 @@ function buildCachedDrawCommands(
       y: props.__splitDivider ? absY - 1 : absY,
       maxWidth: width,
       text,
+      ...(props.__textSpans ? { textSpans: props.__textSpans } : undefined),
       style: {
         color: props.color,
         backgroundColor: props.backgroundColor,
@@ -1305,6 +1313,7 @@ function buildCachedDrawCommands(
         dim: props.dim,
         italic: props.italic,
         underline: props.underline,
+        underlineColor: props.underlineColor,
         strikethrough: props.strikethrough,
         inverse: props.inverse,
         wrap: props.wrap,

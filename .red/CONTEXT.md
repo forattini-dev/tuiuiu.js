@@ -47,6 +47,9 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
 - incremental Markdown blocks: `src/utils/markdown-document.ts`; visual
   formatting/cache adapter: `src/molecules/markdown.ts`
+- structured text/style snapshots and canonical fitted source mapping:
+  `src/utils/styled-text.ts`; visual adapter: `src/primitives/rich-text.ts`
+- bounded terminal Markdown inline parsing: `src/utils/markdown-inline.ts`
 - line-based scrolling and stable item anchors: `src/organisms/scroll-list.ts`
 - overlay and prompt ownership: `src/interaction/overlay.ts` and
   `src/interaction/prompt.ts`
@@ -68,6 +71,8 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
   selection and bounded history; viewports own reflow and visual coordinates.
 - **Markdown Document** retains only grammar-stable block identities while its
   unfinished tail remains reparsable. It is opt-in and belongs to one message.
+- **Text Span** is immutable text/style data. RichText keeps spans in one VNode
+  and draw command until the canonical cell rasterizer, never as early ANSI.
 - **Overlay Session** owns an opened overlay's mode, focus capture, backdrop,
   timer, and exactly-once close result.
 - **Prompt Session** is renderer-independent prompt state; VNode and ANSI hosts

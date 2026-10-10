@@ -38,6 +38,9 @@ export interface ElementBounds {
   width: number;
   /** Height */
   height: number;
+  /** Unclipped node origin, when clipping moves the hit rectangle. */
+  originX?: number;
+  originY?: number;
   /** Z-index (render order, higher = on top) */
   zIndex: number;
 }
@@ -78,7 +81,7 @@ function hasMouseHandlers(node: VNode): boolean {
 
 function walkHitTestLayout(
   layout: LayoutNode,
-  visitor: (node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null) => void,
+  visitor: (node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null, originX: number, originY: number) => void,
   offsetX = 0,
   offsetY = 0,
   parentNode: VNode | null = null,
@@ -98,7 +101,7 @@ function walkHitTestLayout(
     : absY + height;
 
   if (right > left && bottom > top) {
-    visitor(node, left, top, right - left, bottom - top, parentNode);
+    visitor(node, left, top, right - left, bottom - top, parentNode, absX, absY);
   }
 
   const style = node.props;
@@ -151,7 +154,7 @@ export function collectHitTestTargetsFromLayout(layout: LayoutNode): ElementBoun
   const elements: ElementBounds[] = [];
   let zCounter = 0;
 
-  walkHitTestLayout(layout, (node, x, y, width, height) => {
+  walkHitTestLayout(layout, (node, x, y, width, height, _parent, originX, originY) => {
     if (!hasMouseHandlers(node)) return;
 
     elements.push({
@@ -160,6 +163,8 @@ export function collectHitTestTargetsFromLayout(layout: LayoutNode): ElementBoun
       y,
       width,
       height,
+      ...(originX !== x ? { originX } : {}),
+      ...(originY !== y ? { originY } : {}),
       zIndex: zCounter++,
     });
   });
@@ -199,7 +204,7 @@ class HitTestRegistry {
   /**
    * Register an element's bounds
    */
-  register(node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null): void {
+  register(node: VNode, x: number, y: number, width: number, height: number, parent: VNode | null, originX = x, originY = y): void {
     this.parentMap.set(node, parent);
     if (hasMouseHandlers(node)) {
       const bounds = {
@@ -208,6 +213,8 @@ class HitTestRegistry {
         y,
         width,
         height,
+        ...(originX !== x ? { originX } : {}),
+        ...(originY !== y ? { originY } : {}),
         zIndex: this.zCounter++,
       };
       this.elements.push(bounds);
@@ -219,8 +226,8 @@ class HitTestRegistry {
    * Register from layout node (recursive)
    */
   registerFromLayout(layout: LayoutNode, offsetX = 0, offsetY = 0, parentNode: VNode | null = null): void {
-    walkHitTestLayout(layout, (node, x, y, width, height, parent) => {
-      this.register(node, x, y, width, height, parent);
+    walkHitTestLayout(layout, (node, x, y, width, height, parent, originX, originY) => {
+      this.register(node, x, y, width, height, parent, originX, originY);
     }, offsetX, offsetY, parentNode);
   }
 
@@ -239,8 +246,8 @@ class HitTestRegistry {
       ) {
         return {
           node: bounds.node,
-          relativeX: screenX - bounds.x,
-          relativeY: screenY - bounds.y,
+          relativeX: screenX - (bounds.originX ?? bounds.x),
+          relativeY: screenY - (bounds.originY ?? bounds.y),
           absoluteX: screenX,
           absoluteY: screenY,
         };
@@ -266,8 +273,8 @@ class HitTestRegistry {
     const bounds = this.elements.find(b => b.node === result.node);
     if (!bounds) return result;
 
-    result.pixelRelativeX = pixelX - (bounds.x * cellSize.width);
-    result.pixelRelativeY = pixelY - (bounds.y * cellSize.height);
+    result.pixelRelativeX = pixelX - ((bounds.originX ?? bounds.x) * cellSize.width);
+    result.pixelRelativeY = pixelY - ((bounds.originY ?? bounds.y) * cellSize.height);
 
     return result;
   }
@@ -291,10 +298,10 @@ class HitTestRegistry {
     const createEventData = (target: VNode | null): MouseEventData => {
       const bounds = target ? this.boundsByNode.get(target) : undefined;
       const relativeX = bounds
-        ? rawEvent.x - bounds.x
+        ? rawEvent.x - (bounds.originX ?? bounds.x)
         : hit?.relativeX ?? 0;
       const relativeY = bounds
-        ? rawEvent.y - bounds.y
+        ? rawEvent.y - (bounds.originY ?? bounds.y)
         : hit?.relativeY ?? 0;
       const data: MouseEventData = {
         x: relativeX,
@@ -310,8 +317,8 @@ class HitTestRegistry {
       };
       if (rawEvent.pixelX != null && rawEvent.pixelY != null && bounds) {
         const cellSize = getGraphicsCapabilities().cellSize;
-        data.pixelRelativeX = rawEvent.pixelX - (bounds.x * cellSize.width);
-        data.pixelRelativeY = rawEvent.pixelY - (bounds.y * cellSize.height);
+        data.pixelRelativeX = rawEvent.pixelX - ((bounds.originX ?? bounds.x) * cellSize.width);
+        data.pixelRelativeY = rawEvent.pixelY - ((bounds.originY ?? bounds.y) * cellSize.height);
       } else {
         if (hit?.pixelRelativeX != null) data.pixelRelativeX = hit.pixelRelativeX;
         if (hit?.pixelRelativeY != null) data.pixelRelativeY = hit.pixelRelativeY;
@@ -416,8 +423,8 @@ class HitTestRegistry {
       if (bounds) {
         const props = bounds.node.props;
         const parentEventData: MouseEventData = {
-          x: eventData.absoluteX - bounds.x,
-          y: eventData.absoluteY - bounds.y,
+          x: eventData.absoluteX - (bounds.originX ?? bounds.x),
+          y: eventData.absoluteY - (bounds.originY ?? bounds.y),
           absoluteX: eventData.absoluteX,
           absoluteY: eventData.absoluteY,
           button: eventData.button,
@@ -532,9 +539,9 @@ export function registerHitTestFromLayout(layout: LayoutNode, offsetY = 0): void
     return;
   }
 
-  walkHitTestLayout(layout, (node, x, y, width, height, parent) => {
+  walkHitTestLayout(layout, (node, x, y, width, height, parent, originX, originY) => {
     if (!hasMouseHandlers(node)) return;
-    registry.register(node, x, y + offsetY, width, height, parent);
+    registry.register(node, x, y + offsetY, width, height, parent, originX, originY + offsetY);
   });
 }
 

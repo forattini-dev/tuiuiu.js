@@ -19,7 +19,9 @@
  */
 
 import { Box, Text, Newline } from '../primitives/nodes.js';
-import type { VNode } from '../utils/types.js';
+import type { TextProps, VNode } from '../utils/types.js';
+import { RichText } from '../primitives/rich-text.js';
+import { parseInlineMarkdown } from '../utils/markdown-inline.js';
 import { CodeBlock, type CodeBlockOptions, type Language } from './code-block.js';
 import { padTextToWidth, stringWidth } from '../utils/text-utils.js';
 import { createMarkdownDocument, type MarkdownDocument, type MarkdownNode as ParsedNode } from '../utils/markdown-document.js';
@@ -55,6 +57,10 @@ export interface MarkdownOptions {
   codeBlock?: MarkdownCodeBlockOptions;
   /** Indent size for nested elements */
   indentSize?: number;
+  /** Keep link destinations visible by default; false displays labels only. */
+  showLinkUrls?: boolean;
+  /** Custom semantic block renderer. null/undefined falls back to the default. */
+  renderNode?: (node: ParsedNode, context: { defaultRender: () => VNode }) => VNode | null | undefined;
 }
 
 const DEFAULT_THEME = {
@@ -116,79 +122,9 @@ function normalizeLanguage(language?: string): Language {
   return LANGUAGE_ALIASES[normalized] ?? 'plain';
 }
 
-/**
- * Parse inline markdown formatting
- */
-function parseInline(text: string, theme: typeof DEFAULT_THEME): VNode[] {
-  const parts: VNode[] = [];
-
-  // Process inline elements
-  const patterns: Array<{ regex: RegExp; render: (m: string, url?: string) => VNode }> = [
-    // Bold + italic
-    { regex: /\*\*\*(.+?)\*\*\*/g, render: (m: string) => Text({ color: theme.bold, bold: true, italic: true }, m) },
-    // Bold
-    { regex: /\*\*(.+?)\*\*/g, render: (m: string) => Text({ color: theme.bold, bold: true }, m) },
-    { regex: /__(.+?)__/g, render: (m: string) => Text({ color: theme.bold, bold: true }, m) },
-    // Italic
-    { regex: /\*(.+?)\*/g, render: (m: string) => Text({ color: theme.italic, italic: true }, m) },
-    { regex: /_(.+?)_/g, render: (m: string) => Text({ color: theme.italic, italic: true }, m) },
-    // Strikethrough
-    { regex: /~~(.+?)~~/g, render: (m: string) => Text({ strikethrough: true }, m) },
-    // Inline code
-    { regex: /`([^`]+)`/g, render: (m: string) => Text({ color: theme.code, backgroundColor: 'black' }, ` ${m} `) },
-    // Links
-    { regex: /\[([^\]]+)\]\(([^)]+)\)/g, render: (m: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: theme.link, underline: true }, m), Text({ color: 'mutedForeground', dim: true }, ` (${url})`)) },
-    // Images
-    { regex: /!\[([^\]]*)\]\(([^)]+)\)/g, render: (alt: string, url?: string) => Box({ flexDirection: 'row' }, Text({ color: 'warning' }, '🖼️ '), Text({ color: 'mutedForeground' }, alt || 'image'), Text({ color: 'mutedForeground', dim: true }, ` (${url})`)) },
-  ];
-
-  const matches: Array<{ index: number; length: number; vnode: VNode }> = [];
-
-  // Find all matches
-  for (const pattern of patterns) {
-    let match;
-    const regex = new RegExp(pattern.regex.source, 'g');
-    while ((match = regex.exec(text)) !== null) {
-      const isLink = pattern.regex.source.includes('\\]\\(');
-      const isImage = pattern.regex.source.includes('!\\[');
-      let vnode: VNode;
-      if (isLink || isImage) {
-        vnode = pattern.render(match[1], match[2]);
-      } else {
-        vnode = pattern.render(match[1]);
-      }
-      matches.push({
-        index: match.index,
-        length: match[0].length,
-        vnode,
-      });
-    }
-  }
-
-  // Sort matches by index
-  matches.sort((a, b) => a.index - b.index);
-
-  // Build output, skipping overlapping matches
-  let pos = 0;
-  for (const match of matches) {
-    if (match.index < pos) continue; // Skip overlapping
-
-    // Add text before match
-    if (match.index > pos) {
-      parts.push(Text({}, text.slice(pos, match.index)));
-    }
-
-    // Add match
-    parts.push(match.vnode);
-    pos = match.index + match.length;
-  }
-
-  // Add remaining text
-  if (pos < text.length) {
-    parts.push(Text({}, text.slice(pos)));
-  }
-
-  return parts.length > 0 ? parts : [Text({}, text)];
+/** Compose styles in data, then lay out one paragraph instead of flex children. */
+function inlineText(text: string, theme: typeof DEFAULT_THEME, options: MarkdownOptions, props: TextProps = {}): VNode {
+  return RichText(props, ...parseInlineMarkdown(text, theme, options.showLinkUrls));
 }
 
 /**
@@ -208,13 +144,12 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
       const prefix = level === 1 ? '# ' : level === 2 ? '## ' : `${'#'.repeat(level)} `;
       return Box(
         { marginBottom: 1 },
-        Text({ color, bold: true }, prefix + node.content)
+        inlineText(prefix + (node.content ?? ''), theme, options, { color, bold: true })
       );
     }
 
     case 'paragraph': {
-      const inline = parseInline(node.content || '', theme);
-      return Box({ marginBottom: 1, flexDirection: 'row', flexWrap: 'wrap' }, ...inline);
+      return Box({ marginBottom: 1 }, inlineText(node.content || '', theme, options));
     }
 
     case 'codeblock': {
@@ -241,7 +176,7 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
           Box(
             { flexDirection: 'row' },
             Text({ color: theme.blockquote }, '│ '),
-            Text({ color: theme.blockquote, italic: true }, line)
+            Box({ flexGrow: 1 }, inlineText(line, theme, options, { color: theme.blockquote, italic: true }))
           )
         )
       );
@@ -257,11 +192,10 @@ function renderNode(node: ParsedNode, options: MarkdownOptions): VNode {
             : item.checked !== undefined
             ? item.checked ? '☑ ' : '☐ '
             : '• ';
-          const inline = parseInline(item.content || '', theme);
           return Box(
             { flexDirection: 'row' },
             Text({ color: theme.listMarker }, marker),
-            ...inline
+            Box({ flexGrow: 1 }, inlineText(item.content || '', theme, options))
           );
         })
       );
@@ -363,8 +297,9 @@ export function Markdown(options: MarkdownOptions & { content: string }): VNode 
   const { content, maxWidth, document, ...rest } = options;
   const nodes = (document ?? createMarkdownDocument(content)).update(content);
   const renderOptions = { ...rest, maxWidth };
-  let cache = document ? documentRenderCaches.get(document) : undefined;
-  if (document) {
+  // User renderers may depend on external reactive state: never cache their VNodes.
+  let cache = document && !rest.renderNode ? documentRenderCaches.get(document) : undefined;
+  if (document && !rest.renderNode) {
     const signature = JSON.stringify(renderOptions);
     if (!cache || cache.signature !== signature) {
       cache = { signature, nodes: new WeakMap() };
@@ -384,7 +319,8 @@ export function Markdown(options: MarkdownOptions & { content: string }): VNode 
     ...nodes.map((node) => {
       const previous = cache?.nodes.get(node);
       if (previous) return previous;
-      const rendered = renderNode(node, renderOptions);
+      const defaultRender = () => renderNode(node, renderOptions);
+      const rendered = renderOptions.renderNode?.(node, { defaultRender }) ?? defaultRender();
       cache?.nodes.set(node, rendered);
       return rendered;
     })

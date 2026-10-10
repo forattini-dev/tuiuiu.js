@@ -22,7 +22,7 @@ import { useFactoryState } from '../hooks/factory-state.js';
 import { useConst } from '../hooks/use-const.js';
 import { getChars, getRenderMode } from '../core/capabilities.js';
 import { warnIfRenderFunctionPatternMisused } from '../core/dev-warnings.js';
-import { renderToString, measureHeight } from '../core/renderer.js';
+import { measureHeight } from '../core/renderer.js';
 import { component, type ComponentKeyProps } from '../app/component.js';
 
 // =============================================================================
@@ -162,6 +162,7 @@ function estimateItemHeight<T>(
   index: number,
   width: number,
   owner: object,
+  getNode: () => VNode,
 ): number {
   let cache = heightCache.owners.get(owner);
   if (!cache) {
@@ -184,7 +185,7 @@ function estimateItemHeight<T>(
   }
 
   // Measure height including margins
-  const node = render(item, index);
+  const node = getNode();
   const height = Math.max(1, measureHeight(node, width));
 
   // Cache if object (with content hash for invalidation)
@@ -452,6 +453,14 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
 
   // Height resolver
   let contentWidth = width;
+  // Measurement at full/scrollbar width and painting must share one evaluation.
+  // Re-evaluating owned components in the same pass triggers duplicate keys.
+  const renderedItems = new Map<number, VNode>();
+  const renderItem = (item: T, index: number): VNode => {
+    let node = renderedItems.get(index);
+    if (!node) { node = children(item, index); renderedItems.set(index, node); }
+    return node;
+  };
   const getItemHeight = (item: T, index: number): number => {
     if (typeof itemHeight === 'number') {
       return itemHeight;
@@ -460,7 +469,7 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
       return itemHeight(item);
     }
     // Auto-estimate
-    return estimateItemHeight(item, children, index, contentWidth, cacheOwner);
+    return estimateItemHeight(item, children, index, contentWidth, cacheOwner, () => renderItem(item, index));
   };
 
   // Calculate total height and max scroll
@@ -629,17 +638,8 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
     }
   };
 
-  // Render visible items using line-based slicing
-  // Strategy: Render items that intersect the viewport, then slice lines.
-  // This gives smooth line-by-line scrolling while preserving ANSI styles.
-  //
-  // The approach (same as the Scroll wrapper component):
-  // 1. Find items that intersect viewport
-  // 2. Render them to string (preserves ANSI codes)
-  // 3. Slice the visible lines
-  // 4. Recreate as Text nodes
-
-  let visibleNodes: VNode[] = [];
+  // Keep the visible subtree semantic: the frame clips and translates it just
+  // like Scroll. Serializing here destroys handlers, IDs and image metadata.
   // Both modes share top-down geometry; inverted scrollTop is distance from bottom.
   const viewportTop = Math.max(0, inverted ? totalHeight - height - scrollTop : scrollTop);
   let low = 0;
@@ -652,12 +652,8 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   const firstIndex = low;
   const intersectingNodes: VNode[] = [];
   for (let index = firstIndex; index < itemList.length && offsets[index]! < viewportTop + height; index++) {
-    intersectingNodes.push(children(itemList[index]!, index));
-  }
-  if (intersectingNodes.length) {
-    const rendered = renderToString(Box({ flexDirection: 'column' }, ...intersectingNodes), contentWidth);
-    const startOffset = viewportTop - offsets[firstIndex]!;
-    visibleNodes = rendered.split('\n').slice(startOffset, startOffset + height).map(line => Text({}, line));
+    intersectingNodes.push(Box({ height: itemHeights[index]!, flexShrink: 0, overflow: 'hidden' },
+      renderItem(itemList[index]!, index)));
   }
 
   // Scrollbar
@@ -694,8 +690,11 @@ function renderScrollList<T>(props: ScrollListProps<T>): VNode {
   return Box(
     { flexDirection: 'row', width, onScroll: handleScroll },
     Box(
-      { flexDirection: 'column', flexGrow: 1, height, width: contentWidth },
-      ...visibleNodes
+      {
+        flexDirection: 'column', flexGrow: 1, height, width: contentWidth,
+        overflow: 'hidden', __scrollOffsetY: viewportTop - (offsets[firstIndex] ?? viewportTop),
+      },
+      Box({ flexDirection: 'column', flexShrink: 0 }, ...intersectingNodes)
     ),
     scrollbar
   );

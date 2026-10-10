@@ -34,6 +34,8 @@ This is **bold** and *italic* text.
 | `theme` | `MarkdownTheme` | - | Custom theme colors |
 | `codeLineNumbers` | `boolean` | `true` | Show line numbers in code blocks |
 | `indentSize` | `number` | - | Indent size for nested elements |
+| `showLinkUrls` | `boolean` | `true` | Display link/image destinations after their labels |
+| `renderNode` | `(node, context) => VNode \| null \| undefined` | - | Override a block while retaining the default renderer as a fallback |
 
 ## Theme
 
@@ -75,6 +77,50 @@ This is **bold** and *italic* text.
 ~~strikethrough~~
 `inline code`
 ```
+
+### Inline text flow
+
+Paragraphs, headings, list items and quotes use structured inline spans in one
+text flow. Bold/italic/strike can nest; escaped punctuation stays literal;
+backtick code spans do not interpret emphasis. Balanced parentheses in link
+destinations are supported. A formatting boundary does not introduce a line
+break or stray indentation.
+
+```typescript
+Markdown({
+  content: '**Bold and *italic together*** with [docs](https://example.org/a_(b)).',
+  maxWidth: 60,
+  showLinkUrls: false,
+});
+```
+
+### Custom block rendering
+
+The extension callback receives an immutable parsed block and a default-render
+function. Return `null`/`undefined` to use the built-in renderer. Returned VNodes
+retain their IDs and mouse handlers, including inside `ScrollList`.
+
+```typescript
+import { Box, Text } from 'tuiuiu.js';
+import { Markdown } from 'tuiuiu.js/ui';
+
+Markdown({
+  content: '```ts\nconst answer = 42;\n```',
+  renderNode(node, { defaultRender }) {
+    if (node.type !== 'codeblock') return null;
+    return Box({ flexDirection: 'column' },
+      Text({ color: 'info', bold: true }, node.language ?? 'plain'),
+      defaultRender(),
+    );
+  },
+});
+```
+
+Custom renderer results are intentionally not cached, since the callback may
+read application state. Built-in rendering still reuses stable blocks when a
+per-message `document` is supplied. The inline parser has bounded nesting/work;
+unsupported or excessively complex syntax remains literal. It does not replace
+a CommonMark/GFM parser or provide Tree-sitter, per-span links, or text selection.
 
 ### Lists
 

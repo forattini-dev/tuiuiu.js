@@ -39,6 +39,7 @@ export {
 } from './context.js';
 
 export * from './nodes.js';
+export * from './rich-text.js';
 export * from './typography.js';
 export * from './append-list.js';
 export * from './divider.js';
