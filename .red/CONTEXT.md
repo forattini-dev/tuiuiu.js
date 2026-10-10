@@ -43,6 +43,10 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - normalized collection bindings: `src/interaction/collection-bindings.ts`
 - text completion: `src/interaction/completion.ts`
 - text content/revisions: `src/interaction/text-document.ts`
+  keeps the logical-line index current from raw changes. A weak, single latest
+  change supports optional incremental reflow; missed revisions and external
+  documents fall back to fresh layout. `setValue` retains its public replacement
+  event while privately narrowing geometry invalidation to the changed interval.
 - scalar text editing: `src/interaction/text-editor.ts`
 - editable input adapter: `src/atoms/text-input.ts` owns a TextEditor, attaches
   segment snapshots to its undo checkpoints, and keeps submitted command history
@@ -51,6 +55,12 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
   mouse lifetime and committed, unclipped node geometry shared across both views.
   Clipboard handles bind to the creating app output; password input copy is blocked.
 - text reflow and terminal-coordinate mapping: `src/interaction/text-viewport.ts`
+  reflows affected logical lines and shifts/reuses intact geometry. Its cache
+  belongs to the caller, adds no document subscription, and invalidates on resize.
+  Retained logical-line text is detached from old whole-string revisions to avoid
+  substring-backed history retention; raw UTF-16, including lone surrogates, survives.
+  Source-to-row lookup uses binary search; source storage and row arrays remain
+  flat, not a rope or a fully virtualized layout.
 - read-only source selection: `src/interaction/text-selection.ts`; bounded
   visual adapter: `src/atoms/text-view.ts`
 - incremental Markdown blocks: `src/utils/markdown-document.ts`; visual

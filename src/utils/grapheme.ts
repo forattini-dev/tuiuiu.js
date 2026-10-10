@@ -215,6 +215,16 @@ export function clampToGraphemeBoundary(
   direction: 'nearest' | 'left' | 'right' = 'nearest',
 ): number {
   const bounded = Math.max(0, Math.min(position, text.length));
+  if (bounded === 0 || bounded === text.length || !Number.isFinite(bounded)) return bounded;
+  const activeSegmenter = getSegmenter();
+  if (activeSegmenter) {
+    const entry = activeSegmenter.segment(text).containing(bounded);
+    if (!entry || entry.index === bounded) return bounded;
+    const end = entry.index + entry.segment.length;
+    if (direction === 'left') return entry.index;
+    if (direction === 'right') return end;
+    return bounded - entry.index <= end - bounded ? entry.index : end;
+  }
   for (const grapheme of segmentGraphemes(text)) {
     if (bounded === grapheme.index || bounded === grapheme.end) {
       return bounded;

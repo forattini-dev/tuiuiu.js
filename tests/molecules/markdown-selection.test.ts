@@ -3,6 +3,7 @@ import { createMarkdownSelection } from '../../src/utils/markdown-selection.js';
 import { projectInlineMarkdown } from '../../src/utils/markdown-inline.js';
 import { createMarkdownDocument, getMarkdownNodeSource } from '../../src/utils/markdown-document.js';
 import { stripTerminalControls } from '../../src/utils/terminal-sanitize.js';
+import { createTextViewport } from '../../src/interaction/text-viewport.js';
 
 const controllers: ReturnType<typeof createMarkdownSelection>[] = [];
 afterEach(() => { for (const controller of controllers.splice(0)) controller.dispose(); });
@@ -123,6 +124,8 @@ describe('Markdown source projection', () => {
     ];
     for (const source of sources) {
       const streamed = setup('');
+      const viewport = createTextViewport(streamed.selection.document, { width: 7 });
+      viewport.lines();
       for (let end = 0; end <= source.length; end++) {
         const content = source.slice(0, end);
         streamed.update(content);
@@ -130,6 +133,7 @@ describe('Markdown source projection', () => {
         try {
           expect(streamed.snapshot()).toEqual(fresh.snapshot());
           expect(streamed.selection.document.snapshot().value).toBe(fresh.selection.document.snapshot().value);
+          expect(viewport.lines()).toEqual(createTextViewport(fresh.selection.document, { width: 7 }).lines());
           const value = fresh.selection.document.snapshot().value;
           for (let offset = 0; offset < value.length; offset++) {
             streamed.selection.set(offset, offset + 1);

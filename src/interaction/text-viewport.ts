@@ -1,5 +1,5 @@
-import type { TextDocument } from './text-document.js';
-import { clampToGraphemeBoundary, segmentGraphemes } from '../utils/grapheme.js';
+import { getTextDocumentChange, type TextDocument, type TextDocumentLine } from './text-document.js';
+import { clampToGraphemeBoundary, segmentGraphemes, type GraphemeInfo } from '../utils/grapheme.js';
 import { stringWidth } from '../utils/text-utils.js';
 
 export interface TextViewportOptions {
@@ -57,52 +57,87 @@ function normalize(options: TextViewportOptions): Required<TextViewportOptions> 
   return { width: options.width, wrap, tabSize };
 }
 
-/** Reflow cached by document revision and viewport configuration. */
+/** Reflow changed logical lines; reuse other geometry without owning a listener. */
 export function createTextViewport(document: TextDocument, initial: TextViewportOptions): TextViewport {
   let options = normalize(initial);
   let revision = -1;
   let rows: readonly TextViewportLine[] = [];
-  const display = (text: string) => {
+  let layouts: { source: TextDocumentLine; rows: readonly TextViewportLine[] }[] = [];
+  const displayParts = (parts: readonly GraphemeInfo[], first = 0, end = parts.length) => {
     let width = 0;
     let displayText = '';
-    for (const { segment } of segmentGraphemes(text)) {
-      const projected = projectViewportGrapheme(segment, width, options.tabSize);
+    for (let index = first; index < end; index++) {
+      const projected = projectViewportGrapheme(parts[index]!.segment, width, options.tabSize);
       displayText += projected.text;
       width += projected.width;
     }
     return { displayText, width };
   };
+  const display = (text: string) => displayParts(segmentGraphemes(text));
+  const reflow = (logicalLine: number) => {
+    const current = document.line(logicalLine);
+    // Retained slices can otherwise pin a different whole document revision per
+    // edited line in V8. Detach UTF-16 ink once per reflow, preserving lone surrogates.
+    const source = { ...current, text: current.text.split('').join('') };
+    const graphemes = segmentGraphemes(source.text);
+    const nextRows: TextViewportLine[] = [];
+    let first = 0;
+    do {
+      let next = first;
+      let width = 0;
+      let wordBreak = -1;
+      while (next < graphemes.length) {
+        const part = graphemes[next]!;
+        const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(part.segment));
+        if (options.wrap !== 'none' && next > first && width + cells > options.width) break;
+        width += cells;
+        if (/^[\t ]$/u.test(part.segment) && next > first) wordBreak = next;
+        next++;
+        if (options.wrap !== 'none' && width >= options.width) break;
+      }
+      if (options.wrap === 'word' && next < graphemes.length && wordBreak > first) next = wordBreak;
+      const start = graphemes[first]?.index ?? source.text.length;
+      const end = next > first ? graphemes[next - 1]!.end : start;
+      const text = source.text.slice(start, end);
+      nextRows.push(Object.freeze({ text, start: source.start + start, end: source.start + end,
+        logicalLine, ...displayParts(graphemes, first, next) }));
+      first = next;
+    } while (first < graphemes.length);
+    return { source, rows: Object.freeze(nextRows) };
+  };
+  const logicalLineAt = (offset: number) => {
+    let low = 0;
+    let high = layouts.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (layouts[middle]!.source.start <= offset) low = middle + 1;
+      else high = middle;
+    }
+    return Math.max(0, low - 1);
+  };
   const lines = () => {
     const snapshot = document.snapshot();
     if (revision === snapshot.revision) return rows;
-    const nextRows: TextViewportLine[] = [];
-    for (let logicalLine = 0; logicalLine < snapshot.lineCount; logicalLine++) {
-      const source = document.line(logicalLine);
-      const graphemes = segmentGraphemes(source.text);
-      let first = 0;
-      do {
-        let next = first;
-        let width = 0;
-        let wordBreak = -1;
-        while (next < graphemes.length) {
-          const part = graphemes[next]!;
-          const cells = part.segment === '\t' ? options.tabSize - width % options.tabSize : stringWidth(printable(part.segment));
-          if (options.wrap !== 'none' && next > first && width + cells > options.width) break;
-          width += cells;
-          if (/^[\t ]$/u.test(part.segment) && next > first) wordBreak = next;
-          next++;
-          if (options.wrap !== 'none' && width >= options.width) break;
-        }
-        if (options.wrap === 'word' && next < graphemes.length && wordBreak > first) next = wordBreak;
-        const start = graphemes[first]?.index ?? source.text.length;
-        const end = next > first ? graphemes[next - 1]!.end : start;
-        const text = source.text.slice(start, end);
-        nextRows.push(Object.freeze({ text, start: source.start + start, end: source.start + end,
-          logicalLine, ...display(text) }));
-        first = next;
-      } while (first < graphemes.length);
-    }
-    rows = Object.freeze(nextRows);
+    const change = revision >= 0 ? getTextDocumentChange(document, revision) : undefined;
+    if (change && change.revision === snapshot.revision) {
+      const first = logicalLineAt(change.start);
+      const last = logicalLineAt(change.end);
+      const insertedLines = change.inserted.split('\n').length - 1;
+      const lineDelta = insertedLines - (last - first);
+      const offsetDelta = change.inserted.length - (change.end - change.start);
+      const next = layouts.slice(0, first);
+      for (let index = first; index <= first + insertedLines; index++) next.push(reflow(index));
+      for (let index = last + 1; index < layouts.length; index++) {
+        const layout = layouts[index]!;
+        next.push(lineDelta === 0 && offsetDelta === 0 ? layout : {
+          source: { ...layout.source, start: layout.source.start + offsetDelta, end: layout.source.end + offsetDelta },
+          rows: Object.freeze(layout.rows.map(row => Object.freeze({ ...row, start: row.start + offsetDelta,
+            end: row.end + offsetDelta, logicalLine: row.logicalLine + lineDelta }))),
+        });
+      }
+      layouts = next;
+    } else layouts = Array.from({ length: snapshot.lineCount }, (_, index) => reflow(index));
+    rows = Object.freeze(layouts.flatMap(layout => layout.rows));
     revision = snapshot.revision;
     return rows;
   };
@@ -118,9 +153,15 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
       if (!Number.isSafeInteger(offset)) throw new RangeError('TextViewport offset must be a safe integer');
       const bounded = clampToGraphemeBoundary(document.snapshot().value, offset, 'left');
       const current = lines();
-      let row = current.findIndex((line, index) => bounded >= line.start && (bounded < line.end
-        || (bounded === line.end && (affinity === 'backward' || current[index + 1]?.start !== bounded))));
-      if (row < 0) row = current.length - 1;
+      let low = 0;
+      let high = current.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (current[middle]!.start <= bounded) low = middle + 1;
+        else high = middle;
+      }
+      let row = Math.max(0, low - 1);
+      if (affinity === 'backward' && row > 0 && current[row]!.start === bounded && current[row - 1]!.end === bounded) row--;
       const line = current[row]!;
       return { row, column: display(line.text.slice(0, Math.max(0, bounded - line.start))).width };
     },
@@ -145,6 +186,7 @@ export function createTextViewport(document: TextDocument, initial: TextViewport
         || firstRow < 0 || rowCount < 0) {
         throw new RangeError('TextViewport ranges require ordered safe offsets and non-negative row bounds');
       }
+      if (start === end || rowCount === 0) return Object.freeze([]);
       const value = document.snapshot().value;
       const first = clampToGraphemeBoundary(value, start, 'left');
       const last = clampToGraphemeBoundary(value, end, 'left');

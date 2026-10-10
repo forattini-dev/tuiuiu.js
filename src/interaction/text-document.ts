@@ -42,6 +42,16 @@ export interface TextDocument {
   subscribe(listener: (snapshot: TextDocumentSnapshot, change: TextDocumentChange) => void): () => void;
 }
 
+// One change per live document, not a retained revision journal or subscription.
+// Viewports that missed a revision fall back to fresh reflow safely.
+const latestChanges = new WeakMap<TextDocument, Readonly<TextDocumentChange>>();
+
+/** Internal raw UTF-16 invalidation range, not the public selection-rebase event. */
+export function getTextDocumentChange(document: TextDocument, fromRevision: number): Readonly<TextDocumentChange> | undefined {
+  const change = latestChanges.get(document);
+  return change?.revision === fromRevision + 1 ? change : undefined;
+}
+
 /** Content/revisions are independent of cursor state and terminal geometry. */
 export function createTextDocument(options: TextDocumentOptions = {}): TextDocument {
   const maxLength = options.maxLength ?? Number.MAX_SAFE_INTEGER;
@@ -64,16 +74,34 @@ export function createTextDocument(options: TextDocumentOptions = {}): TextDocum
     return lineStarts;
   };
   const snapshot = (): TextDocumentSnapshot => ({ value, revision, lineCount: getLineStarts().length });
-  const commit = (next: string, change: Omit<TextDocumentChange, 'revision'>) => {
+  const commit = (next: string, change: Omit<TextDocumentChange, 'revision'>, invalidation = change) => {
     if (next === value) return false;
+    const starts = getLineStarts();
+    const after = (offset: number) => {
+      let low = 0;
+      let high = starts.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (starts[middle]! <= offset) low = middle + 1;
+        else high = middle;
+      }
+      return low;
+    };
+    const nextStarts = starts.slice(0, after(invalidation.start));
+    for (let index = 0; index < invalidation.inserted.length; index++) {
+      if (invalidation.inserted[index] === '\n') nextStarts.push(invalidation.start + index + 1);
+    }
+    const delta = invalidation.inserted.length - (invalidation.end - invalidation.start);
+    for (let index = after(invalidation.end); index < starts.length; index++) nextStarts.push(starts[index]! + delta);
     value = next;
     revision++;
-    lineStarts = null;
+    lineStarts = nextStarts;
+    latestChanges.set(document, Object.freeze({ ...invalidation, revision }));
     const current = snapshot();
     for (const listener of [...listeners]) listener(current, { ...change, revision });
     return true;
   };
-  return {
+  const document: TextDocument = {
     maxLength,
     snapshot,
     line(index) {
@@ -88,7 +116,17 @@ export function createTextDocument(options: TextDocumentOptions = {}): TextDocum
     },
     setValue(nextValue) {
       const next = limit(nextValue, maxLength);
-      return commit(next, { start: 0, end: value.length, inserted: next });
+      if (next === value) return false;
+      // Geometry can retain intact lines even when callers replace the whole value.
+      // Keep the public full-replacement event for cursor rebasing/history semantics.
+      let start = 0;
+      const sharedLength = Math.min(value.length, next.length);
+      while (start < sharedLength && value[start] === next[start]) start++;
+      let end = value.length;
+      let nextEnd = next.length;
+      while (end > start && nextEnd > start && value[end - 1] === next[nextEnd - 1]) { end--; nextEnd--; }
+      return commit(next, { start: 0, end: value.length, inserted: next },
+        { start, end, inserted: next.slice(start, nextEnd) });
     },
     replace(start, end, text) {
       if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end) {
@@ -104,4 +142,5 @@ export function createTextDocument(options: TextDocumentOptions = {}): TextDocum
       return () => listeners.delete(listener);
     },
   };
+  return document;
 }
