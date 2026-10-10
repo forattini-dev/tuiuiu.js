@@ -1,22 +1,8 @@
 /**
- * Syntax Highlighter
+ * Canonical lexical language registry (renderer-independent).
  *
- * Zero-dependency syntax highlighting with support for 20+ languages.
- * Features:
- * - Token-based highlighting
- * - Multiple themes (dark, light, high-contrast, monokai, etc.)
- * - ANSI escape sequence output
- * - VNode output for rendering
- * - Line-by-line API
- * - Bracket matching
- * - Indentation guides
- *
- * @example
- * ```typescript
- * const tokens = tokenize('const x = 42;', 'typescript');
- * const ansi = tokensToAnsi(tokens, themes.monokai);
- * console.log(ansi);
- * ```
+ * Definitions are shared by code components, Markdown and file previews.
+ * This is lightweight lexical coloring, not a grammar/semantic parser.
  */
 
 // =============================================================================
@@ -96,24 +82,6 @@ export interface HighlightedLine {
   raw: string;
 }
 
-/** Theme color mapping */
-export interface HighlightTheme {
-  name: string;
-  colors: Partial<Record<TokenType, string>>;
-  /** Background color */
-  background?: string;
-  /** Line number color */
-  lineNumber?: string;
-  /** Selection color */
-  selection?: string;
-  /** Current line highlight */
-  currentLine?: string;
-  /** Bracket match color */
-  bracketMatch?: string;
-  /** Default text color */
-  default?: string;
-}
-
 /** Language definition */
 export interface LanguageDefinition {
   name: string;
@@ -140,8 +108,6 @@ export interface LanguageDefinition {
   stringDelimiters?: string[];
   /** Template string delimiter */
   templateDelimiter?: string;
-  /** Regex for string patterns */
-  stringPattern?: RegExp;
   /** Single-line comment prefix */
   lineComment?: string;
   /** Block comment start */
@@ -176,7 +142,7 @@ export interface LanguageDefinition {
 const languages: Record<string, LanguageDefinition> = {
   javascript: {
     name: 'JavaScript',
-    aliases: ['js'],
+    aliases: ['js', 'jsx', 'mjs', 'cjs'],
     controlKeywords: [
       'if',
       'else',
@@ -301,13 +267,13 @@ const languages: Record<string, LanguageDefinition> = {
     ],
     customPatterns: [
       { pattern: /^@\w+/, type: 'decorator' },
-      { pattern: /^\/(?![/*])(?:[^/\\]|\\.)+\/[gimsuy]*/, type: 'string.regex' },
+      { pattern: /^\/(?![/*])(?:\[(?:[^\]\\\r\n]|\\.)*\]|[^/\\[\r\n]|\\.)+\/[dgimsuvy]*/, type: 'string.regex' },
     ],
   },
 
   typescript: {
     name: 'TypeScript',
-    aliases: ['ts'],
+    aliases: ['ts', 'tsx'],
     controlKeywords: [
       'if',
       'else',
@@ -473,7 +439,7 @@ const languages: Record<string, LanguageDefinition> = {
     ],
     customPatterns: [
       { pattern: /^@\w+/, type: 'decorator' },
-      { pattern: /^\/(?![/*])(?:[^/\\]|\\.)+\/[gimsuy]*/, type: 'string.regex' },
+      { pattern: /^\/(?![/*])(?:\[(?:[^\]\\\r\n]|\\.)*\]|[^/\\[\r\n]|\\.)+\/[dgimsuvy]*/, type: 'string.regex' },
     ],
   },
 
@@ -618,8 +584,6 @@ const languages: Record<string, LanguageDefinition> = {
       { pattern: /^f'[^']*'/, type: 'string.template' },
       { pattern: /^r"[^"]*"/, type: 'string.regex' },
       { pattern: /^r'[^']*'/, type: 'string.regex' },
-      { pattern: /^"""[\s\S]*?"""/, type: 'string' },
-      { pattern: /^'''[\s\S]*?'''/, type: 'string' },
     ],
   },
 
@@ -699,7 +663,7 @@ const languages: Record<string, LanguageDefinition> = {
     constants: ['iota'],
     booleans: ['true', 'false'],
     nulls: ['nil'],
-    stringDelimiters: ['"'],
+    stringDelimiters: ['"', "'"],
     lineComment: '//',
     blockCommentStart: '/*',
     blockCommentEnd: '*/',
@@ -746,7 +710,6 @@ const languages: Record<string, LanguageDefinition> = {
       '>',
       '=',
     ],
-    customPatterns: [{ pattern: /^`[^`]*`/, type: 'string' }],
   },
 
   rust: {
@@ -892,7 +855,6 @@ const languages: Record<string, LanguageDefinition> = {
     customPatterns: [
       { pattern: /^#!\[[\s\S]*?\]/, type: 'meta' },
       { pattern: /^#\[[\s\S]*?\]/, type: 'decorator' },
-      { pattern: /^r#*"[^"]*"#*/, type: 'string' },
       { pattern: /^b"[^"]*"/, type: 'string' },
       { pattern: /^'[^'\\]'/, type: 'string' },
       { pattern: /^'\\.'/, type: 'string.escape' },
@@ -1815,7 +1777,7 @@ const languages: Record<string, LanguageDefinition> = {
 
   bash: {
     name: 'Bash',
-    aliases: ['sh', 'shell', 'zsh'],
+    aliases: ['sh', 'shell', 'zsh', 'fish'],
     controlKeywords: [
       'if',
       'then',
@@ -2002,6 +1964,8 @@ const languages: Record<string, LanguageDefinition> = {
     nulls: [],
     stringDelimiters: [],
     lineComment: undefined,
+    blockCommentStart: '<!--',
+    blockCommentEnd: '-->',
     operators: [],
     customPatterns: [
       { pattern: /^#{1,6}\s+.*/, type: 'keyword' },
@@ -2010,8 +1974,6 @@ const languages: Record<string, LanguageDefinition> = {
       { pattern: /^__[^_]+__/, type: 'keyword' },
       { pattern: /^\*[^*]+\*/, type: 'string' },
       { pattern: /^_[^_]+_/, type: 'string' },
-      { pattern: /^`[^`]+`/, type: 'string' },
-      { pattern: /^```[\s\S]*?```/, type: 'string' },
       { pattern: /^>\s+.*/, type: 'comment' },
       { pattern: /^[-*+]\s+.*/, type: 'punctuation' },
       { pattern: /^\d+\.\s+.*/, type: 'punctuation' },
@@ -2038,7 +2000,6 @@ const languages: Record<string, LanguageDefinition> = {
     customPatterns: [
       { pattern: /^<!DOCTYPE[^>]*>/, type: 'meta' },
       { pattern: /^<!\[CDATA\[[\s\S]*?\]\]>/, type: 'string' },
-      { pattern: /^<!--[\s\S]*?-->/, type: 'comment' },
       { pattern: /^<\/?\w+/, type: 'tag' },
       { pattern: /^\/>|^>/, type: 'tag' },
       { pattern: /^&\w+;/, type: 'entity' },
@@ -2157,19 +2118,11 @@ const languages: Record<string, LanguageDefinition> = {
     stringDelimiters: [],
     lineComment: undefined,
     operators: [],
-    customPatterns: [
-      { pattern: /^\+\+\+.*/, type: 'meta' },
-      { pattern: /^---.*/, type: 'meta' },
-      { pattern: /^@@.*@@/, type: 'keyword' },
-      { pattern: /^\+.*/, type: 'constant.builtin' },
-      { pattern: /^-.*/, type: 'invalid' },
-      { pattern: /^\\.*/, type: 'comment' },
-    ],
   },
 
   plain: {
     name: 'Plain Text',
-    aliases: ['text', 'txt'],
+    aliases: ['text', 'txt', 'plaintext'],
     controlKeywords: [],
     declarationKeywords: [],
     operatorKeywords: [],
@@ -2184,755 +2137,241 @@ const languages: Record<string, LanguageDefinition> = {
   },
 };
 
-// =============================================================================
-// Themes
-// =============================================================================
-
-export const themes: Record<string, HighlightTheme> = {
-  dark: {
-    name: 'Dark',
-    colors: {
-      keyword: 'magenta',
-      'keyword.control': 'magenta',
-      'keyword.declaration': 'magenta',
-      'keyword.operator': 'magenta',
-      string: 'green',
-      'string.template': 'green',
-      'string.regex': 'yellow',
-      'string.escape': 'cyan',
-      number: 'yellow',
-      'number.float': 'yellow',
-      'number.hex': 'yellow',
-      'number.binary': 'yellow',
-      'number.octal': 'yellow',
-      comment: 'gray',
-      'comment.line': 'gray',
-      'comment.block': 'gray',
-      'comment.doc': 'gray',
-      function: 'blue',
-      'function.call': 'blue',
-      'function.definition': 'blue',
-      variable: 'cyan',
-      'variable.parameter': 'cyan',
-      'variable.property': 'cyan',
-      operator: 'white',
-      'operator.comparison': 'white',
-      'operator.assignment': 'white',
-      'operator.arithmetic': 'white',
-      'operator.logical': 'white',
-      punctuation: 'gray',
-      'punctuation.bracket': 'gray',
-      'punctuation.separator': 'gray',
-      'punctuation.accessor': 'gray',
-      type: 'cyan',
-      'type.builtin': 'cyan',
-      'type.parameter': 'cyan',
-      constant: 'yellow',
-      'constant.boolean': 'yellow',
-      'constant.null': 'yellow',
-      'constant.builtin': 'green',
-      builtin: 'magenta',
-      class: 'cyan',
-      interface: 'cyan',
-      namespace: 'cyan',
-      decorator: 'yellow',
-      tag: 'blue',
-      'tag.name': 'blue',
-      'tag.attribute': 'cyan',
-      entity: 'yellow',
-      meta: 'magenta',
-      invalid: 'red',
-      plain: 'white',
-    },
-    background: 'black',
-    lineNumber: 'gray',
-    selection: 'blue',
-    currentLine: '#1a1a2e',
-    bracketMatch: 'yellow',
-    default: 'white',
-  },
-
-  light: {
-    name: 'Light',
-    colors: {
-      keyword: '#d73a49',
-      'keyword.control': '#d73a49',
-      'keyword.declaration': '#d73a49',
-      'keyword.operator': '#d73a49',
-      string: '#22863a',
-      'string.template': '#22863a',
-      'string.regex': '#e36209',
-      'string.escape': '#005cc5',
-      number: '#005cc5',
-      'number.float': '#005cc5',
-      'number.hex': '#005cc5',
-      'number.binary': '#005cc5',
-      'number.octal': '#005cc5',
-      comment: '#6a737d',
-      'comment.line': '#6a737d',
-      'comment.block': '#6a737d',
-      'comment.doc': '#6a737d',
-      function: '#6f42c1',
-      'function.call': '#6f42c1',
-      'function.definition': '#6f42c1',
-      variable: '#24292e',
-      'variable.parameter': '#e36209',
-      'variable.property': '#005cc5',
-      operator: '#24292e',
-      punctuation: '#24292e',
-      type: '#005cc5',
-      'type.builtin': '#005cc5',
-      constant: '#005cc5',
-      'constant.boolean': '#005cc5',
-      'constant.null': '#005cc5',
-      'constant.builtin': '#22863a',
-      builtin: '#d73a49',
-      class: '#6f42c1',
-      decorator: '#e36209',
-      tag: '#22863a',
-      'tag.name': '#22863a',
-      'tag.attribute': '#6f42c1',
-      entity: '#005cc5',
-      meta: '#d73a49',
-      invalid: '#cb2431',
-      plain: '#24292e',
-    },
-    background: '#ffffff',
-    lineNumber: '#6a737d',
-    default: '#24292e',
-  },
-
-  monokai: {
-    name: 'Monokai',
-    colors: {
-      keyword: '#f92672',
-      'keyword.control': '#f92672',
-      'keyword.declaration': '#66d9ef',
-      string: '#e6db74',
-      'string.regex': '#e6db74',
-      number: '#ae81ff',
-      comment: '#75715e',
-      function: '#a6e22e',
-      'function.call': '#66d9ef',
-      variable: '#f8f8f2',
-      'variable.parameter': '#fd971f',
-      operator: '#f92672',
-      punctuation: '#f8f8f2',
-      type: '#66d9ef',
-      constant: '#ae81ff',
-      'constant.boolean': '#ae81ff',
-      'constant.null': '#ae81ff',
-      builtin: '#66d9ef',
-      class: '#a6e22e',
-      decorator: '#e6db74',
-      tag: '#f92672',
-      'tag.attribute': '#a6e22e',
-      meta: '#75715e',
-      invalid: '#f92672',
-      plain: '#f8f8f2',
-    },
-    background: '#272822',
-    lineNumber: '#75715e',
-    default: '#f8f8f2',
-  },
-
-  dracula: {
-    name: 'Dracula',
-    colors: {
-      keyword: '#ff79c6',
-      string: '#f1fa8c',
-      number: '#bd93f9',
-      comment: '#6272a4',
-      function: '#50fa7b',
-      variable: '#f8f8f2',
-      operator: '#ff79c6',
-      punctuation: '#f8f8f2',
-      type: '#8be9fd',
-      constant: '#bd93f9',
-      builtin: '#8be9fd',
-      class: '#50fa7b',
-      decorator: '#ffb86c',
-      tag: '#ff79c6',
-      meta: '#6272a4',
-      invalid: '#ff5555',
-      plain: '#f8f8f2',
-    },
-    background: '#282a36',
-    lineNumber: '#6272a4',
-    default: '#f8f8f2',
-  },
-
-  github: {
-    name: 'GitHub',
-    colors: {
-      keyword: '#cf222e',
-      string: '#0a3069',
-      number: '#0550ae',
-      comment: '#6e7781',
-      function: '#8250df',
-      variable: '#24292f',
-      operator: '#24292f',
-      punctuation: '#24292f',
-      type: '#0550ae',
-      constant: '#0550ae',
-      builtin: '#cf222e',
-      class: '#953800',
-      decorator: '#953800',
-      tag: '#116329',
-      meta: '#cf222e',
-      invalid: '#cf222e',
-      plain: '#24292f',
-    },
-    background: '#ffffff',
-    lineNumber: '#8c959f',
-    default: '#24292f',
-  },
-
-  nord: {
-    name: 'Nord',
-    colors: {
-      keyword: '#81a1c1',
-      string: '#a3be8c',
-      number: '#b48ead',
-      comment: '#616e88',
-      function: '#88c0d0',
-      variable: '#d8dee9',
-      operator: '#81a1c1',
-      punctuation: '#eceff4',
-      type: '#8fbcbb',
-      constant: '#b48ead',
-      builtin: '#5e81ac',
-      class: '#8fbcbb',
-      decorator: '#d08770',
-      tag: '#81a1c1',
-      meta: '#5e81ac',
-      invalid: '#bf616a',
-      plain: '#d8dee9',
-    },
-    background: '#2e3440',
-    lineNumber: '#4c566a',
-    default: '#d8dee9',
-  },
-
-  highContrast: {
-    name: 'High Contrast',
-    colors: {
-      keyword: '#ff00ff',
-      string: '#00ff00',
-      number: '#00ffff',
-      comment: '#808080',
-      function: '#ffff00',
-      variable: '#ffffff',
-      operator: '#ffffff',
-      punctuation: '#ffffff',
-      type: '#00ffff',
-      constant: '#ff8000',
-      builtin: '#ff00ff',
-      class: '#00ffff',
-      decorator: '#ff8000',
-      tag: '#00ff00',
-      meta: '#ff00ff',
-      invalid: '#ff0000',
-      plain: '#ffffff',
-    },
-    background: '#000000',
-    lineNumber: '#808080',
-    default: '#ffffff',
-  },
-};
-
-// =============================================================================
-// Tokenizer
-// =============================================================================
-
-/**
- * Get language definition by name or alias
- */
-export function getLanguage(name: string): LanguageDefinition | undefined {
-  const lower = name.toLowerCase();
-  if (languages[lower]) {
-    return languages[lower];
-  }
-
-  // Check aliases
-  for (const lang of Object.values(languages)) {
-    if (lang.aliases?.includes(lower)) {
-      return lang;
-    }
-  }
-
-  return undefined;
+/** Normalize extension/fence aliases without accepting Object.prototype keys. */
+export function getLanguageId(name: string): string | undefined {
+  const normalized = name.trim().toLowerCase().replace(/^\./, '');
+  if (Object.hasOwn(languages, normalized)) return normalized;
+  return Object.keys(languages).find(key => languages[key]!.aliases?.includes(normalized));
 }
 
-/**
- * List all supported languages
- */
+export function getLanguage(name: string): LanguageDefinition | undefined {
+  const id = getLanguageId(name);
+  return id === undefined ? undefined : languages[id];
+}
+
 export function listLanguages(): string[] {
   return Object.keys(languages);
 }
 
+/** Catalog expressions use token-relative anchors. Match at one source offset. */
+function sticky(pattern: RegExp): RegExp {
+  return new RegExp(pattern.source.replace(/(^|\|)\^/g, '$1'), pattern.flags.replace(/[gy]/g, '') + 'y');
+}
+
+function matchAt(pattern: RegExp, source: string, offset: number): string | undefined {
+  pattern.lastIndex = offset;
+  const match = pattern.exec(source);
+  return match?.index === offset && match[0].length > 0 ? match[0] : undefined;
+}
+
 /**
- * Tokenize source code
+ * One full-source lexical pass. Tokens partition the raw UTF-16 source exactly;
+ * adapters own sanitation, themes and terminal geometry. No shared regex cursor.
  */
-export function tokenize(source: string, languageName: string): Token[] {
-  const lang = getLanguage(languageName) || languages.plain!;
-  const tokens: Token[] = [];
-  let pos = 0;
+export type CodeTokenRange = Pick<Token, 'type' | 'start' | 'end'>;
 
-  // Build keyword sets for fast lookup
-  const controlKeywords = new Set(lang.controlKeywords || []);
-  const declarationKeywords = new Set(lang.declarationKeywords || []);
-  const operatorKeywords = new Set(lang.operatorKeywords || []);
-  const builtins = new Set(lang.builtins || []);
-  const types = new Set(lang.types || []);
-  const constants = new Set(lang.constants || []);
-  const booleans = new Set(lang.booleans || []);
-  const nulls = new Set(lang.nulls || []);
-
-  // Case insensitive matching
-  const matchWord = (word: string, set: Set<string>): boolean => {
-    if (lang.caseInsensitive) {
-      return set.has(word.toUpperCase()) || set.has(word.toLowerCase());
-    }
-    return set.has(word);
+export function tokenizeCodeRanges(source: string, languageName: string): CodeTokenRange[] {
+  const id = getLanguageId(languageName) ?? 'plain';
+  if (!source) return [];
+  if (id === 'plain') return [{ type: 'plain', start: 0, end: source.length }];
+  const language = getLanguage(id)!;
+  const ranges: { type: TokenType; start: number; end: number }[] = [];
+  const emit = (type: TokenType, start: number, end: number) => {
+    const previous = ranges.at(-1);
+    if (type === 'plain' && previous?.type === type && previous.end === start) { previous.end = end; return previous; }
+    const range = { type, start, end };
+    ranges.push(range);
+    return range;
   };
-
-  // Sort operators by length (longest first) for greedy matching
-  const sortedOperators = [...(lang.operators || [])].sort((a, b) => b.length - a.length);
-
-  while (pos < source.length) {
-    const remaining = source.slice(pos);
+  if (id === 'diff') {
+    let start = 0;
+    while (start < source.length) {
+      const newline = source.indexOf('\n', start);
+      const end = newline < 0 ? source.length : newline + 1;
+      const header = source.startsWith('+++', start) || source.startsWith('---', start);
+      emit(header ? 'meta' : source[start] === '+' ? 'constant.builtin' : source[start] === '-' ? 'invalid'
+        : source[start] === '@' ? 'keyword' : source[start] === '\\' ? 'comment' : 'plain', start, end);
+      start = end;
+    }
+    return ranges;
+  }
+  const fold = (word: string) => language.caseInsensitive ? word.toLowerCase() : word;
+  const wordDefinitions: [string[] | undefined, TokenType][] = [
+    [language.controlKeywords, 'keyword.control'], [language.declarationKeywords, 'keyword.declaration'],
+    [language.operatorKeywords, 'keyword.operator'], [language.keywords, 'keyword'],
+    [language.booleans, 'constant.boolean'], [language.nulls, 'constant.null'],
+    [language.constants, 'constant'], [language.types, 'type.builtin'], [language.builtins, 'builtin'],
+  ];
+  const wordRules = new Map<string, TokenType>();
+  for (const [words, type] of wordDefinitions) {
+    for (const word of words ?? []) { const key = fold(word); if (!wordRules.has(key)) wordRules.set(key, type); }
+  }
+  const custom = (language.customPatterns ?? []).map(rule => ({ ...rule, pattern: sticky(rule.pattern) }));
+  const numbers = Object.entries(language.numberPatterns ?? {}).map(([type, pattern]) => ({
+    type: (type === 'decimal' ? 'number' : `number.${type}`) as TokenType, pattern: sticky(pattern),
+  }));
+  if (['javascript', 'typescript', 'python', 'go', 'rust', 'sql', 'json', 'yaml'].includes(id)) {
+    numbers.push({ type: 'number.float', pattern: sticky(id === 'rust'
+      ? /^(?:\d+(?:_\d+)*(?:\.\d*)?|\.\d+)e[+-]?\d+(?:f32|f64)?/i
+      : id === 'json' || id === 'yaml' ? /^-?(?:\d+(?:\.\d*)?|\.\d+)e[+-]?\d+/i
+      : /^(?:\d+(?:\.\d*)?|\.\d+)e[+-]?\d+/i) });
+  }
+  const operators = [...(language.operators ?? [])].filter(Boolean).sort((a, b) => b.length - a.length);
+  const candidatesByFirst = (values: string[]) => {
+    const candidates = new Map<string, string[]>();
+    for (const value of values) {
+      const key = value[0];
+      if (!key) continue;
+      const existing = candidates.get(key);
+      if (existing) existing.push(value);
+      else candidates.set(key, [value]);
+    }
+    return candidates;
+  };
+  const operatorCandidates = candidatesByFirst(operators);
+  const quoteCandidates = candidatesByFirst([...(language.stringDelimiters ?? [])].sort((a, b) => b.length - a.length));
+  const whitespace = /\s+/y;
+  const identifier = /[A-Za-z_$][\w$]*/y;
+  const lifetime = /'[A-Za-z_]\w*/y;
+  const closed = (start: number, opening: string, ending: string, nested = false): number => {
+    let depth = 1;
+    let index = start + opening.length;
+    while (index < source.length) {
+      if (nested && source.startsWith(opening, index)) { depth++; index += opening.length; }
+      else if (source.startsWith(ending, index)) {
+        index += ending.length;
+        if (--depth === 0) return index;
+      } else index++;
+    }
+    return source.length;
+  };
+  const quoted = (start: number, delimiter: string, multiline: boolean, escapes = true): number => {
+    let index = start + delimiter.length;
+    while (index < source.length) {
+      if (source.startsWith(delimiter, index)) {
+        if ((id === 'sql' || id === 'yaml') && source.startsWith(delimiter + delimiter, index)) {
+          index += delimiter.length * 2; continue;
+        }
+        return index + delimiter.length;
+      }
+      if (escapes && source[index] === '\\') { index = Math.min(source.length, index + 2); continue; }
+      if (!multiline && (source[index] === '\n' || source[index] === '\r')) return index;
+      index++;
+    }
+    return source.length;
+  };
+  let index = 0;
+  let previous: { type: TokenType; start: number; end: number } | undefined;
+  const consume = (type: TokenType, end: number) => {
+    const range = emit(type, index, end);
+    if (type !== 'plain' && !type.startsWith('comment')) previous = range;
+    index = end;
+  };
+  while (index < source.length) {
+    const unit = source.charCodeAt(index);
+    // Avoid failed regex matches for the common ASCII identifier/punctuation
+    // path; non-ASCII whitespace still follows JavaScript's canonical \s rule.
+    const space = unit <= 0x20 || unit >= 0x80 ? matchAt(whitespace, source, index) : undefined;
+    if (space) { consume('plain', index + space.length); continue; }
+    const char = source[index]!;
+    const blockStart = language.blockCommentStart;
+    const blockEnd = language.blockCommentEnd;
+    if (blockStart && blockEnd && source.startsWith(blockStart, index)) {
+      consume(language.docCommentStart && source.startsWith(language.docCommentStart, index) ? 'comment.doc' : 'comment.block',
+        closed(index, blockStart, blockEnd, id === 'rust')); continue;
+    }
+    const lineComment = language.lineComment;
+    if (lineComment && source.startsWith(lineComment, index)
+      && !(lineComment === '#' && ['bash', 'yaml'].includes(id) && index > 0 && !/[\s;|&()]/.test(source[index - 1]!))) {
+      const newline = source.indexOf('\n', index);
+      consume(language.docCommentStart && source.startsWith(language.docCommentStart, index) ? 'comment.doc' : 'comment.line',
+        newline < 0 ? source.length : newline); continue;
+    }
+    if (id === 'rust' && char === 'r' && (index === 0 || !/[\w$]/.test(source[index - 1]!))) {
+      let quote = index + 1;
+      while (source[quote] === '#') quote++;
+      if (source[quote] === '"') {
+        const ending = '"' + '#'.repeat(quote - index - 1);
+        const end = source.indexOf(ending, quote + 1);
+        consume('string', end < 0 ? source.length : end + ending.length); continue;
+      }
+    }
+    if (id === 'rust' && char === "'") {
+      const word = matchAt(lifetime, source, index);
+      if (word && source[index + word.length] !== "'") { consume('type.parameter', index + word.length); continue; }
+    }
+    const backtick = char === language.templateDelimiter || (char === '`' && ['go', 'markdown', 'bash'].includes(id));
+    const quote = quoteCandidates.get(char)?.find(delimiter => source.startsWith(delimiter, index));
+    if (backtick || quote || (id === 'rust' && char === "'")) {
+      const triple = (id === 'python' && source.startsWith(char.repeat(3), index))
+        || (id === 'markdown' && source.startsWith('```', index));
+      const delimiter = triple ? char.repeat(3) : quote ?? char;
+      const multiline = triple || backtick || ['bash', 'sql', 'rust', 'ruby'].includes(id);
+      const escapes = !(id === 'go' && backtick) && !(id === 'sql' || (['yaml', 'bash'].includes(id) && char === "'"));
+      consume(backtick && ['javascript', 'typescript'].includes(id) ? 'string.template' : 'string',
+        quoted(index, delimiter, multiline, escapes)); continue;
+    }
     let matched = false;
-
-    // Skip whitespace
-    const wsMatch = remaining.match(/^(\s+)/);
-    if (wsMatch) {
-      tokens.push({
-        type: 'plain',
-        value: wsMatch[1]!,
-        start: pos,
-        end: pos + wsMatch[1]!.length,
-      });
-      pos += wsMatch[1]!.length;
-      continue;
-    }
-
-    // Check custom patterns first
-    if (lang.customPatterns) {
-      for (const { pattern, type } of lang.customPatterns) {
-        const match = remaining.match(pattern);
-        if (match) {
-          tokens.push({
-            type,
-            value: match[0],
-            start: pos,
-            end: pos + match[0].length,
-          });
-          pos += match[0].length;
-          matched = true;
-          break;
-        }
-      }
-      if (matched) continue;
-    }
-
-    // Check for doc comments
-    if (lang.docCommentStart && remaining.startsWith(lang.docCommentStart)) {
-      // Doc comment (usually /** ... */)
-      if (lang.blockCommentEnd) {
-        const endIndex = remaining.indexOf(lang.blockCommentEnd, lang.docCommentStart.length);
-        if (endIndex !== -1) {
-          const comment = remaining.slice(0, endIndex + lang.blockCommentEnd.length);
-          tokens.push({
-            type: 'comment.doc',
-            value: comment,
-            start: pos,
-            end: pos + comment.length,
-          });
-          pos += comment.length;
-          continue;
-        }
-      }
-    }
-
-    // Check for block comments
-    if (lang.blockCommentStart && remaining.startsWith(lang.blockCommentStart)) {
-      const endIndex = remaining.indexOf(lang.blockCommentEnd!, lang.blockCommentStart.length);
-      if (endIndex !== -1) {
-        const comment = remaining.slice(0, endIndex + lang.blockCommentEnd!.length);
-        tokens.push({
-          type: 'comment.block',
-          value: comment,
-          start: pos,
-          end: pos + comment.length,
-        });
-        pos += comment.length;
-        continue;
-      } else {
-        // Unterminated block comment - take rest of source
-        tokens.push({
-          type: 'comment.block',
-          value: remaining,
-          start: pos,
-          end: source.length,
-        });
-        pos = source.length;
-        continue;
-      }
-    }
-
-    // Check for line comments
-    if (lang.lineComment && remaining.startsWith(lang.lineComment)) {
-      const endIndex = remaining.indexOf('\n');
-      const comment = endIndex !== -1 ? remaining.slice(0, endIndex) : remaining;
-      tokens.push({
-        type: 'comment.line',
-        value: comment,
-        start: pos,
-        end: pos + comment.length,
-      });
-      pos += comment.length;
-      continue;
-    }
-
-    // Check for strings
-    for (const delim of lang.stringDelimiters || []) {
-      if (remaining.startsWith(delim)) {
-        let end = 1;
-        while (end < remaining.length) {
-          if (remaining[end] === '\\' && end + 1 < remaining.length) {
-            end += 2;
-          } else if (remaining[end] === delim) {
-            end++;
-            break;
-          } else {
-            end++;
-          }
-        }
-        tokens.push({
-          type: 'string',
-          value: remaining.slice(0, end),
-          start: pos,
-          end: pos + end,
-        });
-        pos += end;
-        matched = true;
-        break;
-      }
+    for (const rule of custom) {
+      // A slash after an expression is division, not a regex literal. Comments
+      // and strings already consumed above, so patterns cannot override them.
+      if (rule.type === 'string.regex' && char === '/' && ['javascript', 'typescript'].includes(id) && previous
+        && !(previous.type.startsWith('operator') || previous.type.startsWith('keyword')
+          || (previous.end - previous.start === 1 && ['(', '[', '{', ',', ';', ':'].includes(source[previous.start]!)))) continue;
+      const value = matchAt(rule.pattern, source, index);
+      if (value) { consume(rule.type, index + value.length); matched = true; break; }
     }
     if (matched) continue;
-
-    // Check for template strings
-    if (lang.templateDelimiter && remaining.startsWith(lang.templateDelimiter)) {
-      let end = 1;
-      while (end < remaining.length) {
-        if (remaining[end] === '\\' && end + 1 < remaining.length) {
-          end += 2;
-        } else if (remaining[end] === lang.templateDelimiter) {
-          end++;
-          break;
-        } else {
-          end++;
-        }
+    if (/[\d.+-]/.test(char) && (index === 0 || !/[\w$]/.test(source[index - 1]!))) {
+      let number: { value: string; type: TokenType } | undefined;
+      for (const rule of numbers) {
+        const value = matchAt(rule.pattern, source, index);
+        if (value && (!number || value.length > number.value.length)) number = { value, type: rule.type };
       }
-      tokens.push({
-        type: 'string.template',
-        value: remaining.slice(0, end),
-        start: pos,
-        end: pos + end,
-      });
-      pos += end;
-      continue;
+      if (number) { consume(number.type, index + number.value.length); continue; }
     }
-
-    // Check for numbers
-    if (lang.numberPatterns) {
-      for (const [type, pattern] of Object.entries(lang.numberPatterns)) {
-        const match = remaining.match(pattern);
-        if (match) {
-          tokens.push({
-            type: `number.${type}` as TokenType,
-            value: match[0],
-            start: pos,
-            end: pos + match[0].length,
-          });
-          pos += match[0].length;
-          matched = true;
-          break;
-        }
-      }
-      if (matched) continue;
+    const word = (unit >= 65 && unit <= 90) || (unit >= 97 && unit <= 122) || char === '_' || char === '$'
+      ? matchAt(identifier, source, index) : undefined;
+    if (word) {
+      let next = index + word.length;
+      while (source[next] === ' ' || source[next] === '\t') next++;
+      const type = wordRules.get(fold(word))
+        ?? (source[next] === '(' ? 'function.call' : /^[A-Z][a-zA-Z0-9]*$/.test(word) ? 'type' : 'variable');
+      consume(type, index + word.length); continue;
     }
-
-    // Check for operators
-    for (const op of sortedOperators) {
-      if (remaining.startsWith(op)) {
-        tokens.push({
-          type: 'operator',
-          value: op,
-          start: pos,
-          end: pos + op.length,
-        });
-        pos += op.length;
-        matched = true;
-        break;
-      }
-    }
-    if (matched) continue;
-
-    // Check for identifiers and keywords
-    const identMatch = remaining.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
-    if (identMatch) {
-      const word = identMatch[0];
-      let type: TokenType = 'variable';
-
-      if (matchWord(word, controlKeywords)) {
-        type = 'keyword.control';
-      } else if (matchWord(word, declarationKeywords)) {
-        type = 'keyword.declaration';
-      } else if (matchWord(word, operatorKeywords)) {
-        type = 'keyword.operator';
-      } else if (matchWord(word, booleans)) {
-        type = 'constant.boolean';
-      } else if (matchWord(word, nulls)) {
-        type = 'constant.null';
-      } else if (matchWord(word, constants)) {
-        type = 'constant';
-      } else if (matchWord(word, types)) {
-        type = 'type.builtin';
-      } else if (matchWord(word, builtins)) {
-        type = 'builtin';
-      } else if (/^[A-Z][a-zA-Z0-9]*$/.test(word)) {
-        type = 'type';
-      } else if (remaining[word.length] === '(') {
-        type = 'function.call';
-      }
-
-      tokens.push({
-        type,
-        value: word,
-        start: pos,
-        end: pos + word.length,
-      });
-      pos += word.length;
-      continue;
-    }
-
-    // Punctuation
-    const char = source[pos]!;
-    if (/[\[\]{}()]/.test(char)) {
-      tokens.push({
-        type: 'punctuation.bracket',
-        value: char,
-        start: pos,
-        end: pos + 1,
-      });
-    } else if (/[,;]/.test(char)) {
-      tokens.push({
-        type: 'punctuation.separator',
-        value: char,
-        start: pos,
-        end: pos + 1,
-      });
-    } else if (char === '.') {
-      tokens.push({
-        type: 'punctuation.accessor',
-        value: char,
-        start: pos,
-        end: pos + 1,
-      });
-    } else {
-      tokens.push({
-        type: 'plain',
-        value: char,
-        start: pos,
-        end: pos + 1,
-      });
-    }
-    pos++;
+    const operator = operatorCandidates.get(char)?.find(value => source.startsWith(value, index));
+    if (operator) { consume('operator', index + operator.length); continue; }
+    consume(/[\[\]{}()]/.test(char) ? 'punctuation.bracket' : /[,;]/.test(char) ? 'punctuation.separator'
+      : char === '.' ? 'punctuation.accessor' : /[+\-*/%=!<>|&^~?:]/.test(char) ? 'operator' : 'plain', index + 1);
   }
-
-  return tokens;
+  return ranges;
 }
 
-/**
- * Tokenize line by line
- */
+/** Materialize token values only for callers that need them. */
+export function tokenize(source: string, languageName: string): Token[] {
+  return tokenizeCodeRanges(source, languageName).map(range => ({
+    type: range.type, value: source.slice(range.start, range.end), start: range.start, end: range.end,
+  }));
+}
+
+/** Split one lexical pass into line-relative tokens, retaining blank rows. */
 export function tokenizeLines(source: string, languageName: string): HighlightedLine[] {
-  const lines = source.split('\n');
-  const allTokens = tokenize(source, languageName);
-  const result: HighlightedLine[] = [];
-
-  let tokenIndex = 0;
-  let charOffset = 0;
-
-  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-    const line = lines[lineNum]!;
-    const lineEnd = charOffset + line.length;
-    const lineTokens: Token[] = [];
-
-    while (tokenIndex < allTokens.length && allTokens[tokenIndex]!.start < lineEnd) {
-      const token = allTokens[tokenIndex]!;
-
-      if (token.end <= charOffset) {
-        tokenIndex++;
-        continue;
-      }
-
-      if (token.start >= lineEnd) {
-        break;
-      }
-
-      // Token spans this line (possibly partially)
-      const tokenStart = Math.max(token.start, charOffset);
-      const tokenEnd = Math.min(token.end, lineEnd);
-      const value = source.slice(tokenStart, tokenEnd);
-
-      if (value) {
-        lineTokens.push({
-          type: token.type,
-          value,
-          start: tokenStart - charOffset,
-          end: tokenEnd - charOffset,
-        });
-      }
-
-      if (token.end <= lineEnd) {
-        tokenIndex++;
-      } else {
-        break;
-      }
-    }
-
-    result.push({
-      lineNumber: lineNum + 1,
-      tokens: lineTokens,
-      raw: line,
-    });
-
-    charOffset = lineEnd + 1; // +1 for newline
-  }
-
-  return result;
-}
-
-// =============================================================================
-// Output Formatters
-// =============================================================================
-
-/**
- * Get color for token type from theme
- */
-export function getTokenColor(type: TokenType, theme: HighlightTheme): string {
-  // Check exact match first
-  if (theme.colors[type]) {
-    return theme.colors[type]!;
-  }
-
-  // Check parent type (e.g., 'keyword' for 'keyword.control')
-  const dotIndex = type.indexOf('.');
-  if (dotIndex !== -1) {
-    const parent = type.slice(0, dotIndex) as TokenType;
-    if (theme.colors[parent]) {
-      return theme.colors[parent]!;
-    }
-  }
-
-  return theme.default || 'white';
-}
-
-/**
- * Convert color name to ANSI escape code
- */
-function colorToAnsiCode(color: string): string {
-  const colors: Record<string, string> = {
-    black: '30',
-    red: '31',
-    green: '32',
-    yellow: '33',
-    blue: '34',
-    magenta: '35',
-    cyan: '36',
-    white: '37',
-    gray: '90',
-    grey: '90',
-  };
-
-  if (colors[color]) {
-    return `\x1b[${colors[color]}m`;
-  }
-
-  // Hex color -> 256 color approximation
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-
-    // Use 24-bit true color
-    return `\x1b[38;2;${r};${g};${b}m`;
-  }
-
-  return '';
-}
-
-/**
- * Convert tokens to ANSI-escaped string
- */
-export function tokensToAnsi(tokens: Token[], theme: HighlightTheme = themes.dark!): string {
-  let result = '';
-  const reset = '\x1b[0m';
-
-  for (const token of tokens) {
-    const color = getTokenColor(token.type, theme);
-    const ansi = colorToAnsiCode(color);
-    result += ansi + token.value + reset;
-  }
-
-  return result;
-}
-
-/**
- * Highlight code and return ANSI string
- */
-export function highlight(source: string, languageName: string, themeName?: string): string {
   const tokens = tokenize(source, languageName);
-  const theme = themeName ? themes[themeName] || themes.dark! : themes.dark!;
-  return tokensToAnsi(tokens, theme);
-}
-
-/**
- * Highlight code with line numbers
- */
-export function highlightWithLineNumbers(
-  source: string,
-  languageName: string,
-  options: {
-    theme?: string;
-    startLine?: number;
-    highlightLines?: number[];
-  } = {}
-): string {
-  const { theme: themeName, startLine = 1, highlightLines = [] } = options;
-  const theme = themeName ? themes[themeName] || themes.dark! : themes.dark!;
-  const lines = tokenizeLines(source, languageName);
-  const lineNumWidth = String(startLine + lines.length - 1).length;
-  const reset = '\x1b[0m';
-
-  return lines
-    .map((line) => {
-      const lineNum = line.lineNumber + startLine - 1;
-      const isHighlighted = highlightLines.includes(lineNum);
-      const lineNumColor = colorToAnsiCode(isHighlighted ? 'yellow' : theme.lineNumber || 'gray');
-      const numStr = String(lineNum).padStart(lineNumWidth, ' ');
-
-      let result = `${lineNumColor}${numStr} │${reset} `;
-      if (isHighlighted) {
-        result += colorToAnsiCode('yellow') + '▶ ' + reset;
-      }
-
-      result += tokensToAnsi(line.tokens, theme);
-      return result;
-    })
-    .join('\n');
+  let tokenIndex = 0;
+  let offset = 0;
+  return source.split('\n').map((raw, index) => {
+    const end = offset + raw.length;
+    const lineTokens: Token[] = [];
+    while (tokenIndex < tokens.length && tokens[tokenIndex]!.start < end) {
+      const token = tokens[tokenIndex]!;
+      if (token.end <= offset) { tokenIndex++; continue; }
+      const start = Math.max(offset, token.start);
+      const stop = Math.min(end, token.end);
+      if (stop > start) lineTokens.push({ ...token, value: source.slice(start, stop), start: start - offset, end: stop - offset });
+      if (token.end <= end) tokenIndex++;
+      else break;
+    }
+    offset = end + 1;
+    return { lineNumber: index + 1, tokens: lineTokens, raw };
+  });
 }

@@ -58,10 +58,16 @@ algorithms belong in `utils` or `interaction`; application lifecycle belongs in
 - structured text/style snapshots and canonical fitted source mapping:
   `src/utils/styled-text.ts`; visual adapter: `src/primitives/rich-text.ts`
 - bounded terminal Markdown inline parsing: `src/utils/markdown-inline.ts`
-- renderer-independent lexical code spans and shared fence aliases:
-  `src/utils/code-highlight.ts`. CodeBlock fits after whole-source highlighting,
-  keeping one RichText flow per visual row; MarkdownSelection changes styles
-  without replacing source provenance. This is not a grammar/semantic parser.
+- renderer-independent lexical code: `src/utils/code-tokenizer.ts` owns the
+  language/alias registry and partitions raw UTF-16 source once, materializing
+  token values only when requested. `src/utils/code-highlight.ts` owns palettes
+  and immutable span adapters (CodeTheme or detailed token colors) over those
+  same ranges. CodeBlock fits after highlighting; FilePreview tokenizes one
+  visible source prefix instead of restarting per line. Both keep one RichText
+  flow per code row; MarkdownSelection changes styles without replacing source
+  provenance. The unused, non-public `src/core/highlighter.ts` ANSI adapter was
+  removed; terminal presentation belongs to the existing render backends. This
+  is lexical coloring, not a grammar/semantic parser, and themes may differ by view.
 - selectable Markdown reader: `src/utils/markdown-selection.ts` composes inline
   and block source provenance through `src/utils/text-projection.ts`;
   `src/molecules/markdown-view.ts` adapts it to the style-only TextView viewport.

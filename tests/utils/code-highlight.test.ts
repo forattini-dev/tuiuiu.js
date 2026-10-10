@@ -17,11 +17,12 @@ describe('renderer-independent lexical code highlighting', () => {
     ['typescript', '/* first\nconst fake = "not a string";\n*/ const real = 42;', 'const fake'],
     ['sql', '/* select\nfrom table\n*/ select count(*) from users;', 'from table'],
     ['html', '<!-- first\n"not a string"\n--> <div>hello</div>', '"not a string"'],
+    ['markdown', '<!-- first\n# not a heading\n--> # real heading', '# not a heading'],
     ['python', 'value = """first\n# not a comment\nlast"""\nprint(value)', '# not a comment'],
     ['javascript', 'const value = `first\n// not a comment\nlast`;\nconsole.log(value)', '// not a comment'],
     ['go', 'value := `first\n// not a comment\nlast`\nfmt.Println(value)', '// not a comment'],
   ] as const)('preserves multiline lexical state in %s', (language, source, needle) => {
-    expect(colorAt(source, needle, language)).toBe(language === 'typescript' || language === 'sql' || language === 'html'
+    expect(colorAt(source, needle, language)).toBe(language === 'typescript' || language === 'sql' || language === 'html' || language === 'markdown'
       ? DEFAULT_CODE_THEME.comment : DEFAULT_CODE_THEME.string);
     expect(highlightCodeSpans(source, language).map(span => span.text).join('')).toBe(source);
   });
@@ -43,6 +44,12 @@ describe('renderer-independent lexical code highlighting', () => {
     expect(colorAt(source, 'still outer', 'rust')).toBe(DEFAULT_CODE_THEME.comment);
     expect(colorAt(source, '// raw', 'rust')).toBe(DEFAULT_CODE_THEME.string);
     expect(colorAt(source, 'let next', 'rust')).toBe(DEFAULT_CODE_THEME.keyword);
+  });
+  it('retains Go rune coloring alongside raw-string and ordinary-string handling', () => {
+    const source = "var letter = '界'; var escaped = '\\n'; var next = 42;";
+    expect(colorAt(source, "'界'", 'go')).toBe(DEFAULT_CODE_THEME.string);
+    expect(colorAt(source, "'\\n'", 'go')).toBe(DEFAULT_CODE_THEME.string);
+    expect(colorAt(source, 'var next', 'go')).toBe(DEFAULT_CODE_THEME.keyword);
   });
   it('recognizes lowercase SQL and escaped SQL/YAML quotes', () => {
     expect(colorAt('select count(*) from users', 'select', 'sql')).toBe(DEFAULT_CODE_THEME.keyword);

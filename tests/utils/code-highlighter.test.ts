@@ -3,17 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  tokenize,
-  tokenizeLines,
-  getLanguage,
-  listLanguages,
-  themes,
-  getTokenColor,
-  tokensToAnsi,
-  highlight,
-  highlightWithLineNumbers,
-} from '../../src/core/highlighter.js';
+import { tokenize, tokenizeLines } from '../../src/utils/code-tokenizer.js';
+import { getLanguage, listLanguages } from '../../src/utils/code-tokenizer.js';
+import { themes, getTokenColor, tokensToSpans } from '../../src/utils/code-highlight.js';
+import { RichText } from '../../src/primitives/rich-text.js';
+import { renderToString } from '../../src/core/renderer.js';
 
 // =============================================================================
 // Language Registry Tests
@@ -478,55 +472,6 @@ describe('Token Color Resolution', () => {
 });
 
 // =============================================================================
-// ANSI Output Tests
-// =============================================================================
-
-describe('ANSI Output', () => {
-  it('should generate ANSI output', () => {
-    const tokens = tokenize('const x = 1;', 'javascript');
-    const ansi = tokensToAnsi(tokens);
-    expect(ansi).toContain('\x1b['); // ANSI escape
-    expect(ansi).toContain('\x1b[0m'); // Reset
-  });
-
-  it('should use theme colors', () => {
-    const tokens = tokenize('const x', 'javascript');
-    const ansi = tokensToAnsi(tokens, themes.dark!);
-    expect(ansi).toContain('\x1b[35m'); // Magenta for keyword
-  });
-
-  it('should highlight with default theme', () => {
-    const result = highlight('const x = 1;', 'javascript');
-    expect(result).toContain('\x1b[');
-  });
-
-  it('should highlight with specified theme', () => {
-    const result = highlight('const x = 1;', 'javascript', 'monokai');
-    expect(result).toContain('\x1b[');
-  });
-
-  it('should add line numbers', () => {
-    const result = highlightWithLineNumbers('const x = 1;\nconst y = 2;', 'javascript');
-    expect(result).toContain('1');
-    expect(result).toContain('2');
-    expect(result).toContain('│');
-  });
-
-  it('should highlight specified lines', () => {
-    const result = highlightWithLineNumbers('a\nb\nc', 'plain', {
-      highlightLines: [2],
-    });
-    expect(result).toContain('▶');
-  });
-
-  it('should respect start line option', () => {
-    const result = highlightWithLineNumbers('a\nb', 'plain', { startLine: 10 });
-    expect(result).toContain('10');
-    expect(result).toContain('11');
-  });
-});
-
-// =============================================================================
 // Edge Cases
 // =============================================================================
 
@@ -685,7 +630,7 @@ impl<'a> Config<'a> {
   it('should produce valid ANSI for all themes', () => {
     const code = 'const x = 42;';
     for (const themeName of Object.keys(themes)) {
-      const result = highlight(code, 'javascript', themeName);
+      const result = renderToString(RichText({}, ...tokensToSpans(tokenize(code, 'javascript'), themes[themeName])), 50);
       expect(result).toContain('\x1b[');
       expect(result).toContain('const');
     }

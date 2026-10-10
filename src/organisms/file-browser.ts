@@ -21,7 +21,10 @@
 
 import { Box, Text, Spacer, When } from '../primitives/nodes.js';
 import type { VNode, TextStyleProps } from '../utils/types.js';
-import { highlight } from '../core/highlighter.js';
+import { RichText } from '../primitives/rich-text.js';
+import { tokenizeLines } from '../utils/code-tokenizer.js';
+import { tokensToSpans } from '../utils/code-highlight.js';
+import { stripTerminalControls } from '../utils/terminal-sanitize.js';
 
 // =============================================================================
 // Types
@@ -1271,7 +1274,10 @@ export function FilePreview(options: FilePreviewOptions): VNode {
   }
 
   // Split and limit lines
-  const lines = content.split('\n').slice(0, maxLines);
+  const lines = (syntaxHighlight ? stripTerminalControls(content) : content).split('\n').slice(0, maxLines);
+  // One bounded source prefix, not a lexer reset per display line. A closing
+  // delimiter beyond maxLines cannot affect the lexical state of visible rows.
+  const highlighted = syntaxHighlight ? tokenizeLines(lines.join('\n'), ext || 'plain') : undefined;
   const lineNumberWidth = String(lines.length).length;
 
   const lineNodes = lines.map((line, index) => {
@@ -1286,7 +1292,7 @@ export function FilePreview(options: FilePreviewOptions): VNode {
             Text({ color: 'mutedForeground' }, lineNum + ' │')
           )
         ),
-        Text({}, syntaxHighlight ? highlight(line, ext || 'plain') : line)
+        highlighted ? RichText({}, ...tokensToSpans(highlighted[index]!.tokens)) : Text({}, line)
       ].filter((node): node is VNode => node !== null),
     );
   });
