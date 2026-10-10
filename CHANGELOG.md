@@ -15,6 +15,10 @@ Notable changes to Tuiuiu are documented here.
   grapheme-safe scalar TextEditor.
 - Add keyed ComponentOwners for every stateful visual component and physical
   cursor anchors for CJK IME positioning.
+- Add shared text documents and independent viewports, source-based selection,
+  read-only TextView, and bounded text-editor undo/redo.
+- Add owned TextInput drag selection and clipboard integration, stable scroll
+  anchors, and opt-in incremental Markdown rendering.
 
 ### Security
 
@@ -28,6 +32,8 @@ Notable changes to Tuiuiu are documented here.
 - Pin GitHub Actions by commit and enable provenance-capable OIDC publishing,
   retaining the existing npm token as a transition fallback.
 - Update the dependency graph to remove known audit advisories.
+- Refresh development tooling and transitive dependency constraints, and audit
+  the isolated framework benchmark lockfile alongside the root lockfile in CI.
 
 ### Fixed
 
@@ -57,6 +63,12 @@ Notable changes to Tuiuiu are documented here.
 - Preserve narrow siblings when integer `flexShrink` rounding can assign a
   one-column overflow to a wider child.
 - Export `createWizard` and the navigation factory family from the package root.
+- Keep `useShortcut()` callbacks argument-free, so passing `useApp().exit`
+  directly does not interpret command context as an application error.
+- Correct macOS shortcut-label expectations and cover native labels explicitly
+  on all test platforms.
+- Cover forced delta redraw and runtime-scoped renderer reset without weakening
+  coverage thresholds; capture complete PTY output when a child exits.
 
 ### Changed
 

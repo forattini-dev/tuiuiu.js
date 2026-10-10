@@ -1,2 +1,5 @@
 packages:
   - .
+
+overrides:
+  'react-devtools-core>shell-quote': 1.11.0

@@ -10,6 +10,7 @@ import { TerminalImage as OwnedTerminalImage, createTerminalImage } from '../../
 import {
   __collectDirtyRegionsForTesting,
   createDeltaRenderer,
+  getDeltaRenderer,
   renderFrameToCellBuffer,
   resetDeltaRenderer,
   type DeltaRenderer,
@@ -27,6 +28,7 @@ import type { VNode } from '../../src/utils/types.js';
 import { configureProgressive, resetProgressive } from '../../src/core/progressive.js';
 import { refreshCapabilities } from '../../src/core/capabilities.js';
 import { testComponent } from '../../src/testing/component.js';
+import { createRuntimeScope, destroyRuntimeScope, runInRuntimeScope } from '../../src/core/runtime-scope.js';
 
 const TerminalImage = testComponent(OwnedTerminalImage);
 
@@ -85,6 +87,46 @@ describe('Delta Renderer', () => {
   });
 
   describe('createDeltaRenderer', () => {
+    it('forces fresh output for an unchanged tree after fullRedraw', () => {
+      const renderer = createDeltaRenderer({ stdout: mockStdout as unknown as NodeJS.WriteStream });
+      const node = Text({}, 'redraw me');
+      renderer.fullRedraw();
+      expect(renderer.stats().totalRenders).toBe(0);
+      renderer.render(node);
+      const fullRenders = renderer.stats().fullRenders;
+      mockStdout.write.mockClear();
+      renderer.fullRedraw();
+      expect(mockStdout.write).toHaveBeenCalled();
+      expect(renderer.stats().fullRenders).toBe(fullRenders + 1);
+      renderer.cleanup();
+    });
+
+    it('caches convenience renderers per runtime and releases them on reset or disposal', () => {
+      const firstScope = createRuntimeScope();
+      const secondScope = createRuntimeScope();
+      const firstOutput = { ...mockStdout, isTTY: true };
+      const secondOutput = { ...firstOutput, write: vi.fn() };
+      try {
+        const first = runInRuntimeScope(firstScope, () => getDeltaRenderer({ stdout: firstOutput as unknown as NodeJS.WriteStream }));
+        const second = runInRuntimeScope(secondScope, () => getDeltaRenderer({ stdout: secondOutput as unknown as NodeJS.WriteStream }));
+        expect(first).not.toBe(second);
+        expect(runInRuntimeScope(firstScope, () => getDeltaRenderer())).toBe(first);
+        runInRuntimeScope(firstScope, () => first.render(Text({}, 'first')));
+        runInRuntimeScope(secondScope, () => second.render(Text({}, 'second')));
+        mockStdout.write.mockClear();
+        secondOutput.write.mockClear();
+        runInRuntimeScope(firstScope, () => resetDeltaRenderer());
+        expect(mockStdout.write).toHaveBeenCalledWith('\x1b[?25h');
+        expect(secondOutput.write).not.toHaveBeenCalled();
+        expect(runInRuntimeScope(firstScope, () => getDeltaRenderer({ stdout: firstOutput as unknown as NodeJS.WriteStream }))).not.toBe(first);
+        destroyRuntimeScope(secondScope);
+        expect(secondOutput.write).toHaveBeenCalledWith('\x1b[?25h');
+      } finally {
+        destroyRuntimeScope(firstScope);
+        destroyRuntimeScope(secondScope);
+      }
+    });
+
     it('keeps diff rects narrower than render rects for diagonal localized changes', () => {
       const previous: DrawCommand[] = [
         { type: 'text', order: 0, x: 0, y: 0, maxWidth: 1, text: 'A', style: {} },

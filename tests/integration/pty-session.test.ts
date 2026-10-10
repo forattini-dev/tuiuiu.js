@@ -38,10 +38,10 @@ describe.skipIf(!RUN_REAL_PTY)('real PTY lifecycle', () => {
 
     const exitCode = await new Promise<number | null>((resolveExit, reject) => {
       child.once('error', reject);
-      child.once('exit', resolveExit);
+      child.once('close', resolveExit);
     });
 
-    expect(exitCode).toBe(0);
+    expect(exitCode, `PTY output: ${JSON.stringify(output)}`).toBe(0);
     expect(sentExitKey).toBe(true);
     expect(output).toContain('\x1b[?1049h');
     expect(output).toContain('\x1b[?2004h');

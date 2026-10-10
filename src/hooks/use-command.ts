@@ -189,7 +189,9 @@ export function useShortcut(
     title: options.title ?? alternatives.join(' / '),
     description: options.description,
     category: options.category,
-    run: handler,
+    // Shortcut callbacks are no-argument actions, unlike useCommand handlers.
+    // Forwarding CommandContext breaks callbacks such as app.exit(error?).
+    run: () => handler(),
   };
   const signature = JSON.stringify({
     alternatives,

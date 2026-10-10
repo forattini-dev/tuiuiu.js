@@ -21,7 +21,7 @@ import { testComponent } from '../../src/testing/component.js';
 
 const Menu = testComponent(OwnedMenu);
 
-const platformCtrl = process.platform === 'darwin' ? '⌘' : 'Ctrl';
+const platformCtrl = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
 
 // =============================================================================
 // createMenu — state factory
@@ -326,7 +326,7 @@ describe('Menu Component', () => {
     expect(node).not.toBeNull();
     const output = renderToString(node, 40);
     expect(output).toContain('Save');
-    expect(output).toContain(`${platformCtrl}+S`);
+    expect(output).toContain(`${platformCtrl}S`);
   });
 
   it('renders submenu indicator', () => {
@@ -442,7 +442,7 @@ describe('Menu Component', () => {
     }), 40));
     const lines = output.split('\n').filter(Boolean);
 
-    expect(output).toContain(`${platformCtrl}+S`);
+    expect(output).toContain(`${platformCtrl}S`);
     expect(lines.every((line) => stringWidth(line) <= 20)).toBe(true);
   });
 

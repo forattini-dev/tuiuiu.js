@@ -71,6 +71,9 @@ Timeout execution rechecks the current command and its `enabled`/`when`
 predicates instead of invoking an obsolete callback.
 
 `useShortcut()` is the concise API for a local semantic action.
+Its callback receives no arguments and may return a promise; for example,
+`useShortcut('q', useApp().exit)` exits normally. Use `useCommand()` when the
+handler needs the semantic command context.
 `useInteraction()` receives normalized events and is intended for text editors
 and terminal-protocol tools, not ordinary shortcuts.
 

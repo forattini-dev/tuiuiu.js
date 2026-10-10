@@ -46,6 +46,13 @@ Ink and React use a lockfile local to this private benchmark package. Running a
 normal `pnpm install` at the repository root does not install competitor
 dependencies.
 
+CI audits this independent lockfile as well as the root lockfile. To repeat the
+benchmark dependency check locally:
+
+```sh
+pnpm --dir benchmarks/framework-comparison audit --audit-level moderate
+```
+
 The quick profile is intended for workflow smoke coverage. The full profile
 uses seven isolated samples per framework and scenario.
 
